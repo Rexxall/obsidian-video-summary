@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+
+# Build source maps (keep main.js for Obsidian plugin release)
+main.js.map
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Plugin runtime data (cache, user data)
+data.json
+data/
+
+# Test files
+test_*.js
+
+# Temporary/scratch files
+new order.md
+video summary all.json
+video summary merge 2.json
+tsc
+obsidian-video-summary-plugin@*

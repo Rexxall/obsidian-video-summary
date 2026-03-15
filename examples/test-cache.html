@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>缓存功能测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #404040;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #3d3d3d;
+            border-radius: 6px;
+            border-left: 3px solid #4a9eff;
+        }
+        .test-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #4a9eff;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success {
+            background: #2d4a2d;
+            color: #4ade80;
+            border: 1px solid #4ade80;
+        }
+        .error {
+            background: #4a2d2d;
+            color: #f87171;
+            border: 1px solid #f87171;
+        }
+        .info {
+            background: #2d2d4a;
+            color: #a78bfa;
+            border: 1px solid #a78bfa;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #3b82f6;
+        }
+        .cache-preview {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border: 1px solid #404040;
+        }
+        .cache-item {
+            background: #3d3d3d;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border: 1px solid #404040;
+        }
+        .cache-key {
+            font-family: monospace;
+            color: #4ade80;
+            font-size: 0.9em;
+            word-break: break-all;
+        }
+        .cache-meta {
+            margin-top: 5px;
+            font-size: 0.8em;
+            color: #a0a0a0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 缓存功能测试</h1>
+        <p>这个页面用于测试视频总结插件的缓存功能。请在Obsidian中打开此HTML文件进行测试。</p>
+        
+        <div class="test-section">
+            <div class="test-title">1. localStorage 测试</div>
+            <button onclick="testLocalStorage()">测试 localStorage</button>
+            <div id="localStorage-result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">2. 添加测试缓存</div>
+            <button onclick="addTestCache()">添加测试数据</button>
+            <div id="add-cache-result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">3. 查看缓存内容</div>
+            <button onclick="viewCache()">查看缓存</button>
+            <div id="view-cache-result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">4. 缓存统计</div>
+            <button onclick="showStats()">显示统计</button>
+            <div id="stats-result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">5. 清理缓存</div>
+            <button onclick="clearCache()">清空缓存</button>
+            <div id="clear-result"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">📋 使用说明</div>
+            <div class="cache-preview">
+                <p><strong>测试步骤：</strong></p>
+                <ol>
+                    <li>点击"测试 localStorage"确认环境正常</li>
+                    <li>点击"添加测试数据"创建测试缓存</li>
+                    <li>点击"查看缓存"查看缓存内容</li>
+                    <li>点击"显示统计"查看缓存统计</li>
+                    <li>在Obsidian中查看缓存预览功能</li>
+                </ol>
+                <p><strong>Obsidian 路径：</strong></p>
+                <p>设置 → 视频总结插件 → 高级配置 → 缓存配置 → 查看统计</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 测试localStorage访问
+        function testLocalStorage() {
+            const resultDiv = document.getElementById('localStorage-result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    const existingCache = localStorage.getItem('video-summary-cache');
+                    if (existingCache) {
+                        const entries = JSON.parse(existingCache);
+                        resultDiv.innerHTML = `
+                            <div class="test-result success">
+                                ✅ localStorage 可用<br>
+                                📦 发现现有缓存数据: ${existingCache.length} 字符<br>
+                                📊 缓存项数量: ${entries.length}
+                            </div>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="test-result success">
+                                ✅ localStorage 可用<br>
+                                📭 没有现有缓存数据
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ localStorage 不可用
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ localStorage 测试失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 添加测试缓存数据
+        function addTestCache() {
+            const resultDiv = document.getElementById('add-cache-result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                const testKey = 'https://example.com/video.mp4|summary|en';
+                const testItem = {
+                    url: 'https://example.com/video.mp4',
+                    mode: 'summary',
+                    language: 'en',
+                    result: {
+                        summary: 'This is a test summary for the cache.',
+                        video_transcript: 'This is a test transcript for the cache.'
+                    },
+                    timestamp: Date.now(),
+                    expiryTimestamp: Date.now() + (5 * 60 * 1000) // 5分钟后过期
+                };
+
+                const existingCache = localStorage.getItem('video-summary-cache');
+                const entries = existingCache ? JSON.parse(existingCache) : [];
+                entries.push([testKey, testItem]);
+                localStorage.setItem('video-summary-cache', JSON.stringify(entries));
+                
+                resultDiv.innerHTML = `
+                    <div class="test-result success">
+                        ✅ 已添加测试缓存项<br>
+                        📊 当前缓存项数量: ${entries.length}<br>
+                        🔑 测试键: ${testKey}
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 添加缓存数据失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 查看缓存内容
+        function viewCache() {
+            const resultDiv = document.getElementById('view-cache-result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                const cacheData = localStorage.getItem('video-summary-cache');
+                if (cacheData) {
+                    const entries = JSON.parse(cacheData);
+                    if (entries.length > 0) {
+                        let html = `<div class="test-result info">📊 缓存项数量: ${entries.length}</div>`;
+                        
+                        entries.forEach((entry, index) => {
+                            const [key, item] = entry;
+                            const isExpired = Date.now() > item.expiryTimestamp;
+                            const status = isExpired ? '已过期' : '有效';
+                            const statusClass = isExpired ? 'error' : 'success';
+                            
+                            html += `
+                                <div class="cache-item">
+                                    <div class="cache-key">${key}</div>
+                                    <div class="cache-meta">
+                                        状态: <span class="${statusClass}">${status}</span> | 
+                                        创建时间: ${new Date(item.timestamp).toLocaleString()} | 
+                                        过期时间: ${new Date(item.expiryTimestamp).toLocaleString()}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        resultDiv.innerHTML = html;
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="test-result info">
+                                📭 缓存为空
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-result info">
+                            📭 没有缓存数据
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 读取缓存数据失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 显示缓存统计
+        function showStats() {
+            const resultDiv = document.getElementById('stats-result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                const cacheData = localStorage.getItem('video-summary-cache');
+                if (cacheData) {
+                    const entries = JSON.parse(cacheData);
+                    const now = Date.now();
+                    let expiredCount = 0;
+                    
+                    for (const [key, item] of entries) {
+                        if (now > item.expiryTimestamp) {
+                            expiredCount++;
+                        }
+                    }
+                    
+                    const stats = {
+                        size: entries.length,
+                        maxSize: 1000,
+                        expiredCount: expiredCount
+                    };
+                    
+                    resultDiv.innerHTML = `
+                        <div class="test-result info">
+                            📊 缓存统计:<br>
+                            • 总缓存项: ${stats.size}<br>
+                            • 最大容量: ${stats.maxSize}<br>
+                            • 过期项: ${stats.expiredCount}<br>
+                            • 使用率: ${((stats.size / stats.maxSize) * 100).toFixed(1)}%
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-result info">
+                            📭 没有缓存数据，无法计算统计
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 计算缓存统计失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 清空缓存
+        function clearCache() {
+            const resultDiv = document.getElementById('clear-result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                localStorage.removeItem('video-summary-cache');
+                resultDiv.innerHTML = `
+                    <div class="test-result success">
+                        ✅ 已清空所有缓存
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 清空缓存失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 页面加载时自动测试localStorage
+        window.onload = function() {
+            testLocalStorage();
+        };
+    </script>
+</body>
+</html>
