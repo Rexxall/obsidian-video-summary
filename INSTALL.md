@@ -6,7 +6,7 @@
 
 1. **下载插件文件**
    ```bash
-   git clone https://github.com/yourusername/obsidian-video-summary-plugin.git
+   git clone https://github.com/RoronoaZoro35/obsidian-video-summary-plugin.git
    cd obsidian-video-summary-plugin
    ```
 
@@ -58,29 +58,37 @@ n8n start
 ### 2. 导入工作流
 
 1. 打开 n8n 界面：http://localhost:5678
-2. 点击"导入工作流"
-3. 上传 `obsidian_video_summary.json` 文件
-4. 激活工作流
+2. 点击右上角的 "Add workflow"（新建工作流）
+3. 点击工作流设置齿轮旁边的 `...` 菜单，选择 **"Import from File..."**
+4. 选择本项目中的 `Obsidian Video Summary.json` 文件进行导入
+5. 保存并激活该工作流 (右上角 Toggle 开启)
 
-### 3. 配置 API 密钥
+### 3. 配置 API 密钥与凭证
 
-在 n8n 中配置以下服务的 API 密钥：
-- Google Gemini (推荐)
-- OpenAI GPT (备选)
-- DeepSeek (备选)
+由于我们分享的模板移除了原有的 API 密钥，你需要自己配置相关的 AI 模型凭证：
 
-### 4. 配置 Cookie 文件（可选）
+1. **配置 AI Agent 凭证 (Google Gemini / OpenAI 等)**：
+   - 在 n8n 流程图中找到标有 `AI-Studio` 或 `Google Gemini` 的节点（如 `Google Gemini 3.1` 等）
+   - 双击节点，在 `Credential for ...` 下拉菜单中选择 "Create New Credential"（新建凭证）
+   - 输入你的 API Key 并保存，然后**确保所有相关联的 AI 节点都选中了你新建的凭证**。
+2. **配置 Gemini Vision 节点的 API Key (如果需要处理图片/视觉内容)**：
+   - 找到名为 `Gemini Vision` 的 `HTTP Request` 节点
+   - 双击节点，在 "Query Parameters" 中找到 `key` 参数
+   - 将数值 `YOUR_GEMINI_API_KEY_HERE` 替换为你自己的 Google Gemini API Key 字符串。
 
-对于某些平台，需要配置 Cookie 文件：
+### 4. 配置 Cookie 文件（可选，用于特定的视频网站解析）
+
+对于某些受限平台（如抖音、YouTube 限制年龄视频），需要配置 Cookie 文件供 `yt-dlp` 使用：
 
 ```bash
-# 创建 Cookie 目录
+# 创建 Cookie 目录 (假设你映射到了 /home/node/cookies)
 mkdir -p ~/.n8n/cookies
 
-# 为不同平台创建 Cookie 文件
+# 为不同平台创建 Cookie 文件并填入你在浏览器提取到的 Netscape 格式 cookie
 touch ~/.n8n/cookies/youtube_cookies.txt
 touch ~/.n8n/cookies/douyin_cookies.txt
 ```
+> **注意**：你需要进入流程图中的 **"Code: Detect Platform & Prepare Download"** 节点，确认脚本第一部分的 `const douyinCookiePath` 等路径与你在 Docker 容器内的路径匹配。
 
 ## 插件配置
 

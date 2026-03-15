@@ -1,0 +1,2107 @@
+{
+  "name": "Obsidian Video Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vidsum",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2608,
+        880
+      ],
+      "id": "c1abf5c3-f608-4a2c-ae0f-125e73311186",
+      "name": "Webhook",
+      "webhookId": "fb717b2b-c8a0-4e0c-bc5c-71ee0d96e964"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：中国本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n2. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n     - *格式示范*：\n       > [!example]- 📜 展开查看详尽推导与完整案例\n       > **【案例背景】**\n       > - 详细背景描述 1...\n       > \n       > **【UP主原话摘录】**\n       > - 提取的详细原话内容...\n3. **多级嵌套树 (The Nested Tree)**：\n   - 对于无法制表的发散性逻辑，使用 `- ` 拆解为树状逻辑。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️ 绝对的输出红线 (决定系统是否崩溃)\n1. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象。\n2. **严禁 Markdown Block 标记**：直接以 `{` 开头，`}` 结尾，绝不包含 ```json。\n3. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        640
+      ],
+      "id": "309246a7-e7d7-432c-a4a6-5dee43e75588",
+      "name": "AI Agent",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        1568,
+        880
+      ],
+      "id": "7014a2f8-3d26-41b9-89a8-bccf3313db48",
+      "name": "Respond to Webhook",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "98888972-8adf-4896-acbe-ab04548e0fc8",
+              "name": "video_transcript",
+              "value": "={{ $json.body.metadata.provided_transcript }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1584,
+        752
+      ],
+      "id": "febf1109-ea40-4488-84d1-27b442580b38",
+      "name": "Set User Provided Transcript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst newItems = [];\n\n// --- 配置 Cookie 文件路径 ---\n// 将这些路径修改为你实际存放 Cookie 文件的路径\nconst douyinCookiePath = \"/home/node/cookies/douyin_cookies.txt\";\nconst youtubeCookiePath = \"/home/node/cookies/youtube_cookies.txt\"; \n// 为其他平台添加更多 Cookie 路径（如果需要）\n// const tiktokCookiePath = \"/home/node/cookies/tiktok_cookies.txt\";\n\nconsole.log(\"youtubeCookiePath is: [\" + youtubeCookiePath + \"]\"); // 调试\n\nfor (let item of items) {\n  const videoLink = item.json.video_link; \n  let platform = \"unknown\";\n  let audioFilePath = \"\";\n  let videoId = \"\"; \n  let ytdlpCommand = \"\";\n  let cookiesArgument = \"\"; // 用于存放 cookie 参数\n\n  if (!videoLink) {\n\titem.json.error = \"Video link is missing.\";\n\tnewItems.push(item);\n\tcontinue;\n  }\n\n  videoId = new Date().getTime().toString() + Math.random().toString(36).substring(2, 15);\n  const baseAudioFilename = `audio_${videoId}`;\n  const audioOutputTemplate = `/home/node/files/${baseAudioFilename}.%(ext)s`;\n  const expectedAudioFormat = \"m4a\"; // 确保这与你的子流程期望一致\n  const finalAudioPath = `/home/node/files/${baseAudioFilename}.mp3`;\n\n  if (videoLink.includes(\"youtube.com\") || videoLink.includes(\"youtu.be\")) {\n\tplatform = \"youtube\";\n\tconsole.log(\"Platform detected: youtube\"); // 调试\n\tif (youtubeCookiePath && youtubeCookiePath.trim() !== \"\") { // 更严格的检查\n\t  cookiesArgument = ` --cookies \"${youtubeCookiePath}\" `;\n\t  console.log(\"Cookies argument set for YouTube: [\" + cookiesArgument + \"]\"); // 调试\n\t} else {\n\t  console.log(\"youtubeCookiePath is not set or empty, no cookies for YouTube.\"); // 调试\n\t}\n  } else if (videoLink.includes(\"bilibili.com\")) {\n\tplatform = \"bilibili\";\n\t// Bilibili 通常不需要 cookie，除非是会员视频等特殊情况\n  } else if (videoLink.includes(\"tiktok.com\")) {\n\tplatform = \"tiktok\";\n\t// if (tiktokCookiePath) {\n\t//   cookiesArgument = ` --cookies \"${tiktokCookiePath}\" `;\n\t// }\n  } else if (videoLink.includes(\"douyin.com\")) {\n\tplatform = \"douyin\";\n\tif (douyinCookiePath) {\n\t  cookiesArgument = ` --cookies \"${douyinCookiePath}\" `;\n\t} else {\n\t  // 如果没有为抖音配置cookie路径，可以记录一个警告或错误\n\t  console.warn(\"Douyin link detected, but no douyinCookiePath configured.\");\n\t  item.json.warning = \"Douyin link detected, but no cookie path configured for download.\";\n\t}\n  }\n  // TODO: Add detection for other platforms\n\nif (platform !== \"unknown\") {\n  // 强制使用 mp3 和 64k 比特率，确保 25MB 限制内能塞下更长的视频（约50分钟）\n  ytdlpCommand = `yt-dlp \\\n  --no-check-certificate \\\n  ${cookiesArgument} \\\n  -x --audio-format \"mp3\" --audio-quality 64K \\\n  --force-overwrites --no-playlist \\\n  --output \"${audioOutputTemplate}\" \\\n  \"${videoLink}\"`;\n\n\tconsole.log(\"Constructed ytdlpCommand: [\" + ytdlpCommand + \"]\"); // 调试\n\taudioFilePath = finalAudioPath;\n  } else {\n\titem.json.error = `Unsupported video platform for link: ${videoLink}`;\n  }\n  \n  item.json.platform = platform;\n  item.json.ytdlp_command = ytdlpCommand.trim(); // trim() 移除可能的多余空格\n  item.json.expected_audio_file_path = audioFilePath;\n  item.json.video_id_for_filename = videoId;\n  \n  newItems.push(item);\n}\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1584,
+        1200
+      ],
+      "id": "2238d123-bd71-4c31-9b97-ef92cc4e6dcf",
+      "name": "Code: Detect Platform & Prepare Download"
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.ytdlp_command }}"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -1392,
+        1200
+      ],
+      "id": "76a60396-779d-41a7-bfca-83ebc2da49ce",
+      "name": "CMD: Download Audio"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "0Rzuf03Xo1cBaMjr",
+          "mode": "list",
+          "cachedResultName": "Audio To Transcript Service"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audio_file_path": "={{ $('Switch: Platform').item.json.expected_audio_file_path }}"
+          },
+          "matchingColumns": [
+            "audio_file_path"
+          ],
+          "schema": [
+            {
+              "id": "audio_file_path",
+              "displayName": "audio_file_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -1184,
+        1200
+      ],
+      "id": "50758b72-d2e6-4594-b69e-d32727bc5384",
+      "name": "SubFlow: Transcript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "83af48fd-647a-4e2d-bcef-6f048f8178e5",
+              "name": "video_transcript",
+              "value": "={{ $json.video_transcript || $json.full_transcript }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -656,
+        880
+      ],
+      "id": "48c360cc-259c-4a6c-a695-326fda2b02bd",
+      "name": "Set: Final Transcript for AI"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "76e016c4-67dd-441e-8c52-4339b127fa95",
+                    "leftValue": "={{ $json.body.name }}",
+                    "rightValue": "test",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Test"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "51f6c531-6650-4d0a-8974-4676390519b1",
+                    "leftValue": "={{ $json.body.metadata.local_file }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "File"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "89e2cd35-5c07-4ae0-bdff-64aa8391f40a",
+                    "leftValue": "={{ $json.body.metadata.output }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "output"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.metadata.provided_transcript }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "id": "75584bcc-eb7b-4da0-8ebe-bec6f5367119"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Transcript"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5799427f-380c-4f68-bdcc-695cc7fb1ae3",
+                    "leftValue": "={{ $json.body.metadata.link }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Link"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -2384,
+        816
+      ],
+      "id": "c1385007-dc4c-4e68-a6c2-8deb49d17b2d",
+      "name": "Switch: Input Type"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d9313039-9566-4dd6-8971-fe28da940b33",
+              "name": "audio_file_path_for_subflow",
+              "value": "=/home/node/uploads/{{ $json.body.metadata.local_file }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2016,
+        608
+      ],
+      "id": "d635babd-68f2-4d06-94c3-27fcacb1f934",
+      "name": "Set: Local Audio File Path"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "0Rzuf03Xo1cBaMjr",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/0Rzuf03Xo1cBaMjr",
+          "cachedResultName": "Audio To Transcript Service"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audio_file_path": "={{ $json.audio_file_path_for_subflow }}"
+          },
+          "matchingColumns": [
+            "audio_file_path"
+          ],
+          "schema": [
+            {
+              "id": "audio_file_path",
+              "displayName": "audio_file_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -1584,
+        576
+      ],
+      "id": "63796534-98bb-42cf-ace3-15e38105ad04",
+      "name": "SubFlow: Transcript from Local File"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0ae1db74-07e0-485a-aa52-db536309e920",
+                    "leftValue": "={{ $('Webhook').item.json.body.metadata.ai }}",
+                    "rightValue": "Gemini 3.0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Gemini"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "735df50f-0deb-4439-90b9-579610b51bc1",
+                    "leftValue": "={{ $('Webhook').item.json.body.metadata.ai }}",
+                    "rightValue": "AI-Studio 3.0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "AI 3"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook').item.json.body.metadata.mode }}",
+                    "rightValue": "transcript-only",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "731ae38a-ef53-485e-b016-3807b16856e9"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Transcript"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "9ecbc236-912f-4374-bacc-2d951fcffbaa",
+                    "leftValue": "={{ $('Webhook').item.json.body.metadata.ai }}",
+                    "rightValue": "AI-Studio 3.1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "AI 3.1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "980c7f51-2615-4cba-82a0-f0ecbab2f4af",
+                    "leftValue": "={{ $('Webhook').item.json.body.metadata.ai }}",
+                    "rightValue": "Gemini 3.1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Gemini3.1"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -448,
+        832
+      ],
+      "id": "9f8b9c13-e262-4ce0-a402-4262fbb1815f",
+      "name": "Switch: Operation Mode"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "08a89088-d211-4344-947c-a0863f252a1f",
+                    "leftValue": "={{ $json.trigger_ai_retry }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ContinueToEditFields"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.trigger_ai_retry === true && ($json.ai_retry_count || 0) < 2 }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "b9de7c24-7514-4de5-8f52-05dc1e1d6820"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "RetryAI"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "06b3193a-5dbd-4ebe-bbc9-aa205b5477e8",
+                    "leftValue": "={{ $json.trigger_ai_retry === true && ($json.ai_retry_count || 0) > 1}}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Backup"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        688,
+        720
+      ],
+      "id": "179a577c-da2b-476b-b70f-a71b4b5143d5",
+      "name": "Switch: AI Parse Retry?",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -864,
+        848
+      ],
+      "id": "189e9b40-37c6-42bf-9df5-c5b7cbe83d0b",
+      "name": "Merge: Transcript Sources",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst MAX_AI_RETRIES = 3;\n\nfor (let item of items) {\n  // 保存原始 transcript 以备重试使用（如果当前item里没有，尝试从上游找回）\n  let original_video_transcript = item.json.video_transcript;\n  if (!original_video_transcript) {\n      try {\n          original_video_transcript = $(\"Switch: AI Parse Retry?\").item.json.video_transcript;\n      } catch(e) {}\n  }\n\n  // --- [修复核心]：找回被 AI Agent 吞掉的 ai_retry_count ---\n  let currentRetryCount = 0;\n  \n  if (item.json.ai_retry_count !== undefined) {\n      // 如果当前 JSON 里有（第一次运行通常有），直接用\n      currentRetryCount = item.json.ai_retry_count;\n  } else {\n      // 如果当前 JSON 里没有（说明刚经过 AI Agent，数据被清洗了）\n      // 我们通过 n8n 的上下文引用，去上一个 Switch 节点里找回计数\n      try {\n          const previousContext = $(\"Switch: AI Parse Retry?\").item;\n          if (previousContext && previousContext.json.ai_retry_count !== undefined) {\n              currentRetryCount = previousContext.json.ai_retry_count;\n          }\n      } catch (e) {\n          console.log(\"无法恢复 ai_retry_count，将重置为 0\");\n      }\n  }\n  \n  item.json.ai_retry_count = currentRetryCount;\n  // -------------------------------------------------------\n\n  item.json.trigger_ai_retry = false;\n  item.json.max_ai_retries_for_prompt = MAX_AI_RETRIES;\n\n  let parsedDataForNextNode = {\n    summary: \"Error: AI output processing did not complete as expected.\",\n    note: \"Error: AI output processing did not complete as expected.\"\n  };\n  \n  item.json.parsing_error_details = null;\n\n  // 检查是否有错误字段（来自上游节点）\n  if (item.json.error) {\n    // 有错误时，如果还没达到最大重试次数，则重试\n    if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n      item.json.ai_retry_count = item.json.ai_retry_count + 1;\n      item.json.trigger_ai_retry = true;\n      item.json.parsing_error_details = `上游错误，第${item.json.ai_retry_count}次重试: ${item.json.error}`;\n      // 清除错误字段，准备重试\n      delete item.json.error;\n    } else {\n      item.json.trigger_ai_retry = false;\n      item.json.parsing_error_details = `上游错误，已达最大重试次数: ${item.json.error}`;\n    }\n    item.json.output = parsedDataForNextNode;\n    \n    // 确保 transcript 存在以便 AI 再次读取\n    item.json.video_transcript = original_video_transcript;\n    continue;\n  }\n\n  // 正常的AI输出处理逻辑\n  let rawAiStringFromAgent;\n  // 这里的 item.json.output 来自 AI Agent\n  if (item.json && item.json.hasOwnProperty('output') && typeof item.json.output === 'string') {\n    rawAiStringFromAgent = item.json.output;\n  } else {\n    item.json.parsing_error_details = \"AI输出不是字符串或缺失\";\n    item.json.output = parsedDataForNextNode;\n    // 错误处理逻辑也需要防止死循环\n     if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n         item.json.ai_retry_count += 1;\n         item.json.trigger_ai_retry = true;\n     }\n    item.json.video_transcript = original_video_transcript;\n    continue;\n  }\n\n  // 清理AI输出\n  let textToParse = rawAiStringFromAgent;\n  // 移除 <think> 标签\n  textToParse = textToParse.replace(/<think>[\\s\\S]*?<\\/think>/gs, '');\n  // 移除开头可能的引用块\n  textToParse = textToParse.replace(/^>\\s*思考中\\s*\\.*([\\r\\n]+|$)/m, \"\");\n  textToParse = textToParse.trim();\n\n  // 提取 markdown json 块\n// 增强版正则：不管AI前后说了什么废话，只要里面有 ```json 块，就能精准扣出来\nconst fencedJsonMatch = textToParse.match(/```(?:json)?\\s*\n  if (fencedJsonMatch && fencedJsonMatch[1]) {\n    textToParse = fencedJsonMatch[1].trim();\n  }\n\n  // 尝试解析JSON\n  try {\n    const parsedJson = JSON.parse(textToParse);\n    if (parsedJson && typeof parsedJson.summary === 'string' && typeof parsedJson.note === 'string') {\n      parsedDataForNextNode = parsedJson;\n      item.json.parsing_error_details = null;\n      // 解析成功，重置重试计数（或者保持0）\n      item.json.ai_retry_count = 0;\n      item.json.trigger_ai_retry = false;\n    } else {\n      throw new Error(\"解析的JSON缺少必要的summary和note字段\");\n    }\n  } catch (e) {\n    if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n      item.json.ai_retry_count = item.json.ai_retry_count + 1;\n      item.json.trigger_ai_retry = true;\n      item.json.parsing_error_details = `JSON解析失败，第${item.json.ai_retry_count}次重试: ${e.message}`;\n    } else {\n      item.json.trigger_ai_retry = false;\n      item.json.parsing_error_details = `JSON解析失败，已达最大重试次数: ${e.message}`;\n    }\n  }\n\n  item.json.output = parsedDataForNextNode;\n  \n  // 如果触发重试，必须把原始文稿带上，因为AI Agent把之前的文稿也“吞”了\n  if (item.json.trigger_ai_retry) {\n    item.json.video_transcript = original_video_transcript;\n  }\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        736
+      ],
+      "id": "294dc5be-e937-4b41-9667-bfacff96272f",
+      "name": "Code: Parse AI JSON Output & Manage Retries",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "de7a978c-a829-4b28-9c34-72214ab8d792",
+              "name": "video_link",
+              "value": "={{ $json.body.metadata.link }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2016,
+        1056
+      ],
+      "id": "83a42079-19d0-4b38-80b8-0d63d95421f7",
+      "name": "Set: Video Link from Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nfor (const item of items) {\n  // yt-dlp --print 会按行输出信息\n  // 我们按顺序请求了: title, uploader, duration\n  const outputLines = (item.json.stdout || \"\").trim().split('\\n');\n\n  item.json.video_title = outputLines[0] || \"未知标题\";\n  item.json.video_author = outputLines[1] || \"未知作者\";\n  item.json.video_duration = outputLines[2] || \"未知时长\";\n\n  // 整理成最终输出格式，只保留这三个字段\n  item.json = {\n    video_title: item.json.video_title,\n    video_author: item.json.video_author,\n    video_duration: item.json.video_duration,\n    link: $('Webhook').item.json.body.metadata.link\n  };\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1392,
+        992
+      ],
+      "id": "d4805904-4e7c-48d9-9bdc-988d62b75006",
+      "name": "Code: Parse Metadata"
+    },
+    {
+      "parameters": {
+        "errorMessage": "未提供链接或文稿"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        -2032,
+        1312
+      ],
+      "id": "e0449cff-f0ef-4341-bf39-278330fedb89",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1ed35c6d-73d7-4a09-9694-50776b16fad8",
+              "name": "output",
+              "value": "={{ $('Webhook').item.json.body.metadata.output }}",
+              "type": "string"
+            },
+            {
+              "id": "fcc5cfe9-732d-4ffd-9b1b-abb03560e410",
+              "name": "video_transcript",
+              "value": "={{ $('Webhook').item.json.body.metadata.video_transcript }}",
+              "type": "string"
+            },
+            {
+              "id": "2f1e62ba-9e02-451d-8609-dcb4aea8d6df",
+              "name": "video_author",
+              "value": "={{ $('Webhook').item.json.body.metadata.video_author }}",
+              "type": "string"
+            },
+            {
+              "id": "31086169-f466-44b5-9deb-d8f8fa3ffccb",
+              "name": "video_title",
+              "value": "={{ $('Webhook').item.json.body.metadata.video_title }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2016,
+        832
+      ],
+      "id": "76bfc661-092e-45a8-9545-c25dd8e7639e",
+      "name": "Set: Given Output"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook').item.json.body.metadata.mode }}",
+                    "rightValue": "info-only",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d2d5c3d4-6ab4-4108-89f4-60092031b1e1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Info Only"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "No"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1840,
+        1056
+      ],
+      "id": "473cfe0f-48a7-479c-8235-ddf8285b25e5",
+      "name": "Switch: Info Only?"
+    },
+    {
+      "parameters": {
+        "command": "=yt-dlp --print \"%(title)s\" --print \"%(uploader)s\" --print \"%(duration_string)s\" --no-check-certificate --no-playlist \"{{ $('Webhook').item.json.body.metadata.link }}\""
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -1584,
+        992
+      ],
+      "id": "ad2567bc-12df-4323-a5ec-547c957613ec",
+      "name": "CMD: Get Video Metadata1",
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1360,
+        848
+      ],
+      "id": "bc43e6d3-02fb-4baa-addf-6e53fd38759e",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2f1e62ba-9e02-451d-8609-dcb4aea8d6df",
+              "name": "video_author",
+              "value": "={{ $json.video_author }}",
+              "type": "string"
+            },
+            {
+              "id": "31086169-f466-44b5-9deb-d8f8fa3ffccb",
+              "name": "video_title",
+              "value": "={{ $json.video_title }}",
+              "type": "string"
+            },
+            {
+              "id": "25fa940d-238c-40c6-9fd9-59a30006e13e",
+              "name": "video_duration",
+              "value": "={{ $json.video_duration }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {
+          "ignoreConversionErrors": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1184,
+        992
+      ],
+      "id": "e0e93c26-6a5d-4596-a1a6-7edda663dc20",
+      "name": "Set: Metadata",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e94a6647-feb5-4c97-87ff-45e38194a549",
+              "name": "summary",
+              "value": "={{ $json.output.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "1ed35c6d-73d7-4a09-9694-50776b16fad8",
+              "name": "note",
+              "value": "={{ $json.output.note }}",
+              "type": "string"
+            },
+            {
+              "id": "fcc5cfe9-732d-4ffd-9b1b-abb03560e410",
+              "name": "video_transcript",
+              "value": "={{ $('Set: Final Transcript for AI').item.json.video_transcript }}",
+              "type": "string"
+            },
+            {
+              "id": "62b2e116-c4ff-486d-9b5f-660c0b9ec616",
+              "name": "video_title",
+              "value": "={{ $json.output.video_title }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        784
+      ],
+      "id": "ff5dd6ed-51ec-452e-8e5a-4b146827e436",
+      "name": "Set: Summary"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "12d7a710-0cb3-4309-90e5-71127b2d1047",
+              "name": "output",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "901ceab0-54a6-4560-947f-a4e3074ddb0a",
+              "name": "video_transcript",
+              "value": "={{ $('Set: Final Transcript for AI').item.json.video_transcript }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        960
+      ],
+      "id": "e4528e72-930e-492b-b093-01dd299c61b2",
+      "name": "Set: Error Transcript",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook').item.json.body.metadata.link }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "id": "b58ff740-465c-4355-9b54-de3128af6716"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Link Info"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -1840,
+        880
+      ],
+      "id": "15ba29db-5aa6-4184-85cf-ec5f49f5a259",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "测试成功！",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -2016,
+        352
+      ],
+      "id": "363d5286-9ace-4bab-913b-027bb18bf4cf",
+      "name": "Respond to Webhook: Test"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.metadata.local_file }}",
+                    "rightValue": "\\.(jpg|jpeg|png|webp|pdf)$",
+                    "operator": {
+                      "type": "string",
+                      "operation": "regex"
+                    },
+                    "id": "1b61ea6a-267d-41d7-8fd7-cfa0262e2de3"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Image/PDF"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.metadata.local_file }}",
+                    "rightValue": "\\.(mp3|wav|m4a|mp4|webm)$",
+                    "operator": {
+                      "type": "string",
+                      "operation": "regex"
+                    },
+                    "id": "45e50ec0-b722-4695-9603-a8b67321f017"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1808,
+        512
+      ],
+      "id": "992d0d5c-0c4e-48cf-b97c-6dcb12d91853",
+      "name": "Switch: File Extension"
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.audio_file_path_for_subflow }}"
+      },
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        -1392,
+        432
+      ],
+      "id": "59868d64-c64e-4790-aaa1-d53ce1e426f1",
+      "name": "Read Binary File"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "YOUR_GEMINI_API_KEY_HERE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"contents\": [\n    {\n      \"parts\": $json.gemini_parts\n    }\n  ]\n}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1392,
+        752
+      ],
+      "id": "7355f377-285a-403d-89c7-9667826209c7",
+      "name": "Gemini Vision"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "video_transcript",
+              "value": "={{ $json.candidates[0].content.parts[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1184,
+        752
+      ],
+      "id": "5d1ee71c-c3bb-4745-b17c-6670eba7d7a7",
+      "name": "Set: Extracted Text"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst newItems = [];\n\nfor (const item of items) {\n  const rawLocalFile = item.json.body.metadata.local_file;\n  if (rawLocalFile) {\n    const files = rawLocalFile.split(',').map(f => f.trim()).filter(f => f);\n    for (const file of files) {\n       const newItem = { json: JSON.parse(JSON.stringify(item.json)) };\n       newItem.json.audio_file_path_for_subflow = `/home/node/uploads/${file}`;\n       newItems.push(newItem);\n    }\n  }\n}\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1584,
+        432
+      ],
+      "id": "42a23596-97c2-41cf-bf5f-b786783ac0ae",
+      "name": "Code: Split Files1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst parts = [\n  { \"text\": \"Please transcribe all text from this image/document verbatim. Do not add any commentary.\" }\n];\n\nfor (const item of items) {\n  if (item.binary && item.binary.data) {\n    parts.push({\n      \"inline_data\": {\n        \"mime_type\": item.binary.data.mimeType,\n        \"data\": item.binary.data.data\n      }\n    });\n  }\n}\n\nreturn [{\n   json: {\n     gemini_parts: parts\n   }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        432
+      ],
+      "id": "1553acba-b779-4e0f-9dee-477b9c5b5df2",
+      "name": "Code: Prepare Gemini Parts1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        320
+      ],
+      "id": "85334dab-3957-420c-a188-b786294cd24e",
+      "name": "AI Agent1",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        1008
+      ],
+      "id": "6474e56d-0c52-4d61-88bd-cdf454c7e70b",
+      "name": "AI Agent2",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3-pro-preview",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        0,
+        496
+      ],
+      "id": "3c91c55c-178d-4f86-9fde-ba877606a657",
+      "name": "Google Gemini 3"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1520
+      ],
+      "id": "8aa1537f-8475-4f69-be33-2b38247db5d0",
+      "name": "Google Gemini 3.1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gemini-3.1-pro-preview",
+          "mode": "list",
+          "cachedResultName": "gemini-3.1-pro-preview"
+        },
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1200
+      ],
+      "id": "11059b8f-8ad1-46ea-a9ad-687837c6b8be",
+      "name": "AI-Studio 3.1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gemini-3-pro-preview",
+          "mode": "list",
+          "cachedResultName": "gemini-3-pro-preview"
+        },
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        800
+      ],
+      "id": "a1e269fb-055b-4ee0-92ac-02780c2ad51a",
+      "name": "AI-Studio 3"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "08a89088-d211-4344-947c-a0863f252a1f",
+                    "leftValue": "={{ $json.trigger_ai_retry }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ContinueToEditFields"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.trigger_ai_retry === true && ($json.ai_retry_count || 0) < 2 }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "b9de7c24-7514-4de5-8f52-05dc1e1d6820"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "RetryAI"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5787211f-6e7f-4a05-81a1-bf52789fce96",
+                    "leftValue": "={{ $json.trigger_ai_retry === true && ($json.ai_retry_count || 0) > 1 }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Backup"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        688,
+        1040
+      ],
+      "id": "bc6f963f-8948-4a8f-bf35-282e3c3cad36",
+      "name": "Switch: AI Parse Retry ??",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst MAX_AI_RETRIES = 3;\n\nfor (let item of items) {\n  // 保存原始 transcript 以备重试使用（如果当前item里没有，尝试从上游找回）\n  let original_video_transcript = item.json.video_transcript;\n  if (!original_video_transcript) {\n      try {\n          original_video_transcript = $(\"Switch: AI Parse Retry ??\").item.json.video_transcript;\n      } catch(e) {}\n  }\n\n  // --- [修复核心]：找回被 AI Agent 吞掉的 ai_retry_count ---\n  let currentRetryCount = 0;\n  \n  if (item.json.ai_retry_count !== undefined) {\n      // 如果当前 JSON 里有（第一次运行通常有），直接用\n      currentRetryCount = item.json.ai_retry_count;\n  } else {\n      // 如果当前 JSON 里没有（说明刚经过 AI Agent，数据被清洗了）\n      // 我们通过 n8n 的上下文引用，去上一个 Switch 节点里找回计数\n      try {\n          const previousContext = $(\"Switch: AI Parse Retry ??\").item;\n          if (previousContext && previousContext.json.ai_retry_count !== undefined) {\n              currentRetryCount = previousContext.json.ai_retry_count;\n          }\n      } catch (e) {\n          console.log(\"无法恢复 ai_retry_count，将重置为 0\");\n      }\n  }\n  \n  item.json.ai_retry_count = currentRetryCount;\n  // -------------------------------------------------------\n\n  item.json.trigger_ai_retry = false;\n  item.json.max_ai_retries_for_prompt = MAX_AI_RETRIES;\n\n  let parsedDataForNextNode = {\n    summary: \"Error: AI output processing did not complete as expected.\",\n    note: \"Error: AI output processing did not complete as expected.\"\n  };\n  \n  item.json.parsing_error_details = null;\n\n  // 检查是否有错误字段（来自上游节点）\n  if (item.json.error) {\n    // 有错误时，如果还没达到最大重试次数，则重试\n    if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n      item.json.ai_retry_count = item.json.ai_retry_count + 1;\n      item.json.trigger_ai_retry = true;\n      item.json.parsing_error_details = `上游错误，第${item.json.ai_retry_count}次重试: ${item.json.error}`;\n      // 清除错误字段，准备重试\n      delete item.json.error;\n    } else {\n      item.json.trigger_ai_retry = false;\n      item.json.parsing_error_details = `上游错误，已达最大重试次数: ${item.json.error}`;\n    }\n    item.json.output = parsedDataForNextNode;\n    \n    // 确保 transcript 存在以便 AI 再次读取\n    item.json.video_transcript = original_video_transcript;\n    continue;\n  }\n\n  // 正常的AI输出处理逻辑\n  let rawAiStringFromAgent;\n  // 这里的 item.json.output 来自 AI Agent\n  if (item.json && item.json.hasOwnProperty('output') && typeof item.json.output === 'string') {\n    rawAiStringFromAgent = item.json.output;\n  } else {\n    item.json.parsing_error_details = \"AI输出不是字符串或缺失\";\n    item.json.output = parsedDataForNextNode;\n    // 错误处理逻辑也需要防止死循环\n     if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n         item.json.ai_retry_count += 1;\n         item.json.trigger_ai_retry = true;\n     }\n    item.json.video_transcript = original_video_transcript;\n    continue;\n  }\n\n  // 清理AI输出\n  let textToParse = rawAiStringFromAgent;\n  // 移除 <think> 标签\n  textToParse = textToParse.replace(/<think>[\\s\\S]*?<\\/think>/gs, '');\n  // 移除开头可能的引用块\n  textToParse = textToParse.replace(/^>\\s*思考中\\s*\\.*([\\r\\n]+|$)/m, \"\");\n  textToParse = textToParse.trim();\n\n  // 提取 markdown json 块\n  const fencedJsonMatch = textToParse.match(/^```json\\s*([\\s\\S]+?)\\s*```$/);\n  if (fencedJsonMatch && fencedJsonMatch[1]) {\n    textToParse = fencedJsonMatch[1].trim();\n  }\n\n  // 尝试解析JSON\n  try {\n    const parsedJson = JSON.parse(textToParse);\n    if (parsedJson && typeof parsedJson.summary === 'string' && typeof parsedJson.note === 'string') {\n      parsedDataForNextNode = parsedJson;\n      item.json.parsing_error_details = null;\n      // 解析成功，重置重试计数（或者保持0）\n      item.json.ai_retry_count = 0;\n      item.json.trigger_ai_retry = false;\n    } else {\n      throw new Error(\"解析的JSON缺少必要的summary和note字段\");\n    }\n  } catch (e) {\n    if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n      item.json.ai_retry_count = item.json.ai_retry_count + 1;\n      item.json.trigger_ai_retry = true;\n      item.json.parsing_error_details = `JSON解析失败，第${item.json.ai_retry_count}次重试: ${e.message}`;\n    } else {\n      item.json.trigger_ai_retry = false;\n      item.json.parsing_error_details = `JSON解析失败，已达最大重试次数: ${e.message}`;\n    }\n  }\n\n  item.json.output = parsedDataForNextNode;\n  \n  // 如果触发重试，必须把原始文稿带上，因为AI Agent把之前的文稿也“吞”了\n  if (item.json.trigger_ai_retry) {\n    item.json.video_transcript = original_video_transcript;\n  }\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        1072
+      ],
+      "id": "0ced84d6-1e3e-41c4-b585-eb3fb2c525b7",
+      "name": "Code: Parse AI JSON Output & Manage Retries1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "maxIterations": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        1344
+      ],
+      "id": "bc084a17-7368-4b0b-bf3c-c66ff61529f4",
+      "name": "AI Agent3",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "maxIterations": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        1696
+      ],
+      "id": "74eaa3e3-300f-40a3-ba46-c5f2bb515c05",
+      "name": "AI Agent5",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gemini-3.1-pro-preview",
+          "mode": "list",
+          "cachedResultName": "gemini-3.1-pro-preview"
+        },
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1888
+      ],
+      "id": "19927e0a-76de-45b7-af3e-1f5fd05eb6fb",
+      "name": "AI-Studio 3."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "maxIterations": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        0
+      ],
+      "id": "739bff23-13f5-4c4d-bfb7-d1cd19c2f6bc",
+      "name": "AI Agent6",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gemini-3-pro-preview",
+          "mode": "list",
+          "cachedResultName": "gemini-3-pro-preview"
+        },
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        176
+      ],
+      "id": "cf460d9c-4175-4b84-8fd5-2019d40ebc12",
+      "name": "AI-Studio 3.0"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch: Input Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse AI JSON Output & Manage Retries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set User Provided Transcript": {
+      "main": [
+        [
+          {
+            "node": "Merge: Transcript Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Code: Detect Platform & Prepare Download": {
+      "main": [
+        [
+          {
+            "node": "CMD: Download Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Final Transcript for AI": {
+      "main": [
+        [
+          {
+            "node": "Switch: Operation Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Input Type": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook: Test",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Local Audio File Path",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Given Output",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set User Provided Transcript",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Video Link from Input",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CMD: Get Video Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Local Audio File Path": {
+      "main": [
+        [
+          {
+            "node": "Switch: File Extension",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SubFlow: Transcript from Local File": {
+      "main": [
+        [
+          {
+            "node": "Merge: Transcript Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Switch: Operation Mode": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: AI Parse Retry?": {
+      "main": [
+        [
+          {
+            "node": "Set: Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Error Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: Transcript Sources": {
+      "main": [
+        [
+          {
+            "node": "Set: Final Transcript for AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse AI JSON Output & Manage Retries": {
+      "main": [
+        [
+          {
+            "node": "Switch: AI Parse Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Video Link from Input": {
+      "main": [
+        [
+          {
+            "node": "Switch: Info Only?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Metadata": {
+      "main": [
+        [
+          {
+            "node": "Set: Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Given Output": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse AI JSON Output & Manage Retries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Info Only?": {
+      "main": [
+        [
+          {
+            "node": "CMD: Get Video Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Detect Platform & Prepare Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CMD: Get Video Metadata1": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Error Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Error Transcript": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "CMD: Get Video Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: File Extension": {
+      "main": [
+        [
+          {
+            "node": "Code: Split Files1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SubFlow: Transcript from Local File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Binary File": {
+      "main": [
+        [
+          {
+            "node": "Code: Prepare Gemini Parts1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Vision": {
+      "main": [
+        [
+          {
+            "node": "Set: Extracted Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Extracted Text": {
+      "main": [
+        [
+          {
+            "node": "Merge: Transcript Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Split Files1": {
+      "main": [
+        [
+          {
+            "node": "Read Binary File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Prepare Gemini Parts1": {
+      "main": [
+        [
+          {
+            "node": "Gemini Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse AI JSON Output & Manage Retries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse AI JSON Output & Manage Retries1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini 3.1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI-Studio 3.1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI-Studio 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: AI Parse Retry ??": {
+      "main": [
+        [
+          {
+            "node": "Set: Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Error Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse AI JSON Output & Manage Retries1": {
+      "main": [
+        [
+          {
+            "node": "Switch: AI Parse Retry ??",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent3": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse AI JSON Output & Manage Retries1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Metadata": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "AI-Studio 3.": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent5": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse AI JSON Output & Manage Retries1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI-Studio 3.0": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent6",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent6": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse AI JSON Output & Manage Retries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CMD: Download Audio": {
+      "main": [
+        [
+          {
+            "node": "SubFlow: Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SubFlow: Transcript": {
+      "main": [
+        [
+          {
+            "node": "Merge: Transcript Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0a48759f-2530-4c65-ba0c-9524bcc002f9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f41e010efec0c1b5844289974b791ba63a20d3414932fce878b32f4a915c9436"
+  },
+  "id": "cEGGwNdhBA1ZRbnG",
+  "tags": []
+}
