@@ -102,12 +102,47 @@ export class VideoSummaryModal extends Modal {
 
 		// 本地文件输入
 		const localFileSetting = new Setting(contentEl)
-			.setName('本地文件 (PDF/图片)')
+			.setName('本地文件 (支持各种文档/音频/视频)')
 			.setDesc('输入本地文件路径（支持多个，用逗号分隔）');
 
 		this.localFileInput = localFileSetting.controlEl.createEl('input');
 		this.localFileInput.type = 'text';
-		this.localFileInput.placeholder = '/path/to/file1.pdf, /path/to/image2.png';
+		this.localFileInput.placeholder = '/path/to/file1.pdf, /path/to/video.mp4';
+		this.localFileInput.style.width = '200px';
+
+		localFileSetting.addButton(btn => {
+			btn.setButtonText('选择');
+			btn.buttonEl.style.height = '28px';
+			btn.buttonEl.style.lineHeight = '1';
+			btn.buttonEl.style.padding = '0 12px';
+			btn.buttonEl.style.fontSize = '12px';
+			btn.buttonEl.style.marginLeft = '6px';
+			btn.buttonEl.style.minWidth = '0';
+			btn.buttonEl.style.flex = 'none';
+			btn.onClick(() => {
+				const fileInput = document.createElement('input');
+				fileInput.type = 'file';
+				fileInput.multiple = true;
+				// 你可以添加 accept="audio/*,video/*,application/pdf" 等，默认全部系统文件
+				fileInput.addEventListener('change', (e) => {
+					const files = (e.target as HTMLInputElement).files;
+					if (files && files.length > 0) {
+						// 只获取完整文件名，不包含目录路径
+						const names = Array.from(files).map(f => f.name).filter(n => !!n);
+						if (names.length > 0) {
+							if (this.localFileInput) {
+								const currentVal = this.localFileInput.value.trim();
+								const combinedVal = currentVal 
+									? currentVal + (currentVal.endsWith(',') ? ' ' : ', ') + names.join(', ')
+									: names.join(', ');
+								this.localFileInput.value = combinedVal;
+							}
+						}
+					}
+				});
+				fileInput.click();
+			});
+		});
 
 		// 合并处理选项
 		this.mergeSetting = new Setting(contentEl)

@@ -389,11 +389,44 @@ export class VideoSummaryView extends ItemView {
 
 		// --- 本地文件区域 ---
 		const localFileRow = advancedContent.createEl('div', { cls: 'advanced-row' });
-		localFileRow.createEl('label', { text: '本地文件路径 (可选)', cls: 'advanced-label' });
-		const localFileInput = localFileRow.createEl('input', {
+		localFileRow.createEl('label', { text: '本地文件 (支持多选)', cls: 'advanced-label' });
+
+		const localFileContainer = localFileRow.createEl('div', { cls: 'local-file-container', attr: { style: 'display: flex; gap: 8px; align-items: center;' } });
+
+		const localFileInput = localFileContainer.createEl('input', {
 			type: 'text',
 			cls: 'advanced-input',
-			attr: { placeholder: '例如: /Videos/Meeting_2024.mp4' }
+			attr: { placeholder: '例如: /Videos/Meeting_2024.mp4', style: 'flex: 1; margin: 0;' }
+		});
+
+		const selectFileBtn = localFileContainer.createEl('button', {
+			text: '选择',
+			cls: 'btn-small',
+			attr: {
+				type: 'button',
+				style: 'margin: 0 0 0 6px; height: 28px; line-height: 1; padding: 0 12px; width: auto; min-width: 0; flex: none !important; font-size: 13px; white-space: nowrap;'
+			}
+		});
+
+		selectFileBtn.addEventListener('click', (e) => {
+			e.preventDefault();
+			const fileInput = document.createElement('input');
+			fileInput.type = 'file';
+			fileInput.multiple = true;
+			fileInput.addEventListener('change', (e) => {
+				const files = (e.target as HTMLInputElement).files;
+				if (files && files.length > 0) {
+					const names = Array.from(files).map(f => f.name).filter(n => !!n);
+					if (names.length > 0) {
+						const currentVal = localFileInput.value.trim();
+						const combinedVal = currentVal
+							? currentVal + (currentVal.endsWith(',') ? ' ' : ', ') + names.join(', ')
+							: names.join(', ');
+						localFileInput.value = combinedVal;
+					}
+				}
+			});
+			fileInput.click();
 		});
 
 		// --- 批量分P 复选框 (修复了之前的布局问题) ---
@@ -609,51 +642,54 @@ export class VideoSummaryView extends ItemView {
 				}
 
 				// 单链接/单任务添加到列表
-				let title = `Video ${this.videoParts.length + 1}`;
-				let localFiles: string[] = [];
-				let merge = false;
+				if (localFile && localFile.includes(',')) {
+					const files = localFile.split(',').map(f => f.trim()).filter(f => f.length > 0);
+					files.forEach((file, i) => {
+						const fileName = file.split('/').pop() || file.split('\\').pop() || 'local_file';
+						const title = '本地文件_' + fileName;
+						this.addPartToQueue({
+							title: title,
+							url: singleUrl, // 假如提供了 URL，每个任务都带上（或者按需调整）
+							index: this.videoParts.length + 1,
+							providedTranscript: providedTranscript,
+							localFileName: file,
+							sourceType: 'single'
+						});
+					});
+					new Notice(`已添加 ${files.length} 个文件到列表`);
+				} else {
+					let title = `Video ${this.videoParts.length + 1}`;
+					let localFiles: string[] = [];
+					let merge = false;
 
-				if (isSingleLink && singleUrl) {
-					const videoId = this.extractVideoId(singleUrl);
-					if (videoId) {
-						title = this.generateVideoTitle(singleUrl, videoId);
-					}
-				} else if (providedTranscript) {
-					const now = new Date();
-					const timeStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-					const snippet = providedTranscript.trim().split('\n')[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, '_');
-					title = snippet ? `文稿_${timeStr}_${snippet}` : `文稿处理_${timeStr}`;
-				} else if (localFile) {
-					// 检测是否多个文件
-					if (localFile.includes(',')) {
-						localFiles = localFile.split(',').map(f => f.trim()).filter(f => f.length > 0);
-						if (localFiles.length > 0) {
-							if (localFiles.length === 1) {
-								const fileName = localFiles[0].split('/').pop() || localFiles[0].split('\\').pop() || 'local_file';
-								title = '本地文件_' + fileName;
-							} else {
-								title = `合并处理_${localFiles.length}个文件`;
-								merge = true;
-							}
+					if (isSingleLink && singleUrl) {
+						const videoId = this.extractVideoId(singleUrl);
+						if (videoId) {
+							title = this.generateVideoTitle(singleUrl, videoId);
 						}
-					} else {
+					} else if (providedTranscript) {
+						const now = new Date();
+						const timeStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+						const snippet = providedTranscript.trim().split('\n')[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, '_');
+						title = snippet ? `文稿_${timeStr}_${snippet}` : `文稿处理_${timeStr}`;
+					} else if (localFile) {
 						const fileName = localFile.split('/').pop() || localFile.split('\\').pop() || 'local_file';
 						title = '本地文件_' + fileName;
 					}
-				}
 
-				this.addPartToQueue({
-					title: title,
-					url: singleUrl,
-					index: this.videoParts.length + 1,
-					providedTranscript: providedTranscript,
-					localFileName: localFile, // 保持原始字符串供参考
-					localFiles: localFiles.length > 0 ? localFiles : undefined,
-					merge: merge,
-					sourceType: 'single'
-				});
-				new Notice('已添加到列表');
+					this.addPartToQueue({
+						title: title,
+						url: singleUrl,
+						index: this.videoParts.length + 1,
+						providedTranscript: providedTranscript,
+						localFileName: localFile,
+						sourceType: 'single'
+					});
+					new Notice('已添加到列表');
+				}
 				linkInput.value = ''; // 清空输入
+				localFileInput.value = ''; // 清空本地文件输入
+				transcriptArea.value = ''; // 清空文稿输入
 			} else {
 				const multiUrls = multiLinksTextarea.value.trim();
 				if (!multiUrls && !localFile && !providedTranscript) {

@@ -5581,11 +5581,38 @@ var VideoSummaryView = class extends import_obsidian4.ItemView {
       attr: { rows: 4, placeholder: "\u5982\u679C\u89C6\u9891\u6CA1\u6709\u5B57\u5E55\uFF0C\u53EF\u5728\u6B64\u5904\u7C98\u8D34\u6587\u7A3F\u5185\u5BB9..." }
     });
     const localFileRow = advancedContent.createEl("div", { cls: "advanced-row" });
-    localFileRow.createEl("label", { text: "\u672C\u5730\u6587\u4EF6\u8DEF\u5F84 (\u53EF\u9009)", cls: "advanced-label" });
-    const localFileInput = localFileRow.createEl("input", {
+    localFileRow.createEl("label", { text: "\u672C\u5730\u6587\u4EF6 (\u652F\u6301\u591A\u9009)", cls: "advanced-label" });
+    const localFileContainer = localFileRow.createEl("div", { cls: "local-file-container", attr: { style: "display: flex; gap: 8px; align-items: center;" } });
+    const localFileInput = localFileContainer.createEl("input", {
       type: "text",
       cls: "advanced-input",
-      attr: { placeholder: "\u4F8B\u5982: /Videos/Meeting_2024.mp4" }
+      attr: { placeholder: "\u4F8B\u5982: /Videos/Meeting_2024.mp4", style: "flex: 1; margin: 0;" }
+    });
+    const selectFileBtn = localFileContainer.createEl("button", {
+      text: "\u9009\u62E9",
+      cls: "btn-small",
+      attr: {
+        type: "button",
+        style: "margin: 0 0 0 6px; height: 28px; line-height: 1; padding: 0 12px; width: auto; min-width: 0; flex: none !important; font-size: 13px; white-space: nowrap;"
+      }
+    });
+    selectFileBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.multiple = true;
+      fileInput.addEventListener("change", (e2) => {
+        const files = e2.target.files;
+        if (files && files.length > 0) {
+          const names = Array.from(files).map((f) => f.name).filter((n) => !!n);
+          if (names.length > 0) {
+            const currentVal = localFileInput.value.trim();
+            const combinedVal = currentVal ? currentVal + (currentVal.endsWith(",") ? " " : ", ") + names.join(", ") : names.join(", ");
+            localFileInput.value = combinedVal;
+          }
+        }
+      });
+      fileInput.click();
     });
     const checkboxRow = advancedContent.createEl("div", { cls: "advanced-row" });
     const checkboxContainer = checkboxRow.createEl("div", { cls: "checkbox-row" });
@@ -5771,48 +5798,52 @@ var VideoSummaryView = class extends import_obsidian4.ItemView {
           }
           return;
         }
-        let title = `Video ${this.videoParts.length + 1}`;
-        let localFiles = [];
-        let merge2 = false;
-        if (isSingleLink && singleUrl) {
-          const videoId = this.extractVideoId(singleUrl);
-          if (videoId) {
-            title = this.generateVideoTitle(singleUrl, videoId);
-          }
-        } else if (providedTranscript) {
-          const now = new Date();
-          const timeStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-          const snippet2 = providedTranscript.trim().split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
-          title = snippet2 ? `\u6587\u7A3F_${timeStr}_${snippet2}` : `\u6587\u7A3F\u5904\u7406_${timeStr}`;
-        } else if (localFile) {
-          if (localFile.includes(",")) {
-            localFiles = localFile.split(",").map((f) => f.trim()).filter((f) => f.length > 0);
-            if (localFiles.length > 0) {
-              if (localFiles.length === 1) {
-                const fileName = localFiles[0].split("/").pop() || localFiles[0].split("\\").pop() || "local_file";
-                title = "\u672C\u5730\u6587\u4EF6_" + fileName;
-              } else {
-                title = `\u5408\u5E76\u5904\u7406_${localFiles.length}\u4E2A\u6587\u4EF6`;
-                merge2 = true;
-              }
+        if (localFile && localFile.includes(",")) {
+          const files = localFile.split(",").map((f) => f.trim()).filter((f) => f.length > 0);
+          files.forEach((file, i) => {
+            const fileName = file.split("/").pop() || file.split("\\").pop() || "local_file";
+            const title = "\u672C\u5730\u6587\u4EF6_" + fileName;
+            this.addPartToQueue({
+              title,
+              url: singleUrl,
+              index: this.videoParts.length + 1,
+              providedTranscript,
+              localFileName: file,
+              sourceType: "single"
+            });
+          });
+          new import_obsidian4.Notice(`\u5DF2\u6DFB\u52A0 ${files.length} \u4E2A\u6587\u4EF6\u5230\u5217\u8868`);
+        } else {
+          let title = `Video ${this.videoParts.length + 1}`;
+          let localFiles = [];
+          let merge2 = false;
+          if (isSingleLink && singleUrl) {
+            const videoId = this.extractVideoId(singleUrl);
+            if (videoId) {
+              title = this.generateVideoTitle(singleUrl, videoId);
             }
-          } else {
+          } else if (providedTranscript) {
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+            const snippet2 = providedTranscript.trim().split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
+            title = snippet2 ? `\u6587\u7A3F_${timeStr}_${snippet2}` : `\u6587\u7A3F\u5904\u7406_${timeStr}`;
+          } else if (localFile) {
             const fileName = localFile.split("/").pop() || localFile.split("\\").pop() || "local_file";
             title = "\u672C\u5730\u6587\u4EF6_" + fileName;
           }
+          this.addPartToQueue({
+            title,
+            url: singleUrl,
+            index: this.videoParts.length + 1,
+            providedTranscript,
+            localFileName: localFile,
+            sourceType: "single"
+          });
+          new import_obsidian4.Notice("\u5DF2\u6DFB\u52A0\u5230\u5217\u8868");
         }
-        this.addPartToQueue({
-          title,
-          url: singleUrl,
-          index: this.videoParts.length + 1,
-          providedTranscript,
-          localFileName: localFile,
-          localFiles: localFiles.length > 0 ? localFiles : void 0,
-          merge: merge2,
-          sourceType: "single"
-        });
-        new import_obsidian4.Notice("\u5DF2\u6DFB\u52A0\u5230\u5217\u8868");
         linkInput.value = "";
+        localFileInput.value = "";
+        transcriptArea.value = "";
       } else {
         const multiUrls = multiLinksTextarea.value.trim();
         if (!multiUrls && !localFile && !providedTranscript) {
