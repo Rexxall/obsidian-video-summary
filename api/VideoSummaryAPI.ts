@@ -1,5 +1,6 @@
+// agent: codex (2026-05-21)
 import { Notice } from 'obsidian';
-import { ProcessingMode, SupportedLanguage, VideoInput, ProcessingResult, WebhookHistoryEntry } from '../types';
+import { ProcessingBackend, ProcessingMode, SupportedLanguage, VideoInput, ProcessingResult, WebhookHistoryEntry } from '../types';
 import { CacheManager } from '../utils/CacheManager';
 import { Vault } from 'obsidian';
 
@@ -8,6 +9,7 @@ export class VideoSummaryAPI {
 	private timeout: number;
 	private debugMode: boolean = false;
 	private aiModel: string = 'Gemini';
+	private backend: ProcessingBackend = 'n8n';
 	private cacheManager: CacheManager;
 	private payloadKeys: any;
 
@@ -27,9 +29,10 @@ export class VideoSummaryAPI {
 	private webhookHistoryLimit = 50;
 	private historyListener?: (history: WebhookHistoryEntry[]) => void;
 	private controllers: Map<string, AbortController> = new Map();
-	constructor(webhookUrl: string, vault: Vault, pluginDataPath?: string, payloadKeys?: any) {
+	constructor(webhookUrl: string, vault: Vault, pluginDataPath?: string, payloadKeys?: any, backend?: ProcessingBackend) {
 		this.webhookUrl = webhookUrl;
 		this.timeout = 30000; // 30秒超时
+		this.backend = backend || 'n8n';
 		this.cacheManager = new CacheManager(vault, pluginDataPath);
 		this.payloadKeys = payloadKeys || {
 			mode: 'mode',
@@ -44,6 +47,15 @@ export class VideoSummaryAPI {
 
 	setPayloadKeys(keys: any) {
 		this.payloadKeys = keys;
+	}
+
+	setEndpoint(url: string, backend: ProcessingBackend = this.backend) {
+		this.webhookUrl = url;
+		this.backend = backend;
+	}
+
+	setBackend(backend: ProcessingBackend) {
+		this.backend = backend;
 	}
 
 	/**
@@ -330,6 +342,10 @@ export class VideoSummaryAPI {
 		mode: ProcessingMode,
 		language: SupportedLanguage
 	) {
+		if (this.backend === 'codex-worker') {
+			return this.buildCodexWorkerPayload(noteName, input, mode, language);
+		}
+
 		const keys = this.payloadKeys;
 		const metadata: any = {};
 		metadata[keys.mode] = mode;
@@ -363,6 +379,48 @@ export class VideoSummaryAPI {
 		};
 	}
 
+	private buildCodexWorkerPayload(
+		noteName: string,
+		input: VideoInput,
+		mode: ProcessingMode,
+		language: SupportedLanguage
+	) {
+		const metadata: any = {
+			mode,
+			language,
+			ai: this.aiModel,
+			title: noteName,
+			captured_at: new Date().toISOString(),
+		};
+
+		if (mode === 'info-only') {
+			metadata.info_only = true;
+		}
+		if (input.url) {
+			metadata.link = input.url;
+		}
+		if (input.transcript) {
+			metadata.provided_transcript = input.transcript;
+		}
+		if (input.localFile) {
+			metadata.local_file = input.localFile;
+		}
+		if (Array.isArray(input.localFiles) && input.localFiles.length > 0) {
+			metadata.local_files = input.localFiles;
+		}
+		if (input.merge !== undefined) {
+			metadata.merge = input.merge;
+		}
+
+		return {
+			source: 'obsidian-plugin',
+			action: 'process',
+			name: noteName,
+			metadata,
+			content: '',
+		};
+	}
+
 	private recordWebhookResult(result: ProcessingResult, input: VideoInput, mode: ProcessingMode, language: SupportedLanguage) {
 		const entry = {
 			result,
@@ -384,7 +442,7 @@ export class VideoSummaryAPI {
 	private parseSummaryResponse(data: any): ProcessingResult {
 		// n8n 可能返回数组，需要合并所有对象的数据
 		const preserveKeys = new Set(['summary', 'note', 'video_transcript']);
-		const payload: any = Array.isArray(data) ? {} : data;
+		let payload: any = Array.isArray(data) ? {} : data;
 
 		if (Array.isArray(data)) {
 			for (const item of data) {
@@ -401,6 +459,8 @@ export class VideoSummaryAPI {
 				}
 			}
 		}
+
+		payload = this.unwrapResponsePayload(payload);
 
 		// 检查是否是错误响应
 		if (payload?.error) {
@@ -478,6 +538,25 @@ export class VideoSummaryAPI {
 		}
 
 		return result;
+	}
+
+	private unwrapResponsePayload(payload: any): any {
+		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+			return payload;
+		}
+
+		const candidateKeys = ['data', 'result', 'output', 'response'];
+		for (const key of candidateKeys) {
+			const candidate = payload[key];
+			if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+				const hasResultField = ['summary', 'note', 'video_transcript', 'video_title', 'video_author', 'video_duration', 'metadata', 'info'].some((field) => candidate[field] !== undefined);
+				if (hasResultField) {
+					return candidate;
+				}
+			}
+		}
+
+		return payload;
 	}
 
 	// 批量处理API - 支持实时回调
@@ -563,7 +642,7 @@ export class VideoSummaryAPI {
 			const response = await fetch(this.webhookUrl, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: 'test', metadata: { mode: 'transcript-only' }, content: '' }),
+				body: JSON.stringify(this.buildPayload('test', {}, 'transcript-only', 'zh')),
 			});
 
 			const durationMs = Date.now() - started;
@@ -598,4 +677,4 @@ export class VideoSummaryAPI {
 			};
 		}
 	}
-} 
+}

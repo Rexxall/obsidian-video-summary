@@ -1,3 +1,4 @@
+// agent: codex (2026-05-21)
 import { VideoSummarySettings } from './types';
 
 export const DEFAULT_AI_MODELS: string[] = [
@@ -7,7 +8,9 @@ export const DEFAULT_AI_MODELS: string[] = [
 ];
 
 export const DEFAULT_SETTINGS: VideoSummarySettings = {
+	activeBackend: 'n8n',
 	n8nWebhookUrl: 'http://localhost:5678/webhook/obsidian-video-summary',
+	codexWorkerUrl: 'http://127.0.0.1:8787/video-summary/process-sync',
 	webhookProfiles: [
 		{
 			id: 'default-webhook',
@@ -95,4 +98,4 @@ export const ERROR_MESSAGES = {
 	TIMEOUT: '请求超时',
 	INVALID_RESPONSE: '无效的API响应',
 	NETWORK_ERROR: '网络连接错误'
-}; 
+};

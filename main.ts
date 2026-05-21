@@ -1,7 +1,8 @@
+// agent: codex (2026-05-21)
 import { App, Editor, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, DropdownComponent } from 'obsidian';
 import { VideoSummaryModal } from './modals';
 import { BatchProcessingModal } from './BatchProcessingModal';
-import { VideoSummarySettings, ProcessingMode, WebhookProfile } from './types';
+import { VideoSummarySettings, ProcessingMode, WebhookProfile, ProcessingBackend } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { VideoSummaryAPI } from './api/VideoSummaryAPI';
 import { VideoSummaryView, VIDEO_SUMMARY_VIEW_TYPE } from './views/VideoSummaryView';
@@ -697,6 +698,16 @@ export default class VideoSummaryPlugin extends Plugin {
 
 		let shouldSave = false;
 
+		if (!this.settings.activeBackend) {
+			this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
+			shouldSave = true;
+		}
+
+		if (!this.settings.codexWorkerUrl) {
+			this.settings.codexWorkerUrl = DEFAULT_SETTINGS.codexWorkerUrl;
+			shouldSave = true;
+		}
+
 		if (!Array.isArray(this.settings.webhookProfiles) || this.settings.webhookProfiles.length === 0) {
 			this.settings.webhookProfiles = [
 				{
@@ -728,9 +739,17 @@ export default class VideoSummaryPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
+	private getActiveProcessingEndpoint(): string {
+		if (this.settings?.activeBackend === 'codex-worker') {
+			return this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
+		}
+		return this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
+	}
+
 	private initializeApiInstance(url?: string) {
-		const targetUrl = url ?? this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
-		this.api = new VideoSummaryAPI(targetUrl, this.app.vault, '.obsidian/plugins/video-summary-plugin/data', this.settings.payloadKeys);
+		const targetUrl = url ?? this.getActiveProcessingEndpoint();
+		const backend = this.settings?.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
+		this.api = new VideoSummaryAPI(targetUrl, this.app.vault, '.obsidian/plugins/video-summary-plugin/data', this.settings.payloadKeys, backend);
 		this.api.setWebhookHistory(this.settings.webhookHistory || []);
 		this.api.setAiModel(this.settings.aiModel);
 		this.api.onWebhookHistoryChange(async (history) => {
@@ -759,6 +778,7 @@ export default class VideoSummaryPlugin extends Plugin {
 		}
 
 		this.settings.activeWebhookId = profileId;
+		this.settings.activeBackend = 'n8n';
 		this.settings.n8nWebhookUrl = profile.url;
 		this.initializeApiInstance(profile.url);
 		await this.saveSettings();
@@ -772,6 +792,12 @@ export default class VideoSummaryPlugin extends Plugin {
 
 	getActiveWebhookProfile(): WebhookProfile | undefined {
 		return this.settings.webhookProfiles.find(p => p.id === this.settings.activeWebhookId);
+	}
+
+	async setActiveBackend(backend: ProcessingBackend) {
+		this.settings.activeBackend = backend;
+		this.initializeApiInstance();
+		await this.saveSettings();
 	}
 
 
@@ -1054,11 +1080,38 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
 	private createApiSection(containerEl: HTMLElement) {
 		const section = containerEl.createEl('div', { cls: 'setting-section' });
-		section.createEl('h3', { text: '🔗 API 配置' });
+		section.createEl('h3', { text: '🔗 主入口与 API 配置' });
+
+		new Setting(section)
+			.setName('主处理后端')
+			.setDesc('Obsidian 插件是主入口：选择当前一键总结、批量处理、重新处理时要调用 n8n 还是本地 Codex worker。')
+			.addDropdown(dropdown => dropdown
+				.addOption('n8n', 'n8n / 兼容 Webhook')
+				.addOption('codex-worker', 'Codex Video Worker')
+				.setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend)
+				.onChange(async (value) => {
+					await this.plugin.setActiveBackend(value as ProcessingBackend);
+					new Notice(value === 'codex-worker' ? '已切换到 Codex Video Worker' : '已切换到 n8n / 兼容 Webhook');
+					this.display();
+				}));
+
+		new Setting(section)
+			.setName('Codex Worker URL')
+			.setDesc('本地 Codex 视频处理服务的同步入口。建议用于 Obsidian 主入口，返回格式需兼容 summary/note/video_transcript 等字段。')
+			.addText(text => text
+				.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl)
+				.setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl)
+				.onChange(async (value) => {
+					this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
+					if (this.plugin.settings.activeBackend === 'codex-worker') {
+						this.plugin.reinitializeApi();
+					}
+					await this.plugin.saveSettings();
+				}));
 
 		const webhookSetting = new Setting(section)
-			.setName('默认 n8n Webhook')
-			.setDesc('为不同工作流保存多个 Webhook，并选择当前使用的默认项。');
+			.setName('默认 n8n / 兼容 Webhook')
+			.setDesc('为不同工作流保存多个 Webhook。选择这里的默认项会把主处理后端切回 n8n / 兼容 Webhook。');
 
 		let webhookDropdown: DropdownComponent | null = null;
 
@@ -1954,6 +2007,3 @@ class VideoSummarySettingTab extends PluginSettingTab {
 		return totalSize;
 	}
 }
-
-
-

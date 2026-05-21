@@ -43,7 +43,9 @@ var DEFAULT_AI_MODELS = [
   "Gemini Flash"
 ];
 var DEFAULT_SETTINGS = {
+  activeBackend: "n8n",
   n8nWebhookUrl: "http://localhost:5678/webhook/obsidian-video-summary",
+  codexWorkerUrl: "http://127.0.0.1:8787/video-summary/process-sync",
   webhookProfiles: [
     {
       id: "default-webhook",
@@ -4903,15 +4905,17 @@ var CacheManager = class {
 
 // api/VideoSummaryAPI.ts
 var VideoSummaryAPI = class {
-  constructor(webhookUrl, vault, pluginDataPath, payloadKeys) {
+  constructor(webhookUrl, vault, pluginDataPath, payloadKeys, backend) {
     this.debugMode = false;
     this.aiModel = "Gemini";
+    this.backend = "n8n";
     this.lastWebhookResult = null;
     this.webhookHistory = [];
     this.webhookHistoryLimit = 50;
     this.controllers = new Map();
     this.webhookUrl = webhookUrl;
     this.timeout = 3e4;
+    this.backend = backend || "n8n";
     this.cacheManager = new CacheManager(vault, pluginDataPath);
     this.payloadKeys = payloadKeys || {
       mode: "mode",
@@ -4928,6 +4932,13 @@ var VideoSummaryAPI = class {
   }
   setPayloadKeys(keys) {
     this.payloadKeys = keys;
+  }
+  setEndpoint(url, backend = this.backend) {
+    this.webhookUrl = url;
+    this.backend = backend;
+  }
+  setBackend(backend) {
+    this.backend = backend;
   }
   setDebug(debug) {
     this.debugMode = debug;
@@ -5099,6 +5110,9 @@ var VideoSummaryAPI = class {
     }
   }
   buildPayload(noteName, input, mode, language) {
+    if (this.backend === "codex-worker") {
+      return this.buildCodexWorkerPayload(noteName, input, mode, language);
+    }
     const keys = this.payloadKeys;
     const metadata = {};
     metadata[keys.mode] = mode;
@@ -5117,6 +5131,40 @@ var VideoSummaryAPI = class {
       metadata[keys.local_file] = input.localFile;
     }
     return {
+      name: noteName,
+      metadata,
+      content: ""
+    };
+  }
+  buildCodexWorkerPayload(noteName, input, mode, language) {
+    const metadata = {
+      mode,
+      language,
+      ai: this.aiModel,
+      title: noteName,
+      captured_at: new Date().toISOString()
+    };
+    if (mode === "info-only") {
+      metadata.info_only = true;
+    }
+    if (input.url) {
+      metadata.link = input.url;
+    }
+    if (input.transcript) {
+      metadata.provided_transcript = input.transcript;
+    }
+    if (input.localFile) {
+      metadata.local_file = input.localFile;
+    }
+    if (Array.isArray(input.localFiles) && input.localFiles.length > 0) {
+      metadata.local_files = input.localFiles;
+    }
+    if (input.merge !== void 0) {
+      metadata.merge = input.merge;
+    }
+    return {
+      source: "obsidian-plugin",
+      action: "process",
       name: noteName,
       metadata,
       content: ""
@@ -5141,7 +5189,7 @@ var VideoSummaryAPI = class {
   }
   parseSummaryResponse(data) {
     const preserveKeys = new Set(["summary", "note", "video_transcript"]);
-    const payload = Array.isArray(data) ? {} : data;
+    let payload = Array.isArray(data) ? {} : data;
     if (Array.isArray(data)) {
       for (const item of data) {
         if (!item || typeof item !== "object")
@@ -5159,6 +5207,7 @@ var VideoSummaryAPI = class {
         }
       }
     }
+    payload = this.unwrapResponsePayload(payload);
     if (payload?.error) {
       throw new Error(payload.error);
     }
@@ -5221,6 +5270,22 @@ var VideoSummaryAPI = class {
     }
     return result;
   }
+  unwrapResponsePayload(payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return payload;
+    }
+    const candidateKeys = ["data", "result", "output", "response"];
+    for (const key of candidateKeys) {
+      const candidate = payload[key];
+      if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+        const hasResultField = ["summary", "note", "video_transcript", "video_title", "video_author", "video_duration", "metadata", "info"].some((field) => candidate[field] !== void 0);
+        if (hasResultField) {
+          return candidate;
+        }
+      }
+    }
+    return payload;
+  }
   async batchProcess(requests, concurrency = 3, onProgress, useCache = true) {
     const results = [];
     const chunks = this.chunkArray(requests, concurrency);
@@ -5268,7 +5333,7 @@ var VideoSummaryAPI = class {
       const response = await fetch(this.webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "test", metadata: { mode: "transcript-only" }, content: "" })
+        body: JSON.stringify(this.buildPayload("test", {}, "transcript-only", "zh"))
       });
       const durationMs = Date.now() - started;
       const text = await response.text();
@@ -8287,6 +8352,14 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
     const stored = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
     let shouldSave = false;
+    if (!this.settings.activeBackend) {
+      this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
+      shouldSave = true;
+    }
+    if (!this.settings.codexWorkerUrl) {
+      this.settings.codexWorkerUrl = DEFAULT_SETTINGS.codexWorkerUrl;
+      shouldSave = true;
+    }
     if (!Array.isArray(this.settings.webhookProfiles) || this.settings.webhookProfiles.length === 0) {
       this.settings.webhookProfiles = [
         {
@@ -8313,9 +8386,16 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
   async saveSettings() {
     await this.saveData(this.settings);
   }
+  getActiveProcessingEndpoint() {
+    if (this.settings?.activeBackend === "codex-worker") {
+      return this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
+    }
+    return this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
+  }
   initializeApiInstance(url) {
-    const targetUrl = url ?? this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
-    this.api = new VideoSummaryAPI(targetUrl, this.app.vault, ".obsidian/plugins/video-summary-plugin/data", this.settings.payloadKeys);
+    const targetUrl = url ?? this.getActiveProcessingEndpoint();
+    const backend = this.settings?.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
+    this.api = new VideoSummaryAPI(targetUrl, this.app.vault, ".obsidian/plugins/video-summary-plugin/data", this.settings.payloadKeys, backend);
     this.api.setWebhookHistory(this.settings.webhookHistory || []);
     this.api.setAiModel(this.settings.aiModel);
     this.api.onWebhookHistoryChange(async (history) => {
@@ -8340,6 +8420,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       return null;
     }
     this.settings.activeWebhookId = profileId;
+    this.settings.activeBackend = "n8n";
     this.settings.n8nWebhookUrl = profile.url;
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
@@ -8350,6 +8431,11 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
   }
   getActiveWebhookProfile() {
     return this.settings.webhookProfiles.find((p) => p.id === this.settings.activeWebhookId);
+  }
+  async setActiveBackend(backend) {
+    this.settings.activeBackend = backend;
+    this.initializeApiInstance();
+    await this.saveSettings();
   }
   extractVideoUrl(content) {
     return VideoUtils.extractVideoUrl(content);
@@ -8538,8 +8624,20 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
   }
   createApiSection(containerEl) {
     const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u{1F517} API \u914D\u7F6E" });
-    const webhookSetting = new import_obsidian6.Setting(section).setName("\u9ED8\u8BA4 n8n Webhook").setDesc("\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A Webhook\uFF0C\u5E76\u9009\u62E9\u5F53\u524D\u4F7F\u7528\u7684\u9ED8\u8BA4\u9879\u3002");
+    section.createEl("h3", { text: "\u{1F517} \u4E3B\u5165\u53E3\u4E0E API \u914D\u7F6E" });
+    new import_obsidian6.Setting(section).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc("Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u5F53\u524D\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8981\u8C03\u7528 n8n \u8FD8\u662F\u672C\u5730 Codex worker\u3002").addDropdown((dropdown) => dropdown.addOption("n8n", "n8n / \u517C\u5BB9 Webhook").addOption("codex-worker", "Codex Video Worker").setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
+      await this.plugin.setActiveBackend(value);
+      new import_obsidian6.Notice(value === "codex-worker" ? "\u5DF2\u5207\u6362\u5230 Codex Video Worker" : "\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook");
+      this.display();
+    }));
+    new import_obsidian6.Setting(section).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u5EFA\u8BAE\u7528\u4E8E Obsidian \u4E3B\u5165\u53E3\uFF0C\u8FD4\u56DE\u683C\u5F0F\u9700\u517C\u5BB9 summary/note/video_transcript \u7B49\u5B57\u6BB5\u3002").addText((text) => text.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
+      this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
+      if (this.plugin.settings.activeBackend === "codex-worker") {
+        this.plugin.reinitializeApi();
+      }
+      await this.plugin.saveSettings();
+    }));
+    const webhookSetting = new import_obsidian6.Setting(section).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc("\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A Webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n / \u517C\u5BB9 Webhook\u3002");
     let webhookDropdown = null;
     webhookSetting.addDropdown((dropdown) => {
       webhookDropdown = dropdown;

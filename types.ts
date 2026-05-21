@@ -1,3 +1,4 @@
+// agent: codex (2026-05-21)
 import { TFile } from 'obsidian';
 
 export interface WebhookProfile {
@@ -8,7 +9,9 @@ export interface WebhookProfile {
 
 export interface VideoSummarySettings {
 	// API 配置
+	activeBackend: ProcessingBackend;
 	n8nWebhookUrl: string;
+	codexWorkerUrl: string;
 	webhookProfiles: WebhookProfile[];
 	activeWebhookId: string;
 
@@ -66,6 +69,8 @@ export interface PayloadKeys {
 	provided_transcript: string;
 	local_file: string;
 }
+
+export type ProcessingBackend = 'n8n' | 'codex-worker';
 
 export interface QuickProcessingOptions {
 	language: 'zh' | 'en' | 'ja';
@@ -187,4 +192,4 @@ export interface PlaylistInfo {
 	description?: string;
 	itemCount: number;
 	items: PlaylistItem[];
-} 
+}
