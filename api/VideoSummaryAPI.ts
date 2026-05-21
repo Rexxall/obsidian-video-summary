@@ -31,7 +31,7 @@ export class VideoSummaryAPI {
 	private controllers: Map<string, AbortController> = new Map();
 	constructor(webhookUrl: string, vault: Vault, pluginDataPath?: string, payloadKeys?: any, backend?: ProcessingBackend) {
 		this.webhookUrl = webhookUrl;
-		this.timeout = 30000; // 30秒超时
+		this.timeout = 10 * 60 * 1000; // Codex Worker 需要等待下载字幕/总结，默认 10 分钟
 		this.backend = backend || 'n8n';
 		this.cacheManager = new CacheManager(vault, pluginDataPath);
 		this.payloadKeys = payloadKeys || {
@@ -88,6 +88,25 @@ export class VideoSummaryAPI {
 
 		// 构建请求负载
 		const payload = this.buildPayload(noteName, input, mode, language);
+
+		if (this.backend === 'codex-worker') {
+			const result = await this.processCodexWorkerJob(payload);
+			this.recordWebhookResult(result, input, mode, language);
+
+			this.lastWebhookResult = {
+				result,
+				input,
+				mode,
+				language,
+				timestamp: Date.now()
+			};
+
+			if (useCache && input.url && result) {
+				await this.cacheManager.set(input.url, mode, language, result);
+			}
+
+			return result;
+		}
 
 		// 创建并注册中止控制器（同名任务仅允许一个并行请求）
 		const controller = new AbortController();
@@ -169,6 +188,25 @@ export class VideoSummaryAPI {
 
 			// 构建请求负载
 			const payload = this.buildPayload('temp', input, mode, language);
+
+			if (this.backend === 'codex-worker') {
+				const result = await this.processCodexWorkerJob(payload);
+				this.recordWebhookResult(result, input, mode, language);
+
+				this.lastWebhookResult = {
+					result,
+					input,
+					mode,
+					language,
+					timestamp: Date.now()
+				};
+
+				if (useCache && input.url && result) {
+					await this.cacheManager.set(input.url, mode, language, result);
+				}
+
+				return result;
+			}
 
 			// 发送请求
 			const response = await fetch(this.webhookUrl, {
@@ -437,6 +475,124 @@ export class VideoSummaryAPI {
 		if (this.historyListener) {
 			this.historyListener(this.webhookHistory.map((item) => ({ ...item })));
 		}
+	}
+
+	private async processCodexWorkerJob(payload: any): Promise<ProcessingResult> {
+		const jobsUrl = this.getCodexWorkerJobsUrl();
+		const response = await fetch(jobsUrl, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(`Codex Worker HTTP ${response.status}: ${text || response.statusText}`);
+		}
+
+		const createdJob = await response.json();
+		if (!createdJob?.id) {
+			throw new Error('Codex Worker 没有返回任务 ID');
+		}
+
+		const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
+		const started = Date.now();
+		let latestJob = createdJob;
+
+		while (Date.now() - started < this.timeout) {
+			await this.sleep(1000);
+			const statusResponse = await fetch(statusUrl);
+			if (!statusResponse.ok) {
+				const text = await statusResponse.text();
+				throw new Error(`Codex Worker job 状态读取失败: HTTP ${statusResponse.status} ${text || statusResponse.statusText}`);
+			}
+
+			latestJob = await statusResponse.json();
+			if (latestJob.status === 'success') {
+				return this.parseSummaryResponse(latestJob.result);
+			}
+			if (latestJob.status === 'needs-review' || latestJob.status === 'error' || latestJob.status === 'cancelled') {
+				throw new Error(this.formatCodexJobError(latestJob));
+			}
+		}
+
+		throw new Error(`Codex Worker 任务超时。可在控制台查看: ${this.getCodexWorkerDashboardUrl()}`);
+	}
+
+	private getCodexWorkerJobsUrl(): string {
+		try {
+			const url = new URL(this.webhookUrl);
+			const path = url.pathname.replace(/\/+$/, '');
+			if (path.endsWith('/video-summary/jobs')) {
+				url.pathname = path;
+			} else if (path.endsWith('/video-summary/process-sync')) {
+				url.pathname = path.replace(/\/process-sync$/, '/jobs');
+			} else {
+				url.pathname = '/video-summary/jobs';
+			}
+			url.search = '';
+			url.hash = '';
+			return url.toString();
+		} catch {
+			return 'http://127.0.0.1:8787/video-summary/jobs';
+		}
+	}
+
+	private getCodexWorkerJobStatusUrl(jobsUrl: string, job: any): string {
+		try {
+			const base = new URL(jobsUrl);
+			if (job.logsUrl && typeof job.logsUrl === 'string' && job.logsUrl.startsWith('/')) {
+				base.pathname = job.logsUrl.replace(/\/logs$/, '');
+				base.search = '';
+				base.hash = '';
+				return base.toString();
+			}
+			base.pathname = `${base.pathname.replace(/\/+$/, '')}/${encodeURIComponent(job.id)}`;
+			base.search = '';
+			base.hash = '';
+			return base.toString();
+		} catch {
+			return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(job.id)}`;
+		}
+	}
+
+	private getCodexWorkerDashboardUrl(): string {
+		try {
+			const url = new URL(this.webhookUrl);
+			url.pathname = '/dashboard';
+			url.search = '';
+			url.hash = '';
+			return url.toString();
+		} catch {
+			return 'http://127.0.0.1:8787/dashboard';
+		}
+	}
+
+	private formatCodexJobError(job: any): string {
+		const error = job?.error;
+		const errorMessage = typeof error === 'string'
+			? error
+			: error?.error || error?.message || `Codex Worker 任务状态: ${job?.status || 'unknown'}`;
+		const logs = Array.isArray(job?.logs) ? job.logs : [];
+		const lastDiagnostic = [...logs].reverse().find((entry: any) => {
+			const detail = entry?.detail || {};
+			return detail.error || detail.stderr || entry?.stage;
+		});
+		const diagnosticText = lastDiagnostic
+			? `\n最后阶段: ${lastDiagnostic.stage}\n诊断: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}`
+			: '';
+		return `${errorMessage}${diagnosticText}\n控制台: ${this.getCodexWorkerDashboardUrl()}`;
+	}
+
+	private truncateError(value: string, max: number): string {
+		if (!value || value.length <= max) return value || '';
+		return `${value.slice(0, max)}...`;
+	}
+
+	private sleep(ms: number): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, ms));
 	}
 
 	private parseSummaryResponse(data: any): ProcessingResult {

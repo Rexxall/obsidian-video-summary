@@ -1,3 +1,4 @@
+// agent: codex (2026-05-21)
 import { TFile, Vault } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { ProcessingResult, NoteMetadata, VideoInput, ProcessingMode } from '../types';
@@ -146,12 +147,16 @@ export class NoteProcessor {
 		if (result.video_duration) fm.video_duration = result.video_duration;
 		if (result.summary) fm.summary = result.summary;
 		if (result.video_transcript) fm.video_transcript = result.video_transcript;
+		delete fm.processing_error;
+		delete fm.processing_error_code;
+		delete fm.processing_error_at;
 
 		// 清理 provided_transcript
 		if (fm.provided_transcript) delete fm.provided_transcript;
 
 		// 更新正文
 		let newBody = body;
+		newBody = this.removeProcessingErrorBlock(newBody);
 		if (mode === 'summary' && result.note) newBody = result.note;
 
 		const newContent = this.buildContent(fm, newBody);
@@ -176,6 +181,18 @@ export class NoteProcessor {
 		const { fm, body } = this.parseFrontmatter(content);
 		fm.status = status;
 		const newContent = this.buildContent(fm, body);
+		await this.vault.modify(file, newContent);
+	}
+
+	async setProcessingError(file: TFile, error: unknown): Promise<void> {
+		const content = await this.vault.read(file);
+		const { fm, body } = this.parseFrontmatter(content);
+		const errorMessage = this.normalizeErrorMessage(error);
+		fm.status = 'error';
+		fm.processing_error = errorMessage;
+		fm.processing_error_at = new Date().toISOString();
+		const newBody = `${this.removeProcessingErrorBlock(body).trim()}\n\n${this.buildProcessingErrorBlock(errorMessage)}\n`;
+		const newContent = this.buildContent(fm, newBody);
 		await this.vault.modify(file, newContent);
 	}
 
@@ -255,6 +272,37 @@ export class NoteProcessor {
 	private removeField(fmText: string, field: string): string {
 		const regex = new RegExp(`^${field}:.*$\\n?`, 'gm');
 		return fmText.replace(regex, '').replace(/\n\n+/g, '\n').trim();
+	}
+
+	private normalizeErrorMessage(error: unknown): string {
+		if (error instanceof Error) return error.message;
+		return String(error || '未知错误');
+	}
+
+	private buildProcessingErrorBlock(errorMessage: string): string {
+		const lines = errorMessage
+			.replace(/\r\n/g, '\n')
+			.replace(/\r/g, '\n')
+			.trim()
+			.split('\n')
+			.map(line => `> ${line}`)
+			.join('\n');
+		return [
+			'<!-- video-summary-error:start -->',
+			'## 处理错误',
+			'> [!failure] 视频处理失败',
+			lines || '> 未知错误',
+			'>',
+			'> 处理任务已经发送到 Codex Worker 时，可以打开控制台查看完整阶段日志：',
+			'> http://127.0.0.1:8787/dashboard',
+			'<!-- video-summary-error:end -->'
+		].join('\n');
+	}
+
+	private removeProcessingErrorBlock(body: string): string {
+		return body
+			.replace(/\n?<!-- video-summary-error:start -->[\s\S]*?<!-- video-summary-error:end -->\n?/g, '\n')
+			.replace(/\n{3,}/g, '\n\n');
 	}
 
 	/**
@@ -408,4 +456,4 @@ export class NoteProcessor {
 			console.error(`重命名文件失败: ${error.message}`);
 		}
 	}
-} 
+}

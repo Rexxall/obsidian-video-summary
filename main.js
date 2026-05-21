@@ -2843,9 +2843,13 @@ ${body}`;
       fm.summary = result.summary;
     if (result.video_transcript)
       fm.video_transcript = result.video_transcript;
+    delete fm.processing_error;
+    delete fm.processing_error_code;
+    delete fm.processing_error_at;
     if (fm.provided_transcript)
       delete fm.provided_transcript;
     let newBody = body;
+    newBody = this.removeProcessingErrorBlock(newBody);
     if (mode === "summary" && result.note)
       newBody = result.note;
     const newContent = this.buildContent(fm, newBody);
@@ -2859,6 +2863,20 @@ ${body}`;
     const { fm, body } = this.parseFrontmatter(content);
     fm.status = status;
     const newContent = this.buildContent(fm, body);
+    await this.vault.modify(file, newContent);
+  }
+  async setProcessingError(file, error) {
+    const content = await this.vault.read(file);
+    const { fm, body } = this.parseFrontmatter(content);
+    const errorMessage = this.normalizeErrorMessage(error);
+    fm.status = "error";
+    fm.processing_error = errorMessage;
+    fm.processing_error_at = new Date().toISOString();
+    const newBody = `${this.removeProcessingErrorBlock(body).trim()}
+
+${this.buildProcessingErrorBlock(errorMessage)}
+`;
+    const newContent = this.buildContent(fm, newBody);
     await this.vault.modify(file, newContent);
   }
   buildVideoInput(content) {
@@ -2912,6 +2930,27 @@ ${fieldLine}`;
   removeField(fmText, field) {
     const regex = new RegExp(`^${field}:.*$\\n?`, "gm");
     return fmText.replace(regex, "").replace(/\n\n+/g, "\n").trim();
+  }
+  normalizeErrorMessage(error) {
+    if (error instanceof Error)
+      return error.message;
+    return String(error || "\u672A\u77E5\u9519\u8BEF");
+  }
+  buildProcessingErrorBlock(errorMessage) {
+    const lines = errorMessage.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").map((line) => `> ${line}`).join("\n");
+    return [
+      "<!-- video-summary-error:start -->",
+      "## \u5904\u7406\u9519\u8BEF",
+      "> [!failure] \u89C6\u9891\u5904\u7406\u5931\u8D25",
+      lines || "> \u672A\u77E5\u9519\u8BEF",
+      ">",
+      "> \u5904\u7406\u4EFB\u52A1\u5DF2\u7ECF\u53D1\u9001\u5230 Codex Worker \u65F6\uFF0C\u53EF\u4EE5\u6253\u5F00\u63A7\u5236\u53F0\u67E5\u770B\u5B8C\u6574\u9636\u6BB5\u65E5\u5FD7\uFF1A",
+      "> http://127.0.0.1:8787/dashboard",
+      "<!-- video-summary-error:end -->"
+    ].join("\n");
+  }
+  removeProcessingErrorBlock(body) {
+    return body.replace(/\n?<!-- video-summary-error:start -->[\s\S]*?<!-- video-summary-error:end -->\n?/g, "\n").replace(/\n{3,}/g, "\n\n");
   }
   hasVideoContent(content) {
     return !!this.extractVideoUrl(content) || !!this.extractProvidedTranscript(content) || !!this.extractLocalFileName(content);
@@ -4585,7 +4624,7 @@ var CacheManager = class {
     this.isInitialized = false;
     this.enabled = true;
     this.vault = vault;
-    this.pluginDataPath = pluginDataPath || ".obsidian/plugins/video-summary-plugin/data";
+    this.pluginDataPath = pluginDataPath || ".obsidian_mac/plugins/video-summary-plugin/data";
     this.cacheDir = `${this.pluginDataPath}/cache`;
     this.indexFile = `${this.pluginDataPath}/cache/index.json`;
     this.itemsDir = `${this.pluginDataPath}/cache/items`;
@@ -4914,7 +4953,7 @@ var VideoSummaryAPI = class {
     this.webhookHistoryLimit = 50;
     this.controllers = new Map();
     this.webhookUrl = webhookUrl;
-    this.timeout = 3e4;
+    this.timeout = 10 * 60 * 1e3;
     this.backend = backend || "n8n";
     this.cacheManager = new CacheManager(vault, pluginDataPath);
     this.payloadKeys = payloadKeys || {
@@ -4954,6 +4993,21 @@ var VideoSummaryAPI = class {
       }
     }
     const payload = this.buildPayload(noteName, input, mode, language);
+    if (this.backend === "codex-worker") {
+      const result = await this.processCodexWorkerJob(payload);
+      this.recordWebhookResult(result, input, mode, language);
+      this.lastWebhookResult = {
+        result,
+        input,
+        mode,
+        language,
+        timestamp: Date.now()
+      };
+      if (useCache && input.url && result) {
+        await this.cacheManager.set(input.url, mode, language, result);
+      }
+      return result;
+    }
     const controller = new AbortController();
     const existingController = this.controllers.get(noteName);
     if (existingController) {
@@ -5013,6 +5067,21 @@ var VideoSummaryAPI = class {
         }
       }
       const payload = this.buildPayload("temp", input, mode, language);
+      if (this.backend === "codex-worker") {
+        const result2 = await this.processCodexWorkerJob(payload);
+        this.recordWebhookResult(result2, input, mode, language);
+        this.lastWebhookResult = {
+          result: result2,
+          input,
+          mode,
+          language,
+          timestamp: Date.now()
+        };
+        if (useCache && input.url && result2) {
+          await this.cacheManager.set(input.url, mode, language, result2);
+        }
+        return result2;
+      }
       const response = await fetch(this.webhookUrl, {
         method: "POST",
         headers: {
@@ -5186,6 +5255,111 @@ var VideoSummaryAPI = class {
     if (this.historyListener) {
       this.historyListener(this.webhookHistory.map((item) => ({ ...item })));
     }
+  }
+  async processCodexWorkerJob(payload) {
+    const jobsUrl = this.getCodexWorkerJobsUrl();
+    const response = await fetch(jobsUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Codex Worker HTTP ${response.status}: ${text || response.statusText}`);
+    }
+    const createdJob = await response.json();
+    if (!createdJob?.id) {
+      throw new Error("Codex Worker \u6CA1\u6709\u8FD4\u56DE\u4EFB\u52A1 ID");
+    }
+    const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
+    const started = Date.now();
+    let latestJob = createdJob;
+    while (Date.now() - started < this.timeout) {
+      await this.sleep(1e3);
+      const statusResponse = await fetch(statusUrl);
+      if (!statusResponse.ok) {
+        const text = await statusResponse.text();
+        throw new Error(`Codex Worker job \u72B6\u6001\u8BFB\u53D6\u5931\u8D25: HTTP ${statusResponse.status} ${text || statusResponse.statusText}`);
+      }
+      latestJob = await statusResponse.json();
+      if (latestJob.status === "success") {
+        return this.parseSummaryResponse(latestJob.result);
+      }
+      if (latestJob.status === "needs-review" || latestJob.status === "error" || latestJob.status === "cancelled") {
+        throw new Error(this.formatCodexJobError(latestJob));
+      }
+    }
+    throw new Error(`Codex Worker \u4EFB\u52A1\u8D85\u65F6\u3002\u53EF\u5728\u63A7\u5236\u53F0\u67E5\u770B: ${this.getCodexWorkerDashboardUrl()}`);
+  }
+  getCodexWorkerJobsUrl() {
+    try {
+      const url = new URL(this.webhookUrl);
+      const path = url.pathname.replace(/\/+$/, "");
+      if (path.endsWith("/video-summary/jobs")) {
+        url.pathname = path;
+      } else if (path.endsWith("/video-summary/process-sync")) {
+        url.pathname = path.replace(/\/process-sync$/, "/jobs");
+      } else {
+        url.pathname = "/video-summary/jobs";
+      }
+      url.search = "";
+      url.hash = "";
+      return url.toString();
+    } catch {
+      return "http://127.0.0.1:8787/video-summary/jobs";
+    }
+  }
+  getCodexWorkerJobStatusUrl(jobsUrl, job) {
+    try {
+      const base = new URL(jobsUrl);
+      if (job.logsUrl && typeof job.logsUrl === "string" && job.logsUrl.startsWith("/")) {
+        base.pathname = job.logsUrl.replace(/\/logs$/, "");
+        base.search = "";
+        base.hash = "";
+        return base.toString();
+      }
+      base.pathname = `${base.pathname.replace(/\/+$/, "")}/${encodeURIComponent(job.id)}`;
+      base.search = "";
+      base.hash = "";
+      return base.toString();
+    } catch {
+      return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(job.id)}`;
+    }
+  }
+  getCodexWorkerDashboardUrl() {
+    try {
+      const url = new URL(this.webhookUrl);
+      url.pathname = "/dashboard";
+      url.search = "";
+      url.hash = "";
+      return url.toString();
+    } catch {
+      return "http://127.0.0.1:8787/dashboard";
+    }
+  }
+  formatCodexJobError(job) {
+    const error = job?.error;
+    const errorMessage = typeof error === "string" ? error : error?.error || error?.message || `Codex Worker \u4EFB\u52A1\u72B6\u6001: ${job?.status || "unknown"}`;
+    const logs = Array.isArray(job?.logs) ? job.logs : [];
+    const lastDiagnostic = [...logs].reverse().find((entry) => {
+      const detail = entry?.detail || {};
+      return detail.error || detail.stderr || entry?.stage;
+    });
+    const diagnosticText = lastDiagnostic ? `
+\u6700\u540E\u9636\u6BB5: ${lastDiagnostic.stage}
+\u8BCA\u65AD: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}` : "";
+    return `${errorMessage}${diagnosticText}
+\u63A7\u5236\u53F0: ${this.getCodexWorkerDashboardUrl()}`;
+  }
+  truncateError(value, max) {
+    if (!value || value.length <= max)
+      return value || "";
+    return `${value.slice(0, max)}...`;
+  }
+  sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
   parseSummaryResponse(data) {
     const preserveKeys = new Set(["summary", "note", "video_transcript"]);
@@ -8126,7 +8300,7 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
         statusNotice.setMessage("\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u66F4\u65B0");
         setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
-        await this.noteProcessor.setProcessingStatus(file, "error");
+        await this.noteProcessor.setProcessingError(file, error);
         this.addToHistory(file.basename, "error", "info-only");
         statusNotice.setMessage(`\u274C \u66F4\u65B0\u5931\u8D25: ${error.message}`);
         setTimeout(() => statusNotice.hide(), 3e3);
@@ -8225,7 +8399,7 @@ ${extractResult.video_transcript}
         statusNotice.setMessage(`\u2705 \u5904\u7406\u5B8C\u6210`);
         setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
-        await this.noteProcessor.setProcessingStatus(file, "error");
+        await this.noteProcessor.setProcessingError(file, error);
         this.addToHistory(file.basename, "error", mode);
         statusNotice.setMessage(`\u274C \u5904\u7406\u5931\u8D25: ${error.message}`);
         setTimeout(() => statusNotice.hide(), 3e3);
@@ -8265,7 +8439,7 @@ ${extractResult.video_transcript}
         statusNotice.setMessage(`\u2705 \u5168\u6587\u5904\u7406\u5B8C\u6210`);
         setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
-        await this.noteProcessor.setProcessingStatus(file, "error");
+        await this.noteProcessor.setProcessingError(file, error);
         this.addToHistory(file.basename, "error", mode);
         statusNotice.setMessage(`\u274C \u5904\u7406\u5931\u8D25: ${error.message}`);
         setTimeout(() => statusNotice.hide(), 5e3);
@@ -8456,7 +8630,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
   initializeApiInstance(url) {
     const targetUrl = url ?? this.getActiveProcessingEndpoint();
     const backend = this.settings?.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
-    this.api = new VideoSummaryAPI(targetUrl, this.app.vault, ".obsidian/plugins/video-summary-plugin/data", this.settings.payloadKeys, backend);
+    this.api = new VideoSummaryAPI(targetUrl, this.app.vault, ".obsidian_mac/plugins/video-summary-plugin/data", this.settings.payloadKeys, backend);
     this.api.setWebhookHistory(this.settings.webhookHistory || []);
     this.api.setAiModel(this.settings.aiModel);
     this.api.onWebhookHistoryChange(async (history) => {
@@ -8539,7 +8713,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       this.addToHistory(file.basename, "success", mode);
       new import_obsidian6.Notice(`\u2705 ${this.getModeDisplayText(mode)}\u5B8C\u6210`);
     } catch (error) {
-      await this.noteProcessor.setProcessingStatus(file, "error");
+      await this.noteProcessor.setProcessingError(file, error);
       this.addToHistory(file.basename, "error", mode);
       new import_obsidian6.Notice(`\u274C \u5904\u7406\u5931\u8D25: ${error.message}`);
     }

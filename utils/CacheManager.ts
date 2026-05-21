@@ -1,3 +1,4 @@
+// agent: codex (2026-05-21)
 import { CacheItem, ProcessingMode, SupportedLanguage, ProcessingResult } from '../types';
 import { TFile, Vault } from 'obsidian';
 
@@ -34,7 +35,7 @@ export class CacheManager {
 
 	constructor(vault: Vault, pluginDataPath?: string) {
 		this.vault = vault;
-		this.pluginDataPath = pluginDataPath || '.obsidian/plugins/video-summary-plugin/data';
+		this.pluginDataPath = pluginDataPath || '.obsidian_mac/plugins/video-summary-plugin/data';
 		this.cacheDir = `${this.pluginDataPath}/cache`;
 		this.indexFile = `${this.pluginDataPath}/cache/index.json`;
 		this.itemsDir = `${this.pluginDataPath}/cache/items`;
@@ -524,4 +525,3 @@ export class CacheManager {
 		return this.enabled;
 	}
 }
-

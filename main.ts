@@ -294,7 +294,7 @@ export default class VideoSummaryPlugin extends Plugin {
 				statusNotice.setMessage('✅ 视频信息已更新');
 				setTimeout(() => statusNotice.hide(), 2000);
 			} catch (error) {
-				await this.noteProcessor.setProcessingStatus(file, 'error');
+				await this.noteProcessor.setProcessingError(file, error);
 				this.addToHistory(file.basename, 'error', 'info-only');
 				statusNotice.setMessage(`❌ 更新失败: ${error.message}`);
 				setTimeout(() => statusNotice.hide(), 3000);
@@ -466,7 +466,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
 			} catch (error) {
 				// 更新状态为错误
-				await this.noteProcessor.setProcessingStatus(file, 'error');
+				await this.noteProcessor.setProcessingError(file, error);
 
 				// 添加到历史记录
 				this.addToHistory(file.basename, 'error', mode);
@@ -533,7 +533,7 @@ export default class VideoSummaryPlugin extends Plugin {
 				statusNotice.setMessage(`✅ 全文处理完成`);
 				setTimeout(() => statusNotice.hide(), 2000);
 			} catch (error) {
-				await this.noteProcessor.setProcessingStatus(file, 'error');
+				await this.noteProcessor.setProcessingError(file, error);
 				this.addToHistory(file.basename, 'error', mode);
 				statusNotice.setMessage(`❌ 处理失败: ${error.message}`);
 				setTimeout(() => statusNotice.hide(), 5000);
@@ -775,7 +775,7 @@ export default class VideoSummaryPlugin extends Plugin {
 	private initializeApiInstance(url?: string) {
 		const targetUrl = url ?? this.getActiveProcessingEndpoint();
 		const backend = this.settings?.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
-		this.api = new VideoSummaryAPI(targetUrl, this.app.vault, '.obsidian/plugins/video-summary-plugin/data', this.settings.payloadKeys, backend);
+		this.api = new VideoSummaryAPI(targetUrl, this.app.vault, '.obsidian_mac/plugins/video-summary-plugin/data', this.settings.payloadKeys, backend);
 		this.api.setWebhookHistory(this.settings.webhookHistory || []);
 		this.api.setAiModel(this.settings.aiModel);
 		this.api.onWebhookHistoryChange(async (history) => {
@@ -894,7 +894,7 @@ export default class VideoSummaryPlugin extends Plugin {
 			new Notice(`✅ ${this.getModeDisplayText(mode)}完成`);
 		} catch (error) {
 			// 更新状态为错误
-			await this.noteProcessor.setProcessingStatus(file, 'error');
+			await this.noteProcessor.setProcessingError(file, error);
 
 			// 添加到历史记录
 			this.addToHistory(file.basename, 'error', mode);
