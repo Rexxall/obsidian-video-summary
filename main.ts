@@ -148,12 +148,12 @@ export default class VideoSummaryPlugin extends Plugin {
 			}
 		});
 
-		// 测试n8n连接
+		// 测试当前视频处理后端连接
 		this.addCommand({
 			id: 'video-summary-test-connection',
-			name: '🔗 测试n8n连接',
+			name: '🔗 测试当前视频处理后端',
 			callback: () => {
-				this.testN8nConnection();
+				this.testProcessingBackendConnection();
 			}
 		});
 
@@ -655,14 +655,15 @@ export default class VideoSummaryPlugin extends Plugin {
 		}
 	}
 
-	private async testN8nConnection() {
+	private async testProcessingBackendConnection() {
 		try {
 			const result = await this.api.testConnection();
+			const label = this.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
 
 			if (result.success) {
-				new Notice('✅ 连接成功');
+				new Notice(`✅ ${label} 连接成功`);
 			} else {
-				new Notice(`❌ 连接失败: ${result.error}`);
+				new Notice(`❌ ${label} 连接失败: ${result.error}`);
 			}
 		} catch (error) {
 			new Notice(`连接失败: ${error.message}`);
@@ -1144,14 +1145,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
 		refreshDropdownOptions();
 
 		webhookSetting.addButton(button => button
-			.setButtonText('测试连接')
+			.setButtonText('测试当前后端')
 			.onClick(async () => {
 				const res = await this.plugin.api.testConnection();
+				const label = this.plugin.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
 				if (res.success) {
-					new Notice(`✅ 连接成功（${res.durationMs}ms）`, 3000);
+					new Notice(`✅ ${label} 连接成功（${res.durationMs}ms）`, 3000);
 				} else {
 					const details = [res.status ? `HTTP ${res.status}` : '', res.error || ''].filter(Boolean).join(' - ');
-					new Notice(`❌ 连接失败: ${details}${res.bodySnippet ? `\n片段: ${res.bodySnippet}` : ''}`, 6000);
+					new Notice(`❌ ${label} 连接失败: ${details}${res.bodySnippet ? `\n片段: ${res.bodySnippet}` : ''}`, 6000);
 				}
 			}));
 

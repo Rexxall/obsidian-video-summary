@@ -5333,7 +5333,7 @@ var VideoSummaryAPI = class {
       const response = await fetch(this.webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.buildPayload("test", {}, "transcript-only", "zh"))
+        body: JSON.stringify(this.buildConnectionTestPayload())
       });
       const durationMs = Date.now() - started;
       const text = await response.text();
@@ -5355,6 +5355,29 @@ var VideoSummaryAPI = class {
           error: "\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94"
         };
       }
+      const parsed = this.tryParseJson(text);
+      if (parsed?.error) {
+        return {
+          success: false,
+          durationMs,
+          status: response.status,
+          bodySnippet: snippet2,
+          error: parsed.error
+        };
+      }
+      if (this.backend === "codex-worker") {
+        try {
+          this.parseSummaryResponse(parsed);
+        } catch (error) {
+          return {
+            success: false,
+            durationMs,
+            status: response.status,
+            bodySnippet: snippet2,
+            error: error.message
+          };
+        }
+      }
       return { success: true, durationMs, status: response.status, bodySnippet: snippet2 };
     } catch (error) {
       return {
@@ -5362,6 +5385,21 @@ var VideoSummaryAPI = class {
         durationMs: Date.now() - started,
         error: `\u8FDE\u63A5\u5931\u8D25: ${error.message}`
       };
+    }
+  }
+  buildConnectionTestPayload() {
+    if (this.backend === "codex-worker") {
+      return this.buildPayload("connection-test", {
+        url: "https://example.com/video"
+      }, "info-only", "zh");
+    }
+    return this.buildPayload("test", {}, "transcript-only", "zh");
+  }
+  tryParseJson(text) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
     }
   }
 };
@@ -7986,9 +8024,9 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
     });
     this.addCommand({
       id: "video-summary-test-connection",
-      name: "\u{1F517} \u6D4B\u8BD5n8n\u8FDE\u63A5",
+      name: "\u{1F517} \u6D4B\u8BD5\u5F53\u524D\u89C6\u9891\u5904\u7406\u540E\u7AEF",
       callback: () => {
-        this.testN8nConnection();
+        this.testProcessingBackendConnection();
       }
     });
     this.addCommand({
@@ -8317,13 +8355,14 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       new import_obsidian6.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${error.message}`);
     }
   }
-  async testN8nConnection() {
+  async testProcessingBackendConnection() {
     try {
       const result = await this.api.testConnection();
+      const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
       if (result.success) {
-        new import_obsidian6.Notice("\u2705 \u8FDE\u63A5\u6210\u529F");
+        new import_obsidian6.Notice(`\u2705 ${label} \u8FDE\u63A5\u6210\u529F`);
       } else {
-        new import_obsidian6.Notice(`\u274C \u8FDE\u63A5\u5931\u8D25: ${result.error}`);
+        new import_obsidian6.Notice(`\u274C ${label} \u8FDE\u63A5\u5931\u8D25: ${result.error}`);
       }
     } catch (error) {
       new import_obsidian6.Notice(`\u8FDE\u63A5\u5931\u8D25: ${error.message}`);
@@ -8664,13 +8703,14 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       }
     };
     refreshDropdownOptions();
-    webhookSetting.addButton((button) => button.setButtonText("\u6D4B\u8BD5\u8FDE\u63A5").onClick(async () => {
+    webhookSetting.addButton((button) => button.setButtonText("\u6D4B\u8BD5\u5F53\u524D\u540E\u7AEF").onClick(async () => {
       const res = await this.plugin.api.testConnection();
+      const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
       if (res.success) {
-        new import_obsidian6.Notice(`\u2705 \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
+        new import_obsidian6.Notice(`\u2705 ${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
       } else {
         const details = [res.status ? `HTTP ${res.status}` : "", res.error || ""].filter(Boolean).join(" - ");
-        new import_obsidian6.Notice(`\u274C \u8FDE\u63A5\u5931\u8D25: ${details}${res.bodySnippet ? `
+        new import_obsidian6.Notice(`\u274C ${label} \u8FDE\u63A5\u5931\u8D25: ${details}${res.bodySnippet ? `
 \u7247\u6BB5: ${res.bodySnippet}` : ""}`, 6e3);
       }
     }));

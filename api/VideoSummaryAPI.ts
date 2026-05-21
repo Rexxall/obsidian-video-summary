@@ -642,7 +642,7 @@ export class VideoSummaryAPI {
 			const response = await fetch(this.webhookUrl, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(this.buildPayload('test', {}, 'transcript-only', 'zh')),
+				body: JSON.stringify(this.buildConnectionTestPayload()),
 			});
 
 			const durationMs = Date.now() - started;
@@ -668,6 +668,31 @@ export class VideoSummaryAPI {
 				};
 			}
 
+			const parsed = this.tryParseJson(text);
+			if (parsed?.error) {
+				return {
+					success: false,
+					durationMs,
+					status: response.status,
+					bodySnippet: snippet,
+					error: parsed.error,
+				};
+			}
+
+			if (this.backend === 'codex-worker') {
+				try {
+					this.parseSummaryResponse(parsed);
+				} catch (error) {
+					return {
+						success: false,
+						durationMs,
+						status: response.status,
+						bodySnippet: snippet,
+						error: error.message,
+					};
+				}
+			}
+
 			return { success: true, durationMs, status: response.status, bodySnippet: snippet };
 		} catch (error) {
 			return {
@@ -675,6 +700,24 @@ export class VideoSummaryAPI {
 				durationMs: Date.now() - started,
 				error: `连接失败: ${error.message}`,
 			};
+		}
+	}
+
+	private buildConnectionTestPayload() {
+		if (this.backend === 'codex-worker') {
+			return this.buildPayload('connection-test', {
+				url: 'https://example.com/video'
+			}, 'info-only', 'zh');
+		}
+
+		return this.buildPayload('test', {}, 'transcript-only', 'zh');
+	}
+
+	private tryParseJson(text: string): any | null {
+		try {
+			return JSON.parse(text);
+		} catch {
+			return null;
 		}
 	}
 }
