@@ -8030,6 +8030,13 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
       }
     });
     this.addCommand({
+      id: "video-summary-open-codex-dashboard",
+      name: "\u{1F4CA} \u6253\u5F00 Codex Worker \u63A7\u5236\u53F0",
+      callback: () => {
+        this.openCodexWorkerDashboard();
+      }
+    });
+    this.addCommand({
       id: "video-summary-mark-excluded",
       name: "\u26D4\uFE0F \u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0",
       editorCallback: (editor, view) => {
@@ -8368,6 +8375,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       new import_obsidian6.Notice(`\u8FDE\u63A5\u5931\u8D25: ${error.message}`);
     }
   }
+  openCodexWorkerDashboard() {
+    window.open(this.getCodexWorkerDashboardUrl(), "_blank");
+  }
   async processFile(file) {
     await this.fileProcessor.processFile(file);
   }
@@ -8430,6 +8440,18 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       return this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
     }
     return this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
+  }
+  getCodexWorkerDashboardUrl() {
+    const endpoint = this.settings?.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
+    try {
+      const url = new URL(endpoint);
+      url.pathname = "/dashboard";
+      url.search = "";
+      url.hash = "";
+      return url.toString();
+    } catch {
+      return "http://127.0.0.1:8787/dashboard";
+    }
   }
   initializeApiInstance(url) {
     const targetUrl = url ?? this.getActiveProcessingEndpoint();
@@ -8669,12 +8691,14 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       new import_obsidian6.Notice(value === "codex-worker" ? "\u5DF2\u5207\u6362\u5230 Codex Video Worker" : "\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook");
       this.display();
     }));
-    new import_obsidian6.Setting(section).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u5EFA\u8BAE\u7528\u4E8E Obsidian \u4E3B\u5165\u53E3\uFF0C\u8FD4\u56DE\u683C\u5F0F\u9700\u517C\u5BB9 summary/note/video_transcript \u7B49\u5B57\u6BB5\u3002").addText((text) => text.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
+    new import_obsidian6.Setting(section).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u4F4D\u4E8E\u540C\u4E00 host \u7684 /dashboard\u3002").addText((text) => text.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
       this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
       if (this.plugin.settings.activeBackend === "codex-worker") {
         this.plugin.reinitializeApi();
       }
       await this.plugin.saveSettings();
+    })).addButton((button) => button.setButtonText("\u6253\u5F00\u63A7\u5236\u53F0").onClick(() => {
+      this.plugin.openCodexWorkerDashboard();
     }));
     const webhookSetting = new import_obsidian6.Setting(section).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc("\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A Webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n / \u517C\u5BB9 Webhook\u3002");
     let webhookDropdown = null;

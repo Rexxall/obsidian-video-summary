@@ -157,6 +157,14 @@ export default class VideoSummaryPlugin extends Plugin {
 			}
 		});
 
+		this.addCommand({
+			id: 'video-summary-open-codex-dashboard',
+			name: '📊 打开 Codex Worker 控制台',
+			callback: () => {
+				this.openCodexWorkerDashboard();
+			}
+		});
+
 		// 标记为非视频笔记
 		this.addCommand({
 			id: 'video-summary-mark-excluded',
@@ -670,6 +678,10 @@ export default class VideoSummaryPlugin extends Plugin {
 		}
 	}
 
+	openCodexWorkerDashboard() {
+		window.open(this.getCodexWorkerDashboardUrl(), '_blank');
+	}
+
 	private async processFile(file: TFile) {
 		await this.fileProcessor.processFile(file);
 	}
@@ -745,6 +757,19 @@ export default class VideoSummaryPlugin extends Plugin {
 			return this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
 		}
 		return this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
+	}
+
+	getCodexWorkerDashboardUrl(): string {
+		const endpoint = this.settings?.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
+		try {
+			const url = new URL(endpoint);
+			url.pathname = '/dashboard';
+			url.search = '';
+			url.hash = '';
+			return url.toString();
+		} catch {
+			return 'http://127.0.0.1:8787/dashboard';
+		}
 	}
 
 	private initializeApiInstance(url?: string) {
@@ -1098,7 +1123,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
 		new Setting(section)
 			.setName('Codex Worker URL')
-			.setDesc('本地 Codex 视频处理服务的同步入口。建议用于 Obsidian 主入口，返回格式需兼容 summary/note/video_transcript 等字段。')
+			.setDesc('本地 Codex 视频处理服务的同步入口。控制台默认位于同一 host 的 /dashboard。')
 			.addText(text => text
 				.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl)
 				.setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl)
@@ -1108,6 +1133,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
 						this.plugin.reinitializeApi();
 					}
 					await this.plugin.saveSettings();
+				}))
+			.addButton(button => button
+				.setButtonText('打开控制台')
+				.onClick(() => {
+					this.plugin.openCodexWorkerDashboard();
 				}));
 
 		const webhookSetting = new Setting(section)
