@@ -16,6 +16,19 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Local environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+cookies/
+*_cookies.txt
+credentials*.json
+n8n-credentials*.json
+!docker/cookies/
+!docker/cookies/.gitkeep
+
 # Runtime data
 pids
 *.pid

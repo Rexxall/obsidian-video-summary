@@ -1,0 +1,18 @@
+services:
+  n8n-video-summary:
+    build:
+      context: ..
+      dockerfile: docker/n8n-video-summary.Dockerfile
+    image: video-summary-n8n:latest
+    container_name: n8n-video-summary
+    ports:
+      - '5678:5678'
+    volumes:
+      - ./n8n-data:/home/node/.n8n
+      - ./files:/home/node/files
+      - ./uploads:/home/node/uploads
+      - ./cookies:/home/node/cookies
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http

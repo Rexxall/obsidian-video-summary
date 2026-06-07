@@ -1,10 +1,33 @@
 {
-  "name": "Obsidian Video Summary",
+  "name": "Video Summary Advanced Workflow",
   "nodes": [
     {
       "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“自适应全量归档” Prompt\nlet userPrompt = `\n【任务】：请对以下视频文稿（解释语言：${targetLang}）进行**深度重构与归档**。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【笔记构建指令 (Note 字段)】：\n\n**请放弃所有预设模板，根据视频内容的实际逻辑，为我生成一份结构最合理的笔记。**\n\n**1. 🦅 全局概览 (必须包含)**\n- 在笔记开头，使用 \\`> [!summary] 核心摘要\\` 概括全篇主旨、关键结论和适用人群。（这一部分要纯文本，不要使用任何特殊格式。）\n\n**2. 🧱 正文构建 (由你决定结构)**\n- **自拟标题**：根据内容逻辑划分 H2/H3 标题（不要加 Emoji）。\n- **全量细节保留 (关键)**：\n  - 我需要视频中的**所有干货**，不要过度删减。\n  - **处理策略**：将核心观点列在外面，将**具体的例子、冗长的论证、次要的背景**放入折叠块 \\`> [!example]- ...\\` 中。让笔记看起来很短，但点开很深。\n- **视觉化处理**：\n  - 遇到**对比**（如 A vs B），**必须**转为 Markdown 表格。\n  - 遇到**步骤**，使用有序列表。\n  - 遇到**术语定义**，使用表格或粗体强调。\n\n**3. 🧬 专项内容自动识别 (如有则必须处理)**\n- **[若包含外语教学]**：自动生成一张详尽的词汇/表达表格（词汇|音标|释义|例句）。日语需标注假名/读音。\n- **[若包含实操建议]**：自动在文末生成 Checklist \\`- [ ]\\`。\n- **[若包含代码/技术]**：代码块必须指定语言。\n\n**4. 📎 附录**\n- 提及的资源链接、书籍或经典引用。\n\n**⚠️ 质量红线**：\n- **准确性**：不要编造，拿不准的保留原文。\n- **JSON格式**：严禁 Markdown 标记包裹 JSON，确保 \\`\\\\n\\` 和 \\`\\\\\"\\` 正确转义。\n`;\n\n// 4. 错误处理与重试逻辑 (保持不变)\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨 [JSON FIX MODE] Previous error: \"${parsingErrorDetails}\". \\nPlease output STRICT VALID JSON only. Escape all quotes (\\\\\") and newlines (\\\\n).`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**自适应知识架构师 (Adaptive Knowledge Architect)**。\n\n### 🌟 核心使命\n阅读视频逐字稿，根据**内容本身的内在逻辑**（而非固定模板），构建一份**全量、深度、高信噪比**的 Obsidian 笔记。\n\n### 🧠 动态结构原则 (Dynamic Structuring)\n1.  **拒绝通用标题**：不要使用“前言”、“正文”、“结语”这种无意义的标题。标题必须是具体的论点或内容概括（例如：“多巴胺的预测误差机制” 而不是 “第一章”）。\n2.  **结构随内容而变**：\n    -   如果是**教程**：按步骤逻辑分层。\n    -   如果是**辩论**：按正反观点分层。\n    -   如果是**叙事**：按时间线或关键转折分层。\n    -   如果是**散文/访谈**：按核心洞察/话题聚类分层。\n\n### 🛠️ 高效排版工具箱 (Mandatory Tools)\n你必须灵活调用以下 Markdown 工具来处理特定信息：\n\n1.  **折叠详情 (The \"Detail\" Folder)**：\n    -   **原则**：核心结论直接展示，但**所有**支撑性的长案例、推导过程、背景闲聊、代码细节，**必须**放入折叠块。\n    -   **语法**：`> [!example]- 点击展开详细案例` 或 `> [!note]- 查看背景知识`。\n2.  **强制表格 (The \"Comparator\")**：\n    -   **原则**：凡是出现对比、参数列表、多词汇解释，**必须**画表格。\n3.  **高亮模块 (The \"Highlighter\")**：\n    -   使用 `> [!summary]` 做摘要。\n    -   使用 `> [!quote]` 摘录金句。\n    -   使用 `> [!important]` 强调易错点/关键点。\n\n4. 请根据文章内容为这篇笔记想一个高度概括且具有吸引力的最终标题，并放入 JSON 的 video_title 字段中。\n\n### 📝 输出规范\n- **JSON 格式**：`{\"video_title\": \"根据全文内容总结的一个10-20字的高质量好标题，不带特殊符号\", \"summary\": \"...\", \"note\": \"...\"}`\n- **无 Emoji 标题**：保持学术专业感。\n- **全量归档**：不要因为概括而丢失具体的知识点。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        2080,
+        224
+      ],
+      "id": "a3ac8eb0-208a-407e-9a43-6c3e7f5b085f",
+      "name": "AI Agent4",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "httpMethod": "POST",
-        "path": "vidsum",
+        "path": "obsidian-video-summary",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -14,17 +37,17 @@
         -2608,
         880
       ],
-      "id": "c1abf5c3-f608-4a2c-ae0f-125e73311186",
+      "id": "d6e2dae2-4771-4baf-9272-a23921ab929d",
       "name": "Webhook",
-      "webhookId": "fb717b2b-c8a0-4e0c-bc5c-71ee0d96e964"
+      "webhookId": "15779738-1670-4f3d-807e-1fb51c14f432"
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对学术科研/申请定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合个人背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n\n【🔒 兜底防漏网指令 (极其重要)】：\n**7. 文稿拾遗 (The Leftovers Archive)**\n如果原稿中有任何未被整理进上述正文结构的内容（如：作者的开场白闲聊、偏题的旁支细节、未归类的边缘补充），**绝对不能直接删除丢弃！**\n必须在正文所有内容结束后，新建一个大标题 \\`## 🗃️ 附属文稿拾遗\\`，并将其全量放入 \\`> [!quote]- 📜 未收录原稿存档\\` 中。\n**内部排版要求**：即使是拾遗内容，也**绝对不准**丢一坨纯文本垃圾进去！必须提炼出 \\`> **【边缘话题A】**\\`、\\`> **【杂项闲聊】**\\` 等加粗子标题，并用 \\`> - \\` 列表列出。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;\n",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：拥有相关学科背景，目前主攻特定研究领域，正在准备学术申请/研究计划。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n2. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n     - *格式示范*：\n       > [!example]- 📜 展开查看详尽推导与完整案例\n       > **【案例背景】**\n       > - 详细背景描述 1...\n       > \n       > **【UP主原话摘录】**\n       > - 提取的详细原话内容...\n3. **多级嵌套树 (The Nested Tree)**：\n   - 对于无法制表的发散性逻辑，使用 `- ` 拆解为树状逻辑。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️ 绝对的输出红线 (决定系统是否崩溃)\n1. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象。\n2. **严禁 Markdown Block 标记**：直接以 `{` 开头，`}` 结尾，绝不包含 ```json。\n3. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**、**医工结合**、**医学AI**等方向，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n6. **文末兜底存档 (The Leftovers Archive - 绝对零遗漏)**：\n   - 任何未被纳入正文结构的原稿段落（如闲聊、边缘细节），绝对不能删除！必须在文末以折叠块形式全量保留，且内部必须进行列表和加粗的精排版。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。\n"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -33,7 +56,7 @@
         0,
         640
       ],
-      "id": "309246a7-e7d7-432c-a4a6-5dee43e75588",
+      "id": "bc030508-b0b1-45b8-b778-e2ca6252359f",
       "name": "AI Agent",
       "executeOnce": true,
       "retryOnFail": false,
@@ -51,9 +74,24 @@
         1568,
         880
       ],
-      "id": "7014a2f8-3d26-41b9-89a8-bccf3313db48",
+      "id": "d96d3bf5-96c1-4a3c-94a8-eb12e328ba3d",
       "name": "Respond to Webhook",
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "deepseek-reasoner",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        2416,
+        224
+      ],
+      "id": "7de682d2-ecfc-490f-a9b5-1ff48e74f7f8",
+      "name": "DeepSeek Chat Model",
+      "disabled": true
     },
     {
       "parameters": {
@@ -76,12 +114,12 @@
         -1584,
         752
       ],
-      "id": "febf1109-ea40-4488-84d1-27b442580b38",
+      "id": "2f2413bc-6ded-4675-adf0-17774e24fa43",
       "name": "Set User Provided Transcript"
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst newItems = [];\n\n// --- 配置 Cookie 文件路径 ---\n// 将这些路径修改为你实际存放 Cookie 文件的路径\nconst douyinCookiePath = \"/home/node/cookies/douyin_cookies.txt\";\nconst youtubeCookiePath = \"/home/node/cookies/youtube_cookies.txt\"; \n// 为其他平台添加更多 Cookie 路径（如果需要）\n// const tiktokCookiePath = \"/home/node/cookies/tiktok_cookies.txt\";\n\nconsole.log(\"youtubeCookiePath is: [\" + youtubeCookiePath + \"]\"); // 调试\n\nfor (let item of items) {\n  const videoLink = item.json.video_link; \n  let platform = \"unknown\";\n  let audioFilePath = \"\";\n  let videoId = \"\"; \n  let ytdlpCommand = \"\";\n  let cookiesArgument = \"\"; // 用于存放 cookie 参数\n\n  if (!videoLink) {\n\titem.json.error = \"Video link is missing.\";\n\tnewItems.push(item);\n\tcontinue;\n  }\n\n  videoId = new Date().getTime().toString() + Math.random().toString(36).substring(2, 15);\n  const baseAudioFilename = `audio_${videoId}`;\n  const audioOutputTemplate = `/home/node/files/${baseAudioFilename}.%(ext)s`;\n  const expectedAudioFormat = \"m4a\"; // 确保这与你的子流程期望一致\n  const finalAudioPath = `/home/node/files/${baseAudioFilename}.mp3`;\n\n  if (videoLink.includes(\"youtube.com\") || videoLink.includes(\"youtu.be\")) {\n\tplatform = \"youtube\";\n\tconsole.log(\"Platform detected: youtube\"); // 调试\n\tif (youtubeCookiePath && youtubeCookiePath.trim() !== \"\") { // 更严格的检查\n\t  cookiesArgument = ` --cookies \"${youtubeCookiePath}\" `;\n\t  console.log(\"Cookies argument set for YouTube: [\" + cookiesArgument + \"]\"); // 调试\n\t} else {\n\t  console.log(\"youtubeCookiePath is not set or empty, no cookies for YouTube.\"); // 调试\n\t}\n  } else if (videoLink.includes(\"bilibili.com\")) {\n\tplatform = \"bilibili\";\n\t// Bilibili 通常不需要 cookie，除非是会员视频等特殊情况\n  } else if (videoLink.includes(\"tiktok.com\")) {\n\tplatform = \"tiktok\";\n\t// if (tiktokCookiePath) {\n\t//   cookiesArgument = ` --cookies \"${tiktokCookiePath}\" `;\n\t// }\n  } else if (videoLink.includes(\"douyin.com\")) {\n\tplatform = \"douyin\";\n\tif (douyinCookiePath) {\n\t  cookiesArgument = ` --cookies \"${douyinCookiePath}\" `;\n\t} else {\n\t  // 如果没有为抖音配置cookie路径，可以记录一个警告或错误\n\t  console.warn(\"Douyin link detected, but no douyinCookiePath configured.\");\n\t  item.json.warning = \"Douyin link detected, but no cookie path configured for download.\";\n\t}\n  }\n  // TODO: Add detection for other platforms\n\nif (platform !== \"unknown\") {\n  // 强制使用 mp3 和 64k 比特率，确保 25MB 限制内能塞下更长的视频（约50分钟）\n  ytdlpCommand = `yt-dlp \\\n  --no-check-certificate \\\n  ${cookiesArgument} \\\n  -x --audio-format \"mp3\" --audio-quality 64K \\\n  --force-overwrites --no-playlist \\\n  --output \"${audioOutputTemplate}\" \\\n  \"${videoLink}\"`;\n\n\tconsole.log(\"Constructed ytdlpCommand: [\" + ytdlpCommand + \"]\"); // 调试\n\taudioFilePath = finalAudioPath;\n  } else {\n\titem.json.error = `Unsupported video platform for link: ${videoLink}`;\n  }\n  \n  item.json.platform = platform;\n  item.json.ytdlp_command = ytdlpCommand.trim(); // trim() 移除可能的多余空格\n  item.json.expected_audio_file_path = audioFilePath;\n  item.json.video_id_for_filename = videoId;\n  \n  newItems.push(item);\n}\nreturn newItems;"
+        "jsCode": "const items = $input.all();\nconst newItems = [];\n\nconst cookiePaths = {\n  youtube: \"/home/node/cookies/youtube_cookies.txt\",\n  douyin: \"/home/node/cookies/douyin_cookies.txt\",\n  tiktok: \"/home/node/cookies/tiktok_cookies.txt\",\n  xiaohongshu: \"/home/node/cookies/xiaohongshu_cookies.txt\",\n};\n\nfunction shellQuote(value) {\n  return \"'\" + String(value).replace(/'/g, \"'\\\\''\") + \"'\";\n}\n\nfunction detectPlatform(link) {\n  const url = String(link || \"\").toLowerCase();\n  if (url.includes(\"youtube.com\") || url.includes(\"youtu.be\")) return \"youtube\";\n  if (url.includes(\"bilibili.com\") || url.includes(\"b23.tv\")) return \"bilibili\";\n  if (url.includes(\"douyin.com\") || url.includes(\"v.douyin.com\") || url.includes(\"iesdouyin.com\")) return \"douyin\";\n  if (url.includes(\"tiktok.com\") || url.includes(\"vm.tiktok.com\") || url.includes(\"vt.tiktok.com\")) return \"tiktok\";\n  if (url.includes(\"xiaohongshu.com\") || url.includes(\"xhslink.com\") || url.includes(\"xhs.cn\")) return \"xiaohongshu\";\n  return \"unknown\";\n}\n\nfunction cookieArg(platform) {\n  const cookiePath = cookiePaths[platform];\n  return cookiePath ? ` --cookies ${shellQuote(cookiePath)} ` : \" \";\n}\n\nfunction buildSubtitleCommand(platform, link, stem, cookiesArgument) {\n  const subtitleCapable = platform === \"youtube\" || platform === \"bilibili\";\n  if (!subtitleCapable) {\n    return `printf ${shellQuote(`__NATIVE_SUBTITLE_SKIPPED__=${platform}\\n`)}`;\n  }\n\n  const outputBase = `/home/node/files/${stem}`;\n  const outputTemplate = `${outputBase}.%(ext)s`;\n  const metaPath = `/tmp/${stem}.info.json`;\n  const logPath = `/tmp/${stem}.subtitle.log`;\n  const languageSelector = `\nconst fs = require(\"fs\");\nconst info = JSON.parse(fs.readFileSync(process.argv[1], \"utf8\"));\n\nfunction keys(obj) {\n  return Object.keys(obj || {}).filter((key) => key && key !== \"live_chat\");\n}\n\nfunction normalize(code) {\n  return String(code || \"\")\n    .trim()\n    .replace(/_/g, \"-\")\n    .replace(/^zh-hans$/i, \"zh-CN\")\n    .replace(/^zh-hant$/i, \"zh-TW\");\n}\n\nfunction base(code) {\n  const normalized = normalize(code).toLowerCase();\n  if (normalized.startsWith(\"zh\")) return \"zh\";\n  if (normalized.startsWith(\"ja\") || normalized === \"jp\") return \"ja\";\n  if (normalized.startsWith(\"en\")) return \"en\";\n  return normalized.split(\"-\")[0] || \"\";\n}\n\nfunction addHint(target, value) {\n  const normalized = normalize(value);\n  if (normalized && !target.includes(normalized)) target.push(normalized);\n}\n\nconst manual = keys(info.subtitles);\nconst auto = keys(info.automatic_captions);\nconst all = [...manual, ...auto];\nconst hints = [];\n\n[\n  info.language,\n  info.original_language,\n  info.audio_language,\n  info.default_audio_language,\n  info.track_language,\n].forEach((value) => addHint(hints, value));\n\nfor (const format of info.formats || []) {\n  if (format && format.language && (format.vcodec === \"none\" || format.acodec !== \"none\")) {\n    addHint(hints, format.language);\n  }\n}\n\nfunction availableFor(hint) {\n  const hintBase = base(hint);\n  return all.filter((key) => {\n    const normalized = normalize(key);\n    return normalized.toLowerCase() === normalize(hint).toLowerCase() || base(normalized) === hintBase;\n  });\n}\n\nfunction patternsFor(language) {\n  const languageBase = base(language);\n  if (languageBase === \"zh\") return [\"zh\", \"zh-CN\", \"zh-TW\", \"zh-Hans\", \"zh-Hant\", \"zh.*\"];\n  if (languageBase === \"ja\") return [\"ja\", \"ja.*\"];\n  if (languageBase === \"en\") return [\"en\", \"en.*\"];\n  const normalized = normalize(language);\n  return [normalized, languageBase ? languageBase + \".*\" : \"\"].filter(Boolean);\n}\n\nfor (const hint of hints) {\n  if (availableFor(hint).length > 0) {\n    console.log(patternsFor(hint).join(\",\"));\n    process.exit(0);\n  }\n}\n\nconst allBases = Array.from(new Set(all.map(base).filter(Boolean)));\nif (allBases.length === 1) {\n  console.log(patternsFor(allBases[0]).join(\",\"));\n  process.exit(0);\n}\n\nconst manualBases = Array.from(new Set(manual.map(base).filter(Boolean)));\nif (manual.length > 0 && manualBases.length === 1) {\n  console.log(patternsFor(manualBases[0]).join(\",\"));\n  process.exit(0);\n}\n`;\n\n  const script = `\nset +e\nrm -f ${shellQuote(outputBase)}*.srt ${shellQuote(outputBase)}*.vtt ${shellQuote(outputBase)}*.json3 ${shellQuote(metaPath)} ${shellQuote(logPath)}\nyt-dlp --no-check-certificate ${cookiesArgument} --skip-download --dump-single-json --no-playlist ${shellQuote(link)} > ${shellQuote(metaPath)} 2> ${shellQuote(logPath)}\nlangs=$(node -e ${shellQuote(languageSelector)} ${shellQuote(metaPath)} 2>> ${shellQuote(logPath)})\nif [ -z \"$langs\" ]; then\n  printf \"__NATIVE_SUBTITLE_UNCERTAIN_ORIGINAL_LANGUAGE__=1\\\\n\"\n  cat ${shellQuote(logPath)}\n  exit 0\nfi\nprintf \"__NATIVE_SUBTITLE_LANGS__=%s\\\\n\" \"$langs\"\nyt-dlp --no-check-certificate ${cookiesArgument} --skip-download --write-subs --write-auto-subs --sub-langs \"$langs\" --sub-format \"srt/vtt/best\" --convert-subs srt --no-playlist --output ${shellQuote(outputTemplate)} ${shellQuote(link)} >> ${shellQuote(logPath)} 2>&1\nfile=$(find /home/node/files -maxdepth 1 -type f \\\\( -name '${stem}*.srt' -o -name '${stem}*.vtt' \\\\) -print | head -n 1)\nif [ -n \"$file\" ]; then\n  printf \"__NATIVE_SUBTITLE_FILE__=%s\\\\n\" \"$file\"\n  cat \"$file\"\nelse\n  printf \"__NATIVE_SUBTITLE_MISSING__=1\\\\n\"\n  cat ${shellQuote(logPath)}\nfi\n`;\n\n  return `bash -lc ${shellQuote(script)}`;\n}\n\nfor (const item of items) {\n  const videoLink = item.json.video_link;\n  let platform = \"unknown\";\n  let audioFilePath = \"\";\n  let ytdlpCommand = \"\";\n  let nativeSubtitleCommand = \"\";\n\n  if (!videoLink) {\n    item.json.error = \"Video link is missing.\";\n    newItems.push(item);\n    continue;\n  }\n\n  platform = detectPlatform(videoLink);\n\n  const videoId = `${Date.now()}${Math.random().toString(36).slice(2, 15)}`;\n  const audioStem = `audio_${videoId}`;\n  const subtitleStem = `subtitle_${videoId}`;\n  const audioOutputTemplate = `/home/node/files/${audioStem}.%(ext)s`;\n  const finalAudioPath = `/home/node/files/${audioStem}.mp3`;\n  const cookiesArgument = cookieArg(platform);\n\n  if (platform !== \"unknown\") {\n    ytdlpCommand = `yt-dlp \\\n  --no-check-certificate \\\n  ${cookiesArgument} \\\n  -x --audio-format \"mp3\" --audio-quality 64K \\\n  --force-overwrites --no-playlist \\\n  --output ${shellQuote(audioOutputTemplate)} \\\n  ${shellQuote(videoLink)}`;\n    nativeSubtitleCommand = buildSubtitleCommand(platform, videoLink, subtitleStem, cookiesArgument);\n    audioFilePath = finalAudioPath;\n  } else {\n    item.json.error = `Unsupported video platform for link: ${videoLink}`;\n  }\n\n  item.json.platform = platform;\n  item.json.ytdlp_command = ytdlpCommand.trim();\n  item.json.native_subtitle_command = nativeSubtitleCommand.trim();\n  item.json.expected_audio_file_path = audioFilePath;\n  item.json.video_id_for_filename = videoId;\n\n  newItems.push(item);\n}\n\nreturn newItems;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -89,8 +127,127 @@
         -1584,
         1200
       ],
-      "id": "2238d123-bd71-4c31-9b97-ef92cc4e6dcf",
+      "id": "6fca28d1-9ea6-455c-8231-9ca947c534b5",
       "name": "Code: Detect Platform & Prepare Download"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b343b83c-1e69-441d-8c6d-319ac2caa247"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c2bd7541-ecfc-49e2-9cd2-2aa0140953a2",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "bilibili",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "bilibili"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ffbb0b4e-937c-4e0a-bc67-bbe6fd651e64",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "tiktok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tiktok"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5ff9a926-c823-442f-b637-acb34e897bff",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "douyin",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "douyin"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2528,
+        1504
+      ],
+      "id": "50dd6ff2-5710-4e03-bbf9-56c8344b6ad5",
+      "name": "Switch: Platform",
+      "disabled": true
     },
     {
       "parameters": {
@@ -102,7 +259,7 @@
         -1392,
         1200
       ],
-      "id": "76a60396-779d-41a7-bfca-83ebc2da49ce",
+      "id": "8b43879b-76eb-4f6e-9b03-db32008b7c85",
       "name": "CMD: Download Audio"
     },
     {
@@ -111,12 +268,13 @@
           "__rl": true,
           "value": "0Rzuf03Xo1cBaMjr",
           "mode": "list",
+          "cachedResultUrl": "/workflow/0Rzuf03Xo1cBaMjr",
           "cachedResultName": "Audio To Transcript Service"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "audio_file_path": "={{ $('Switch: Platform').item.json.expected_audio_file_path }}"
+            "audio_file_path": "={{ $('Code: Detect Platform & Prepare Download').item.json.expected_audio_file_path }}"
           },
           "matchingColumns": [
             "audio_file_path"
@@ -144,8 +302,22 @@
         -1184,
         1200
       ],
-      "id": "50758b72-d2e6-4594-b69e-d32727bc5384",
+      "id": "902a0a5a-dc44-44fd-8255-5fc11f335098",
       "name": "SubFlow: Transcript"
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $json.error || 'Unknown error or unsupported platform.' }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        2352,
+        1568
+      ],
+      "id": "985b28c6-4a25-4642-b773-454b38370ac8",
+      "name": "Error: Unsupported Platform",
+      "disabled": true
     },
     {
       "parameters": {
@@ -167,7 +339,7 @@
         -656,
         880
       ],
-      "id": "48c360cc-259c-4a6c-a695-326fda2b02bd",
+      "id": "fb17f3ef-7c34-4dd3-8b3d-89f5521efe68",
       "name": "Set: Final Transcript for AI"
     },
     {
@@ -311,7 +483,7 @@
         -2384,
         816
       ],
-      "id": "c1385007-dc4c-4e68-a6c2-8deb49d17b2d",
+      "id": "67b33251-733f-4444-a47d-f9f8a2256bcb",
       "name": "Switch: Input Type"
     },
     {
@@ -335,7 +507,7 @@
         -2016,
         608
       ],
-      "id": "d635babd-68f2-4d06-94c3-27fcacb1f934",
+      "id": "53e89371-99e5-45cc-8b26-47dee1a3c7d0",
       "name": "Set: Local Audio File Path"
     },
     {
@@ -378,7 +550,7 @@
         -1584,
         576
       ],
-      "id": "63796534-98bb-42cf-ace3-15e38105ad04",
+      "id": "e8e3f0ef-c9f3-46ad-a6e3-cefd7456503e",
       "name": "SubFlow: Transcript from Local File"
     },
     {
@@ -471,7 +643,7 @@
                   {
                     "id": "9ecbc236-912f-4374-bacc-2d951fcffbaa",
                     "leftValue": "={{ $('Webhook').item.json.body.metadata.ai }}",
-                    "rightValue": "AI-Studio 3.1",
+                    "rightValue": "Gemini 3.1",
                     "operator": {
                       "type": "string",
                       "operation": "equals",
@@ -482,7 +654,7 @@
                 "combinator": "and"
               },
               "renameOutput": true,
-              "outputKey": "AI 3.1"
+              "outputKey": "Gemini3.1"
             },
             {
               "conditions": {
@@ -496,7 +668,7 @@
                   {
                     "id": "980c7f51-2615-4cba-82a0-f0ecbab2f4af",
                     "leftValue": "={{ $('Webhook').item.json.body.metadata.ai }}",
-                    "rightValue": "Gemini 3.1",
+                    "rightValue": "AI-Studio 3.1",
                     "operator": {
                       "type": "string",
                       "operation": "equals",
@@ -507,7 +679,7 @@
                 "combinator": "and"
               },
               "renameOutput": true,
-              "outputKey": "Gemini3.1"
+              "outputKey": "AI 3.1"
             }
           ]
         },
@@ -521,7 +693,7 @@
         -448,
         832
       ],
-      "id": "9f8b9c13-e262-4ce0-a402-4262fbb1815f",
+      "id": "cba7884a-747b-4f59-ae49-1958b1174a17",
       "name": "Switch: Operation Mode"
     },
     {
@@ -615,7 +787,7 @@
         688,
         720
       ],
-      "id": "179a577c-da2b-476b-b70f-a71b4b5143d5",
+      "id": "e41c71f9-2585-4a19-910b-790d14c52d53",
       "name": "Switch: AI Parse Retry?",
       "retryOnFail": false
     },
@@ -629,7 +801,7 @@
         -864,
         848
       ],
-      "id": "189e9b40-37c6-42bf-9df5-c5b7cbe83d0b",
+      "id": "2b54f11f-bbdb-47bd-91b0-47a0860113bf",
       "name": "Merge: Transcript Sources",
       "alwaysOutputData": true
     },
@@ -643,7 +815,7 @@
         496,
         736
       ],
-      "id": "294dc5be-e937-4b41-9667-bfacff96272f",
+      "id": "bfc01339-80b7-4b5c-a325-97134b0de5c2",
       "name": "Code: Parse AI JSON Output & Manage Retries",
       "onError": "continueRegularOutput"
     },
@@ -667,7 +839,7 @@
         -2016,
         1056
       ],
-      "id": "83a42079-19d0-4b38-80b8-0d63d95421f7",
+      "id": "c38ee5af-7f91-4c7a-9116-3a77ac5f3ee5",
       "name": "Set: Video Link from Input"
     },
     {
@@ -680,7 +852,7 @@
         -1392,
         992
       ],
-      "id": "d4805904-4e7c-48d9-9bdc-988d62b75006",
+      "id": "4c523001-8ebb-4e4c-b091-eca58107a7a6",
       "name": "Code: Parse Metadata"
     },
     {
@@ -693,7 +865,7 @@
         -2032,
         1312
       ],
-      "id": "e0449cff-f0ef-4341-bf39-278330fedb89",
+      "id": "b89716dc-cd4c-4ff6-9ca8-042c4c0df8f4",
       "name": "Stop and Error"
     },
     {
@@ -734,7 +906,7 @@
         -2016,
         832
       ],
-      "id": "76bfc661-092e-45a8-9545-c25dd8e7639e",
+      "id": "ed81ff37-fd58-4ef6-9296-e7f4cb25c909",
       "name": "Set: Given Output"
     },
     {
@@ -778,7 +950,7 @@
         -1840,
         1056
       ],
-      "id": "473cfe0f-48a7-479c-8235-ddf8285b25e5",
+      "id": "fd96a269-bfa7-465a-8889-5197ff9338f2",
       "name": "Switch: Info Only?"
     },
     {
@@ -791,7 +963,7 @@
         -1584,
         992
       ],
-      "id": "ad2567bc-12df-4323-a5ec-547c957613ec",
+      "id": "230a392c-3a79-46cf-9e1c-a8c83e6fe6c9",
       "name": "CMD: Get Video Metadata1",
       "alwaysOutputData": false,
       "onError": "continueErrorOutput"
@@ -806,7 +978,7 @@
         1360,
         848
       ],
-      "id": "bc43e6d3-02fb-4baa-addf-6e53fd38759e",
+      "id": "ae230cd8-3dd7-42b5-9882-dad5e222352a",
       "name": "Merge"
     },
     {
@@ -844,7 +1016,7 @@
         -1184,
         992
       ],
-      "id": "e0e93c26-6a5d-4596-a1a6-7edda663dc20",
+      "id": "bbac6d96-3bff-4ce4-8151-cd0ac716148b",
       "name": "Set: Metadata",
       "alwaysOutputData": true,
       "onError": "continueRegularOutput"
@@ -887,7 +1059,7 @@
         1088,
         784
       ],
-      "id": "ff5dd6ed-51ec-452e-8e5a-4b146827e436",
+      "id": "53a858dd-963c-49c9-a3a4-d6364cecab30",
       "name": "Set: Summary"
     },
     {
@@ -917,7 +1089,7 @@
         1088,
         960
       ],
-      "id": "e4528e72-930e-492b-b093-01dd299c61b2",
+      "id": "adedf24d-951d-490c-8782-3453361377f1",
       "name": "Set: Error Transcript",
       "alwaysOutputData": true
     },
@@ -960,13 +1132,13 @@
         -1840,
         880
       ],
-      "id": "15ba29db-5aa6-4184-85cf-ec5f49f5a259",
+      "id": "0c78498a-4049-4fbd-8504-55b4348c2f92",
       "name": "Switch"
     },
     {
       "parameters": {
         "respondWith": "text",
-        "responseBody": "测试成功！",
+        "responseBody": "{\"ok\":true,\"workflow\":{\"name\":\"Video Summary Advanced Workflow\",\"version\":\"2.1.3\",\"variant\":\"advanced\",\"webhookPath\":\"obsidian-video-summary\",\"models\":[\"Gemini 3.1\",\"Gemini 3.0\"],\"requiredTools\":[\"yt-dlp\",\"ffmpeg\"],\"uploadsPath\":\"/home/node/uploads\"}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -975,7 +1147,7 @@
         -2016,
         352
       ],
-      "id": "363d5286-9ace-4bab-913b-027bb18bf4cf",
+      "id": "1a907306-5fb9-4f8c-a327-0d1f79b42ba3",
       "name": "Respond to Webhook: Test"
     },
     {
@@ -1040,7 +1212,7 @@
         -1808,
         512
       ],
-      "id": "992d0d5c-0c4e-48cf-b97c-6dcb12d91853",
+      "id": "aa078f19-91a9-418f-92b6-d0c48e43b451",
       "name": "Switch: File Extension"
     },
     {
@@ -1053,7 +1225,7 @@
         -1392,
         432
       ],
-      "id": "59868d64-c64e-4790-aaa1-d53ce1e426f1",
+      "id": "6cb6709e-8a9b-428e-a68f-880b001dd2f2",
       "name": "Read Binary File"
     },
     {
@@ -1080,7 +1252,7 @@
         -1392,
         752
       ],
-      "id": "7355f377-285a-403d-89c7-9667826209c7",
+      "id": "2621eed9-6d2d-4150-8108-4a0a307cb8e7",
       "name": "Gemini Vision"
     },
     {
@@ -1102,42 +1274,16 @@
         -1184,
         752
       ],
-      "id": "5d1ee71c-c3bb-4745-b17c-6670eba7d7a7",
+      "id": "08e242ca-6f39-4c18-894a-6ce1295336b3",
       "name": "Set: Extracted Text"
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst newItems = [];\n\nfor (const item of items) {\n  const rawLocalFile = item.json.body.metadata.local_file;\n  if (rawLocalFile) {\n    const files = rawLocalFile.split(',').map(f => f.trim()).filter(f => f);\n    for (const file of files) {\n       const newItem = { json: JSON.parse(JSON.stringify(item.json)) };\n       newItem.json.audio_file_path_for_subflow = `/home/node/uploads/${file}`;\n       newItems.push(newItem);\n    }\n  }\n}\nreturn newItems;"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -1584,
-        432
-      ],
-      "id": "42a23596-97c2-41cf-bf5f-b786783ac0ae",
-      "name": "Code: Split Files1"
-    },
-    {
-      "parameters": {
-        "jsCode": "const items = $input.all();\nconst parts = [\n  { \"text\": \"Please transcribe all text from this image/document verbatim. Do not add any commentary.\" }\n];\n\nfor (const item of items) {\n  if (item.binary && item.binary.data) {\n    parts.push({\n      \"inline_data\": {\n        \"mime_type\": item.binary.data.mimeType,\n        \"data\": item.binary.data.data\n      }\n    });\n  }\n}\n\nreturn [{\n   json: {\n     gemini_parts: parts\n   }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -1200,
-        432
-      ],
-      "id": "1553acba-b779-4e0f-9dee-477b9c5b5df2",
-      "name": "Code: Prepare Gemini Parts1"
-    },
-    {
-      "parameters": {
         "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对学术科研/申请定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合个人背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**、**医工结合**、**医学AI**等方向，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -1146,7 +1292,7 @@
         0,
         320
       ],
-      "id": "85334dab-3957-420c-a188-b786294cd24e",
+      "id": "d07fb61f-9a13-4b0b-9fc0-a0956cdf24e7",
       "name": "AI Agent1",
       "executeOnce": true,
       "retryOnFail": false,
@@ -1156,10 +1302,10 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对学术科研/申请定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合个人背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**、**医工结合**、**医学AI**等方向，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -1168,7 +1314,7 @@
         0,
         1008
       ],
-      "id": "6474e56d-0c52-4d61-88bd-cdf454c7e70b",
+      "id": "bc240285-2a27-4b99-ba1f-7b4586f03b6d",
       "name": "AI Agent2",
       "executeOnce": true,
       "retryOnFail": false,
@@ -1188,7 +1334,7 @@
         0,
         496
       ],
-      "id": "3c91c55c-178d-4f86-9fde-ba877606a657",
+      "id": "5b14a868-6243-4fe8-a22c-c03972f92ec1",
       "name": "Google Gemini 3"
     },
     {
@@ -1202,18 +1348,18 @@
       "typeVersion": 1,
       "position": [
         0,
-        1520
+        1232
       ],
-      "id": "8aa1537f-8475-4f69-be33-2b38247db5d0",
+      "id": "5623f585-978f-4b55-aa1b-2a01ceeb8ee2",
       "name": "Google Gemini 3.1"
     },
     {
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gemini-3.1-pro-preview",
+          "value": "gemini-3.5-flash",
           "mode": "list",
-          "cachedResultName": "gemini-3.1-pro-preview"
+          "cachedResultName": "gemini-3.5-flash"
         },
         "options": {
           "temperature": 0.4
@@ -1223,18 +1369,18 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        1200
+        1552
       ],
-      "id": "11059b8f-8ad1-46ea-a9ad-687837c6b8be",
+      "id": "db9e022b-f53b-4171-871f-acb6e8d3c9a3",
       "name": "AI-Studio 3.1"
     },
     {
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gemini-3-pro-preview",
+          "value": "claude-opus-4-6-thinking",
           "mode": "list",
-          "cachedResultName": "gemini-3-pro-preview"
+          "cachedResultName": "claude-opus-4-6-thinking"
         },
         "options": {
           "temperature": 0.4
@@ -1246,7 +1392,7 @@
         0,
         800
       ],
-      "id": "a1e269fb-055b-4ee0-92ac-02780c2ad51a",
+      "id": "dfb15ce0-5ef8-4510-9029-ebf4b9502cc4",
       "name": "AI-Studio 3"
     },
     {
@@ -1340,7 +1486,7 @@
         688,
         1040
       ],
-      "id": "bc6f963f-8948-4a8f-bf35-282e3c3cad36",
+      "id": "dedd0a97-ec74-42ae-b09c-27f105662ad8",
       "name": "Switch: AI Parse Retry ??",
       "retryOnFail": false
     },
@@ -1354,17 +1500,17 @@
         496,
         1072
       ],
-      "id": "0ced84d6-1e3e-41c4-b585-eb3fb2c525b7",
+      "id": "337dc1af-94dd-432c-be75-e67387d61ae4",
       "name": "Code: Parse AI JSON Output & Manage Retries1",
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对学术科研/申请定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合个人背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n\n【🔒 兜底防漏网指令 (极其重要)】：\n**7. 文稿拾遗 (The Leftovers Archive)**\n如果原稿中有任何未被整理进上述正文结构的内容（如：作者的开场白闲聊、偏题的旁支细节、未归类的边缘补充），**绝对不能直接删除丢弃！**\n必须在正文所有内容结束后，新建一个大标题 \\`## 🗃️ 附属文稿拾遗\\`，并将其全量放入 \\`> [!quote]- 📜 未收录原稿存档\\` 中。\n**内部排版要求**：即使是拾遗内容，也**绝对不准**丢一坨纯文本垃圾进去！必须提炼出 \\`> **【边缘话题A】**\\`、\\`> **【杂项闲聊】**\\` 等加粗子标题，并用 \\`> - \\` 列表列出。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;\n",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**、**医工结合**、**医学AI**等方向，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n6. **文末兜底存档 (The Leftovers Archive - 绝对零遗漏)**：\n   - 任何未被纳入正文结构的原稿段落（如闲聊、边缘细节），绝对不能删除！必须在文末以折叠块形式全量保留，且内部必须进行列表和加粗的精排版。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。\n",
           "maxIterations": 2
         }
       },
@@ -1374,7 +1520,7 @@
         0,
         1344
       ],
-      "id": "bc084a17-7368-4b0b-bf3c-c66ff61529f4",
+      "id": "029fbbbc-ae6d-4c78-be95-91be485c7dcf",
       "name": "AI Agent3",
       "executeOnce": true,
       "retryOnFail": false,
@@ -1383,11 +1529,32 @@
     },
     {
       "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        432
+      ],
+      "id": "206a2bee-9a4b-4c43-9dfd-f04d52c70101",
+      "name": "Analyze video",
+      "disabled": true
+    },
+    {
+      "parameters": {
         "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对学术科研/申请定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合个人背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**、**医工结合**、**医学AI**等方向，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
           "maxIterations": 2
         }
       },
@@ -1397,7 +1564,7 @@
         0,
         1696
       ],
-      "id": "74eaa3e3-300f-40a3-ba46-c5f2bb515c05",
+      "id": "ffb13906-5c0d-4644-8261-f6fa74685504",
       "name": "AI Agent5",
       "executeOnce": true,
       "retryOnFail": false,
@@ -1408,9 +1575,9 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gemini-3.1-pro-preview",
+          "value": "codex-cli",
           "mode": "list",
-          "cachedResultName": "gemini-3.1-pro-preview"
+          "cachedResultName": "codex-cli"
         },
         "options": {
           "temperature": 0.4
@@ -1422,16 +1589,16 @@
         0,
         1888
       ],
-      "id": "19927e0a-76de-45b7-af3e-1f5fd05eb6fb",
+      "id": "e39fa46f-56cb-480c-bd0c-0043f6aa4b6e",
       "name": "AI-Studio 3."
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对学术科研/申请定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合个人背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`>[!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**、**医工结合**、**医学AI**等方向，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
           "maxIterations": 2
         }
       },
@@ -1441,7 +1608,7 @@
         0,
         0
       ],
-      "id": "739bff23-13f5-4c4d-bfb7-d1cd19c2f6bc",
+      "id": "19c34600-7caa-49b2-87ef-6026a7d8089c",
       "name": "AI Agent6",
       "executeOnce": true,
       "retryOnFail": false,
@@ -1466,8 +1633,230 @@
         0,
         176
       ],
-      "id": "cf460d9c-4175-4b84-8fd5-2019d40ebc12",
+      "id": "af700ea6-26cd-4cc8-a328-b2bf7b03bcef",
       "name": "AI-Studio 3.0"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2352,
+        640
+      ],
+      "id": "c2d5f256-b45a-49c3-8e6d-31b14b12e893",
+      "name": "Google Gemini 3.",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言映射与指令\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建 Prompt (专为 Gemini 3.1 Pro 优化)\nlet userPrompt = `\n【任务】：请将以下视频文稿（语言：${targetLang}）解析为 Obsidian 结构化笔记。\n\n【元数据】：标题：${title} | 作者：${author}\n\n【🤖 Gemini 专属执行指令 - 必须严格遵守】：\n1. **视觉化高于一切**：我不需要你帮我“写一篇文章”，我需要你帮我“画一张数据图表”。把所有段落打碎，填入表格和列表中。\n2. **拒绝过度总结**：保留关键数据、具体代码、日语原句和假名读音、英文原词。不要用笼统的话概括。\n3. **领域自适应排版**：\n   - 🇯🇵/🇬🇧 **语言学习类**：核心必须是巨大的词汇/语法【表格】。保留原文、假名/音标、和中文解析。\n   - 💻 **AI/技术类**：必须提炼出架构对比【表格】或参数【表格】。具体代码或操作步骤使用嵌套列表。\n   - 🎬 **动漫/影视/书籍类**：将剧情时间线、人物动机对比、隐喻解析转化为【表格】。\n4. **细节折叠**：讲者为了证明观点而说的“长篇大论的故事/废话”，全部塞进 \\`> [!example]- 展开查看详情\\` 中。\n\n---\n【文稿原文】：\n${transcript}\n---\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\n  \n🚨 [JSON 格式修正模式] 🚨\n上一次生成导致了解析崩溃，错误信息： \"${parsingErrorDetails}\"。\n请注意：\n1. 绝对不要在最外层包裹 \\`\\`\\`json 标记。\n2. 确保 JSON 对象中的 \"summary\" 和 \"note\" 的值是纯字符串。\n3. 检查所有换行符 (必须是 \\\\n) 和双引号 (必须是 \\\\\") 的转义。\n`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名追求极致视觉效率的**Markdown 仪表盘（Dashboard）架构师**。\n你的任务是将杂乱冗长的视频逐字稿，重构为一份**“零废话、全结构化、高信息密度”**的 Obsidian 永久笔记。\n\n### 🛑 绝对视觉禁忌 (Strict Visual Constraints)\n1. **消灭文字墙**：严禁写出超过 3 行的纯文本段落！所有内容必须拆解为短句、列表或表格。\n2. **纯净大纲**：H1/H2/H3 标题中**绝对禁止使用 Emoji**。\n3. **拒绝流水账**：不要用“视频讲了什么”这种叙述性语言，直接提炼核心数据和观点。\n\n### 🧱 核心视觉组件 (UI Components)\n你必须像拼乐高一样，使用以下三种组件构建笔记：\n\n1. **📊 高维表格 (Tables) - [视觉主力]**\n   - 只要出现 3 个以上的平行概念、对比、参数、甚至连贯的剧情时间线，**强制**转换为 Markdown 表格。\n   - 语言学习的“生词/语法”、技术的“优缺点对比”、影视的“人物关系”，必须用表格呈现。\n\n2. **🪆 嵌套列表 (Nested Lists) - [逻辑主干]**\n   - 论证过程、逻辑推导、操作步骤，必须使用多级缩进列表（`-` 和 `1.` 混用），体现层级关系。\n\n3. **📂 折叠收纳盒 (Foldable Callouts) - [存放冗余细节]**\n   - **核心语法**：`> [!example]- 展开查看详细案例/推导/原文` (必须带有减号 `-` 以实现默认折叠)\n   - **使用场景**：讲者举的长篇故事、冗长的代码推导、补充性的闲聊背景，统统塞进折叠块。保持主页面清爽！\n\n### 📝 输出结构 (严格 JSON)\n输出必须是一个单一的 JSON 对象，包含以下两部分：\n\n#### 1. `summary` (字符串)\n- 150字以内的极客版摘要：[核心论题] + [解决的痛点] + [最终结论]。直接给结果，不要废话。\n\n#### 2. `note` (Markdown 字符串)\n请严格套用以下拓扑结构生成：\n\n> [!summary] 核心价值提取 (Executive Summary)\n> - 🎯 **核心论点**：[一句话]\n> - 🔑 **关键结论 1**：[结论]\n> - 🔑 **关键结论 2**：[结论]\n\n## 1. 核心概念与数据字典 (Core Dictionary)\n*(如果有重要术语、外语词汇、专有名词，强制在此生成表格)*\n| 概念/词汇 | 读音(仅限外语) | 核心释义 | 语境/例句/备注 |\n| :--- | :--- | :--- | :--- |\n| ... | ... | ... | ... |\n\n## 2. 深度逻辑拆解 (Deep Breakdown)\n*(使用 H3 标题拆分模块，使用嵌套列表陈述逻辑)*\n### 2.1 [模块名称]\n- **主论点**：[简明扼要]\n- **支撑逻辑**：\n  - [论据 A]\n  - [论据 B]\n> [!example]- 📂 展开查看支撑此观点的详细案例与故事\n> (在这里填入讲者的具体举例、故事细节，尽量全量保留但折叠起来)\n\n### 2.2 [模块名称]\n*(如果是对比分析或流程拆解，强制在此处再次使用表格)*\n| 阶段/方案 | 核心特征 | 关键动作/区别 |\n| :--- | :--- | :--- |\n| ... | ... | ... |\n\n## 3. 落地与应用 (Actionable Takeaways)\n- [ ] [具体可执行的动作 1]\n- [ ] [具体可执行的动作 2]\n\n> [!quote] 灵感火花 (Quotes)\n> \"[最有力的一句原文]\"\n\n### ⚠️ JSON 格式红线\n- 整个输出必须是一个合法的 JSON。\n- 字符串内部的换行符必须转义为 `\\\\n`，双引号必须转义为 `\\\\\"`，制表符转义为 `\\\\t`。",
+          "maxIterations": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        2352,
+        448
+      ],
+      "id": "74983c31-065b-4d80-9294-a6f3e0b3e821",
+      "name": "AI Agent7",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2352,
+        976
+      ],
+      "id": "ff3d19e7-fdc1-4f30-9e24-2b6798417c66",
+      "name": "Google Gemini 3.2",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“详实且极具呼吸感”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份极其详实、深度，且排版极具“呼吸感”的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，在笔记开头使用 \\`> [!summary] 核心摘要\\` 提供一段精准的全文定调。\n接着，根据以下【6大领域法则】判断类别，进行**全景式提取**（确保覆盖开头、高潮、结尾，绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」**\n- 顶部放置 Dataview 属性：\\`导师:: \\` \\`研究方向:: \\` \\`Deadline:: \\`\n- **详尽论证**：将项目的优劣势、背景要求用**多级列表**梳理。\n- **套磁素材**：如果有原话或契合点推导，完整放入 \\`>[!quote]- 📝 原始套磁/面试话术参考\\` 中。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **必须生成表格**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频/文章原句 (必须提取原文) |\n- 如果有复杂的文化背景、词源或长篇语法变位规则，放入 \\`>[!info]- 📖 文化背景与语法详解\\` 完整保留。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式记录**：表面用短列表列出镜头/配乐的名称与作用。\n- **深度赏析**：UP主大段的深度画面解析、声画对应分析，必须一字不落地放入 \\`> [!video]- 🎬 逐帧拉片细节\\`。\n- 自动播种双链，如 \\`[[蒙太奇]]\\`。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- 采用 **【痛点】->【方案】->【操作】** 结构，操作说明用有序列表 \\`1. 2. 3.\\`。\n- 代码片段必须放入 \\`\\`\\` 块中。\n- **底层原理**：将冗长的技术演进过程和踩坑记录放入 \\`>[!tip]- 💡 底层原理与防坑指南\\`。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 疯狂摘录：将震撼的金句原封不动提取至 \\`>[!quote] 摘录金句\\`。\n- **逻辑重构**：用嵌套树状列表，一步步重现作者的推导逻辑，不要只给一句干瘪的结论。\n- 在文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- 将所有建议转化为高度可执行的 Checklist，如 \\`- [ ] 每日早晨复盘\\`。\n- **详实案例**：将作者的真实经历、踩坑故事，极其完整地放入 \\`> [!example]- 🌱 真实案例与推导逻辑\\`。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **盘古空格**：中英文混排、以及 \\`**加粗**\\` / \\`==高亮==\\` 标记的前后，**必须加一个半角空格**。例如：\\`关于 **牙科夹板** (Oral splint) 的原理\\`。\n2. **Dataview 防乱码**：绝对禁止在行内代码块（反引号）内以等号 \\`=\\` 开头！\n   - ❌ 绝对禁止：\\\\\\`==文本==\\\\\\` (这会导致 Dataview inline query 报错)\n   - ✅ 正确做法：直接写 \\`==文本==\\` 即可。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 将生成的 Markdown 笔记文本作为一个长字符串放入 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**（需要留白的地方用 \\`\\\\n\\\\n\\`）。\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内的高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述所有排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑 (动态注入，拯救崩溃)\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，且不要删减任何详实内容！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。用户极其看重视频/文章中的**推导逻辑、具体案例、甚至是有价值的闲聊细节**。\n你必须将原文 100% 的干货保留下来，同时利用 Obsidian 的“冰山排版法”让它们具有清爽的视觉层次感。\n\n### 🛠️ Obsidian “海量信息收纳”工具箱 (强制执行)\n为了在保留几千字内容的同时避免“文字墙”，你必须严格遵守以下排版：\n\n1. **重型冰山折叠块 (The \"Heavy Iceberg\" Fold)**：\n   - 核心结论外露，但具体的长篇案例、冗长推导、原文语录，**全部**塞进折叠块。\n   - **严禁敷衍**：折叠块内部绝对不能只写一两句话！里面必须是大段详实的描述、举例和完整的上下文。\n   - 语法：`>[!example]- 📜 展开查看详尽推导与完整案例` (注意内部多行内容每行都要以 `>` 开头)。\n2. **多级嵌套树 (The Nested Tree)**：\n   - 绝不要用大段毫无格式的平铺直述。把长句子拆解为带有 `- ` 和 `  - ` 的多级无序列表，形成清晰的逻辑递进。\n3. **视觉焦点、盘古空格与 Dataview 避坑 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：在加粗、高亮标记的前后，以及中英文混排时，**必须保留一个半角空格**！\n   - **绝对禁止 (Dataview 行内查询报错)**：绝对不允许在行内代码块（反引号）内部以等号 `=` 开头！这会导致 Obsidian Dataview 插件将其误认为代码从而直接报错乱码。\n     - ❌ 致命错误示范：`\\`==卖场陈列==\\`` 或 `\\`=某个概念\\``\n     - ✅ 正确排版：单纯使用高亮 `==卖场陈列==` ，不要在外面加反引号。\n4. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业术语，毫不吝啬地添加双链：例如 `[[多巴胺误差]]`。\n   - 结构化信息使用 Dataview 语法：例如 `Deadline:: 2026-12-01`。\n\n### ⚠️ 绝对的输出红线 (决定系统是否崩溃)\n1. **纯净 JSON 输出**：你正在与严格的自动化 API 对接，**只能且必须**输出一个合法的 JSON 对象。\n2. **严禁 Markdown Block 标记**：直接以 `{` 开头，`}` 结尾，绝不能在首尾包含 ```json 和 ```。\n3. **严格转义**：Markdown 笔记内容中的所有换行符必须转义为 `\\n`（段落间用 `\\n\\n`），所有的双引号必须转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "maxIterations": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        2352,
+        800
+      ],
+      "id": "8ba142dc-b574-41df-8251-8d2ef086b237",
+      "name": "AI Agent8",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2352,
+        1344
+      ],
+      "id": "a9dd0929-2b8f-4b5b-bf48-3c8357ebc590",
+      "name": "Google Gemini 3.3",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「博士申请 / 学术科研」(针对日本神经科学医学博士定制)**\n- 顶部属性区：\\`大学:: \\` \\`导师(PI):: \\` \\`神经方向:: \\` \\`入试Deadline:: \\` \\`内诺状态:: \\`\n- **实验室画像与申请雷达表 (强制生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 我的背景契合度 / 痛点分析 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (如: 动物模型, fMRI, 分子机制等) | (结合中国本科医学背景分析) |\n  | **日本入试要求** | (语言成绩、研究生过渡、过去问要求) | |\n  | **资金/奖学金** | (JSPS, MEXT, RA/TA 机会等) | |\n- 教授的代表作摘要、可用于**“研究计划书”**或**“套磁信”**的绝佳素材，放入 \\`>[!quote]- 📝 核心文献与套磁素材\\`（注意内部使用 \\`> **【教授原话】**\\` 等子标题精排版）。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- **拉片式制表**：| 场景/时间戳 | 视听语言 (镜头/配乐) | ==深度隐喻解析== |\n- UP主大段的深度散发性解析，放入 \\`> [!video]- 🎬 逐帧拉片原案\\` (内部使用 \\`> **【光影构图】**\\`、\\`> **【叙事节奏】**\\`等子标题)。\n\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **优先制表列表**：能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n2. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n3. **双链必须裸露**：严禁将 \\`[[ ]]\\` 放进反引号代码块中，必须直接写，如 \\`[[神经外科]]\\`。\n4. **分隔线前必须空行**：使用 \\`---\\` 制造视觉留白时，上一行必须是空行（即JSON里的 \\`\\\\n\\\\n---\\`），否则上一行文字会被 Markdown 误渲染成 H2 标题。\n5. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\nreturn userPrompt;",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**用户画像**：兴趣广泛，中国临床医学本科毕业，目前主攻**神经科学 (Neuroscience)**，正在准备**日本医学博士 (医学博士課程)** 的申请。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的callout默认展开。\n   - 折叠块内部必须使用加粗括号作为子标题（如 `> **【核心推导】**`），配合带 `> - ` 的无序列表，严禁不分段的文字墙。\n3. **多级嵌套树 (The Nested Tree)**：\n   - 对于无法制表的发散性逻辑，加多级标题，拆解为树状逻辑，加粗关键词，善用Obsidian特殊格式。\n4. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️ 绝对排版红线 (避免 Obsidian 渲染乱码)\n- **双链绝对裸露**：**绝对禁止**将双向链接包裹在反引号中！否则链接会失效！\n  - ❌ 错误：`\\`[[神经外科]]\\``\n  - ✅ 正确：`[[神经外科]]`\n- **分隔线上方空行**：使用分隔线 `---` 时，**上方必须保留一个空行**！如果紧贴文字下一行，会被 Markdown 错误识别为大标题。\n  - ❌ 错误：`文字\\n---`\n  - ✅ 正确：`文字\\n\\n---`\n- **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n- **行内代码块防乱码**：绝对禁止在反引号内以等号开头（❌ `\\`==文本==\\`` ），直接写高亮 `==文本==`。\n\n### 🚨 JSON 格式红线 (决定系统是否崩溃)\n1. 只能且必须输出一个合法的 JSON 对象。\n2. 直接以 `{` 开头，`}` 结尾，绝不包含 ```json。\n3. 所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
+          "maxIterations": 2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        2352,
+        1168
+      ],
+      "id": "83ee510d-06af-4278-851d-9809ff0e2d41",
+      "name": "AI Agent9",
+      "executeOnce": true,
+      "retryOnFail": false,
+      "maxTries": 2,
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst newItems = [];\n\nfor (const item of items) {\n  const rawLocalFile = item.json.body.metadata.local_file;\n  if (rawLocalFile) {\n    const files = rawLocalFile.split(',').map(f => f.trim()).filter(f => f);\n    for (const file of files) {\n       const newItem = { json: JSON.parse(JSON.stringify(item.json)) };\n       newItem.json.audio_file_path_for_subflow = `/home/node/uploads/${file}`;\n       newItems.push(newItem);\n    }\n  }\n}\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1584,
+        432
+      ],
+      "id": "a312d4e0-6f5d-4508-9d91-e25af316e5f7",
+      "name": "Code: Split Files"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst parts =[\n  { \"text\": \"Please transcribe all text from this image/document verbatim. Do not add any commentary.\" }\n];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  \n  if (item.binary && item.binary.data) {\n    // 【关键修复】：调用 n8n 的内置方法，从底层真实提取二进制 Buffer\n    const buffer = await this.helpers.getBinaryDataBuffer(i, 'data');\n    \n    // 将 Buffer 转换为 Gemini 需要的 Base64 格式\n    const base64Data = buffer.toString('base64');\n    \n    parts.push({\n      \"inline_data\": {\n        \"mime_type\": item.binary.data.mimeType,\n        \"data\": base64Data\n      }\n    });\n  }\n}\n\nreturn[{\n   json: {\n     gemini_parts: parts\n   }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        432
+      ],
+      "id": "2ce15014-e0d7-4c81-920a-d4aa38815da3",
+      "name": "Code: Prepare Gemini Parts"
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.native_subtitle_command }}"
+      },
+      "id": "a9fbbac1-c66b-4675-9f4e-7e03d81eaa01",
+      "name": "CMD: Try Native Subtitles",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -1392,
+        1088
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfunction cleanSubtitle(raw) {\n  const seen = new Set();\n  const lines = String(raw || \"\")\n    .replace(/\\r/g, \"\")\n    .split(\"\\n\")\n    .map((line) => line.trim())\n    .filter((line) => line)\n    .filter((line) => !line.startsWith(\"__NATIVE_SUBTITLE_\"))\n    .filter((line) => line !== \"WEBVTT\")\n    .filter((line) => !/^\\d+$/.test(line))\n    .filter((line) => !/^\\d{1,2}:\\d{2}:\\d{2}[,.]\\d{3}\\s+-->\\s+\\d{1,2}:\\d{2}:\\d{2}[,.]\\d{3}/.test(line))\n    .filter((line) => !/^NOTE($|\\s)/.test(line))\n    .map((line) => line.replace(/<[^>]+>/g, \"\").replace(/\\s+/g, \" \").trim())\n    .filter((line) => line && !/^(align|position|line):/i.test(line));\n\n  const deduped = [];\n  for (const line of lines) {\n    const key = line.toLowerCase();\n    if (seen.has(key)) continue;\n    seen.add(key);\n    deduped.push(line);\n  }\n  return deduped.join(\"\\n\");\n}\n\nfor (const item of items) {\n  const base = $(\"Code: Detect Platform & Prepare Download\").item.json;\n  const stdout = item.json.stdout || \"\";\n  const fileMatch = stdout.match(/^__NATIVE_SUBTITLE_FILE__=(.+)$/m);\n  const languageMatch = stdout.match(/^__NATIVE_SUBTITLE_LANGS__=(.+)$/m);\n  const transcript = fileMatch ? cleanSubtitle(stdout) : \"\";\n\n  item.json = {\n    ...base,\n    ...item.json,\n    native_subtitle_file: fileMatch ? fileMatch[1].trim() : \"\",\n    native_subtitle_langs: languageMatch ? languageMatch[1].trim() : \"\",\n    transcript_source: transcript.length >= 80 ? \"native_subtitle\" : \"asr_fallback\",\n    video_transcript: transcript.length >= 80 ? transcript : \"\",\n  };\n}\n\nreturn items;"
+      },
+      "id": "b19cc641-4b27-403e-b7d0-27d3f293ab85",
+      "name": "Code: Parse Native Subtitles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "dfd3e97d-7189-488b-ad43-1fd9b168e529",
+                    "leftValue": "={{ $json.video_transcript }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Native Subtitle"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Audio Fallback"
+        }
+      },
+      "id": "d740f0f4-7c27-4956-8522-21c5cc5d5029",
+      "name": "Switch: Native Transcript Found",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1008,
+        1088
+      ]
     }
   ],
   "connections": {
@@ -1508,11 +1897,20 @@
       "main": [
         [
           {
-            "node": "CMD: Download Audio",
+            "node": "CMD: Try Native Subtitles",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Switch: Platform": {
+      "main": [
+        [],
+        [],
+        [],
+        [],
+        []
       ]
     },
     "Set: Final Transcript for AI": {
@@ -1824,7 +2222,7 @@
       "main": [
         [
           {
-            "node": "Code: Split Files1",
+            "node": "Code: Split Files",
             "type": "main",
             "index": 0
           }
@@ -1842,7 +2240,7 @@
       "main": [
         [
           {
-            "node": "Code: Prepare Gemini Parts1",
+            "node": "Code: Prepare Gemini Parts",
             "type": "main",
             "index": 0
           }
@@ -1865,28 +2263,6 @@
         [
           {
             "node": "Merge: Transcript Sources",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: Split Files1": {
-      "main": [
-        [
-          {
-            "node": "Read Binary File",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: Prepare Gemini Parts1": {
-      "main": [
-        [
-          {
-            "node": "Gemini Vision",
             "type": "main",
             "index": 0
           }
@@ -1930,7 +2306,7 @@
       "ai_languageModel": [
         [
           {
-            "node": "AI Agent3",
+            "node": "AI Agent2",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -1941,7 +2317,7 @@
       "ai_languageModel": [
         [
           {
-            "node": "AI Agent2",
+            "node": "AI Agent3",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -2089,19 +2465,129 @@
           }
         ]
       ]
+    },
+    "Google Gemini 3.": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent7",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini 3.2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent8",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini 3.3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent9",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Code: Split Files": {
+      "main": [
+        [
+          {
+            "node": "Read Binary File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Prepare Gemini Parts": {
+      "main": [
+        [
+          {
+            "node": "Gemini Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CMD: Try Native Subtitles": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Native Subtitles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Native Subtitles": {
+      "main": [
+        [
+          {
+            "node": "Switch: Native Transcript Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Native Transcript Found": {
+      "main": [
+        [
+          {
+            "node": "Merge: Transcript Sources",
+            "type": "main",
+            "index": 3
+          }
+        ],
+        [
+          {
+            "node": "CMD: Download Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "0a48759f-2530-4c65-ba0c-9524bcc002f9",
   "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "f41e010efec0c1b5844289974b791ba63a20d3414932fce878b32f4a915c9436"
+    "videoSummaryWorkflow": {
+      "name": "Video Summary Advanced Workflow",
+      "version": "2.1.3",
+      "variant": "advanced",
+      "webhookPath": "obsidian-video-summary",
+      "models": [
+        "Gemini 3.1",
+        "Gemini 3.0"
+      ],
+      "requiredTools": [
+        "yt-dlp",
+        "ffmpeg"
+      ],
+      "uploadsPath": "/home/node/uploads"
+    }
   },
-  "id": "cEGGwNdhBA1ZRbnG",
-  "tags": []
+  "active": false
 }

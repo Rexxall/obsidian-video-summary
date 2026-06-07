@@ -1,104 +1,173 @@
-# 🎥 Obsidian Video Summary Plugin
-> **Your AI-powered Video Knowledge Harvester** —— 打造你的“第二大脑”视频情报中心
+# Video Summary
 
+Turn videos, local recordings, and rough transcripts into structured Obsidian notes.
+
+Video Summary connects an Obsidian command surface with your own n8n workflow. The plugin stays focused on note operations inside the vault: it finds video metadata, sends the selected input to your webhook, receives a Markdown result, updates frontmatter, keeps processing history, and supports batch work.
+
+## What it does
+
+- Process a note that contains a video URL, a local media path, or a pasted transcript.
+- Save the result as a clean Markdown note with headings, callouts, tables, links, and frontmatter.
+- Extract transcript only, update video metadata only, or generate a full note.
+- Process many notes from a batch panel with status isolation, retry handling, and progress logs.
+- Keep multiple webhook profiles so you can switch between local, remote, and test workflows.
+- Cache repeated URL and mode combinations to avoid unnecessary repeated processing.
+- Rename processed notes from returned video metadata while handling filename conflicts.
+
+## Typical workflow
+
+1. Create a note with a `link` property or paste a video URL in the note body.
+2. Run `Video Summary: summarize current note` from the command palette.
+3. The plugin sends the request to your configured n8n webhook.
+4. The n8n workflow handles download, transcript extraction, and note generation.
+5. The plugin inserts the returned Markdown and writes processing metadata back to the note.
+
+```yaml
 ---
-
-## 💡 这不仅仅是一个插件
-大多数视频总结插件只是“提取一段摘要”。本插件通过 **Obsidian ⇔ n8n 强强联合**，构建了一个完整的**高保密、全量信息提取流水线**。它可以极度完美地将长视频转化为带有结构化框架、Callouts 折叠块和精美表格的富文本笔记。
-
+link: 'https://www.youtube.com/watch?v=example'
+status: pending
 ---
-
-## 🌟 核心亮点 (Why Choose Me?)
-
-### 🧠 极致的“第二大脑”排版哲学
-不再是传统的一大段文字墙！得益于内置的多平台优化 Prompt（包含在项目附带的 `Obsidian Video Summary.json` 中），AI 将为你生成具有以下特征的极致笔记：
-- **`>[!summary] 核心摘要`**：开门见山，精准定调。
-- **全量提取，绝不删减**：冗长的原文推导或背景故事会用优雅的折叠块收纳，绝不丢失关键信息。
-- **万物皆可表**：针对“对比”、“操作步骤”、“优劣势”自动生成精美的 Markdown 表格。
-- **深度双链支持**：智能识别专业术语并进行 `[[Wikilinks]]` 连接。
-
-### 💾 智能缓存与隔离
-- **省钱省力**：相同 URL 模式组合自动触达高速缓存，避免重复调用 AI 产生高昂费用。
-- **安全隔离**：批量处理支持单个文件失败不阻塞，实时查看处理进度与详细日志。
-
----
-
-## 🛠️ 全量功能矩阵 (Full Feature List)
-
-### 🎥 1. 多维度视频/文本处理
-- **📺 快速总结当前笔记**：一键触达，根据笔记内的视频/音频或手动提供的文稿生成排版笔记。
-- **📺 将当前笔记全文作为文稿总结**：支持**无视频场景**！将你记下的粗糙笔记发送至 AI，直接生成极致排版总结。
-- **📝 快速提取文稿**：不需要总结，仅剥离视频/音频内的高精度文字稿供二次创作。
-- **ℹ️ 更新视频信息（不改正文）**：仅抓取和补全视频标题、作者等 Frontmatter 属性。
-- **ℹ️ 更新并重命名**：自动关联视频标题美化本地文件名，告别“未命名视频”。
-- **🔗 自动多文件/录音合并总结**：在 `localFileName` 中配置逗号分隔的多个文件，插件将**逐个提取文字稿后再进行合并全量总结**（非常适合合并周期性会议录音）。
-
-### ⚡ 2. 自动化与批量机制
-- **🔄 批量处理面板 (`BatchProcessingModal`)**：灵活框选文件、指定处理模式和并发数。
-- **⚡ 处理所有待处理视频**：一键扫描自动识别所有状态为 `pending` 或 `error` 的笔记，全自动化跑批！
-- **⛔️ 标记为非视频笔记**：快速在属性中添加免责排除标记，防止误扫描。
-
-### 📊 3. 视图面板与多配置管理
-- **📋 侧边栏视频总结管理工作台 (`VideoSummaryView`)**：实时查看处理历史记录（成功/失败、对应模式和时间戳）。
-- **🔗 多 Webhook 配置文件切换 (Multi-profile)**：可以保存、管理、并任意切换多个 n8n 节点端点，方便在“本地测试”与“云端服务”间无缝跳转。
-- **🔗 测试 n8n 连接**：一键快速检测网络或节点通路异常。
-
----
-
-## 🔄 架构与原理 (Architecture)
-
-```mermaid
-graph TD
-    A[Obsidian 插件] -->|1. 发送 URL / 文本 & 元数据| B(n8n Webhook)
-    B -->|2. 调用 yt-dlp| C[本地下载音频/视频]
-    C -->|3. 语音识别| D[提取文字文稿]
-    D -->|4. AI Agent / LLM| E[深度总结 & 结构化排版]
-    E -->|5. 组装 Markdown 笔记| F[返回 n8n 结果]
-    F -->|6. 自动插入/替换| A
 ```
 
----
+## Install
 
-## 🚀 快速开始 (Quick Start)
+### Manual install
 
-> [!IMPORTANT]
-> 本插件**必须**配合 **n8n** 服务端运行，以承担重型的音频下载、本地转文字和 AI 推理任务。
+```bash
+git clone https://github.com/Rexxall/obsidian-video-summary-plugin.git
+cd obsidian-video-summary-plugin
+npm install
+npm run build
+```
 
-### 1. 启动 n8n 并导入工作流
-1. 启动本地或 Docker 版 n8n 服务。
-2. 导入项目目录中的 `Obsidian Video Summary.json` 文件。
-3. 在 n8n 中填入您的 AI 模型 API Key (如 Gemini / OpenAI)。
+Copy these files into your vault plugin folder:
 
-### 2. 配置配置 Obsidian 插件
-1. 给插件输入 **n8n Webhook URL** (默认为：`http://localhost:5678/webhook/obsidian-video-summary`)。
-2. 配置超时时间（推荐 **10分钟**）。
+```text
+main.js
+manifest.json
+styles.css
+Obsidian Video Summary.json
+```
 
-更详细的操作全流程指南请参见：📖 [配置与安装指南 (INSTALL.md)](INSTALL.md)
+Recommended folder:
 
----
+```text
+<your-vault>/.obsidian/plugins/video-summary/
+```
 
-## 📈 更新日志 (Changelog)
+Restart Obsidian, then enable `Video Summary` from `Settings -> Community plugins`.
 
-<details>
-<summary>点击展开 历史版本更新</summary>
+### n8n workflow
 
-### v2.1.2
-- ✨ 新增智能缓存系统
-- 💰 大幅节省API调用费用
-- 🔄 支持缓存管理和统计
+Import `Obsidian Video Summary.json` into n8n and configure your own service credentials inside n8n. The repository never includes private credentials, cookies, personal cache files, or vault data.
 
-### v2.1.1
-- ✨ 新增实时批量处理功能
-- 🛡️ 改进错误处理和隔离机制
+Default webhook:
 
-### v2.1.0
-- 🎉 首次发布
-- 📺 基础配置和设置选项
+```text
+http://localhost:5678/webhook/obsidian-video-summary
+```
 
-</details>
+For a full setup guide, see [INSTALL.md](INSTALL.md).
 
----
+If you are setting this up for the first time, also read
+[Beginner Deployment Test and Troubleshooting](docs/BEGINNER_DEPLOYMENT_TEST.md). It records
+real clean-environment install issues and fixes, including Docker, n8n, webhook paths, local
+files, cookies, and credentials.
 
-## 🤝 技术支持与许可证
-- 问题反馈：[Submit Issue](https://github.com/yourusername/obsidian-video-summary-plugin/issues)
-- 协议：[MIT License](LICENSE)
+For a publishing-ready walkthrough, see the sample notes and scripts in [demo/](demo/).
+
+## Commands
+
+- `Video Summary: summarize current note`
+- `Video Summary: extract transcript`
+- `Video Summary: update video information`
+- `Video Summary: batch process notes`
+- `Video Summary: open dashboard`
+- `Video Summary: mark as non-video note`
+
+## Settings
+
+- Backend: n8n webhook or compatible worker endpoint.
+- Webhook profiles: save and switch multiple endpoints.
+- Setup check: run a connection diagnostic from Obsidian settings before processing a real video.
+- Processing mode: full note, transcript only, or metadata only.
+- Language: Chinese, English, or Japanese.
+- Processing model: a label passed through to your n8n switch node.
+- Cache: enable URL and mode based result reuse.
+- Batch concurrency: limit simultaneous files.
+- Payload keys: customize request field names to match your workflow.
+
+## Platform and transcript strategy
+
+The bundled n8n workflow uses this transcript ladder:
+
+1. Use a transcript pasted in Obsidian when present.
+2. Try native subtitles first for YouTube and Bilibili, selecting the video's original audio
+   language rather than the Obsidian note output language.
+3. Fall back to audio download and ASR when no usable subtitle is found.
+4. Treat Douyin, TikTok, and Xiaohongshu/Rednote as cookie-sensitive best-effort sources.
+
+Supported URL families include YouTube, Bilibili, Bilibili short links, Douyin short links,
+TikTok short links, and Xiaohongshu/Rednote links.
+
+For platform-specific expectations, see
+[Platform Capability Matrix](docs/PLATFORM_CAPABILITY_MATRIX.md).
+
+## Privacy and data boundary
+
+The plugin only sends the data required for the selected operation to the endpoint you configure. Depending on mode, that can include the note name, video URL, pasted transcript, local file path, language, processing mode, and model label.
+
+Do not commit these local files:
+
+- `data.json`
+- `data/`
+- `.DS_Store`
+- cookie files
+- credential exports
+- personal transcripts or processed vault notes
+
+The included `.gitignore` already excludes local cache and runtime data. Review ignored files before publishing a release.
+
+## Development
+
+```bash
+npm install
+npm run dev
+npm run build
+```
+
+Useful checks before release:
+
+```bash
+npm run build
+git status --short
+```
+
+## Release
+
+Obsidian installs community plugin files from GitHub Releases. The release tag must match `manifest.json` exactly and include:
+
+- `main.js`
+- `manifest.json`
+- `styles.css` if present
+
+The included GitHub Actions workflow builds the plugin and publishes those assets when you push a semantic version tag such as `2.1.3`.
+
+## Community submission
+
+Before submitting to the Obsidian community directory, confirm:
+
+- `manifest.json` has an accurate `id`, `name`, `version`, `description`, `author`, and `minAppVersion`.
+- `README.md` explains purpose and usage.
+- `LICENSE` is present.
+- The release tag equals the manifest version.
+- The release assets include the required plugin files.
+
+## Support
+
+- Issues: https://github.com/Rexxall/obsidian-video-summary-plugin/issues
+- Discussions: https://github.com/Rexxall/obsidian-video-summary-plugin/discussions
+
+## License
+
+MIT. See [LICENSE](LICENSE).
