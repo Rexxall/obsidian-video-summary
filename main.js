@@ -38,7 +38,7 @@ var DEFAULT_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/obsidian-video-summ
 var LEGACY_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/cyrus";
 var RECOMMENDED_WORKFLOW = {
   name: "Video Summary Advanced Workflow",
-  version: "2.1.3",
+  version: "2.1.4",
   variant: "advanced",
   webhookPath: "obsidian-video-summary",
   models: [...DEFAULT_AI_MODELS],
@@ -64,8 +64,8 @@ var PLATFORM_CAPABILITIES = [
     platform: "Bilibili",
     status: "supported",
     input: "link",
-    requirements: "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1B\u5206 P \u89C6\u9891\u9700\u8981\u6CE8\u610F URL\u3002",
-    notes: "\u53EA\u5904\u7406\u67D0\u4E00 P \u65F6\uFF0C\u5EFA\u8BAE\u590D\u5236\u5F53\u524D\u5206 P \u7684\u5B8C\u6574\u94FE\u63A5\u3002"
+    requirements: "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1BHTTP 412 \u65F6\u901A\u5E38\u9700\u8981\u66F4\u65B0 yt-dlp \u6216\u6DFB\u52A0 cookies\u3002",
+    notes: "\u53EA\u5904\u7406\u67D0\u4E00 P \u65F6\uFF0C\u5EFA\u8BAE\u590D\u5236\u5F53\u524D\u5206 P \u7684\u5B8C\u6574\u94FE\u63A5\uFF1Bcookie \u6587\u4EF6\u540D\u4E3A bilibili_cookies.txt\u3002"
   },
   {
     platform: "\u6296\u97F3",
@@ -5868,6 +5868,15 @@ var VideoSummaryAPI = class {
     if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
       return "\u5904\u7406\u670D\u52A1\u62D2\u7EDD\u8BBF\u95EE\u3002\u8BF7\u68C0\u67E5 n8n \u6743\u9650\u3001\u53CD\u5411\u4EE3\u7406\u9274\u6743\u6216\u8FDC\u7A0B\u670D\u52A1\u8BBF\u95EE\u8BBE\u7F6E\u3002";
     }
+    if (lower.includes("bilibili") && (lower.includes("http error 412") || lower.includes("precondition failed"))) {
+      return "Bilibili \u62D2\u7EDD\u4E86 yt-dlp \u8BF7\u6C42\u3002\u8BF7\u5148\u7528\u9879\u76EE Docker \u955C\u50CF\u65E0\u7F13\u5B58\u91CD\u5EFA\u4EE5\u66F4\u65B0 yt-dlp\uFF1B\u5982\u679C\u4ECD\u5931\u8D25\uFF0C\u628A\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies \u4FDD\u5B58\u4E3A docker/cookies/bilibili_cookies.txt \u540E\u91CD\u542F n8n\u3002";
+    }
+    if (lower.includes("yt-dlp") && lower.includes("not found")) {
+      return "n8n \u5BB9\u5668\u7F3A\u5C11 yt-dlp\u3002\u8BF7\u4F7F\u7528\u9879\u76EE\u63D0\u4F9B\u7684 Docker \u955C\u50CF\uFF0C\u6216\u5728\u5F53\u524D n8n \u73AF\u5883\u4E2D\u5B89\u88C5 yt-dlp \u540E\u91CD\u8BD5\u3002";
+    }
+    if (lower.includes("ffmpeg") && lower.includes("not found")) {
+      return "n8n \u5BB9\u5668\u7F3A\u5C11 ffmpeg\u3002\u8BF7\u4F7F\u7528\u9879\u76EE\u63D0\u4F9B\u7684 Docker \u955C\u50CF\uFF0C\u6216\u5728\u5F53\u524D n8n \u73AF\u5883\u4E2D\u5B89\u88C5 ffmpeg \u540E\u91CD\u8BD5\u3002";
+    }
     if (message.includes("HTTP 500") || message.includes("HTTP 502") || message.includes("HTTP 503")) {
       return `\u5904\u7406\u670D\u52A1\u5185\u90E8\u62A5\u9519\u3002\u8BF7\u6253\u5F00 n8n Execution \u65E5\u5FD7\u67E5\u770B\u5931\u8D25\u8282\u70B9\u3002\u539F\u59CB\u9519\u8BEF: ${message}`;
     }
@@ -5891,6 +5900,9 @@ var VideoSummaryAPI = class {
     }
     if (message.includes("\u65E0\u6CD5\u8FDE\u63A5\u5904\u7406\u670D\u52A1")) {
       return "\u5148\u8FD0\u884C docker compose \u670D\u52A1\uFF0C\u518D\u786E\u8BA4\u7AEF\u53E3\u6CA1\u6709\u88AB\u5176\u4ED6 n8n \u5360\u7528\u3002";
+    }
+    if (message.includes("Bilibili \u62D2\u7EDD")) {
+      return "\u6267\u884C docker compose build --no-cache \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u6DFB\u52A0 docker/cookies/bilibili_cookies.txt\u3002";
     }
     if (message.includes("\u7A7A\u54CD\u5E94")) {
       return "\u68C0\u67E5 Respond to Webhook: Test \u8282\u70B9\u662F\u5426\u4ECD\u8FDE\u63A5\u5728\u6D4B\u8BD5\u5206\u652F\u4E0A\u3002";

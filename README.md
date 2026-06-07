@@ -151,7 +151,7 @@ Obsidian installs community plugin files from GitHub Releases. The release tag m
 - `manifest.json`
 - `styles.css` if present
 
-The included GitHub Actions workflow builds the plugin and publishes those assets when you push a semantic version tag such as `2.1.3`.
+The included GitHub Actions workflow builds the plugin and publishes those assets when you push a semantic version tag such as `2.1.4`.
 
 ## Community submission
 

@@ -10,7 +10,7 @@ RUN apk add --no-cache \
 		python3 \
 		py3-pip \
 		tini \
-	&& python3 -m pip install --break-system-packages --no-cache-dir yt-dlp \
+	&& python3 -m pip install --break-system-packages --no-cache-dir --upgrade pip yt-dlp \
 	&& npm install -g "n8n@${N8N_VERSION}" \
 	&& mkdir -p /home/node/.n8n /home/node/files /home/node/uploads /home/node/cookies \
 	&& chown -R node:node /home/node

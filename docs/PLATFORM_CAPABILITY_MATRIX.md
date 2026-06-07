@@ -10,7 +10,7 @@ platform access, cookies, or local Docker paths rather than the Obsidian note it
 | Pasted transcript   | Highest     | Any blocked platform                   | Paste text into the note               |
 | Local audio/video   | Highest     | Meetings, lectures, recordings         | Put files in `docker/uploads`          |
 | YouTube public URL  | Good        | Public videos and lectures             | Cookies for restricted videos          |
-| Bilibili public URL | Good        | Public videos, some multi-part content | Use the exact part URL when needed     |
+| Bilibili public URL | Good        | Public videos, some multi-part content | Update `yt-dlp`; cookies may be needed |
 | Douyin/TikTok       | Limited     | Best-effort short video processing     | Usually needs cookies                  |
 | Xiaohongshu/Rednote | Limited     | Best-effort shared links               | Usually needs cookies and stable links |
 
@@ -45,6 +45,11 @@ Restricted, age-gated, private, or region-limited videos may require `youtube_co
 Public videos usually work. Multi-part videos may require the exact part URL. If only one part is
 needed, open that part in the browser and copy the URL with its current `p=` value.
 
+Bilibili may return `HTTP Error 412: Precondition Failed` when the downloader is old or the request
+looks automated. Rebuild the provided Docker image with `--no-cache` so it installs the latest
+`yt-dlp`. If the same link still fails, export browser cookies in Netscape format and save them as
+`docker/cookies/bilibili_cookies.txt`.
+
 ### Douyin And TikTok
 
 These platforms are best-effort. Short links can expire or redirect, and many videos need cookies.
@@ -61,6 +66,7 @@ When a platform requires login, export cookies in Netscape format and put them i
 
 ```text
 youtube_cookies.txt
+bilibili_cookies.txt
 douyin_cookies.txt
 tiktok_cookies.txt
 xiaohongshu_cookies.txt

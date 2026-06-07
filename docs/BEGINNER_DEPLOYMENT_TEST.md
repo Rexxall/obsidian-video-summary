@@ -65,7 +65,7 @@ http://localhost:5678
 http://localhost:5678/webhook/obsidian-video-summary
 ```
 
-9. Run the plugin setup check. The recommended workflow version is `2.1.3`, and the workflow path
+9. Run the plugin setup check. The recommended workflow version is `2.1.4`, and the workflow path
    should be `obsidian-video-summary`.
 10. Create a note with:
 
@@ -323,7 +323,34 @@ The workflow expects container paths under:
 /home/node/uploads/
 ```
 
-### Problem: YouTube, TikTok, or Douyin download fails
+### Problem: Bilibili returns `HTTP Error 412: Precondition Failed`
+
+Meaning:
+
+Bilibili rejected the automated `yt-dlp` request. This usually happens when `yt-dlp` is old, the
+request lacks browser-like headers, or the video requires browser cookies.
+
+Fix:
+
+1. Rebuild the provided Docker image without cache:
+
+```bash
+cd docker
+docker compose -f docker-compose.video-summary.yml build --no-cache
+docker compose -f docker-compose.video-summary.yml up -d
+docker compose -f docker-compose.video-summary.yml exec n8n-video-summary yt-dlp --version
+```
+
+2. If the same URL still fails, export Bilibili browser cookies in Netscape format.
+3. Save the cookie file here:
+
+```text
+docker/cookies/bilibili_cookies.txt
+```
+
+4. Restart n8n and run the plugin setup check again.
+
+### Problem: YouTube, Bilibili, TikTok, Douyin, or Xiaohongshu download fails
 
 Possible causes:
 
@@ -345,7 +372,10 @@ docker/cookies/
 
 ```text
 youtube_cookies.txt
+bilibili_cookies.txt
 douyin_cookies.txt
+tiktok_cookies.txt
+xiaohongshu_cookies.txt
 ```
 
 4. Restart n8n after changing mounted files if needed.

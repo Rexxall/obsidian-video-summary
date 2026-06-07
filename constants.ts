@@ -6,7 +6,7 @@ export const DEFAULT_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/obsidian-v
 export const LEGACY_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/cyrus';
 export const RECOMMENDED_WORKFLOW: Required<WorkflowHealthInfo> = {
   name: 'Video Summary Advanced Workflow',
-  version: '2.1.3',
+  version: '2.1.4',
   variant: 'advanced',
   webhookPath: 'obsidian-video-summary',
   models: [...DEFAULT_AI_MODELS],
@@ -33,8 +33,8 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     platform: 'Bilibili',
     status: 'supported',
     input: 'link',
-    requirements: '公开视频通常可用；分 P 视频需要注意 URL。',
-    notes: '只处理某一 P 时，建议复制当前分 P 的完整链接。',
+    requirements: '公开视频通常可用；HTTP 412 时通常需要更新 yt-dlp 或添加 cookies。',
+    notes: '只处理某一 P 时，建议复制当前分 P 的完整链接；cookie 文件名为 bilibili_cookies.txt。',
   },
   {
     platform: '抖音',

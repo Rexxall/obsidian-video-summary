@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## 2.1.4
+
+- Added Bilibili cookie support with the expected `bilibili_cookies.txt` filename.
+- Added Bilibili browser-like `yt-dlp` request headers in the bundled workflow.
+- Updated Docker build guidance so `yt-dlp` can be refreshed when Bilibili returns HTTP 412.
+- Made Bilibili metadata lookup failures easier to recover from during processing.
+
 ## 2.1.3
 
 - Added visible Codex worker job routing and dashboard entry support.

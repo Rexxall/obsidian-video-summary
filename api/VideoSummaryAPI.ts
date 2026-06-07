@@ -1085,6 +1085,21 @@ export class VideoSummaryAPI {
     }
 
     if (
+      lower.includes('bilibili') &&
+      (lower.includes('http error 412') || lower.includes('precondition failed'))
+    ) {
+      return 'Bilibili 拒绝了 yt-dlp 请求。请先用项目 Docker 镜像无缓存重建以更新 yt-dlp；如果仍失败，把浏览器导出的 cookies 保存为 docker/cookies/bilibili_cookies.txt 后重启 n8n。';
+    }
+
+    if (lower.includes('yt-dlp') && lower.includes('not found')) {
+      return 'n8n 容器缺少 yt-dlp。请使用项目提供的 Docker 镜像，或在当前 n8n 环境中安装 yt-dlp 后重试。';
+    }
+
+    if (lower.includes('ffmpeg') && lower.includes('not found')) {
+      return 'n8n 容器缺少 ffmpeg。请使用项目提供的 Docker 镜像，或在当前 n8n 环境中安装 ffmpeg 后重试。';
+    }
+
+    if (
       message.includes('HTTP 500') ||
       message.includes('HTTP 502') ||
       message.includes('HTTP 503')
@@ -1123,6 +1138,10 @@ export class VideoSummaryAPI {
 
     if (message.includes('无法连接处理服务')) {
       return '先运行 docker compose 服务，再确认端口没有被其他 n8n 占用。';
+    }
+
+    if (message.includes('Bilibili 拒绝')) {
+      return '执行 docker compose build --no-cache 更新 yt-dlp；仍失败时添加 docker/cookies/bilibili_cookies.txt。';
     }
 
     if (message.includes('空响应')) {

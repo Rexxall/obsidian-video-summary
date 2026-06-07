@@ -81,7 +81,7 @@ Then:
 
 1. Commit the release-ready changes.
 2. Push the branch.
-3. Create and push a tag that matches `manifest.json`, for example `2.1.3`.
+3. Create and push a tag that matches `manifest.json`, for example `2.1.4`.
 4. Confirm GitHub Actions creates the release assets.
 5. Test manual install from release assets in a clean vault.
 

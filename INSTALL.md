@@ -51,6 +51,15 @@ docker compose -f docker-compose.video-summary.yml up --build
 This custom image includes n8n, `yt-dlp`, and `ffmpeg`. The official `n8nio/n8n` image does not
 include the media tools required by the workflow.
 
+If Bilibili returns `HTTP Error 412: Precondition Failed`, rebuild the image without Docker cache so
+the container gets the latest `yt-dlp`:
+
+```bash
+docker compose -f docker-compose.video-summary.yml build --no-cache
+docker compose -f docker-compose.video-summary.yml up -d
+docker compose -f docker-compose.video-summary.yml exec n8n-video-summary yt-dlp --version
+```
+
 npm-only n8n example:
 
 ```bash
@@ -82,7 +91,7 @@ If port `5678` is already in use, change the Docker host port and update the Obs
 For a full list of beginner setup issues and fixes, see
 [docs/BEGINNER_DEPLOYMENT_TEST.md](docs/BEGINNER_DEPLOYMENT_TEST.md).
 
-The plugin and bundled workflow expect workflow version `2.1.3`, webhook path
+The plugin and bundled workflow expect workflow version `2.1.4`, webhook path
 `obsidian-video-summary`, and model labels `Gemini 3.1` / `Gemini 3.0`.
 
 ## 5. Configure the plugin
@@ -106,8 +115,8 @@ Recommended:
 Optional:
 
 - Put browser-exported cookies in the mounted `cookies` folder when a platform requires login.
-- Expected cookie filenames: `youtube_cookies.txt`, `douyin_cookies.txt`, `tiktok_cookies.txt`,
-  and `xiaohongshu_cookies.txt`.
+- Expected cookie filenames: `youtube_cookies.txt`, `bilibili_cookies.txt`,
+  `douyin_cookies.txt`, `tiktok_cookies.txt`, and `xiaohongshu_cookies.txt`.
 
 - Add more webhook profiles for local, remote, and staging workflows.
 - Change payload key names if your n8n workflow uses different field names.
