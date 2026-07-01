@@ -32,6 +32,93 @@ var import_obsidian6 = require("obsidian");
 // modals/VideoSummaryModal.ts
 var import_obsidian = require("obsidian");
 
+// shared/platforms.mjs
+var SUPPORTED_PLATFORMS = [
+  "youtube.com",
+  "youtu.be",
+  "m.youtube.com",
+  "bilibili.com",
+  "b23.tv",
+  "douyin.com",
+  "v.douyin.com",
+  "iesdouyin.com",
+  "tiktok.com",
+  "vm.tiktok.com",
+  "vt.tiktok.com",
+  "xiaohongshu.com",
+  "xhslink.com",
+  "xhs.cn"
+];
+
+// shared/status.mjs
+function normalizeStatus(status) {
+  const s = (status || "").trim();
+  if (s === "pending") return "pending";
+  if (s === "running" || s === "\u23F3") return "running";
+  if (s === "success" || s === "\u2705" || s === "\u25B6\uFE0F") return "success";
+  if (s === "error" || s === "\u274C") return "error";
+  if (s === "excluded" || s.includes("\u26D4")) return "excluded";
+  return "other";
+}
+
+// shared/url.mjs
+function canonicalizeVideoUrl(url, opts = {}) {
+  const { keepP = false, keepTimestamp = false } = opts;
+  if (!url || typeof url !== "string") return url;
+  try {
+    const u = new URL(url);
+    const host = u.hostname;
+    const tParam = u.searchParams.get("t") || u.searchParams.get("start");
+    if (host.includes("youtube.com")) {
+      if (u.pathname === "/watch") {
+        const id = u.searchParams.get("v");
+        if (!id) return url;
+        let out = `https://www.youtube.com/watch?v=${id}`;
+        if (keepP && u.searchParams.get("index")) out += `&index=${u.searchParams.get("index")}`;
+        if (keepTimestamp && tParam) out += `&t=${tParam}`;
+        return out;
+      }
+      if (u.pathname.startsWith("/shorts/")) {
+        const id = u.pathname.split("/").filter(Boolean)[1];
+        let out = `https://www.youtube.com/shorts/${id}`;
+        if (keepTimestamp && tParam) out += `?t=${tParam}`;
+        return out;
+      }
+      return url;
+    }
+    if (host.includes("youtu.be")) {
+      const id = u.pathname.replace(/^\/+/, "").split("/")[0];
+      if (!id) return url;
+      let out = `https://www.youtube.com/watch?v=${id}`;
+      if (keepTimestamp && tParam) out += `&t=${tParam}`;
+      return out;
+    }
+    if (host.includes("bilibili.com")) {
+      const bvid = u.searchParams.get("bvid");
+      let pathname = u.pathname.replace(/\/$/, "");
+      if (bvid && !/\/video\/BV/i.test(pathname)) pathname = `/video/${bvid}`;
+      let out = u.origin + pathname;
+      const parts = [];
+      if (keepP && u.searchParams.get("p")) parts.push(`p=${u.searchParams.get("p")}`);
+      if (keepTimestamp && u.searchParams.get("t")) parts.push(`t=${u.searchParams.get("t")}`);
+      if (parts.length) out += `?${parts.join("&")}`;
+      return out;
+    }
+    if (host.includes("douyin.com") || host.includes("tiktok.com")) {
+      return `${u.origin}${u.pathname}${u.search}`;
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+// shared/payload.mjs
+var MODES = ["summary", "transcript-only", "info-only"];
+var LANGUAGES = ["zh", "en", "ja"];
+var MODE_SET = new Set(MODES);
+var LANG_SET = new Set(LANGUAGES);
+
 // constants.ts
 var DEFAULT_AI_MODELS = ["Gemini 3.1", "Gemini 3.0"];
 var DEFAULT_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/obsidian-video-summary";
@@ -156,22 +243,6 @@ var DEFAULT_SETTINGS = {
     local_file: "local_file"
   }
 };
-var SUPPORTED_PLATFORMS = [
-  "youtube.com",
-  "youtu.be",
-  "m.youtube.com",
-  "bilibili.com",
-  "b23.tv",
-  "douyin.com",
-  "v.douyin.com",
-  "iesdouyin.com",
-  "tiktok.com",
-  "vm.tiktok.com",
-  "vt.tiktok.com",
-  "xiaohongshu.com",
-  "xhslink.com",
-  "xhs.cn"
-];
 var LANGUAGE_OPTIONS = [
   { value: "zh", label: "\u4E2D\u6587" },
   { value: "en", label: "English" },
@@ -3283,9 +3354,11 @@ var import_obsidian3 = require("obsidian");
 var VideoUtils = class {
   /**
    * 验证是否为有效的视频URL
+   * 平台列表统一来自 constants.ts（单一数据源），避免检测与处理逻辑漂移
+   * （此前这里只有 5 个平台，而 constants 里有 14 个，导致短链/小红书识别不一致）。
    */
   static isValidVideoUrl(url) {
-    return this.SUPPORTED_PLATFORMS.some((platform) => url.includes(platform));
+    return SUPPORTED_PLATFORMS.some((platform) => url.includes(platform));
   }
   /**
    * 从内容中提取视频URL
@@ -3481,79 +3554,13 @@ var VideoUtils = class {
    * 清理视频URL，去除多余参数
    */
   static cleanVideoUrl(url) {
-    try {
-      if (url.includes("bilibili.com")) {
-        if (url.includes("/list/watchlater")) {
-          const bvidMatch = url.match(/bvid=([^&]+)/);
-          if (bvidMatch) {
-            return `https://www.bilibili.com/video/${bvidMatch[1]}`;
-          }
-        }
-        const cleanUrl = url.split("?")[0];
-        return cleanUrl;
-      }
-      if (url.includes("youtube.com") || url.includes("youtu.be")) {
-        let videoId = "";
-        if (url.includes("youtube.com/watch")) {
-          const match = url.match(/[?&]v=([^&]+)/);
-          if (match) videoId = match[1];
-        } else if (url.includes("youtu.be/")) {
-          const match = url.match(/youtu\.be\/([^?&]+)/);
-          if (match) videoId = match[1];
-        }
-        if (videoId) {
-          return `https://www.youtube.com/watch?v=${videoId}`;
-        }
-      }
-      return url;
-    } catch (error) {
-      console.error("\u6E05\u7406\u89C6\u9891URL\u65F6\u51FA\u9519:", error);
-      return url;
-    }
+    return canonicalizeVideoUrl(url);
   }
   /**
    * 清理视频URL，但保留p参数（用于单个链接模式）
    */
   static cleanVideoUrlKeepP(url) {
-    try {
-      if (url.includes("bilibili.com")) {
-        if (url.includes("/list/watchlater")) {
-          const bvidMatch = url.match(/bvid=([^&]+)/);
-          if (bvidMatch) {
-            return `https://www.bilibili.com/video/${bvidMatch[1]}`;
-          }
-        }
-        const urlObj = new URL(url);
-        const baseUrl = urlObj.origin + urlObj.pathname;
-        const pParam = urlObj.searchParams.get("p");
-        if (pParam) {
-          return `${baseUrl}?p=${pParam}`;
-        }
-        return baseUrl;
-      }
-      if (url.includes("youtube.com") || url.includes("youtu.be")) {
-        let videoId = "";
-        if (url.includes("youtube.com/watch")) {
-          const match = url.match(/[?&]v=([^&]+)/);
-          if (match) videoId = match[1];
-        } else if (url.includes("youtu.be/")) {
-          const match = url.match(/youtu\.be\/([^?&]+)/);
-          if (match) videoId = match[1];
-        }
-        if (videoId) {
-          const urlObj = new URL(url);
-          const indexParam = urlObj.searchParams.get("index");
-          if (indexParam) {
-            return `https://www.youtube.com/watch?v=${videoId}&index=${indexParam}`;
-          }
-          return `https://www.youtube.com/watch?v=${videoId}`;
-        }
-      }
-      return url;
-    } catch (error) {
-      console.error("\u6E05\u7406\u89C6\u9891URL\u65F6\u51FA\u9519:", error);
-      return url;
-    }
+    return canonicalizeVideoUrl(url, { keepP: true });
   }
   /**
    * 从B站URL中提取视频ID
@@ -3629,25 +3636,9 @@ var VideoUtils = class {
     }
   }
   static normalizeStatus(status) {
-    const s = (status || "").trim();
-    if (s === "pending") return "pending";
-    if (s === "running" || s === "\u23F3") return "running";
-    if (s === "success" || s === "\u2705" || s === "\u25B6\uFE0F" || s === "\u274C") return "success";
-    if (s === "error") return "error";
-    if (s === "excluded" || s.includes("\u26D4")) return "excluded";
-    return "other";
+    return normalizeStatus(status);
   }
 };
-/**
- * 支持的视频平台
- */
-VideoUtils.SUPPORTED_PLATFORMS = [
-  "bilibili.com",
-  "youtube.com",
-  "youtu.be",
-  "douyin.com",
-  "tiktok.com"
-];
 
 // utils/PlaylistProcessor.ts
 var PlaylistProcessor = class {
@@ -4648,7 +4639,7 @@ var CacheManager = class {
     this.isInitialized = false;
     this.enabled = true;
     this.vault = vault;
-    this.pluginDataPath = pluginDataPath || ".obsidian_mac/plugins/video-summary-plugin/data";
+    this.pluginDataPath = pluginDataPath || `${vault.configDir}/plugins/video-summary/data`;
     this.cacheDir = `${this.pluginDataPath}/cache`;
     this.indexFile = `${this.pluginDataPath}/cache/index.json`;
     this.itemsDir = `${this.pluginDataPath}/cache/items`;
@@ -4811,6 +4802,10 @@ var CacheManager = class {
     try {
       const cacheData = await this.vault.adapter.read(indexItem.path);
       const cacheItem = JSON.parse(cacheData);
+      if (cacheItem.url !== url || cacheItem.mode !== mode || cacheItem.language !== language) {
+        console.warn("\u7F13\u5B58\u952E\u4E0E\u6587\u4EF6\u5185\u5BB9\u4E0D\u5339\u914D\uFF08\u7591\u4F3C\u54C8\u5E0C\u78B0\u649E\uFF09\uFF0C\u6309\u672A\u547D\u4E2D\u5904\u7406:", key);
+        return null;
+      }
       return cacheItem.result;
     } catch (error) {
       console.error("\u8BFB\u53D6\u7F13\u5B58\u6587\u4EF6\u5931\u8D25:", error);
@@ -5113,6 +5108,11 @@ var VideoSummaryAPI = class {
       existingController.abort();
     }
     this.controllers.set(noteName, controller);
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, this.timeout);
     try {
       const response = await fetch(this.webhookUrl, {
         method: "POST",
@@ -5141,10 +5141,13 @@ var VideoSummaryAPI = class {
       return result;
     } catch (error) {
       if (error.name === "AbortError") {
-        throw new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88");
+        throw new Error(
+          timedOut ? `\u8BF7\u6C42\u8D85\u65F6\uFF08\u8D85\u8FC7 ${Math.round(this.timeout / 6e4)} \u5206\u949F\u672A\u54CD\u5E94\uFF09` : "\u8BF7\u6C42\u88AB\u53D6\u6D88"
+        );
       }
       throw new Error(this.formatUserFacingError(error));
     } finally {
+      clearTimeout(timeoutId);
       const activeController = this.controllers.get(noteName);
       if (activeController === controller) {
         this.controllers.delete(noteName);
@@ -5184,13 +5187,20 @@ var VideoSummaryAPI = class {
         throw new Error(this.formatUserFacingError(error));
       }
     }
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, this.timeout);
     try {
       const response = await fetch(this.webhookUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
       if (!response.ok) {
         throw new Error(await this.formatHttpError(response));
@@ -5210,7 +5220,14 @@ var VideoSummaryAPI = class {
       }
       return result;
     } catch (error) {
+      if (error.name === "AbortError") {
+        throw new Error(
+          timedOut ? `\u8BF7\u6C42\u8D85\u65F6\uFF08\u8D85\u8FC7 ${Math.round(this.timeout / 6e4)} \u5206\u949F\u672A\u54CD\u5E94\uFF09` : "\u8BF7\u6C42\u88AB\u53D6\u6D88"
+        );
+      }
       throw new Error(this.formatUserFacingError(error));
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
   /**
@@ -9296,7 +9313,8 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     this.api = new VideoSummaryAPI(
       targetUrl,
       this.app.vault,
-      ".obsidian_mac/plugins/video-summary-plugin/data",
+      // 用插件自身的安装目录，而不是写死某个 vault 的配置目录名（如 .obsidian_mac），保证可移植
+      `${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/data`,
       this.settings.payloadKeys,
       backend
     );

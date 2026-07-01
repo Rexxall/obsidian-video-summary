@@ -122,22 +122,8 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   },
 };
 
-export const SUPPORTED_PLATFORMS = [
-  'youtube.com',
-  'youtu.be',
-  'm.youtube.com',
-  'bilibili.com',
-  'b23.tv',
-  'douyin.com',
-  'v.douyin.com',
-  'iesdouyin.com',
-  'tiktok.com',
-  'vm.tiktok.com',
-  'vt.tiktok.com',
-  'xiaohongshu.com',
-  'xhslink.com',
-  'xhs.cn',
-];
+// 平台列表统一来自共享单一来源（vendored @video-summary/shared，由 sync 脚本同步）。
+export { SUPPORTED_PLATFORMS } from './shared';
 
 export const LANGUAGE_OPTIONS = [
   { value: 'zh', label: '中文' },

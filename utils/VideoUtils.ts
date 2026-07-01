@@ -1,24 +1,18 @@
+import { SUPPORTED_PLATFORMS } from '../constants';
+import { normalizeStatus as sharedNormalizeStatus, canonicalizeVideoUrl } from '../shared';
+
 /**
  * 视频处理工具类
  * 包含通用的视频URL处理、状态解析等逻辑
  */
 export class VideoUtils {
   /**
-   * 支持的视频平台
-   */
-  private static readonly SUPPORTED_PLATFORMS = [
-    'bilibili.com',
-    'youtube.com',
-    'youtu.be',
-    'douyin.com',
-    'tiktok.com',
-  ];
-
-  /**
    * 验证是否为有效的视频URL
+   * 平台列表统一来自 constants.ts（单一数据源），避免检测与处理逻辑漂移
+   * （此前这里只有 5 个平台，而 constants 里有 14 个，导致短链/小红书识别不一致）。
    */
   static isValidVideoUrl(url: string): boolean {
-    return this.SUPPORTED_PLATFORMS.some((platform) => url.includes(platform));
+    return SUPPORTED_PLATFORMS.some((platform) => url.includes(platform));
   }
 
   /**
@@ -293,102 +287,16 @@ export class VideoUtils {
    * 清理视频URL，去除多余参数
    */
   static cleanVideoUrl(url: string): string {
-    try {
-      // 处理B站链接
-      if (url.includes('bilibili.com')) {
-        // 处理收藏夹链接
-        if (url.includes('/list/watchlater')) {
-          const bvidMatch = url.match(/bvid=([^&]+)/);
-          if (bvidMatch) {
-            return `https://www.bilibili.com/video/${bvidMatch[1]}`;
-          }
-        }
-
-        // 处理普通B站链接，去除多余参数
-        const cleanUrl = url.split('?')[0];
-        return cleanUrl;
-      }
-
-      // 处理YouTube链接
-      if (url.includes('youtube.com') || url.includes('youtu.be')) {
-        // 提取视频ID
-        let videoId = '';
-        if (url.includes('youtube.com/watch')) {
-          const match = url.match(/[?&]v=([^&]+)/);
-          if (match) videoId = match[1];
-        } else if (url.includes('youtu.be/')) {
-          const match = url.match(/youtu\.be\/([^?&]+)/);
-          if (match) videoId = match[1];
-        }
-
-        if (videoId) {
-          return `https://www.youtube.com/watch?v=${videoId}`;
-        }
-      }
-
-      // 其他平台保持原样
-      return url;
-    } catch (error) {
-      console.error('清理视频URL时出错:', error);
-      return url;
-    }
+    // 统一委托给共享单一来源（默认丢弃查询参数，等价于旧实现）
+    return canonicalizeVideoUrl(url);
   }
 
   /**
    * 清理视频URL，但保留p参数（用于单个链接模式）
    */
   static cleanVideoUrlKeepP(url: string): string {
-    try {
-      // 处理B站链接
-      if (url.includes('bilibili.com')) {
-        // 处理收藏夹链接
-        if (url.includes('/list/watchlater')) {
-          const bvidMatch = url.match(/bvid=([^&]+)/);
-          if (bvidMatch) {
-            return `https://www.bilibili.com/video/${bvidMatch[1]}`;
-          }
-        }
-
-        // 提取基础URL和p参数
-        const urlObj = new URL(url);
-        const baseUrl = urlObj.origin + urlObj.pathname;
-        const pParam = urlObj.searchParams.get('p');
-
-        // 如果有p参数，保留它；否则返回基础URL
-        if (pParam) {
-          return `${baseUrl}?p=${pParam}`;
-        }
-        return baseUrl;
-      }
-
-      // 处理YouTube链接
-      if (url.includes('youtube.com') || url.includes('youtu.be')) {
-        // 提取视频ID
-        let videoId = '';
-        if (url.includes('youtube.com/watch')) {
-          const match = url.match(/[?&]v=([^&]+)/);
-          if (match) videoId = match[1];
-        } else if (url.includes('youtu.be/')) {
-          const match = url.match(/youtu\.be\/([^?&]+)/);
-          if (match) videoId = match[1];
-        }
-
-        if (videoId) {
-          const urlObj = new URL(url);
-          const indexParam = urlObj.searchParams.get('index');
-          if (indexParam) {
-            return `https://www.youtube.com/watch?v=${videoId}&index=${indexParam}`;
-          }
-          return `https://www.youtube.com/watch?v=${videoId}`;
-        }
-      }
-
-      // 其他平台保持原样
-      return url;
-    } catch (error) {
-      console.error('清理视频URL时出错:', error);
-      return url;
-    }
+    // 保留 B 站分 P (?p=) / YouTube index 参数，统一委托给共享单一来源
+    return canonicalizeVideoUrl(url, { keepP: true });
   }
 
   /**
@@ -478,12 +386,7 @@ export class VideoUtils {
   static normalizeStatus(
     status: string,
   ): 'pending' | 'running' | 'success' | 'error' | 'excluded' | 'other' {
-    const s = (status || '').trim();
-    if (s === 'pending') return 'pending';
-    if (s === 'running' || s === '⏳') return 'running';
-    if (s === 'success' || s === '✅' || s === '▶️' || s === '❌') return 'success';
-    if (s === 'error') return 'error';
-    if (s === 'excluded' || s.includes('⛔')) return 'excluded';
-    return 'other';
+    // 统一委托给共享单一来源（含 ❌->error 的修复）
+    return sharedNormalizeStatus(status);
   }
 }

@@ -35,7 +35,10 @@ export class CacheManager {
 
   constructor(vault: Vault, pluginDataPath?: string) {
     this.vault = vault;
-    this.pluginDataPath = pluginDataPath || '.obsidian_mac/plugins/video-summary-plugin/data';
+    // 不要写死 vault 配置目录名（旧代码写死 .obsidian_mac，换 vault 即失效）。
+    // 优先用调用方传入的安装目录；否则回退到 vault.configDir 推导。
+    this.pluginDataPath =
+      pluginDataPath || `${vault.configDir}/plugins/video-summary/data`;
     this.cacheDir = `${this.pluginDataPath}/cache`;
     this.indexFile = `${this.pluginDataPath}/cache/index.json`;
     this.itemsDir = `${this.pluginDataPath}/cache/items`;
@@ -242,6 +245,16 @@ export class CacheManager {
       // 从文件读取缓存内容
       const cacheData = await this.vault.adapter.read(indexItem.path);
       const cacheItem: CacheItem = JSON.parse(cacheData);
+      // 防御哈希碰撞：文件名基于 32 位哈希，不同的键可能落到同一个文件。
+      // 读出后必须校验内容确实属于本次请求的键，否则当作未命中，避免返回别的视频的总结。
+      if (
+        cacheItem.url !== url ||
+        cacheItem.mode !== mode ||
+        cacheItem.language !== language
+      ) {
+        console.warn('缓存键与文件内容不匹配（疑似哈希碰撞），按未命中处理:', key);
+        return null;
+      }
       return cacheItem.result;
     } catch (error) {
       console.error('读取缓存文件失败:', error);

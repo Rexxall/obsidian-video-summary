@@ -133,6 +133,13 @@ export class VideoSummaryAPI {
     }
     this.controllers.set(noteName, controller);
 
+    // n8n 路径以前建了 AbortController 却从不超时，挂起请求会永久卡住；这里挂上真正的超时
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, this.timeout);
+
     try {
       const response = await fetch(this.webhookUrl, {
         method: 'POST',
@@ -169,10 +176,15 @@ export class VideoSummaryAPI {
       return result;
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
-        throw new Error('请求被取消');
+        throw new Error(
+          timedOut
+            ? `请求超时（超过 ${Math.round(this.timeout / 60000)} 分钟未响应）`
+            : '请求被取消',
+        );
       }
       throw new Error(this.formatUserFacingError(error));
     } finally {
+      clearTimeout(timeoutId);
       const activeController = this.controllers.get(noteName);
       if (activeController === controller) {
         this.controllers.delete(noteName);
@@ -226,6 +238,14 @@ export class VideoSummaryAPI {
       }
     }
 
+    // 此方法的 n8n 路径以前完全没有超时控制，挂起会永久阻塞；补上 AbortController + 超时
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, this.timeout);
+
     try {
       // 发送请求
       const response = await fetch(this.webhookUrl, {
@@ -234,6 +254,7 @@ export class VideoSummaryAPI {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -261,7 +282,16 @@ export class VideoSummaryAPI {
 
       return result;
     } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        throw new Error(
+          timedOut
+            ? `请求超时（超过 ${Math.round(this.timeout / 60000)} 分钟未响应）`
+            : '请求被取消',
+        );
+      }
       throw new Error(this.formatUserFacingError(error));
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

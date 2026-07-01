@@ -858,7 +858,8 @@ export default class VideoSummaryPlugin extends Plugin {
     this.api = new VideoSummaryAPI(
       targetUrl,
       this.app.vault,
-      '.obsidian_mac/plugins/video-summary-plugin/data',
+      // 用插件自身的安装目录，而不是写死某个 vault 的配置目录名（如 .obsidian_mac），保证可移植
+      `${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/data`,
       this.settings.payloadKeys,
       backend,
     );
