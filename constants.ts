@@ -1,5 +1,19 @@
 // agent: codex (2026-05-21)
+// agent: claude (2026-07-02) — history 拆分/短链展开/preflight/cookies 相关常量
 import type { PlatformCapability, VideoSummarySettings, WorkflowHealthInfo } from './types';
+
+// 已知的短链域名：发给后端前先展开成最终链接，减少一类下载失败
+export const SHORT_LINK_HOSTS = [
+  'b23.tv',
+  'v.douyin.com',
+  'vm.tiktok.com',
+  'vt.tiktok.com',
+  'xhslink.com',
+  'xhs.cn',
+];
+
+// history.json 的默认上限（history 条数；webhookHistory 固定上限见 API 内部）
+export const DEFAULT_HISTORY_LIMIT = 300;
 
 export const DEFAULT_AI_MODELS: string[] = ['Gemini 3.1', 'Gemini 3.0'];
 export const DEFAULT_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/obsidian-video-summary';
@@ -111,6 +125,10 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   statusFilterValue: 'all', // 默认显示全部状态
   history: [],
   webhookHistory: [],
+  historyLimit: DEFAULT_HISTORY_LIMIT,
+  preflightCheckEnabled: true, // 处理前先 ping 后端，失败时提示/建议切换
+  expandShortLinks: true, // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
+  cookiesDirPath: '', // n8n docker/cookies 目录的绝对路径（桌面端 cookies 管理用）
   payloadKeys: {
     mode: 'mode',
     language: 'language',

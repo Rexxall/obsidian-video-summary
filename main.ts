@@ -1,4 +1,5 @@
 // agent: codex (2026-05-21)
+// agent: claude (2026-07-02) — history 拆分存储 / 后端 preflight / cookies 管理 / obsidian:// 协议直连
 import {
   App,
   Editor,
@@ -25,6 +26,7 @@ import {
 import {
   DEFAULT_SETTINGS,
   DEFAULT_N8N_WEBHOOK_URL,
+  DEFAULT_HISTORY_LIMIT,
   LEGACY_N8N_WEBHOOK_URL,
   PLATFORM_CAPABILITIES,
   RECOMMENDED_WORKFLOW,
@@ -43,6 +45,17 @@ export default class VideoSummaryPlugin extends Plugin {
   api: VideoSummaryAPI;
   fileProcessor: FileProcessor;
   noteProcessor: NoteProcessor;
+
+  // history.json 延迟写入
+  private historySaveTimer: number | null = null;
+
+  // preflight 结果缓存（60s 内不重复 ping）
+  private lastPreflight: {
+    backend: ProcessingBackend;
+    url: string;
+    ok: boolean;
+    at: number;
+  } | null = null;
 
   async onload() {
     console.log('加载视频总结插件');
@@ -69,6 +82,11 @@ export default class VideoSummaryPlugin extends Plugin {
     // 注册右键菜单
     this.registerContextMenu();
 
+    // 注册 obsidian://video-summary 协议：浏览器扩展一键"建笔记 + 触发处理"直连入口
+    this.registerObsidianProtocolHandler('video-summary', (params) => {
+      void this.handleProtocolRequest(params as Record<string, string>);
+    });
+
     // 注册设置页面
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
 
@@ -88,6 +106,12 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   onunload() {
+    // 卸载前把待写入的历史落盘
+    if (this.historySaveTimer !== null) {
+      window.clearTimeout(this.historySaveTimer);
+      this.historySaveTimer = null;
+      void this.writeHistoryFile();
+    }
     console.log('Video Summary Plugin unloaded');
   }
 
@@ -299,6 +323,10 @@ export default class VideoSummaryPlugin extends Plugin {
         return;
       }
 
+      if (!(await this.ensureBackendReady())) {
+        return;
+      }
+
       await this.noteProcessor.setProcessingStatus(file, 'running');
 
       const statusNotice = new Notice('正在获取视频信息...', 0);
@@ -369,6 +397,11 @@ export default class VideoSummaryPlugin extends Plugin {
       // 检查是否有任何输入数据
       if (!url && !providedTranscript && !localFileName) {
         new Notice('当前笔记中没有找到视频链接、文稿内容或本地文件名');
+        return;
+      }
+
+      // 后端自检：不可达时提示/建议切换，不再发起注定失败的请求
+      if (!(await this.ensureBackendReady())) {
         return;
       }
 
@@ -541,6 +574,10 @@ export default class VideoSummaryPlugin extends Plugin {
         this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
       const mode = 'summary';
 
+      if (!(await this.ensureBackendReady())) {
+        return;
+      }
+
       // 设置处理中状态
       await this.noteProcessor.setProcessingStatus(file, 'running');
       const statusNotice = new Notice(`正在将全文发送处理...`, 0);
@@ -640,6 +677,11 @@ export default class VideoSummaryPlugin extends Plugin {
         return;
       }
 
+      // 批量开始前先确认后端可用
+      if (!(await this.ensureBackendReady())) {
+        return;
+      }
+
       // 创建进度通知
       const progressNotice = new Notice(`正在处理 ${pendingFiles.length} 个视频...`, 0);
       let successCount = 0;
@@ -702,6 +744,10 @@ export default class VideoSummaryPlugin extends Plugin {
       mode: mode as any,
       time: new Date().toLocaleString('zh-CN'),
     });
+
+    // 限容并直接排队落盘（不依赖调用方随后是否 saveSettings）
+    this.trimHistory();
+    this.queueHistorySave();
   }
 
   private async clearProcessingHistory() {
@@ -733,6 +779,68 @@ export default class VideoSummaryPlugin extends Plugin {
 
   formatErrorForNotice(error: unknown): string {
     return this.api ? this.api.formatUserFacingError(error) : String(error);
+  }
+
+  /**
+   * 处理前的后端自检（preflight）。
+   * - 60 秒内的成功结果直接复用，批量处理不会反复 ping。
+   * - 当前后端不可达时探测另一个后端；若可用，弹确认框提议切换并继续。
+   * 返回 false 表示应中止本次处理。
+   */
+  async ensureBackendReady(): Promise<boolean> {
+    if (this.settings.preflightCheckEnabled === false) {
+      return true;
+    }
+
+    const backend = this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
+    const endpoint = this.getActiveProcessingEndpoint();
+    const now = Date.now();
+
+    if (
+      this.lastPreflight &&
+      this.lastPreflight.ok &&
+      this.lastPreflight.backend === backend &&
+      this.lastPreflight.url === endpoint &&
+      now - this.lastPreflight.at < 60_000
+    ) {
+      return true;
+    }
+
+    const result = await this.api.quickHealthCheck();
+    this.lastPreflight = { backend, url: endpoint, ok: result.ok, at: now };
+    if (result.ok) {
+      return true;
+    }
+
+    const label = backend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
+    const otherBackend: ProcessingBackend = backend === 'n8n' ? 'codex-worker' : 'n8n';
+    const otherLabel = otherBackend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
+    const otherUrl =
+      otherBackend === 'codex-worker'
+        ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl
+        : this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl;
+
+    const otherResult = await VideoSummaryAPI.probeEndpoint(otherUrl, otherBackend);
+
+    if (otherResult.ok) {
+      const confirmed = await this.showConfirmDialog(
+        `${label} 不可用`,
+        `当前后端 ${label} 连接失败：\n${result.error || '未知错误'}\n\n检测到 ${otherLabel} 可用。是否切换到 ${otherLabel} 并继续？`,
+      );
+      if (confirmed) {
+        await this.setActiveBackend(otherBackend);
+        this.lastPreflight = null;
+        new Notice(`已切换到 ${otherLabel}`);
+        return true;
+      }
+      return false;
+    }
+
+    new Notice(
+      `⚠️ ${label} 不可达：${result.error || '未知错误'}\n（${otherLabel} 也未检测到）请先启动处理服务，或在设置中检查 URL。`,
+      8000,
+    );
+    return false;
   }
 
   openCodexWorkerDashboard() {
@@ -767,6 +875,40 @@ export default class VideoSummaryPlugin extends Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
 
     let shouldSave = false;
+
+    // ===== history 拆分存储（2.2.0）=====
+    // history / webhookHistory 持久化在插件目录 history.json；
+    // data.json 里若还残留旧数据（首次升级），迁移过去并从 data.json 清除。
+    const legacyHistory = Array.isArray(stored?.history) ? stored.history : [];
+    const legacyWebhookHistory = Array.isArray(stored?.webhookHistory) ? stored.webhookHistory : [];
+    const historyFile = await this.readHistoryFile();
+
+    if (historyFile) {
+      this.settings.history = (
+        Array.isArray(historyFile.history) ? historyFile.history : []
+      ) as VideoSummarySettings['history'];
+      this.settings.webhookHistory = (
+        Array.isArray(historyFile.webhookHistory) ? historyFile.webhookHistory : []
+      ) as VideoSummarySettings['webhookHistory'];
+      // 极端情况（旧版本插件又往 data.json 写过）：以条数多的一方为准
+      if (legacyHistory.length > this.settings.history.length) {
+        this.settings.history = legacyHistory;
+      }
+      if (legacyWebhookHistory.length > this.settings.webhookHistory.length) {
+        this.settings.webhookHistory = legacyWebhookHistory;
+      }
+    } else {
+      this.settings.history = legacyHistory;
+      this.settings.webhookHistory = legacyWebhookHistory;
+    }
+    this.trimHistory();
+
+    if (legacyHistory.length > 0 || legacyWebhookHistory.length > 0 || !historyFile) {
+      // 迁移场景：立即把历史落盘（不走防抖），再触发一次保存清空 data.json 里的旧历史
+      await this.writeHistoryFile();
+      shouldSave = true;
+    }
+    // ===== history 拆分存储结束 =====
 
     if (!this.settings.activeBackend) {
       this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
@@ -829,8 +971,77 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   async saveSettings() {
-    await this.saveData(this.settings);
+    this.trimHistory();
+    // data.json 只存配置；history / webhookHistory 落在 history.json（见 queueHistorySave）
+    await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
+    this.queueHistorySave();
   }
+
+  // ===== history.json 读写 =====
+
+  private get historyFilePath(): string {
+    const dir =
+      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    return `${dir}/history.json`;
+  }
+
+  private async readHistoryFile(): Promise<{
+    history?: unknown[];
+    webhookHistory?: unknown[];
+  } | null> {
+    try {
+      const adapter = this.app.vault.adapter;
+      if (!(await adapter.exists(this.historyFilePath))) {
+        return null;
+      }
+      const raw = await adapter.read(this.historyFilePath);
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (error) {
+      console.error('[VideoSummary] 读取 history.json 失败（历史将从空开始）', error);
+      return null;
+    }
+  }
+
+  private async writeHistoryFile(): Promise<void> {
+    try {
+      const payload = {
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        history: this.settings.history || [],
+        webhookHistory: this.settings.webhookHistory || [],
+      };
+      await this.app.vault.adapter.write(this.historyFilePath, JSON.stringify(payload));
+    } catch (error) {
+      console.error('[VideoSummary] 写入 history.json 失败', error);
+    }
+  }
+
+  /** 延迟合并写入，避免设置页输入等高频 saveSettings 反复写大文件 */
+  private queueHistorySave() {
+    if (this.historySaveTimer !== null) {
+      window.clearTimeout(this.historySaveTimer);
+    }
+    this.historySaveTimer = window.setTimeout(() => {
+      this.historySaveTimer = null;
+      void this.writeHistoryFile();
+    }, 1200);
+  }
+
+  /** 历史限容：history 按设置上限裁掉最旧的；webhookHistory（最新在前）固定上限 50 */
+  private trimHistory() {
+    const limit = Math.max(50, this.settings.historyLimit ?? DEFAULT_HISTORY_LIMIT);
+    const history = this.settings.history;
+    if (Array.isArray(history) && history.length > limit) {
+      history.splice(0, history.length - limit);
+    }
+    const webhookHistory = this.settings.webhookHistory;
+    if (Array.isArray(webhookHistory) && webhookHistory.length > 50) {
+      webhookHistory.splice(50);
+    }
+  }
+
+  // ===== history.json 读写结束 =====
 
   private getActiveProcessingEndpoint(): string {
     if (this.settings?.activeBackend === 'codex-worker') {
@@ -870,6 +1081,7 @@ export default class VideoSummaryPlugin extends Plugin {
       await this.saveSettings();
     });
     this.api.setDebug(this.settings.enableDebugMode);
+    this.api.setExpandShortLinks(this.settings.expandShortLinks !== false);
 
     if (this.settings.enableCache !== false) {
       this.api.setCacheConfig(1000, this.settings.cacheExpiryDays);
@@ -952,6 +1164,11 @@ export default class VideoSummaryPlugin extends Plugin {
       // 检查是否有任何输入数据
       if (!url && !providedTranscript && !localFileName) {
         throw new Error('笔记中没有找到视频链接、文稿内容或本地文件名');
+      }
+
+      // 后端自检（60s 内结果有缓存，批量场景不会反复 ping）
+      if (!(await this.ensureBackendReady())) {
+        return;
       }
 
       // 更新状态为处理中
@@ -1129,6 +1346,93 @@ export default class VideoSummaryPlugin extends Plugin {
       new Notice(`标记为非视频笔记失败: ${error.message}`);
     }
   }
+
+  /**
+   * obsidian://video-summary 协议入口：一步完成"建笔记 + 触发处理"。
+   *
+   * 支持参数：
+   * - url（必填）：视频链接
+   * - title：笔记标题（缺省用日期时间）
+   * - mode：summary | transcript-only | info-only（缺省用默认模式）
+   * - folder：保存目录（缺省用设置里的输出文件夹）
+   * - timestamp_link：带时间戳的链接（写入正文，便于回跳）
+   *
+   * 示例：obsidian://video-summary?vault=Ithaca&url=https%3A%2F%2Fb23.tv%2Fxxxx&title=xxx
+   */
+  private async handleProtocolRequest(params: Record<string, string>) {
+    try {
+      const rawUrl = (params.url || params.link || '').trim();
+      if (!rawUrl) {
+        new Notice('video-summary 协议调用缺少 url 参数', 6000);
+        return;
+      }
+
+      const url = VideoUtils.cleanVideoUrlKeepP(rawUrl);
+      if (!VideoUtils.isValidVideoUrl(url)) {
+        new Notice(`不是受支持的视频链接: ${url}`, 6000);
+        return;
+      }
+
+      // 标题与文件名
+      const fallbackTitle = `Video ${new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '-')}`;
+      const title = (params.title || '').trim() || fallbackTitle;
+      const cleanTitle = title.replace(/[<>:"/\\|?*#^[\]]/g, '_').trim() || fallbackTitle;
+
+      // 目录（参数优先，其次设置的输出文件夹）
+      const folder = ((params.folder ?? this.settings.outputFolder) || '')
+        .trim()
+        .replace(/^\/+|\/+$/g, '');
+      if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+        try {
+          await this.app.vault.createFolder(folder);
+        } catch {
+          // 目录已存在或创建失败——后面 create 时再报错
+        }
+      }
+
+      // 冲突时追加编号
+      const basePath = folder ? `${folder}/${cleanTitle}` : cleanTitle;
+      let notePath = `${basePath}.md`;
+      let suffix = 1;
+      while (this.app.vault.getAbstractFileByPath(notePath)) {
+        suffix += 1;
+        notePath = `${basePath} ${suffix}.md`;
+      }
+
+      const timestampLink = (params.timestamp_link || '').trim();
+      const bodyLink = timestampLink || rawUrl;
+      const content = [
+        '---',
+        `link: ${url}`,
+        'status: pending',
+        'source: protocol',
+        `captured_at: ${new Date().toISOString()}`,
+        '---',
+        `# ${title}`,
+        '',
+        bodyLink,
+        '',
+      ].join('\n');
+
+      const file = await this.app.vault.create(notePath, content);
+      new Notice(`已创建笔记，开始处理: ${file.basename}`);
+
+      // 打开笔记，便于观察处理进度
+      const leaf = this.app.workspace.getLeaf(true);
+      await leaf.openFile(file);
+
+      // 触发处理
+      const requestedMode = (params.mode || '').trim() as ProcessingMode;
+      const mode: ProcessingMode = ['summary', 'transcript-only', 'info-only'].includes(
+        requestedMode,
+      )
+        ? requestedMode
+        : this.settings.defaultMode;
+      await this.processFileWithMode(file, mode);
+    } catch (error) {
+      new Notice(`video-summary 协议处理失败: ${this.formatErrorForNotice(error)}`, 8000);
+    }
+  }
 }
 
 class VideoSummarySettingTab extends PluginSettingTab {
@@ -1158,6 +1462,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       case 'general':
         this.createSetupGuideSection(tabContent);
         this.createPlatformMatrixSection(tabContent);
+        this.createCookiesSection(tabContent);
         this.createBasicSection(tabContent);
         break;
       case 'workflow':
@@ -1443,6 +1748,148 @@ class VideoSummarySettingTab extends PluginSettingTab {
         return '受限';
       default:
         return '本地';
+    }
+  }
+
+  /**
+   * Cookies 管理：定位 n8n 的 docker/cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
+   * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
+   */
+  private createCookiesSection(containerEl: HTMLElement) {
+    const section = containerEl.createEl('div', { cls: 'setting-section' });
+    section.createEl('h3', { text: '🍪 Cookies 管理' });
+    section.createEl('p', {
+      text: '受限平台（Bilibili / 抖音 / 小红书 / TikTok）经常需要浏览器导出的 cookies。目录一般是 n8n docker 项目里的 docker/cookies；文件名如 bilibili_cookies.txt。',
+      cls: 'setting-item-description',
+    });
+
+    const resultBox = section.createDiv({ cls: 'setup-diagnostic-result' });
+
+    new Setting(section)
+      .setName('Cookies 目录')
+      .setDesc('docker/cookies 的绝对路径，例如 /Users/you/n8n-project/docker/cookies')
+      .addText((text) =>
+        text
+          .setPlaceholder('/path/to/docker/cookies')
+          .setValue(this.plugin.settings.cookiesDirPath || '')
+          .onChange(async (value) => {
+            this.plugin.settings.cookiesDirPath = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      )
+      .addButton((button) =>
+        button.setButtonText('打开目录').onClick(() => {
+          const dir = (this.plugin.settings.cookiesDirPath || '').trim();
+          if (!dir) {
+            new Notice('请先填写 Cookies 目录路径');
+            return;
+          }
+          try {
+            const electron = (window as any).require?.('electron');
+            if (!electron?.shell?.openPath) {
+              new Notice('当前环境不支持打开系统目录（仅桌面端可用）');
+              return;
+            }
+            electron.shell.openPath(dir);
+          } catch (error) {
+            new Notice(`打开目录失败: ${(error as Error).message}`);
+          }
+        }),
+      )
+      .addButton((button) =>
+        button
+          .setButtonText('检测 cookies')
+          .setCta()
+          .onClick(() => {
+            this.renderCookiesCheckResult(resultBox);
+          }),
+      );
+  }
+
+  /** 扫描 cookies 目录，列出 *_cookies.txt 的存在性与新鲜度 */
+  private renderCookiesCheckResult(containerEl: HTMLElement) {
+    containerEl.empty();
+    containerEl.removeClass('is-success');
+    containerEl.removeClass('is-error');
+
+    const dir = (this.plugin.settings.cookiesDirPath || '').trim();
+    if (!dir) {
+      containerEl.addClass('is-error');
+      containerEl.createEl('p', { text: '请先填写 Cookies 目录路径。' });
+      return;
+    }
+
+    let fs: any;
+    let pathModule: any;
+    try {
+      const nodeRequire = (window as any).require;
+      fs = nodeRequire?.('fs');
+      pathModule = nodeRequire?.('path');
+    } catch {
+      // fallthrough
+    }
+    if (!fs || !pathModule) {
+      containerEl.addClass('is-error');
+      containerEl.createEl('p', { text: '当前环境不支持文件系统访问（仅桌面端可用）。' });
+      return;
+    }
+
+    try {
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+        containerEl.addClass('is-error');
+        containerEl.createEl('strong', { text: '目录不存在' });
+        containerEl.createEl('p', { text: `找不到目录: ${dir}` });
+        return;
+      }
+
+      const STALE_DAYS = 30;
+      const files: string[] = fs
+        .readdirSync(dir)
+        .filter((name: string) => /_cookies\.txt$/i.test(name) || /^cookies\.txt$/i.test(name));
+
+      if (files.length === 0) {
+        containerEl.addClass('is-error');
+        containerEl.createEl('strong', { text: '没有找到任何 cookies 文件' });
+        containerEl.createEl('p', {
+          text: `目录里没有 *_cookies.txt。Bilibili 需要 bilibili_cookies.txt；用浏览器扩展（如 Get cookies.txt LOCALLY）导出后放进来即可。`,
+        });
+        return;
+      }
+
+      containerEl.addClass('is-success');
+      containerEl.createEl('strong', { text: `找到 ${files.length} 个 cookies 文件` });
+
+      const now = Date.now();
+      const list = containerEl.createEl('ul', { cls: 'setup-warning-list' });
+      let hasStale = false;
+      files.forEach((name: string) => {
+        try {
+          const stat = fs.statSync(pathModule.join(dir, name));
+          const ageDays = Math.floor((now - stat.mtimeMs) / (24 * 60 * 60 * 1000));
+          const sizeKb = Math.max(1, Math.round(stat.size / 1024));
+          const stale = ageDays > STALE_DAYS;
+          if (stale) hasStale = true;
+          list.createEl('li', {
+            text: `${stale ? '⚠️ ' : ''}${name} — ${sizeKb}KB，更新于 ${ageDays} 天前${stale ? `（超过 ${STALE_DAYS} 天，可能已失效）` : ''}`,
+          });
+        } catch {
+          list.createEl('li', { text: `${name} — 无法读取文件信息` });
+        }
+      });
+
+      if (!files.some((name: string) => /^bilibili_/i.test(name))) {
+        containerEl.createEl('p', {
+          text: '提示: 未发现 bilibili_cookies.txt。遇到 Bilibili HTTP 412 时需要它。',
+        });
+      }
+      if (hasStale) {
+        containerEl.createEl('p', {
+          text: '有文件较旧。平台 cookies 通常几周内失效，下载失败时优先重新导出。',
+        });
+      }
+    } catch (error) {
+      containerEl.addClass('is-error');
+      containerEl.createEl('p', { text: `检测失败: ${(error as Error).message}` });
     }
   }
 
@@ -2043,6 +2490,57 @@ class VideoSummarySettingTab extends PluginSettingTab {
           this.plugin.api.setDebug(!!value);
           await this.plugin.saveSettings();
         }),
+      );
+
+    // 处理前后端自检
+    new Setting(section)
+      .setName('处理前后端自检')
+      .setDesc(
+        '发起处理前先 ping 当前后端（结果缓存 60 秒）。不可达时会提示，并在另一个后端可用时建议切换。',
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.preflightCheckEnabled !== false)
+          .onChange(async (value) => {
+            this.plugin.settings.preflightCheckEnabled = value;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    // 短链自动展开
+    new Setting(section)
+      .setName('短链自动展开')
+      .setDesc(
+        '发送前把 b23.tv / v.douyin.com / xhslink.com 等短链展开成最终链接，减少后端下载失败（仅桌面端生效，失败时自动回退原链接）。',
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.expandShortLinks !== false)
+          .onChange(async (value) => {
+            this.plugin.settings.expandShortLinks = value;
+            this.plugin.api.setExpandShortLinks(value);
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    // 历史记录上限
+    const historyLimitSetting = new Setting(section)
+      .setName('处理历史上限')
+      .setDesc(
+        `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${this.plugin.settings.historyLimit ?? 300} 条。`,
+      )
+      .addSlider((slider) =>
+        slider
+          .setLimits(100, 1000, 50)
+          .setValue(this.plugin.settings.historyLimit ?? 300)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.historyLimit = value;
+            await this.plugin.saveSettings();
+            historyLimitSetting.setDesc(
+              `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${value} 条。`,
+            );
+          }),
       );
 
     // 缓存配置

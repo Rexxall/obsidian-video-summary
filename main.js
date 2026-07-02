@@ -120,6 +120,15 @@ var MODE_SET = new Set(MODES);
 var LANG_SET = new Set(LANGUAGES);
 
 // constants.ts
+var SHORT_LINK_HOSTS = [
+  "b23.tv",
+  "v.douyin.com",
+  "vm.tiktok.com",
+  "vt.tiktok.com",
+  "xhslink.com",
+  "xhs.cn"
+];
+var DEFAULT_HISTORY_LIMIT = 300;
 var DEFAULT_AI_MODELS = ["Gemini 3.1", "Gemini 3.0"];
 var DEFAULT_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/obsidian-video-summary";
 var LEGACY_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/cyrus";
@@ -233,6 +242,13 @@ var DEFAULT_SETTINGS = {
   // 默认显示全部状态
   history: [],
   webhookHistory: [],
+  historyLimit: DEFAULT_HISTORY_LIMIT,
+  preflightCheckEnabled: true,
+  // 处理前先 ping 后端，失败时提示/建议切换
+  expandShortLinks: true,
+  // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
+  cookiesDirPath: "",
+  // n8n docker/cookies 目录的绝对路径（桌面端 cookies 管理用）
   payloadKeys: {
     mode: "mode",
     language: "language",
@@ -3381,7 +3397,7 @@ var VideoUtils = class {
       }
       const linkMatch = fmText.match(/^link:\s*(.+)$/m);
       if (linkMatch) {
-        const link = linkMatch[1].trim();
+        const link = this.stripYamlQuotes(linkMatch[1].trim());
         if (this.isValidVideoUrl(link)) {
           return link;
         }
@@ -3397,6 +3413,15 @@ var VideoUtils = class {
       }
     }
     return null;
+  }
+  /**
+   * 剥掉 YAML 标量外层的成对引号（link: "https://..." / link: 'https://...'）
+   */
+  static stripYamlQuotes(value) {
+    if (value.length >= 2 && (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'"))) {
+      return value.slice(1, -1).trim();
+    }
+    return value;
   }
   /**
    * 从内容中提取处理状态
@@ -5026,12 +5051,110 @@ var CacheManager = class {
   }
 };
 
+// utils/UrlResolver.ts
+var UrlResolver = class {
+  /** URL 是否属于已知短链域名 */
+  static isShortLink(url) {
+    try {
+      const hostname = new URL(url).hostname.toLowerCase();
+      return SHORT_LINK_HOSTS.some(
+        (host) => hostname === host || hostname.endsWith(`.${host}`)
+      );
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * 展开短链为最终链接。非短链或任何失败场景都原样返回。
+   */
+  static async expandShortUrl(url, timeoutMs = 6e3) {
+    if (!this.isShortLink(url)) {
+      return url;
+    }
+    let current = url;
+    for (let hop = 0; hop < this.MAX_HOPS; hop++) {
+      const location = await this.fetchRedirectLocation(current, timeoutMs);
+      if (!location) {
+        return current;
+      }
+      try {
+        current = new URL(location, current).toString();
+      } catch {
+        return current;
+      }
+      if (!this.isShortLink(current)) {
+        return current;
+      }
+    }
+    return current;
+  }
+  /**
+   * 发起一次不跟随重定向的 GET，返回 Location 头（无重定向则返回 null）。
+   * 仅桌面端可用（依赖 window.require）；移动端直接返回 null。
+   */
+  static fetchRedirectLocation(url, timeoutMs) {
+    return new Promise((resolve) => {
+      let httpModule;
+      try {
+        const nodeRequire = window?.require;
+        if (typeof nodeRequire !== "function") {
+          resolve(null);
+          return;
+        }
+        httpModule = url.startsWith("https:") ? nodeRequire("https") : nodeRequire("http");
+      } catch {
+        resolve(null);
+        return;
+      }
+      let settled = false;
+      const finish = (value) => {
+        if (!settled) {
+          settled = true;
+          resolve(value);
+        }
+      };
+      try {
+        const request = httpModule.get(
+          url,
+          { headers: { "user-agent": this.USER_AGENT } },
+          (response) => {
+            const status = Number(response?.statusCode) || 0;
+            const location = response?.headers?.location;
+            try {
+              response.resume();
+            } catch {
+            }
+            if (status >= 300 && status < 400 && typeof location === "string" && location) {
+              finish(location);
+            } else {
+              finish(null);
+            }
+          }
+        );
+        request.setTimeout(timeoutMs, () => {
+          try {
+            request.destroy();
+          } catch {
+          }
+          finish(null);
+        });
+        request.on("error", () => finish(null));
+      } catch {
+        finish(null);
+      }
+    });
+  }
+};
+UrlResolver.MAX_HOPS = 5;
+UrlResolver.USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
 // api/VideoSummaryAPI.ts
-var VideoSummaryAPI = class {
+var VideoSummaryAPI = class _VideoSummaryAPI {
   constructor(webhookUrl, vault, pluginDataPath, payloadKeys, backend) {
     this.debugMode = false;
     this.aiModel = "Gemini 3.1";
     this.backend = "n8n";
+    this.expandShortLinksEnabled = false;
     this.lastWebhookResult = null;
     this.webhookHistory = [];
     this.webhookHistoryLimit = 50;
@@ -5063,6 +5186,33 @@ var VideoSummaryAPI = class {
   setBackend(backend) {
     this.backend = backend;
   }
+  /** 是否在发送前自动展开短链 */
+  setExpandShortLinks(enabled) {
+    this.expandShortLinksEnabled = enabled;
+  }
+  /**
+   * 短链展开（fail-open）：失败时原样返回 input。
+   * 在缓存检查之前调用，保证缓存 key 用的是展开后的最终链接。
+   */
+  async resolveInputUrl(input) {
+    if (!this.expandShortLinksEnabled || !input.url || !UrlResolver.isShortLink(input.url)) {
+      return input;
+    }
+    try {
+      const expanded = await UrlResolver.expandShortUrl(input.url);
+      if (expanded && expanded !== input.url) {
+        if (this.debugMode) {
+          console.log(`[VideoSummaryAPI] \u77ED\u94FE\u5DF2\u5C55\u5F00: ${input.url} -> ${expanded}`);
+        }
+        return { ...input, url: expanded };
+      }
+    } catch (error) {
+      if (this.debugMode) {
+        console.warn("[VideoSummaryAPI] \u77ED\u94FE\u5C55\u5F00\u5931\u8D25\uFF0C\u4F7F\u7528\u539F\u94FE\u63A5", error);
+      }
+    }
+    return input;
+  }
   /**
    * 设置调试模式
    */
@@ -5073,6 +5223,7 @@ var VideoSummaryAPI = class {
    * 处理单个视频
    */
   async processVideo(noteName, input, mode, language = "zh", useCache = true) {
+    input = await this.resolveInputUrl(input);
     if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
       const cachedResult = await this.cacheManager.get(input.url, mode, language);
       if (cachedResult) {
@@ -5158,6 +5309,7 @@ var VideoSummaryAPI = class {
    * 简单处理视频（不更新笔记）
    */
   async processVideoSimple(input, mode, language = "zh", useCache = true) {
+    input = await this.resolveInputUrl(input);
     if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
       const cachedResult = await this.cacheManager.get(input.url, mode, language);
       if (cachedResult) {
@@ -5672,6 +5824,79 @@ var VideoSummaryAPI = class {
       chunks.push(array.slice(i, i + size));
     }
     return chunks;
+  }
+  /**
+   * 轻量健康自检：只判断"服务是否可达/webhook 是否存在"，不做完整诊断。
+   * 用于处理前 preflight，几秒内返回。
+   */
+  async quickHealthCheck(timeoutMs = 4e3) {
+    return _VideoSummaryAPI.probeEndpoint(
+      this.webhookUrl,
+      this.backend,
+      timeoutMs,
+      this.backend === "n8n" ? this.buildConnectionTestPayload() : void 0
+    );
+  }
+  /**
+   * 探测任意后端端点是否可用（静态方法，供"另一个后端是否可用"的检查复用）。
+   * - n8n: POST 测试 payload；连接被拒/超时 = 不可达；HTTP 404 = webhook 未激活。
+   * - codex-worker: GET /health（回退 /dashboard）；只要有 HTTP 响应就算可达。
+   */
+  static async probeEndpoint(url, backend, timeoutMs = 4e3, n8nBody) {
+    if (!url || !url.trim()) {
+      return { ok: false, error: "\u670D\u52A1 URL \u672A\u914D\u7F6E" };
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      if (backend === "codex-worker") {
+        let probeUrl;
+        try {
+          const parsed = new URL(url);
+          parsed.pathname = "/health";
+          parsed.search = "";
+          parsed.hash = "";
+          probeUrl = parsed.toString();
+        } catch {
+          probeUrl = "http://127.0.0.1:8787/health";
+        }
+        let response2 = await fetch(probeUrl, {
+          method: "GET",
+          signal: controller.signal
+        }).catch(() => null);
+        if (!response2) {
+          const parsed = new URL(url);
+          parsed.pathname = "/dashboard";
+          parsed.search = "";
+          parsed.hash = "";
+          response2 = await fetch(parsed.toString(), {
+            method: "GET",
+            signal: controller.signal
+          });
+        }
+        return { ok: true };
+      }
+      const body = n8nBody ?? {
+        name: "preflight-check",
+        metadata: { mode: "transcript-only", language: "zh", ai: "" },
+        content: ""
+      };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      if (response.status === 404) {
+        return { ok: false, error: "HTTP 404 \u2014 webhook \u4E0D\u5B58\u5728\u6216 workflow \u672A\u6FC0\u6D3B" };
+      }
+      return { ok: true };
+    } catch (error) {
+      const message = error?.name === "AbortError" ? `${timeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09` : error?.message || String(error);
+      return { ok: false, error: message };
+    } finally {
+      clearTimeout(timer);
+    }
   }
   // 测试连接（返回耗时、响应片段和下一步建议，便于诊断）
   async testConnection() {
@@ -8699,6 +8924,13 @@ var FileProcessor = class {
 // main.ts
 var import_obsidian7 = require("obsidian");
 var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
+  constructor() {
+    super(...arguments);
+    // history.json 延迟写入
+    this.historySaveTimer = null;
+    // preflight 结果缓存（60s 内不重复 ping）
+    this.lastPreflight = null;
+  }
   async onload() {
     console.log("\u52A0\u8F7D\u89C6\u9891\u603B\u7ED3\u63D2\u4EF6");
     await this.loadSettings();
@@ -8711,6 +8943,9 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
     );
     this.addCommands();
     this.registerContextMenu();
+    this.registerObsidianProtocolHandler("video-summary", (params) => {
+      void this.handleProtocolRequest(params);
+    });
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
@@ -8724,6 +8959,11 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
     console.log("Video Summary Plugin loaded");
   }
   onunload() {
+    if (this.historySaveTimer !== null) {
+      window.clearTimeout(this.historySaveTimer);
+      this.historySaveTimer = null;
+      void this.writeHistoryFile();
+    }
     console.log("Video Summary Plugin unloaded");
   }
   addCommands() {
@@ -8883,6 +9123,9 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
         new import_obsidian6.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
+      if (!await this.ensureBackendReady()) {
+        return;
+      }
       await this.noteProcessor.setProcessingStatus(file, "running");
       const statusNotice = new import_obsidian6.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
       try {
@@ -8939,6 +9182,9 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
         new import_obsidian6.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        return;
+      }
+      if (!await this.ensureBackendReady()) {
         return;
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
@@ -9061,6 +9307,9 @@ ${extractResult.video_transcript}
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
       const mode = "summary";
+      if (!await this.ensureBackendReady()) {
+        return;
+      }
       await this.noteProcessor.setProcessingStatus(file, "running");
       const statusNotice = new import_obsidian6.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
       try {
@@ -9147,6 +9396,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       if (!confirmed) {
         return;
       }
+      if (!await this.ensureBackendReady()) {
+        return;
+      }
       const progressNotice = new import_obsidian6.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
       let successCount = 0;
       let errorCount = 0;
@@ -9189,6 +9441,8 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       mode,
       time: (/* @__PURE__ */ new Date()).toLocaleString("zh-CN")
     });
+    this.trimHistory();
+    this.queueHistorySave();
   }
   async clearProcessingHistory() {
     try {
@@ -9217,6 +9471,55 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
   formatErrorForNotice(error) {
     return this.api ? this.api.formatUserFacingError(error) : String(error);
   }
+  /**
+   * 处理前的后端自检（preflight）。
+   * - 60 秒内的成功结果直接复用，批量处理不会反复 ping。
+   * - 当前后端不可达时探测另一个后端；若可用，弹确认框提议切换并继续。
+   * 返回 false 表示应中止本次处理。
+   */
+  async ensureBackendReady() {
+    if (this.settings.preflightCheckEnabled === false) {
+      return true;
+    }
+    const backend = this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
+    const endpoint = this.getActiveProcessingEndpoint();
+    const now = Date.now();
+    if (this.lastPreflight && this.lastPreflight.ok && this.lastPreflight.backend === backend && this.lastPreflight.url === endpoint && now - this.lastPreflight.at < 6e4) {
+      return true;
+    }
+    const result = await this.api.quickHealthCheck();
+    this.lastPreflight = { backend, url: endpoint, ok: result.ok, at: now };
+    if (result.ok) {
+      return true;
+    }
+    const label = backend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
+    const otherBackend = backend === "n8n" ? "codex-worker" : "n8n";
+    const otherLabel = otherBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
+    const otherUrl = otherBackend === "codex-worker" ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl : this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl;
+    const otherResult = await VideoSummaryAPI.probeEndpoint(otherUrl, otherBackend);
+    if (otherResult.ok) {
+      const confirmed = await this.showConfirmDialog(
+        `${label} \u4E0D\u53EF\u7528`,
+        `\u5F53\u524D\u540E\u7AEF ${label} \u8FDE\u63A5\u5931\u8D25\uFF1A
+${result.error || "\u672A\u77E5\u9519\u8BEF"}
+
+\u68C0\u6D4B\u5230 ${otherLabel} \u53EF\u7528\u3002\u662F\u5426\u5207\u6362\u5230 ${otherLabel} \u5E76\u7EE7\u7EED\uFF1F`
+      );
+      if (confirmed) {
+        await this.setActiveBackend(otherBackend);
+        this.lastPreflight = null;
+        new import_obsidian6.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
+        return true;
+      }
+      return false;
+    }
+    new import_obsidian6.Notice(
+      `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
+\uFF08${otherLabel} \u4E5F\u672A\u68C0\u6D4B\u5230\uFF09\u8BF7\u5148\u542F\u52A8\u5904\u7406\u670D\u52A1\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5 URL\u3002`,
+      8e3
+    );
+    return false;
+  }
   openCodexWorkerDashboard() {
     window.open(this.getCodexWorkerDashboardUrl(), "_blank");
   }
@@ -9243,6 +9546,27 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     const stored = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
     let shouldSave = false;
+    const legacyHistory = Array.isArray(stored?.history) ? stored.history : [];
+    const legacyWebhookHistory = Array.isArray(stored?.webhookHistory) ? stored.webhookHistory : [];
+    const historyFile = await this.readHistoryFile();
+    if (historyFile) {
+      this.settings.history = Array.isArray(historyFile.history) ? historyFile.history : [];
+      this.settings.webhookHistory = Array.isArray(historyFile.webhookHistory) ? historyFile.webhookHistory : [];
+      if (legacyHistory.length > this.settings.history.length) {
+        this.settings.history = legacyHistory;
+      }
+      if (legacyWebhookHistory.length > this.settings.webhookHistory.length) {
+        this.settings.webhookHistory = legacyWebhookHistory;
+      }
+    } else {
+      this.settings.history = legacyHistory;
+      this.settings.webhookHistory = legacyWebhookHistory;
+    }
+    this.trimHistory();
+    if (legacyHistory.length > 0 || legacyWebhookHistory.length > 0 || !historyFile) {
+      await this.writeHistoryFile();
+      shouldSave = true;
+    }
     if (!this.settings.activeBackend) {
       this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
       shouldSave = true;
@@ -9287,8 +9611,65 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     }
   }
   async saveSettings() {
-    await this.saveData(this.settings);
+    this.trimHistory();
+    await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
+    this.queueHistorySave();
   }
+  // ===== history.json 读写 =====
+  get historyFilePath() {
+    const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    return `${dir}/history.json`;
+  }
+  async readHistoryFile() {
+    try {
+      const adapter = this.app.vault.adapter;
+      if (!await adapter.exists(this.historyFilePath)) {
+        return null;
+      }
+      const raw = await adapter.read(this.historyFilePath);
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (error) {
+      console.error("[VideoSummary] \u8BFB\u53D6 history.json \u5931\u8D25\uFF08\u5386\u53F2\u5C06\u4ECE\u7A7A\u5F00\u59CB\uFF09", error);
+      return null;
+    }
+  }
+  async writeHistoryFile() {
+    try {
+      const payload = {
+        version: 1,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        history: this.settings.history || [],
+        webhookHistory: this.settings.webhookHistory || []
+      };
+      await this.app.vault.adapter.write(this.historyFilePath, JSON.stringify(payload));
+    } catch (error) {
+      console.error("[VideoSummary] \u5199\u5165 history.json \u5931\u8D25", error);
+    }
+  }
+  /** 延迟合并写入，避免设置页输入等高频 saveSettings 反复写大文件 */
+  queueHistorySave() {
+    if (this.historySaveTimer !== null) {
+      window.clearTimeout(this.historySaveTimer);
+    }
+    this.historySaveTimer = window.setTimeout(() => {
+      this.historySaveTimer = null;
+      void this.writeHistoryFile();
+    }, 1200);
+  }
+  /** 历史限容：history 按设置上限裁掉最旧的；webhookHistory（最新在前）固定上限 50 */
+  trimHistory() {
+    const limit = Math.max(50, this.settings.historyLimit ?? DEFAULT_HISTORY_LIMIT);
+    const history = this.settings.history;
+    if (Array.isArray(history) && history.length > limit) {
+      history.splice(0, history.length - limit);
+    }
+    const webhookHistory = this.settings.webhookHistory;
+    if (Array.isArray(webhookHistory) && webhookHistory.length > 50) {
+      webhookHistory.splice(50);
+    }
+  }
+  // ===== history.json 读写结束 =====
   getActiveProcessingEndpoint() {
     if (this.settings?.activeBackend === "codex-worker") {
       return this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
@@ -9325,6 +9706,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       await this.saveSettings();
     });
     this.api.setDebug(this.settings.enableDebugMode);
+    this.api.setExpandShortLinks(this.settings.expandShortLinks !== false);
     if (this.settings.enableCache !== false) {
       this.api.setCacheConfig(1e3, this.settings.cacheExpiryDays);
       this.api.setCacheEnabled(true);
@@ -9385,6 +9767,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
         throw new Error("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+      }
+      if (!await this.ensureBackendReady()) {
+        return;
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       const input = {};
@@ -9513,6 +9898,74 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       new import_obsidian6.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
     }
   }
+  /**
+   * obsidian://video-summary 协议入口：一步完成"建笔记 + 触发处理"。
+   *
+   * 支持参数：
+   * - url（必填）：视频链接
+   * - title：笔记标题（缺省用日期时间）
+   * - mode：summary | transcript-only | info-only（缺省用默认模式）
+   * - folder：保存目录（缺省用设置里的输出文件夹）
+   * - timestamp_link：带时间戳的链接（写入正文，便于回跳）
+   *
+   * 示例：obsidian://video-summary?vault=Ithaca&url=https%3A%2F%2Fb23.tv%2Fxxxx&title=xxx
+   */
+  async handleProtocolRequest(params) {
+    try {
+      const rawUrl = (params.url || params.link || "").trim();
+      if (!rawUrl) {
+        new import_obsidian6.Notice("video-summary \u534F\u8BAE\u8C03\u7528\u7F3A\u5C11 url \u53C2\u6570", 6e3);
+        return;
+      }
+      const url = VideoUtils.cleanVideoUrlKeepP(rawUrl);
+      if (!VideoUtils.isValidVideoUrl(url)) {
+        new import_obsidian6.Notice(`\u4E0D\u662F\u53D7\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5: ${url}`, 6e3);
+        return;
+      }
+      const fallbackTitle = `Video ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace("T", " ").replace(":", "-")}`;
+      const title = (params.title || "").trim() || fallbackTitle;
+      const cleanTitle = title.replace(/[<>:"/\\|?*#^[\]]/g, "_").trim() || fallbackTitle;
+      const folder = ((params.folder ?? this.settings.outputFolder) || "").trim().replace(/^\/+|\/+$/g, "");
+      if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+        try {
+          await this.app.vault.createFolder(folder);
+        } catch {
+        }
+      }
+      const basePath = folder ? `${folder}/${cleanTitle}` : cleanTitle;
+      let notePath = `${basePath}.md`;
+      let suffix = 1;
+      while (this.app.vault.getAbstractFileByPath(notePath)) {
+        suffix += 1;
+        notePath = `${basePath} ${suffix}.md`;
+      }
+      const timestampLink = (params.timestamp_link || "").trim();
+      const bodyLink = timestampLink || rawUrl;
+      const content = [
+        "---",
+        `link: ${url}`,
+        "status: pending",
+        "source: protocol",
+        `captured_at: ${(/* @__PURE__ */ new Date()).toISOString()}`,
+        "---",
+        `# ${title}`,
+        "",
+        bodyLink,
+        ""
+      ].join("\n");
+      const file = await this.app.vault.create(notePath, content);
+      new import_obsidian6.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0\uFF0C\u5F00\u59CB\u5904\u7406: ${file.basename}`);
+      const leaf = this.app.workspace.getLeaf(true);
+      await leaf.openFile(file);
+      const requestedMode = (params.mode || "").trim();
+      const mode = ["summary", "transcript-only", "info-only"].includes(
+        requestedMode
+      ) ? requestedMode : this.settings.defaultMode;
+      await this.processFileWithMode(file, mode);
+    } catch (error) {
+      new import_obsidian6.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+    }
+  }
 };
 var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
   constructor(app, plugin) {
@@ -9531,6 +9984,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       case "general":
         this.createSetupGuideSection(tabContent);
         this.createPlatformMatrixSection(tabContent);
+        this.createCookiesSection(tabContent);
         this.createBasicSection(tabContent);
         break;
       case "workflow":
@@ -9763,6 +10217,122 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         return "\u53D7\u9650";
       default:
         return "\u672C\u5730";
+    }
+  }
+  /**
+   * Cookies 管理：定位 n8n 的 docker/cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
+   * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
+   */
+  createCookiesSection(containerEl) {
+    const section = containerEl.createEl("div", { cls: "setting-section" });
+    section.createEl("h3", { text: "\u{1F36A} Cookies \u7BA1\u7406" });
+    section.createEl("p", {
+      text: "\u53D7\u9650\u5E73\u53F0\uFF08Bilibili / \u6296\u97F3 / \u5C0F\u7EA2\u4E66 / TikTok\uFF09\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002\u76EE\u5F55\u4E00\u822C\u662F n8n docker \u9879\u76EE\u91CC\u7684 docker/cookies\uFF1B\u6587\u4EF6\u540D\u5982 bilibili_cookies.txt\u3002",
+      cls: "setting-item-description"
+    });
+    const resultBox = section.createDiv({ cls: "setup-diagnostic-result" });
+    new import_obsidian6.Setting(section).setName("Cookies \u76EE\u5F55").setDesc("docker/cookies \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 /Users/you/n8n-project/docker/cookies").addText(
+      (text) => text.setPlaceholder("/path/to/docker/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
+        this.plugin.settings.cookiesDirPath = value.trim();
+        await this.plugin.saveSettings();
+      })
+    ).addButton(
+      (button) => button.setButtonText("\u6253\u5F00\u76EE\u5F55").onClick(() => {
+        const dir = (this.plugin.settings.cookiesDirPath || "").trim();
+        if (!dir) {
+          new import_obsidian6.Notice("\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84");
+          return;
+        }
+        try {
+          const electron = window.require?.("electron");
+          if (!electron?.shell?.openPath) {
+            new import_obsidian6.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
+            return;
+          }
+          electron.shell.openPath(dir);
+        } catch (error) {
+          new import_obsidian6.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
+        }
+      })
+    ).addButton(
+      (button) => button.setButtonText("\u68C0\u6D4B cookies").setCta().onClick(() => {
+        this.renderCookiesCheckResult(resultBox);
+      })
+    );
+  }
+  /** 扫描 cookies 目录，列出 *_cookies.txt 的存在性与新鲜度 */
+  renderCookiesCheckResult(containerEl) {
+    containerEl.empty();
+    containerEl.removeClass("is-success");
+    containerEl.removeClass("is-error");
+    const dir = (this.plugin.settings.cookiesDirPath || "").trim();
+    if (!dir) {
+      containerEl.addClass("is-error");
+      containerEl.createEl("p", { text: "\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84\u3002" });
+      return;
+    }
+    let fs;
+    let pathModule;
+    try {
+      const nodeRequire = window.require;
+      fs = nodeRequire?.("fs");
+      pathModule = nodeRequire?.("path");
+    } catch {
+    }
+    if (!fs || !pathModule) {
+      containerEl.addClass("is-error");
+      containerEl.createEl("p", { text: "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6587\u4EF6\u7CFB\u7EDF\u8BBF\u95EE\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09\u3002" });
+      return;
+    }
+    try {
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+        containerEl.addClass("is-error");
+        containerEl.createEl("strong", { text: "\u76EE\u5F55\u4E0D\u5B58\u5728" });
+        containerEl.createEl("p", { text: `\u627E\u4E0D\u5230\u76EE\u5F55: ${dir}` });
+        return;
+      }
+      const STALE_DAYS = 30;
+      const files = fs.readdirSync(dir).filter((name) => /_cookies\.txt$/i.test(name) || /^cookies\.txt$/i.test(name));
+      if (files.length === 0) {
+        containerEl.addClass("is-error");
+        containerEl.createEl("strong", { text: "\u6CA1\u6709\u627E\u5230\u4EFB\u4F55 cookies \u6587\u4EF6" });
+        containerEl.createEl("p", {
+          text: `\u76EE\u5F55\u91CC\u6CA1\u6709 *_cookies.txt\u3002Bilibili \u9700\u8981 bilibili_cookies.txt\uFF1B\u7528\u6D4F\u89C8\u5668\u6269\u5C55\uFF08\u5982 Get cookies.txt LOCALLY\uFF09\u5BFC\u51FA\u540E\u653E\u8FDB\u6765\u5373\u53EF\u3002`
+        });
+        return;
+      }
+      containerEl.addClass("is-success");
+      containerEl.createEl("strong", { text: `\u627E\u5230 ${files.length} \u4E2A cookies \u6587\u4EF6` });
+      const now = Date.now();
+      const list = containerEl.createEl("ul", { cls: "setup-warning-list" });
+      let hasStale = false;
+      files.forEach((name) => {
+        try {
+          const stat = fs.statSync(pathModule.join(dir, name));
+          const ageDays = Math.floor((now - stat.mtimeMs) / (24 * 60 * 60 * 1e3));
+          const sizeKb = Math.max(1, Math.round(stat.size / 1024));
+          const stale = ageDays > STALE_DAYS;
+          if (stale) hasStale = true;
+          list.createEl("li", {
+            text: `${stale ? "\u26A0\uFE0F " : ""}${name} \u2014 ${sizeKb}KB\uFF0C\u66F4\u65B0\u4E8E ${ageDays} \u5929\u524D${stale ? `\uFF08\u8D85\u8FC7 ${STALE_DAYS} \u5929\uFF0C\u53EF\u80FD\u5DF2\u5931\u6548\uFF09` : ""}`
+          });
+        } catch {
+          list.createEl("li", { text: `${name} \u2014 \u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6\u4FE1\u606F` });
+        }
+      });
+      if (!files.some((name) => /^bilibili_/i.test(name))) {
+        containerEl.createEl("p", {
+          text: "\u63D0\u793A: \u672A\u53D1\u73B0 bilibili_cookies.txt\u3002\u9047\u5230 Bilibili HTTP 412 \u65F6\u9700\u8981\u5B83\u3002"
+        });
+      }
+      if (hasStale) {
+        containerEl.createEl("p", {
+          text: "\u6709\u6587\u4EF6\u8F83\u65E7\u3002\u5E73\u53F0 cookies \u901A\u5E38\u51E0\u5468\u5185\u5931\u6548\uFF0C\u4E0B\u8F7D\u5931\u8D25\u65F6\u4F18\u5148\u91CD\u65B0\u5BFC\u51FA\u3002"
+        });
+      }
+    } catch (error) {
+      containerEl.addClass("is-error");
+      containerEl.createEl("p", { text: `\u68C0\u6D4B\u5931\u8D25: ${error.message}` });
     }
   }
   createWorkflowCompatibilityCard(containerEl) {
@@ -10163,6 +10733,34 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian6.Setting(section).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
+      "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002"
+    ).addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.preflightCheckEnabled !== false).onChange(async (value) => {
+        this.plugin.settings.preflightCheckEnabled = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian6.Setting(section).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
+      "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002"
+    ).addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
+        this.plugin.settings.expandShortLinks = value;
+        this.plugin.api.setExpandShortLinks(value);
+        await this.plugin.saveSettings();
+      })
+    );
+    const historyLimitSetting = new import_obsidian6.Setting(section).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
+      `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`
+    ).addSlider(
+      (slider) => slider.setLimits(100, 1e3, 50).setValue(this.plugin.settings.historyLimit ?? 300).setDynamicTooltip().onChange(async (value) => {
+        this.plugin.settings.historyLimit = value;
+        await this.plugin.saveSettings();
+        historyLimitSetting.setDesc(
+          `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${value} \u6761\u3002`
+        );
       })
     );
     const cacheSubsection = section.createEl("div", { cls: "cache-subsection" });

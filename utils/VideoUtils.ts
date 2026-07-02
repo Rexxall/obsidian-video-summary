@@ -42,7 +42,8 @@ export class VideoUtils {
       // 尝试匹配单行格式的link字段
       const linkMatch = fmText.match(/^link:\s*(.+)$/m);
       if (linkMatch) {
-        const link = linkMatch[1].trim();
+        // 浏览器扩展写入的 link 可能是带引号的 YAML 标量（link: "https://..."），先剥掉引号
+        const link = this.stripYamlQuotes(linkMatch[1].trim());
         if (this.isValidVideoUrl(link)) {
           return link;
         }
@@ -61,6 +62,20 @@ export class VideoUtils {
     }
 
     return null;
+  }
+
+  /**
+   * 剥掉 YAML 标量外层的成对引号（link: "https://..." / link: 'https://...'）
+   */
+  private static stripYamlQuotes(value: string): string {
+    if (
+      value.length >= 2 &&
+      ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'")))
+    ) {
+      return value.slice(1, -1).trim();
+    }
+    return value;
   }
 
   /**

@@ -1,4 +1,5 @@
 // agent: codex (2026-05-21)
+// agent: claude (2026-07-02) — 短链自动展开 + quickHealthCheck/probeEndpoint
 import {
   ProcessingBackend,
   ProcessingMode,
@@ -10,8 +11,14 @@ import {
   WorkflowHealthInfo,
 } from '../types';
 import { CacheManager } from '../utils/CacheManager';
+import { UrlResolver } from '../utils/UrlResolver';
 import { Vault } from 'obsidian';
 import { RECOMMENDED_WORKFLOW } from '../constants';
+
+export interface EndpointProbeResult {
+  ok: boolean;
+  error?: string;
+}
 
 export class VideoSummaryAPI {
   private webhookUrl: string;
@@ -21,6 +28,7 @@ export class VideoSummaryAPI {
   private backend: ProcessingBackend = 'n8n';
   private cacheManager: CacheManager;
   private payloadKeys: any;
+  private expandShortLinksEnabled: boolean = false;
 
   setAiModel(model: string) {
     this.aiModel = model;
@@ -71,6 +79,35 @@ export class VideoSummaryAPI {
     this.backend = backend;
   }
 
+  /** 是否在发送前自动展开短链 */
+  setExpandShortLinks(enabled: boolean) {
+    this.expandShortLinksEnabled = enabled;
+  }
+
+  /**
+   * 短链展开（fail-open）：失败时原样返回 input。
+   * 在缓存检查之前调用，保证缓存 key 用的是展开后的最终链接。
+   */
+  private async resolveInputUrl(input: VideoInput): Promise<VideoInput> {
+    if (!this.expandShortLinksEnabled || !input.url || !UrlResolver.isShortLink(input.url)) {
+      return input;
+    }
+    try {
+      const expanded = await UrlResolver.expandShortUrl(input.url);
+      if (expanded && expanded !== input.url) {
+        if (this.debugMode) {
+          console.log(`[VideoSummaryAPI] 短链已展开: ${input.url} -> ${expanded}`);
+        }
+        return { ...input, url: expanded };
+      }
+    } catch (error) {
+      if (this.debugMode) {
+        console.warn('[VideoSummaryAPI] 短链展开失败，使用原链接', error);
+      }
+    }
+    return input;
+  }
+
   /**
    * 设置调试模式
    */
@@ -88,6 +125,9 @@ export class VideoSummaryAPI {
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
   ): Promise<ProcessingResult> {
+    // 短链先展开再处理（缓存 key 也用展开后的链接）
+    input = await this.resolveInputUrl(input);
+
     // 检查缓存（如果启用）
     if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
       const cachedResult = await this.cacheManager.get(input.url, mode, language);
@@ -201,6 +241,9 @@ export class VideoSummaryAPI {
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
   ): Promise<ProcessingResult> {
+    // 短链先展开再处理（缓存 key 也用展开后的链接）
+    input = await this.resolveInputUrl(input);
+
     // 检查缓存（如果启用）
     if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
       const cachedResult = await this.cacheManager.get(input.url, mode, language);
@@ -869,6 +912,97 @@ export class VideoSummaryAPI {
       chunks.push(array.slice(i, i + size));
     }
     return chunks;
+  }
+
+  /**
+   * 轻量健康自检：只判断"服务是否可达/webhook 是否存在"，不做完整诊断。
+   * 用于处理前 preflight，几秒内返回。
+   */
+  async quickHealthCheck(timeoutMs = 4000): Promise<EndpointProbeResult> {
+    return VideoSummaryAPI.probeEndpoint(
+      this.webhookUrl,
+      this.backend,
+      timeoutMs,
+      this.backend === 'n8n' ? this.buildConnectionTestPayload() : undefined,
+    );
+  }
+
+  /**
+   * 探测任意后端端点是否可用（静态方法，供"另一个后端是否可用"的检查复用）。
+   * - n8n: POST 测试 payload；连接被拒/超时 = 不可达；HTTP 404 = webhook 未激活。
+   * - codex-worker: GET /health（回退 /dashboard）；只要有 HTTP 响应就算可达。
+   */
+  static async probeEndpoint(
+    url: string,
+    backend: ProcessingBackend,
+    timeoutMs = 4000,
+    n8nBody?: any,
+  ): Promise<EndpointProbeResult> {
+    if (!url || !url.trim()) {
+      return { ok: false, error: '服务 URL 未配置' };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      if (backend === 'codex-worker') {
+        let probeUrl: string;
+        try {
+          const parsed = new URL(url);
+          parsed.pathname = '/health';
+          parsed.search = '';
+          parsed.hash = '';
+          probeUrl = parsed.toString();
+        } catch {
+          probeUrl = 'http://127.0.0.1:8787/health';
+        }
+
+        let response = await fetch(probeUrl, {
+          method: 'GET',
+          signal: controller.signal,
+        }).catch(() => null);
+
+        if (!response) {
+          const parsed = new URL(url);
+          parsed.pathname = '/dashboard';
+          parsed.search = '';
+          parsed.hash = '';
+          response = await fetch(parsed.toString(), {
+            method: 'GET',
+            signal: controller.signal,
+          });
+        }
+        // 只要拿到任意 HTTP 响应就说明 worker 进程在线
+        return { ok: true };
+      }
+
+      const body =
+        n8nBody ??
+        ({
+          name: 'preflight-check',
+          metadata: { mode: 'transcript-only', language: 'zh', ai: '' },
+          content: '',
+        } as any);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (response.status === 404) {
+        return { ok: false, error: 'HTTP 404 — webhook 不存在或 workflow 未激活' };
+      }
+      return { ok: true };
+    } catch (error) {
+      const message =
+        (error as Error)?.name === 'AbortError'
+          ? `${timeoutMs}ms 内无响应（服务可能未启动）`
+          : (error as Error)?.message || String(error);
+      return { ok: false, error: message };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // 测试连接（返回耗时、响应片段和下一步建议，便于诊断）

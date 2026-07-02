@@ -57,8 +57,20 @@ export interface VideoSummarySettings {
   statusFilterValue: string; // 状态筛选值
 
   // 历史记录
+  // 注意：history / webhookHistory 自 2.2.0 起持久化在插件目录的 history.json，
+  // 不再写入 data.json（避免 data.json 无限膨胀）。内存中仍挂在 settings 上以兼容视图。
   history: ProcessingHistory[];
   webhookHistory: WebhookHistoryEntry[];
+  historyLimit: number;
+
+  // 处理前后端自检
+  preflightCheckEnabled: boolean;
+
+  // 短链自动展开
+  expandShortLinks: boolean;
+
+  // cookies 目录（n8n docker/cookies 的绝对路径，桌面端）
+  cookiesDirPath: string;
 }
 
 export interface PayloadKeys {
