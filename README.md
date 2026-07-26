@@ -14,6 +14,24 @@ Video Summary connects an Obsidian command surface with your own n8n workflow. T
 - Cache repeated URL and mode combinations to avoid unnecessary repeated processing.
 - Rename processed notes from returned video metadata while handling filename conflicts.
 
+## Sidebar
+
+The panel has four layers:
+
+- **Action bar** — the note you currently have open and its status, one input that accepts URLs,
+  multi-line batches, local file names, pasted transcripts, or webhook JSON, plus inline chips for
+  mode, language, model, webhook profile, and output folder.
+- **Jobs** — everything queued, running, waiting for confirmation, or recently finished. Cards show
+  the current stage when the backend reports one, elapsed time, cancel, and retry. Failures show the
+  actual error text.
+- **Library** — every video note in the vault, backed by an incremental index rather than a full
+  scan, filtered by status chips and searchable.
+- **Detail** — result preview (summary, transcript, metadata, raw JSON) with write actions: write to
+  the note, apply to the open note, insert at the end, or create a new note.
+
+Turn on `写入前预览` in the chip row if you want every result to stop for confirmation before it
+touches a note.
+
 ## Typical workflow
 
 1. Create a note with a `link` property or paste a video URL in the note body.

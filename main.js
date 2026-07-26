@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => VideoSummaryPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian6 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // modals/VideoSummaryModal.ts
 var import_obsidian = require("obsidian");
@@ -240,6 +240,10 @@ var DEFAULT_SETTINGS = {
   // 默认按时间（最新）排序
   statusFilterValue: "all",
   // 默认显示全部状态
+  activePanelTab: "jobs",
+  // 侧栏默认停在任务流
+  previewBeforeWrite: false,
+  // 默认沿用直接写入；打开后结果先预览再落笔记
   history: [],
   webhookHistory: [],
   historyLimit: DEFAULT_HISTORY_LIMIT,
@@ -5222,7 +5226,7 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
   /**
    * 处理单个视频
    */
-  async processVideo(noteName, input, mode, language = "zh", useCache = true) {
+  async processVideo(noteName, input, mode, language = "zh", useCache = true, onProgress) {
     input = await this.resolveInputUrl(input);
     if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
       const cachedResult = await this.cacheManager.get(input.url, mode, language);
@@ -5230,13 +5234,14 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
         if (this.debugMode) {
           console.log(`[VideoSummaryAPI] \u4F7F\u7528\u7F13\u5B58\u7ED3\u679C: ${input.url}`);
         }
+        onProgress?.({ stageLabel: "\u547D\u4E2D\u7F13\u5B58", progress: 1, message: "\u547D\u4E2D\u7F13\u5B58\uFF0C\u672A\u8BF7\u6C42\u540E\u7AEF" });
         return cachedResult;
       }
     }
     const payload = this.buildPayload(noteName, input, mode, language);
     if (this.backend === "codex-worker") {
       try {
-        const result = await this.processCodexWorkerJob(payload);
+        const result = await this.processCodexWorkerJob(payload, onProgress);
         this.recordWebhookResult(result, input, mode, language);
         this.lastWebhookResult = {
           result,
@@ -5559,7 +5564,7 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
       this.historyListener(this.webhookHistory.map((item) => ({ ...item })));
     }
   }
-  async processCodexWorkerJob(payload) {
+  async processCodexWorkerJob(payload, onProgress) {
     const jobsUrl = this.getCodexWorkerJobsUrl();
     const response = await fetch(jobsUrl, {
       method: "POST",
@@ -5589,6 +5594,14 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
         );
       }
       latestJob = await statusResponse.json();
+      if (onProgress) {
+        const stageLabel = pickString(latestJob, ["stage", "step", "phase", "status"]);
+        const message = pickString(latestJob, ["message", "detail", "lastLog"]);
+        const progress = pickRatio(latestJob, ["progress", "percent", "percentage"]);
+        if (stageLabel || message || progress !== void 0) {
+          onProgress({ stageLabel, message, progress });
+        }
+      }
       if (latestJob.status === "success") {
         return this.parseSummaryResponse(latestJob.result);
       }
@@ -6171,107 +6184,1750 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     }
   }
 };
+function pickString(source, keys) {
+  if (!source || typeof source !== "object") return void 0;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return void 0;
+}
+function pickRatio(source, keys) {
+  if (!source || typeof source !== "object") return void 0;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const ratio = value > 1 ? value / 100 : value;
+      return Math.min(1, Math.max(0, ratio));
+    }
+  }
+  return void 0;
+}
 
 // views/VideoSummaryView.ts
+var import_obsidian11 = require("obsidian");
+
+// views/panels/ActionBar.ts
+var import_obsidian7 = require("obsidian");
+
+// views/ui.ts
 var import_obsidian4 = require("obsidian");
-var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
-var FolderSelectModal = class extends import_obsidian4.Modal {
+function iconButton(parent, icon, label, onClick, extraCls) {
+  const button = parent.createEl("button", {
+    cls: `vs-icon-btn${extraCls ? ` ${extraCls}` : ""}`,
+    attr: { type: "button", "aria-label": label, title: label }
+  });
+  (0, import_obsidian4.setIcon)(button, icon);
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick(event);
+  });
+  return button;
+}
+function textButton(parent, label, onClick, extraCls) {
+  const button = parent.createEl("button", {
+    text: label,
+    cls: `vs-text-btn${extraCls ? ` ${extraCls}` : ""}`,
+    attr: { type: "button" }
+  });
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    onClick();
+  });
+  return button;
+}
+function configChip(parent, label, value, items) {
+  const chip = parent.createEl("button", {
+    cls: "vs-chip",
+    attr: { type: "button", "aria-label": label, title: `${label}\uFF1A${value}` }
+  });
+  chip.createSpan({ text: value, cls: "vs-chip-value" });
+  const caret = chip.createSpan({ cls: "vs-chip-caret" });
+  (0, import_obsidian4.setIcon)(caret, "chevron-down");
+  chip.addEventListener("click", (event) => {
+    event.preventDefault();
+    showMenu(event, items);
+  });
+  return chip;
+}
+function showMenu(event, items) {
+  const menu = new import_obsidian4.Menu();
+  items.forEach((spec) => {
+    menu.addItem((item) => {
+      item.setTitle(spec.title);
+      if (spec.icon) item.setIcon(spec.icon);
+      if (spec.disabled) item.setDisabled(true);
+      item.onClick(() => spec.onClick());
+    });
+  });
+  menu.showAtMouseEvent(event);
+}
+function statusMeta(status) {
+  switch (status) {
+    case "success":
+      return { label: "\u5DF2\u5B8C\u6210", cls: "is-success" };
+    case "running":
+      return { label: "\u5904\u7406\u4E2D", cls: "is-running" };
+    case "error":
+      return { label: "\u5931\u8D25", cls: "is-error" };
+    case "review":
+      return { label: "\u5F85\u786E\u8BA4", cls: "is-review" };
+    case "cancelled":
+      return { label: "\u5DF2\u53D6\u6D88", cls: "is-muted" };
+    case "queued":
+      return { label: "\u6392\u961F\u4E2D", cls: "is-queued" };
+    default:
+      return { label: "\u5F85\u5904\u7406", cls: "is-pending" };
+  }
+}
+function platformIcon(platform) {
+  switch (platform) {
+    case "youtube":
+      return "youtube";
+    case "bilibili":
+      return "tv";
+    case "douyin":
+    case "tiktok":
+      return "music";
+    case "xiaohongshu":
+      return "book-open";
+    case "local":
+      return "file-video";
+    default:
+      return "link";
+  }
+}
+function modeLabel(mode) {
+  switch (mode) {
+    case "transcript-only":
+      return "\u4EC5\u6587\u7A3F";
+    case "info-only":
+      return "\u4EC5\u4FE1\u606F";
+    default:
+      return "\u5B8C\u6574\u603B\u7ED3";
+  }
+}
+function languageLabel(language) {
+  switch (language) {
+    case "en":
+      return "English";
+    case "ja":
+      return "\u65E5\u672C\u8A9E";
+    default:
+      return "\u4E2D\u6587";
+  }
+}
+function formatElapsed(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "0s";
+  const totalSeconds = Math.floor(ms / 1e3);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+function formatRelative(timestamp) {
+  const diff = Date.now() - timestamp;
+  if (diff < 6e4) return "\u521A\u521A";
+  if (diff < 36e5) return `${Math.floor(diff / 6e4)} \u5206\u949F\u524D`;
+  if (diff < 864e5) return `${Math.floor(diff / 36e5)} \u5C0F\u65F6\u524D`;
+  const days = Math.floor(diff / 864e5);
+  if (days < 30) return `${days} \u5929\u524D`;
+  return new Date(timestamp).toLocaleDateString("zh-CN");
+}
+function parseLocaleTime(value) {
+  const parsed = Date.parse(value);
+  if (!Number.isNaN(parsed)) return parsed;
+  const match = value.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D+(\d{1,2}):(\d{2}):?(\d{2})?/);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second] = match;
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second || "0")
+  ).getTime();
+}
+function emptyState(parent, icon, title, hint) {
+  const wrapper = parent.createDiv({ cls: "vs-empty" });
+  const iconEl = wrapper.createDiv({ cls: "vs-empty-icon" });
+  (0, import_obsidian4.setIcon)(iconEl, icon);
+  wrapper.createDiv({ text: title, cls: "vs-empty-title" });
+  if (hint) wrapper.createDiv({ text: hint, cls: "vs-empty-hint" });
+}
+
+// core/NoteIndex.ts
+var import_obsidian5 = require("obsidian");
+var BODY_SCAN_CHUNK = 60;
+var NoteIndex = class {
+  constructor(app) {
+    this.entries = /* @__PURE__ */ new Map();
+    this.listeners = /* @__PURE__ */ new Set();
+    this.bodyScanQueue = [];
+    this.bodyScanTimer = null;
+    this.bodyScanDone = false;
+    this.app = app;
+  }
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  emit() {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        console.error("[NoteIndex] listener failed", error);
+      }
+    });
+  }
+  /** 正文兜底扫描是否还在跑（界面据此显示"仍在建索引"） */
+  isScanning() {
+    return !this.bodyScanDone;
+  }
+  getAll() {
+    return Array.from(this.entries.values());
+  }
+  get(path) {
+    return this.entries.get(path);
+  }
+  build() {
+    this.entries.clear();
+    this.bodyScanQueue = [];
+    this.bodyScanDone = false;
+    const files = this.app.vault.getMarkdownFiles();
+    for (const file of files) {
+      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
+        this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
+      } else {
+        this.bodyScanQueue.push(file);
+      }
+    }
+    this.emit();
+    this.scheduleBodyScan();
+  }
+  scheduleBodyScan() {
+    if (this.bodyScanTimer !== null) return;
+    if (this.bodyScanQueue.length === 0) {
+      this.bodyScanDone = true;
+      this.emit();
+      return;
+    }
+    this.bodyScanTimer = window.setTimeout(() => {
+      this.bodyScanTimer = null;
+      void this.runBodyScanChunk();
+    }, 50);
+  }
+  async runBodyScanChunk() {
+    const chunk = this.bodyScanQueue.splice(0, BODY_SCAN_CHUNK);
+    let changed = false;
+    for (const file of chunk) {
+      if (this.entries.has(file.path)) continue;
+      try {
+        const content = await this.app.vault.cachedRead(file);
+        if (VideoUtils.isVideoNote(content)) {
+          this.entries.set(file.path, this.entryFromContent(file, content));
+          changed = true;
+        }
+      } catch (error) {
+        console.error(`[NoteIndex] \u8BFB\u53D6\u5931\u8D25: ${file.path}`, error);
+      }
+    }
+    if (changed) this.emit();
+    this.scheduleBodyScan();
+  }
+  /** metadataCache 变化后刷新单个文件 */
+  async refreshFile(file) {
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
+      this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
+      this.emit();
+      return;
+    }
+    try {
+      const content = await this.app.vault.cachedRead(file);
+      if (VideoUtils.isVideoNote(content)) {
+        this.entries.set(file.path, this.entryFromContent(file, content));
+      } else if (this.entries.delete(file.path)) {
+      }
+    } catch {
+      this.entries.delete(file.path);
+    }
+    this.emit();
+  }
+  handleDelete(file) {
+    if (this.entries.delete(file.path)) this.emit();
+  }
+  handleRename(file, oldPath) {
+    const existing = this.entries.get(oldPath);
+    this.entries.delete(oldPath);
+    if (existing && file instanceof import_obsidian5.TFile) {
+      this.entries.set(file.path, {
+        ...existing,
+        path: file.path,
+        basename: file.basename,
+        mtime: file.stat.mtime
+      });
+    }
+    this.emit();
+  }
+  entryFromFrontmatter(file, frontmatter) {
+    const rawStatus = VideoUtils.getProcessingStatusFromFrontmatter(frontmatter) || "pending";
+    const link = this.readLink(frontmatter);
+    return {
+      path: file.path,
+      basename: file.basename,
+      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
+      link,
+      platform: link ? detectPlatform2(link) : void 0,
+      title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
+      ctime: file.stat.ctime,
+      mtime: file.stat.mtime
+    };
+  }
+  entryFromContent(file, content) {
+    const rawStatus = VideoUtils.getProcessingStatus(content) || "pending";
+    const link = VideoUtils.extractVideoUrl(content) || void 0;
+    return {
+      path: file.path,
+      basename: file.basename,
+      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
+      link,
+      platform: link ? detectPlatform2(link) : void 0,
+      ctime: file.stat.ctime,
+      mtime: file.stat.mtime
+    };
+  }
+  readLink(frontmatter) {
+    const raw = frontmatter?.link;
+    if (typeof raw === "string" && raw.trim()) return raw.trim();
+    if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
+    return void 0;
+  }
+};
+function detectPlatform2(url) {
+  const value = url.toLowerCase();
+  if (value.includes("bilibili.com") || value.includes("b23.tv")) return "bilibili";
+  if (value.includes("youtube.com") || value.includes("youtu.be")) return "youtube";
+  if (value.includes("douyin.com")) return "douyin";
+  if (value.includes("tiktok.com")) return "tiktok";
+  if (value.includes("xiaohongshu.com") || value.includes("xhslink")) return "xiaohongshu";
+  return "other";
+}
+function platformLabel(platform) {
+  switch (platform) {
+    case "bilibili":
+      return "bilibili";
+    case "youtube":
+      return "YouTube";
+    case "douyin":
+      return "\u6296\u97F3";
+    case "tiktok":
+      return "TikTok";
+    case "xiaohongshu":
+      return "\u5C0F\u7EA2\u4E66";
+    default:
+      return "\u94FE\u63A5";
+  }
+}
+
+// core/InputParser.ts
+var MEDIA_EXTENSIONS = /\.(mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i;
+function parseInput(raw, options = {}) {
+  const text = (raw || "").trim();
+  const transcript = (options.transcript || "").trim();
+  const localFiles = splitLocalFiles(options.localFiles || "");
+  if (text && looksLikeJson(text)) {
+    return [
+      {
+        title: "Webhook JSON",
+        input: {},
+        source: "json",
+        rawJson: text
+      }
+    ];
+  }
+  const urls = extractUrls(text, options.keepPartParam === true);
+  if (urls.length > 0) {
+    return urls.map((url) => ({
+      title: titleForUrl(url),
+      input: buildInput({ url, transcript, localFile: localFiles[0] }),
+      source: "url",
+      platform: detectPlatform2(url)
+    }));
+  }
+  if (localFiles.length > 0) {
+    return localFiles.map((file) => ({
+      title: titleForLocalFile(file),
+      input: buildInput({ transcript, localFile: file }),
+      source: "local-file"
+    }));
+  }
+  if (text && (MEDIA_EXTENSIONS.test(text) || isAbsoluteLocalPath(text))) {
+    return [
+      {
+        title: titleForLocalFile(text),
+        input: buildInput({ transcript, localFile: text }),
+        source: "local-file"
+      }
+    ];
+  }
+  const body = transcript || text;
+  if (body) {
+    return [
+      {
+        title: titleForTranscript(body),
+        input: buildInput({ transcript: body }),
+        source: "transcript"
+      }
+    ];
+  }
+  return [];
+}
+function expandParts(url, startPart, endPart, options = {}) {
+  const videoId = extractVideoId(url);
+  if (!videoId) return [];
+  const transcript = (options.transcript || "").trim();
+  const localFile = splitLocalFiles(options.localFiles || "")[0];
+  const drafts = [];
+  for (let index = startPart; index <= endPart; index += 1) {
+    const partUrl = VideoUtils.generatePartUrl(url, videoId, index);
+    drafts.push({
+      title: `${titleForUrl(partUrl)}_P${index}`,
+      input: buildInput({ url: partUrl, transcript, localFile }),
+      source: "url",
+      platform: detectPlatform2(partUrl)
+    });
+  }
+  return drafts;
+}
+function extractVideoId(url) {
+  const cleanUrl = VideoUtils.cleanVideoUrl(url);
+  const bilibili = cleanUrl.match(/\/video\/(BV[a-zA-Z0-9]+)/);
+  if (bilibili) return bilibili[1];
+  const youtube = cleanUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+  if (youtube) return youtube[1];
+  const numeric = cleanUrl.match(/\/video\/(\d+)/);
+  if (numeric) return numeric[1];
+  return null;
+}
+function titleForUrl(url) {
+  const videoId = extractVideoId(url) || "video";
+  switch (detectPlatform2(url)) {
+    case "bilibili":
+      return `B\u7AD9\u89C6\u9891_${videoId}`;
+    case "youtube":
+      return `YouTube\u89C6\u9891_${videoId}`;
+    case "douyin":
+      return `\u6296\u97F3\u89C6\u9891_${videoId}`;
+    case "tiktok":
+      return `TikTok\u89C6\u9891_${videoId}`;
+    case "xiaohongshu":
+      return `\u5C0F\u7EA2\u4E66_${videoId}`;
+    default:
+      return `\u89C6\u9891_${videoId}`;
+  }
+}
+function isAbsoluteLocalPath(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return /^([a-zA-Z]:\\|\\\\|\/)/.test(trimmed);
+}
+function titleForLocalFile(path) {
+  const fileName = path.split("/").pop() || path.split("\\").pop() || "local_file";
+  return `\u672C\u5730\u6587\u4EF6_${fileName}`;
+}
+function titleForTranscript(text) {
+  const now = /* @__PURE__ */ new Date();
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+    "_",
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0")
+  ].join("");
+  const snippet = text.split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
+  return snippet ? `\u6587\u7A3F_${stamp}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp}`;
+}
+function buildInput(parts) {
+  const input = {};
+  if (parts.url) input.url = parts.url;
+  if (parts.transcript) input.transcript = parts.transcript;
+  if (parts.localFile) input.localFile = parts.localFile;
+  return input;
+}
+function splitLocalFiles(value) {
+  return value.split(",").map((item) => item.trim()).filter((item) => item.length > 0);
+}
+function looksLikeJson(text) {
+  if (!/^[[{]/.test(text)) return false;
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function extractUrls(text, keepPartParam) {
+  if (!text) return [];
+  const matches = text.match(/https?:\/\/[^\s"'<>]+/g) || [];
+  const cleaned = matches.map(
+    (url) => keepPartParam ? VideoUtils.cleanVideoUrlKeepP(url) : VideoUtils.cleanVideoUrl(url)
+  ).filter((url) => url.length > 0);
+  return Array.from(new Set(cleaned));
+}
+
+// modals/FolderSelectModal.ts
+var import_obsidian6 = require("obsidian");
+var FolderSelectModal = class extends import_obsidian6.Modal {
   constructor(app, folders, onSelect) {
     super(app);
-    this.searchInput = null;
     this.folderContainer = null;
     this.folders = folders;
     this.onSelect = onSelect;
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u9009\u62E9\u8F93\u51FA\u6587\u4EF6\u5939" });
-    const searchContainer = contentEl.createEl("div", { cls: "folder-search-container" });
-    this.searchInput = searchContainer.createEl("input", {
-      type: "text",
-      cls: "folder-search-input"
+    contentEl.addClass("vs-folder-modal");
+    contentEl.createEl("h3", { text: "\u9009\u62E9\u8F93\u51FA\u6587\u4EF6\u5939" });
+    const searchInput = contentEl.createEl("input", {
+      cls: "vs-folder-search",
+      attr: { type: "text", placeholder: "\u641C\u7D22\u6587\u4EF6\u5939\u2026" }
     });
-    this.searchInput.setAttribute("placeholder", "\u8F93\u5165\u5173\u952E\u8BCD\u641C\u7D22\u6587\u4EF6\u5939...");
-    this.folderContainer = contentEl.createEl("div", { cls: "folder-select-container" });
-    const currentOption = this.folderContainer.createEl("div", { cls: "folder-option" });
-    currentOption.createEl("span", { text: "\u5F53\u524D\u6587\u4EF6\u5939 (\u7559\u7A7A)" });
-    currentOption.onclick = () => {
+    this.folderContainer = contentEl.createDiv({ cls: "vs-folder-list" });
+    this.renderOptions("");
+    searchInput.addEventListener("input", () => {
+      this.renderOptions(searchInput.value.toLowerCase());
+    });
+    searchInput.focus();
+  }
+  renderOptions(keyword) {
+    if (!this.folderContainer) return;
+    this.folderContainer.empty();
+    const current = this.folderContainer.createDiv({ cls: "vs-folder-option" });
+    current.setText("\u5F53\u524D\u6587\u4EF6\u5939\uFF08\u7559\u7A7A\uFF09");
+    current.onclick = () => {
       this.onSelect("");
       this.close();
     };
-    this.renderFolderOptions(this.folders);
-    this.searchInput.addEventListener("input", (e) => {
-      const searchValue = e.target.value.toLowerCase();
-      this.filterFolders(searchValue);
-    });
-  }
-  renderFolderOptions(folders) {
-    if (!this.folderContainer) return;
-    const currentOption = this.folderContainer.querySelector(".folder-option");
-    this.folderContainer.empty();
-    if (currentOption) {
-      this.folderContainer.appendChild(currentOption);
-    }
-    folders.forEach((folderPath) => {
-      const option = this.folderContainer.createEl("div", { cls: "folder-option" });
-      option.createEl("span", { text: folderPath });
+    this.folders.filter((path) => !keyword || path.toLowerCase().includes(keyword)).slice(0, 200).forEach((path) => {
+      const option = this.folderContainer.createDiv({ cls: "vs-folder-option" });
+      option.setText(path);
       option.onclick = () => {
-        this.onSelect(folderPath);
+        this.onSelect(path);
         this.close();
       };
     });
   }
-  filterFolders(searchValue) {
-    if (!this.folderContainer) return;
-    const options = this.folderContainer.querySelectorAll(".folder-option");
-    options.forEach((option, index) => {
-      if (index === 0) return;
-      const span = option.querySelector("span");
-      if (span) {
-        const text = span.textContent || "";
-        if (searchValue === "" || text.toLowerCase().includes(searchValue)) {
-          option.style.display = "block";
-        } else {
-          option.style.display = "none";
-        }
-      }
-    });
-  }
   onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
+    this.contentEl.empty();
   }
 };
-var VideoSummaryView = class extends import_obsidian4.ItemView {
+
+// views/panels/ActionBar.ts
+function renderActionBar(container, ctx) {
+  const { state } = ctx;
+  const root = container.createDiv({ cls: "vs-action-bar" });
+  renderHeader(root, ctx);
+  renderContextStrip(root, ctx);
+  const inputRow = root.createDiv({ cls: "vs-input-row" });
+  const inputIcon = inputRow.createDiv({ cls: "vs-input-icon" });
+  (0, import_obsidian7.setIcon)(inputIcon, "link");
+  const input = inputRow.createEl("textarea", {
+    cls: "vs-input",
+    attr: {
+      rows: "1",
+      placeholder: "\u7C98\u8D34\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u3001\u6587\u7A3F\u6216 webhook JSON\uFF1B\u591A\u884C=\u6279\u91CF"
+    }
+  });
+  input.value = state.inputDraft;
+  input.addEventListener("input", () => {
+    state.inputDraft = input.value;
+  });
+  autoGrow(input);
+  iconButton(
+    inputRow,
+    "folder-open",
+    "\u9009\u62E9\u672C\u673A\u6587\u4EF6",
+    () => pickLocalFiles(ctx, input),
+    "vs-input-action"
+  );
+  const chips = root.createDiv({ cls: "vs-chip-row" });
+  renderChips(chips, ctx);
+  const advanced = root.createDiv({ cls: "vs-advanced" });
+  const advancedFields = renderAdvanced(advanced, ctx, input);
+  const actions = root.createDiv({ cls: "vs-action-row" });
+  const submitBtn = actions.createEl("button", {
+    text: "\u5F00\u59CB\u5904\u7406",
+    cls: "vs-primary-btn",
+    attr: { type: "button" }
+  });
+  const cacheBtn = iconButton(
+    actions,
+    "refresh-cw",
+    state.ignoreCache ? "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5F00\uFF08\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF09" : "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5173",
+    () => {
+      state.ignoreCache = !state.ignoreCache;
+      cacheBtn.toggleClass("is-active", state.ignoreCache);
+      cacheBtn.setAttr(
+        "aria-label",
+        state.ignoreCache ? "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5F00\uFF08\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF09" : "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5173"
+      );
+    },
+    "vs-toggle-btn"
+  );
+  cacheBtn.toggleClass("is-active", state.ignoreCache);
+  iconButton(
+    actions,
+    "sliders-horizontal",
+    state.advancedOpen ? "\u6536\u8D77\u9AD8\u7EA7\u9009\u9879" : "\u5C55\u5F00\u9AD8\u7EA7\u9009\u9879",
+    () => {
+      state.advancedOpen = !state.advancedOpen;
+      ctx.renderAll();
+    },
+    state.advancedOpen ? "is-active" : void 0
+  );
+  advanced.toggleClass("is-open", state.advancedOpen);
+  submitBtn.addEventListener("click", async () => {
+    submitBtn.disabled = true;
+    try {
+      await submit(ctx, input, advancedFields);
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      submitBtn.click();
+    }
+  });
+}
+function renderHeader(root, ctx) {
+  const header = root.createDiv({ cls: "vs-header" });
+  header.createSpan({ text: "Video summary", cls: "vs-header-title" });
+  const actions = header.createDiv({ cls: "vs-header-actions" });
+  const backend = ctx.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n";
+  iconButton(actions, "plug", `\u540E\u7AEF\uFF1A${backend}\uFF08\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5\uFF09`, async () => {
+    const notice = new import_obsidian7.Notice(`\u6B63\u5728\u6D4B\u8BD5 ${backend} \u8FDE\u63A5\u2026`, 0);
+    try {
+      const result = await ctx.plugin.api.testConnection();
+      notice.hide();
+      new import_obsidian7.Notice(
+        result.success ? `${backend} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}`,
+        result.success ? 3e3 : 8e3
+      );
+    } catch (error) {
+      notice.hide();
+      new import_obsidian7.Notice(`\u8FDE\u63A5\u5931\u8D25\uFF1A${ctx.plugin.formatErrorForNotice(error)}`, 8e3);
+    }
+  });
+  iconButton(actions, "settings", "\u6253\u5F00\u63D2\u4EF6\u8BBE\u7F6E", () => {
+    const settingApi = ctx.plugin.app.setting;
+    if (settingApi?.open) {
+      settingApi.open();
+      settingApi.openTabById?.(ctx.plugin.manifest.id);
+    }
+  });
+}
+function renderContextStrip(root, ctx) {
+  const activeFile = ctx.plugin.app.workspace.getActiveFile();
+  if (!activeFile || activeFile.extension !== "md") return;
+  const entry = ctx.plugin.noteIndex.get(activeFile.path);
+  const frontmatter = ctx.plugin.app.metadataCache.getFileCache(activeFile)?.frontmatter;
+  const isVideoNote = entry !== void 0 || VideoUtils.isVideoNoteFromFrontmatter(frontmatter);
+  if (!isVideoNote) return;
+  const status = entry?.status || "pending";
+  const meta = statusMeta(status);
+  const strip = root.createDiv({ cls: "vs-context-strip" });
+  const icon = strip.createDiv({ cls: "vs-context-icon" });
+  (0, import_obsidian7.setIcon)(icon, "file-text");
+  const body = strip.createDiv({ cls: "vs-context-body" });
+  body.createDiv({ text: activeFile.basename, cls: "vs-context-title" });
+  body.createDiv({
+    text: `\u5F53\u524D\u7B14\u8BB0 \xB7 ${meta.label}${entry?.link ? ` \xB7 ${entry.link}` : ""}`,
+    cls: "vs-context-sub"
+  });
+  if (status !== "running") {
+    textButton(
+      strip,
+      status === "success" ? "\u91CD\u8DD1" : "\u5904\u7406",
+      async () => {
+        await ctx.plugin.jobService.submitFile(activeFile, ctx.submitOptions());
+        ctx.state.tab = "jobs";
+        ctx.renderPanels();
+      },
+      "vs-context-action"
+    );
+  }
+}
+function renderChips(chips, ctx) {
+  const { plugin } = ctx;
+  const settings = plugin.settings;
+  configChip(
+    chips,
+    "\u5904\u7406\u6A21\u5F0F",
+    modeLabel(settings.defaultMode),
+    ["summary", "transcript-only", "info-only"].map((mode) => ({
+      title: modeLabel(mode),
+      onClick: async () => {
+        settings.defaultMode = mode;
+        await plugin.saveSettings();
+        ctx.renderAll();
+      }
+    }))
+  );
+  configChip(
+    chips,
+    "\u8F93\u51FA\u8BED\u8A00",
+    languageLabel(settings.defaultLanguage),
+    ["zh", "en", "ja"].map((language) => ({
+      title: languageLabel(language),
+      onClick: async () => {
+        settings.defaultLanguage = language;
+        await plugin.saveSettings();
+        ctx.renderAll();
+      }
+    }))
+  );
+  const models = settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel];
+  configChip(
+    chips,
+    "\u5904\u7406\u6A21\u578B",
+    settings.aiModel || models[0] || "\u9ED8\u8BA4",
+    models.filter(Boolean).map((model) => ({
+      title: model,
+      onClick: async () => {
+        settings.aiModel = model;
+        plugin.api.setAiModel(model);
+        await plugin.saveSettings();
+        ctx.renderAll();
+      }
+    }))
+  );
+  const profiles = settings.webhookProfiles || [];
+  if (profiles.length > 1) {
+    const active = profiles.find((profile) => profile.id === settings.activeWebhookId);
+    configChip(
+      chips,
+      "Webhook",
+      active?.name || active?.url || "\u9ED8\u8BA4",
+      profiles.map((profile) => ({
+        title: profile.name || profile.url,
+        onClick: async () => {
+          await plugin.setActiveWebhook(profile.id, { silent: false });
+          ctx.renderAll();
+        }
+      }))
+    );
+  }
+  const folderChip = chips.createEl("button", {
+    cls: "vs-chip",
+    attr: { type: "button", title: `\u4FDD\u5B58\u4F4D\u7F6E\uFF1A${settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"}` }
+  });
+  folderChip.createSpan({
+    text: shortenPath(settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"),
+    cls: "vs-chip-value"
+  });
+  const folderCaret = folderChip.createSpan({ cls: "vs-chip-caret" });
+  (0, import_obsidian7.setIcon)(folderCaret, "folder");
+  folderChip.addEventListener("click", (event) => {
+    event.preventDefault();
+    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian7.TFolder).map((folder) => folder.path).sort();
+    new FolderSelectModal(plugin.app, folders, async (selected) => {
+      settings.outputFolder = selected;
+      await plugin.saveSettings();
+      ctx.renderAll();
+    }).open();
+  });
+  const previewChip = chips.createEl("button", {
+    cls: `vs-chip vs-chip-toggle${settings.previewBeforeWrite ? " is-active" : ""}`,
+    attr: {
+      type: "button",
+      title: settings.previewBeforeWrite ? "\u7ED3\u679C\u5148\u9884\u89C8\uFF0C\u786E\u8BA4\u540E\u624D\u5199\u5165\u7B14\u8BB0" : "\u7ED3\u679C\u76F4\u63A5\u5199\u5165\u7B14\u8BB0\uFF08\u70B9\u51FB\u6539\u4E3A\u5148\u9884\u89C8\uFF09"
+    }
+  });
+  const previewIcon = previewChip.createSpan({ cls: "vs-chip-caret" });
+  (0, import_obsidian7.setIcon)(previewIcon, settings.previewBeforeWrite ? "eye" : "eye-off");
+  previewChip.createSpan({ text: "\u5199\u5165\u524D\u9884\u89C8", cls: "vs-chip-value" });
+  previewChip.addEventListener("click", async (event) => {
+    event.preventDefault();
+    settings.previewBeforeWrite = !settings.previewBeforeWrite;
+    await plugin.saveSettings();
+    ctx.renderAll();
+  });
+}
+function renderAdvanced(container, ctx, mainInput) {
+  const transcriptRow = container.createDiv({ cls: "vs-field" });
+  transcriptRow.createEl("label", { text: "\u624B\u52A8\u6587\u7A3F", cls: "vs-field-label" });
+  const transcript = transcriptRow.createEl("textarea", {
+    cls: "vs-field-input",
+    attr: { rows: "3", placeholder: "\u89C6\u9891\u6CA1\u6709\u5B57\u5E55\u65F6\uFF0C\u5728\u8FD9\u91CC\u8D34\u6587\u7A3F" }
+  });
+  transcript.value = ctx.state.transcriptDraft;
+  transcript.addEventListener("input", () => {
+    ctx.state.transcriptDraft = transcript.value;
+  });
+  const localRow = container.createDiv({ cls: "vs-field" });
+  localRow.createEl("label", { text: "\u672C\u5730\u6587\u4EF6", cls: "vs-field-label" });
+  const localFile = localRow.createEl("input", {
+    cls: "vs-field-input",
+    attr: { type: "text", placeholder: "lecture-01.mp4\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694" }
+  });
+  localFile.value = ctx.state.localFileDraft;
+  localFile.addEventListener("input", () => {
+    ctx.state.localFileDraft = localFile.value;
+  });
+  localRow.createDiv({
+    text: "Docker/n8n \u573A\u666F\u8BF7\u628A\u6587\u4EF6\u653E\u8FDB docker/uploads\uFF0C\u8FD9\u91CC\u53EA\u586B\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002",
+    cls: "vs-field-hint"
+  });
+  localFile.addEventListener("blur", () => {
+    if (isAbsoluteLocalPath(localFile.value)) {
+      new import_obsidian7.Notice("\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002Docker \u573A\u666F\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002");
+    }
+  });
+  const partsRow = container.createDiv({ cls: "vs-field vs-field-inline" });
+  const partsToggle = partsRow.createEl("input", {
+    attr: { type: "checkbox", id: "vs-parts-toggle" }
+  });
+  partsToggle.checked = ctx.state.partsEnabled;
+  partsRow.createEl("label", {
+    text: "\u6309\u5206P\u8303\u56F4\u5C55\u5F00",
+    attr: { for: "vs-parts-toggle" },
+    cls: "vs-field-label"
+  });
+  const partsStart = partsRow.createEl("input", {
+    cls: "vs-num-input",
+    attr: { type: "number", min: "1", max: "1000", value: String(ctx.state.partsStart) }
+  });
+  partsRow.createSpan({ text: "\u5230", cls: "vs-field-hint" });
+  const partsEnd = partsRow.createEl("input", {
+    cls: "vs-num-input",
+    attr: { type: "number", min: "1", max: "1000", value: String(ctx.state.partsEnd) }
+  });
+  partsToggle.addEventListener("change", () => {
+    ctx.state.partsEnabled = partsToggle.checked;
+    if (!partsToggle.checked) return;
+    const url = (mainInput.value.match(/https?:\/\/\S+/) || [])[0];
+    const currentPart = url ? VideoUtils.extractCurrentPFromUrl(url) : null;
+    if (currentPart) {
+      partsStart.value = String(currentPart);
+      partsEnd.value = String(currentPart + 4);
+    }
+  });
+  return { transcript, localFile, partsToggle, partsStart, partsEnd };
+}
+async function submit(ctx, input, fields) {
+  const raw = input.value.trim();
+  const transcript = fields.transcript.value.trim();
+  const localFiles = fields.localFile.value.trim();
+  if (!raw && !transcript && !localFiles) {
+    new import_obsidian7.Notice("\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F");
+    return;
+  }
+  let drafts = parseInput(raw, {
+    transcript,
+    localFiles,
+    keepPartParam: !fields.partsToggle.checked
+  });
+  if (fields.partsToggle.checked) {
+    const url = drafts.find((draft) => draft.source === "url")?.input.url;
+    if (!url) {
+      new import_obsidian7.Notice("\u5206P\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5");
+      return;
+    }
+    const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
+    const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
+    if (end - start + 1 > 100) {
+      new import_obsidian7.Notice("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u4E2A\u5206P");
+      return;
+    }
+    const expanded = expandParts(url, start, end, { transcript, localFiles });
+    if (expanded.length === 0) {
+      new import_obsidian7.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427");
+      return;
+    }
+    drafts = expanded;
+    ctx.state.partsStart = start;
+    ctx.state.partsEnd = end;
+  }
+  if (drafts.length === 0) {
+    new import_obsidian7.Notice("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9");
+    return;
+  }
+  if (drafts.length > 50) {
+    new import_obsidian7.Notice("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761");
+    return;
+  }
+  const queued = await ctx.plugin.jobService.submit(drafts, ctx.submitOptions());
+  if (queued > 0) {
+    input.value = "";
+    fields.transcript.value = "";
+    fields.localFile.value = "";
+    ctx.state.inputDraft = "";
+    ctx.state.transcriptDraft = "";
+    ctx.state.localFileDraft = "";
+    input.dispatchEvent(new Event("input"));
+    new import_obsidian7.Notice(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`);
+    ctx.state.tab = "jobs";
+    ctx.renderPanels();
+  }
+}
+function pickLocalFiles(ctx, input) {
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.multiple = true;
+  picker.addEventListener("change", () => {
+    const names = Array.from(picker.files || []).map((file) => file.name).filter(Boolean);
+    if (names.length === 0) return;
+    const current = input.value.trim();
+    input.value = current ? `${current}
+${names.join("\n")}` : names.join("\n");
+    ctx.state.inputDraft = input.value;
+    input.dispatchEvent(new Event("input"));
+    new import_obsidian7.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
+  });
+  picker.click();
+}
+function autoGrow(input) {
+  const resize = () => {
+    input.style.height = "auto";
+    input.style.height = `${Math.min(140, Math.max(32, input.scrollHeight))}px`;
+  };
+  input.addEventListener("input", resize);
+  resize();
+}
+function shortenPath(path) {
+  if (path.length <= 22) return path;
+  return `\u2026${path.slice(-20)}`;
+}
+
+// views/panels/JobsPanel.ts
+var import_obsidian8 = require("obsidian");
+function renderJobsPanel(container, ctx) {
+  const jobs = ctx.plugin.jobs.getAll();
+  const active = jobs.filter((job) => job.state === "queued" || job.state === "running");
+  const review = jobs.filter((job) => job.state === "review");
+  const finished = jobs.filter(
+    (job) => job.state === "success" || job.state === "error" || job.state === "cancelled"
+  );
+  if (active.length > 0) {
+    section(container, `\u8FDB\u884C\u4E2D ${active.length}`);
+    active.forEach((job) => renderActiveJob(container, ctx, job));
+  }
+  if (review.length > 0) {
+    section(container, `\u5F85\u786E\u8BA4 ${review.length}`);
+    review.forEach((job) => renderReviewJob(container, ctx, job));
+  }
+  const historyRows = buildHistoryRows(ctx, finished);
+  if (historyRows.length > 0) {
+    const header = section(container, "\u6700\u8FD1");
+    iconButton(header, "history", "\u4ECE webhook \u5386\u53F2\u7ED3\u679C\u91CC\u53D6\u56DE", (event) => {
+      showWebhookHistoryMenu(ctx, event);
+    });
+    iconButton(header, "more-horizontal", "\u5217\u8868\u64CD\u4F5C", (event) => {
+      showMenu(event, [
+        {
+          title: "\u6E05\u6389\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u5361",
+          icon: "eraser",
+          onClick: () => {
+            ctx.plugin.jobs.clearFinished();
+            ctx.renderPanels();
+          }
+        },
+        {
+          title: "\u6E05\u7A7A\u5904\u7406\u5386\u53F2",
+          icon: "trash",
+          onClick: async () => {
+            await ctx.plugin.clearProcessingHistory();
+            ctx.renderPanels();
+          }
+        },
+        {
+          title: "\u6E05\u7A7A\u7ED3\u679C\u7F13\u5B58",
+          icon: "database",
+          onClick: async () => {
+            try {
+              await ctx.plugin.api.clearCache();
+              new import_obsidian8.Notice("\u7F13\u5B58\u5DF2\u6E05\u7A7A");
+            } catch (error) {
+              new import_obsidian8.Notice(`\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? error.message : error}`);
+            }
+          }
+        }
+      ]);
+    });
+    historyRows.slice(0, 60).forEach((row) => renderHistoryRow(container, ctx, row));
+  }
+  if (active.length === 0 && review.length === 0 && historyRows.length === 0) {
+    emptyState(container, "inbox", "\u8FD8\u6CA1\u6709\u4EFB\u52A1", "\u5728\u4E0A\u9762\u8D34\u4E00\u6761\u94FE\u63A5\uFF0C\u6216\u8005\u5230\u7B14\u8BB0\u5E93\u91CC\u6311\u4E00\u7BC7\u5904\u7406");
+  }
+}
+function section(container, title) {
+  const header = container.createDiv({ cls: "vs-section-header" });
+  header.createSpan({ text: title, cls: "vs-section-title" });
+  return header.createDiv({ cls: "vs-section-actions" });
+}
+function renderActiveJob(container, ctx, job) {
+  const card = container.createDiv({ cls: "vs-job-card" });
+  const head = card.createDiv({ cls: "vs-job-head" });
+  const icon = head.createDiv({ cls: "vs-job-icon" });
+  (0, import_obsidian8.setIcon)(icon, platformIcon(job.platform));
+  head.createSpan({ text: job.title, cls: "vs-job-title" });
+  iconButton(head, "x", "\u53D6\u6D88", async () => {
+    await ctx.plugin.jobService.cancel(job);
+    ctx.renderPanels();
+  });
+  const stage = card.createDiv({ cls: "vs-job-stage" });
+  if (job.state === "queued") {
+    stage.setText("\u6392\u961F\u4E2D");
+  } else if (job.stageLabel) {
+    stage.setText(job.stageLabel);
+  } else {
+    stage.setText("\u5DF2\u53D1\u9001\u5230\u540E\u7AEF\uFF0C\u7B49\u5F85\u8FD4\u56DE\uFF08\u8BE5\u540E\u7AEF\u4E0D\u4E0A\u62A5\u9636\u6BB5\uFF09");
+  }
+  const bar = card.createDiv({ cls: "vs-progress" });
+  const fill = bar.createDiv({
+    cls: `vs-progress-fill${job.progress === void 0 ? " is-indeterminate" : ""}`
+  });
+  if (job.progress !== void 0) {
+    fill.style.width = `${Math.round(job.progress * 100)}%`;
+  }
+  const meta = card.createDiv({ cls: "vs-job-meta" });
+  meta.createSpan({ text: modeLabel(job.mode) });
+  if (job.startedAt) {
+    meta.createSpan({ text: `\u5DF2\u7528 ${formatElapsed(Date.now() - job.startedAt)}` });
+  }
+  if (!job.useCache) meta.createSpan({ text: "\u8DF3\u8FC7\u7F13\u5B58" });
+}
+function renderReviewJob(container, ctx, job) {
+  const card = container.createDiv({ cls: "vs-job-card is-review" });
+  const head = card.createDiv({ cls: "vs-job-head" });
+  const icon = head.createDiv({ cls: "vs-job-icon" });
+  (0, import_obsidian8.setIcon)(icon, "eye");
+  head.createSpan({ text: job.title, cls: "vs-job-title" });
+  card.createDiv({
+    text: summarize(job),
+    cls: "vs-job-stage"
+  });
+  const actions = card.createDiv({ cls: "vs-job-actions" });
+  textButton(actions, "\u9884\u89C8", () => ctx.openDetail({ kind: "job", id: job.id }), "is-primary");
+  textButton(actions, "\u5199\u5165\u7B14\u8BB0", async () => {
+    if (await ctx.plugin.jobService.writeResult(job)) {
+      new import_obsidian8.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+      ctx.renderPanels();
+    }
+  });
+  textButton(actions, "\u4E22\u5F03", async () => {
+    await ctx.plugin.jobService.discardResult(job);
+    ctx.renderPanels();
+  });
+}
+function buildHistoryRows(ctx, finishedJobs) {
+  const rows = finishedJobs.map((job) => ({
+    key: job.id,
+    title: job.title,
+    state: job.state === "success" ? "success" : job.state === "error" ? "error" : "cancelled",
+    time: job.endedAt || job.createdAt,
+    mode: job.mode,
+    platform: job.platform,
+    error: job.error,
+    durationMs: job.endedAt && job.startedAt ? job.endedAt - job.startedAt : void 0,
+    job
+  }));
+  const seen = new Set(rows.map((row) => `${row.title}|${Math.floor(row.time / 1e3)}`));
+  const history = ctx.plugin.settings.history || [];
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const record = history[index];
+    const time = parseLocaleTime(record.time) ?? 0;
+    const key = `${record.file}|${Math.floor(time / 1e3)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({
+      key: `h-${record.file}-${record.time}`,
+      title: record.file,
+      state: record.result === "success" ? "success" : "error",
+      time,
+      mode: record.mode,
+      platform: record.platform,
+      error: record.error,
+      durationMs: record.durationMs,
+      record
+    });
+  }
+  return rows.sort((a, b) => b.time - a.time);
+}
+function renderHistoryRow(container, ctx, row) {
+  const item = container.createDiv({ cls: "vs-row" });
+  const meta = statusMeta(row.state);
+  item.createDiv({ cls: `vs-dot ${meta.cls}` });
+  const body = item.createDiv({ cls: "vs-row-body" });
+  body.createDiv({ text: row.title, cls: "vs-row-title" });
+  const parts = [modeLabel(row.mode)];
+  if (row.time) parts.push(formatRelative(row.time));
+  if (row.durationMs) parts.push(formatElapsed(row.durationMs));
+  body.createDiv({ text: parts.join(" \xB7 "), cls: "vs-row-sub" });
+  if (row.state === "error" && row.error) {
+    body.createDiv({ text: row.error, cls: "vs-row-error" });
+  }
+  body.addEventListener("click", () => {
+    if (row.job) {
+      ctx.openDetail({ kind: "job", id: row.job.id });
+    } else if (row.record) {
+      ctx.openDetail({ kind: "history", file: row.record.file, time: row.record.time });
+    }
+  });
+  iconButton(item, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
+    showMenu(event, [
+      {
+        title: "\u6253\u5F00\u7B14\u8BB0",
+        icon: "file-text",
+        onClick: () => openNoteByName(ctx, row.title)
+      },
+      {
+        title: "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+        icon: "refresh-cw",
+        onClick: () => rerun(ctx, row)
+      },
+      {
+        title: "\u590D\u5236\u5931\u8D25\u539F\u56E0",
+        icon: "clipboard",
+        disabled: !row.error,
+        onClick: () => {
+          void navigator.clipboard.writeText(row.error || "");
+          new import_obsidian8.Notice("\u5DF2\u590D\u5236");
+        }
+      }
+    ]);
+  });
+}
+async function rerun(ctx, row) {
+  if (row.job) {
+    ctx.plugin.jobs.retry(row.job.id);
+    ctx.renderPanels();
+    return;
+  }
+  const file = findNote(ctx, row.title);
+  if (!file) {
+    new import_obsidian8.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`);
+    return;
+  }
+  await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
+  ctx.renderPanels();
+}
+function openNoteByName(ctx, name) {
+  const file = findNote(ctx, name);
+  if (!file) {
+    new import_obsidian8.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`);
+    return;
+  }
+  ctx.openNote(file.path);
+}
+function findNote(ctx, name) {
+  const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
+  if (direct instanceof import_obsidian8.TFile) return direct;
+  const files = ctx.plugin.app.vault.getMarkdownFiles();
+  return files.find((file) => file.basename === name) || null;
+}
+function summarize(job) {
+  const result = job.result;
+  if (!result) return "\u7B49\u5F85\u786E\u8BA4";
+  const bits = [];
+  if (result.video_title) bits.push(result.video_title);
+  if (result.video_duration) bits.push(result.video_duration);
+  if (result.summary) bits.push(`\u603B\u7ED3 ${result.summary.length} \u5B57`);
+  if (result.video_transcript) bits.push(`\u6587\u7A3F ${result.video_transcript.length} \u5B57`);
+  return bits.join(" \xB7 ") || "\u7ED3\u679C\u5DF2\u5C31\u7EEA\uFF0C\u7B49\u5F85\u5199\u5165";
+}
+function showWebhookHistoryMenu(ctx, event) {
+  const history = ctx.plugin.api.getWebhookHistory();
+  if (!history || history.length === 0) {
+    new import_obsidian8.Notice("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C");
+    return;
+  }
+  showMenu(
+    event,
+    history.slice(0, 12).map((entry, index) => ({
+      title: `${index + 1}. ${entry.result.video_title || entry.input.url || "\u672A\u547D\u540D"}`,
+      icon: "file-plus",
+      onClick: () => showWebhookEntryActions(ctx, entry, event)
+    }))
+  );
+}
+function showWebhookEntryActions(ctx, entry, event) {
+  showMenu(event, [
+    {
+      title: "\u65B0\u5EFA\u7B14\u8BB0",
+      icon: "file-plus",
+      onClick: async () => {
+        await ctx.plugin.jobService.createNoteFromJson(
+          JSON.stringify(entry.result),
+          entry.language
+        );
+        ctx.renderPanels();
+      }
+    },
+    {
+      title: "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0",
+      icon: "save",
+      onClick: async () => {
+        await ctx.plugin.jobService.applyToActiveNote(entry.result, entry.mode);
+        ctx.renderPanels();
+      }
+    },
+    {
+      title: "\u63D2\u5230\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E",
+      icon: "text-cursor-input",
+      onClick: () => ctx.plugin.jobService.insertIntoActiveNote(entry.result)
+    },
+    {
+      title: "\u590D\u5236 JSON",
+      icon: "clipboard",
+      onClick: () => {
+        void navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
+        new import_obsidian8.Notice("\u5DF2\u590D\u5236");
+      }
+    }
+  ]);
+}
+
+// views/panels/LibraryPanel.ts
+var import_obsidian9 = require("obsidian");
+var PAGE_SIZE = 80;
+var searchHadFocus = false;
+var visibleCount = PAGE_SIZE;
+function resetLibraryPaging() {
+  visibleCount = PAGE_SIZE;
+}
+function renderLibraryPanel(container, ctx) {
+  const { state, plugin } = ctx;
+  const entries = plugin.noteIndex.getAll();
+  const header = container.createDiv({ cls: "vs-library-header" });
+  const searchWrap = header.createDiv({ cls: "vs-search" });
+  const searchIcon = searchWrap.createDiv({ cls: "vs-search-icon" });
+  (0, import_obsidian9.setIcon)(searchIcon, "search");
+  const search = searchWrap.createEl("input", {
+    cls: "vs-search-input",
+    attr: { type: "text", placeholder: "\u641C\u7D22\u7B14\u8BB0\u540D\u2026", value: state.librarySearch }
+  });
+  iconButton(header, "arrow-up-down", "\u6392\u5E8F\u65B9\u5F0F", (event) => {
+    showMenu(
+      event,
+      [
+        { value: "mtime-desc", title: "\u6700\u8FD1\u4FEE\u6539" },
+        { value: "ctime-desc", title: "\u6700\u8FD1\u521B\u5EFA" },
+        { value: "name-asc", title: "\u540D\u79F0 A\u2192Z" },
+        { value: "status", title: "\u6309\u72B6\u6001" }
+      ].map((option) => ({
+        title: option.title + (state.librarySort === option.value ? " \u2713" : ""),
+        onClick: async () => {
+          state.librarySort = option.value;
+          plugin.settings.fileListSortBy = option.value;
+          await plugin.saveSettings();
+          ctx.renderPanels();
+        }
+      }))
+    );
+  });
+  const counts = countByStatus(entries);
+  const filters = container.createDiv({ cls: "vs-filter-row" });
+  [
+    ["all", `\u5168\u90E8 ${entries.length}`],
+    ["pending", `\u5F85\u5904\u7406 ${counts.pending}`],
+    ["running", `\u5904\u7406\u4E2D ${counts.running}`],
+    ["error", `\u5931\u8D25 ${counts.error}`],
+    ["success", `\u5DF2\u5B8C\u6210 ${counts.success}`]
+  ].forEach(([value, label]) => {
+    const chip = filters.createEl("button", {
+      text: label,
+      cls: `vs-filter-chip${state.libraryFilter === value ? " is-active" : ""}`,
+      attr: { type: "button" }
+    });
+    chip.addEventListener("click", async () => {
+      state.libraryFilter = value;
+      plugin.settings.statusFilterValue = value;
+      await plugin.saveSettings();
+      resetLibraryPaging();
+      ctx.renderPanels();
+    });
+  });
+  const listEl = container.createDiv({ cls: "vs-list" });
+  const filtered = filterAndSort(
+    entries,
+    state.librarySearch,
+    state.libraryFilter,
+    state.librarySort
+  );
+  const renderList = () => {
+    listEl.empty();
+    if (filtered.length === 0) {
+      if (plugin.noteIndex.isScanning()) {
+        emptyState(listEl, "loader", "\u6B63\u5728\u5EFA\u7ACB\u7D22\u5F15\u2026", "\u7B2C\u4E00\u6B21\u6253\u5F00\u4F1A\u626B\u4E00\u904D\u5E93\uFF0C\u7A0D\u7B49\u51E0\u79D2");
+      } else {
+        emptyState(listEl, "file-search", "\u6CA1\u6709\u5339\u914D\u7684\u89C6\u9891\u7B14\u8BB0", "\u6362\u4E2A\u5173\u952E\u8BCD\uFF0C\u6216\u6E05\u6389\u72B6\u6001\u7B5B\u9009");
+      }
+      return;
+    }
+    filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry));
+    if (filtered.length > visibleCount) {
+      const more = listEl.createEl("button", {
+        text: `\u663E\u793A\u66F4\u591A\uFF08\u8FD8\u6709 ${filtered.length - visibleCount} \u6761\uFF09`,
+        cls: "vs-more-btn",
+        attr: { type: "button" }
+      });
+      more.addEventListener("click", () => {
+        visibleCount += PAGE_SIZE;
+        renderList();
+      });
+    }
+  };
+  renderList();
+  search.addEventListener("input", () => {
+    state.librarySearch = search.value;
+    resetLibraryPaging();
+    const next = filterAndSort(
+      entries,
+      state.librarySearch,
+      state.libraryFilter,
+      state.librarySort
+    );
+    filtered.length = 0;
+    filtered.push(...next);
+    renderList();
+  });
+  search.addEventListener("focus", () => {
+    searchHadFocus = true;
+  });
+  search.addEventListener("blur", () => {
+    searchHadFocus = false;
+  });
+  if (searchHadFocus) {
+    search.focus();
+    search.setSelectionRange(search.value.length, search.value.length);
+  }
+  if (plugin.noteIndex.isScanning() && filtered.length > 0) {
+    container.createDiv({ text: "\u4ECD\u5728\u540E\u53F0\u626B\u63CF\u5386\u53F2\u7B14\u8BB0\u2026", cls: "vs-scan-hint" });
+  }
+}
+function renderRow(listEl, ctx, entry) {
+  const row = listEl.createDiv({ cls: "vs-row" });
+  const meta = statusMeta(entry.status);
+  row.createDiv({ cls: `vs-dot ${meta.cls}` });
+  const body = row.createDiv({ cls: "vs-row-body" });
+  body.createDiv({ text: entry.basename, cls: "vs-row-title" });
+  const subParts = [platformLabel(entry.platform), formatRelative(entry.mtime)];
+  body.createDiv({ text: subParts.join(" \xB7 "), cls: "vs-row-sub" });
+  body.addEventListener("click", () => ctx.openNote(entry.path));
+  const icon = row.createDiv({ cls: "vs-row-platform" });
+  (0, import_obsidian9.setIcon)(icon, platformIcon(entry.platform));
+  if (entry.status !== "running") {
+    iconButton(
+      row,
+      entry.status === "success" ? "refresh-cw" : "play",
+      entry.status === "success" ? "\u91CD\u8DD1" : "\u5904\u7406",
+      async () => {
+        const file = fileOf(ctx, entry);
+        if (!file) return;
+        await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
+        ctx.state.tab = "jobs";
+        ctx.renderPanels();
+      }
+    );
+  } else {
+    iconButton(row, "x", "\u53D6\u6D88", async () => {
+      const job = ctx.plugin.jobs.getActive().find((candidate) => candidate.notePath === entry.path);
+      if (job) {
+        await ctx.plugin.jobService.cancel(job);
+      } else {
+        const file = fileOf(ctx, entry);
+        if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, "pending");
+      }
+      ctx.renderPanels();
+    });
+  }
+  iconButton(row, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
+    showMenu(event, [
+      { title: "\u6253\u5F00\u7B14\u8BB0", icon: "file-text", onClick: () => ctx.openNote(entry.path) },
+      {
+        title: "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+        icon: "refresh-cw",
+        onClick: async () => {
+          const file = fileOf(ctx, entry);
+          if (!file) return;
+          await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
+          ctx.state.tab = "jobs";
+          ctx.renderPanels();
+        }
+      },
+      {
+        title: "\u590D\u5236\u94FE\u63A5",
+        icon: "clipboard",
+        disabled: !entry.link,
+        onClick: () => {
+          void navigator.clipboard.writeText(entry.link || "");
+          new import_obsidian9.Notice("\u5DF2\u590D\u5236\u94FE\u63A5");
+        }
+      },
+      {
+        title: "\u6807\u8BB0\u4E3A\u5F85\u5904\u7406",
+        icon: "rotate-ccw",
+        onClick: async () => {
+          const file = fileOf(ctx, entry);
+          if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, "pending");
+          ctx.renderPanels();
+        }
+      },
+      {
+        title: "\u5220\u9664\u7B14\u8BB0",
+        icon: "trash",
+        onClick: () => confirmDelete(ctx, entry)
+      }
+    ]);
+  });
+}
+function confirmDelete(ctx, entry) {
+  new ConfirmModal(
+    ctx.plugin.app,
+    "\u5220\u9664\u7B14\u8BB0",
+    `\u786E\u5B9A\u628A "${entry.basename}" \u79FB\u5230\u7CFB\u7EDF\u56DE\u6536\u7AD9\uFF1F`,
+    async (confirmed) => {
+      if (!confirmed) return;
+      const file = fileOf(ctx, entry);
+      if (!file) return;
+      await ctx.plugin.app.vault.trash(file, true);
+      new import_obsidian9.Notice(`\u5DF2\u5220\u9664 ${entry.basename}`);
+      ctx.renderPanels();
+    }
+  ).open();
+}
+function fileOf(ctx, entry) {
+  const file = ctx.plugin.app.vault.getAbstractFileByPath(entry.path);
+  return file instanceof import_obsidian9.TFile ? file : null;
+}
+function countByStatus(entries) {
+  const counts = { pending: 0, running: 0, success: 0, error: 0 };
+  entries.forEach((entry) => {
+    if (entry.status === "running") counts.running += 1;
+    else if (entry.status === "success") counts.success += 1;
+    else if (entry.status === "error") counts.error += 1;
+    else counts.pending += 1;
+  });
+  return counts;
+}
+function filterAndSort(entries, keyword, filter, sort) {
+  const lowered = keyword.trim().toLowerCase();
+  const filtered = entries.filter((entry) => {
+    const nameMatch = !lowered || entry.basename.toLowerCase().includes(lowered);
+    const statusMatch = filter === "all" || entry.status === filter;
+    return nameMatch && statusMatch;
+  });
+  const statusOrder = { error: 0, pending: 1, running: 2, success: 3 };
+  switch (sort) {
+    case "name-asc":
+      return filtered.sort((a, b) => a.basename.localeCompare(b.basename));
+    case "ctime-desc":
+      return filtered.sort((a, b) => b.ctime - a.ctime);
+    case "status":
+      return filtered.sort(
+        (a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4) || b.mtime - a.mtime
+      );
+    default:
+      return filtered.sort((a, b) => b.mtime - a.mtime);
+  }
+}
+
+// views/panels/DetailPanel.ts
+var import_obsidian10 = require("obsidian");
+function renderDetailPanel(container, ctx) {
+  const ref = ctx.state.detail;
+  if (!ref) return;
+  if (ref.kind === "job") {
+    const job = ctx.plugin.jobs.get(ref.id);
+    if (!job) {
+      ctx.closeDetail();
+      return;
+    }
+    renderJobDetail(container, ctx, job);
+    return;
+  }
+  const record = (ctx.plugin.settings.history || []).find(
+    (item) => item.file === ref.file && item.time === ref.time
+  );
+  if (!record) {
+    ctx.closeDetail();
+    return;
+  }
+  renderRecordDetail(container, ctx, record);
+}
+function renderHeader2(container, ctx, title, status) {
+  const header = container.createDiv({ cls: "vs-detail-header" });
+  iconButton(header, "arrow-left", "\u8FD4\u56DE\u5217\u8868", () => ctx.closeDetail());
+  header.createSpan({ text: title, cls: "vs-detail-title" });
+  const meta = statusMeta(status);
+  header.createSpan({ text: meta.label, cls: `vs-badge ${meta.cls}` });
+}
+function renderJobDetail(container, ctx, job) {
+  renderHeader2(container, ctx, job.title, job.state);
+  const stats = container.createDiv({ cls: "vs-stat-grid" });
+  stat(stats, "\u6A21\u5F0F", modeLabel(job.mode));
+  stat(stats, "\u8BED\u8A00", languageLabel(job.language));
+  stat(
+    stats,
+    "\u8017\u65F6",
+    job.startedAt ? formatElapsed((job.endedAt || Date.now()) - job.startedAt) : "\u2014"
+  );
+  if (job.result?.video_duration) stat(stats, "\u65F6\u957F", job.result.video_duration);
+  if (job.result?.video_author) stat(stats, "\u4F5C\u8005", job.result.video_author);
+  if (job.input.url) stat(stats, "\u94FE\u63A5", job.input.url, true);
+  if (job.state === "error" && job.error) {
+    const errorBox = container.createDiv({ cls: "vs-error-box" });
+    const icon = errorBox.createDiv({ cls: "vs-error-icon" });
+    (0, import_obsidian10.setIcon)(icon, "alert-triangle");
+    errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
+    const actions2 = container.createDiv({ cls: "vs-detail-actions" });
+    textButton(
+      actions2,
+      "\u91CD\u8BD5\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+      () => {
+        ctx.plugin.jobs.retry(job.id);
+        ctx.closeDetail();
+      },
+      "is-primary"
+    );
+    textButton(actions2, "\u590D\u5236\u9519\u8BEF", () => {
+      void navigator.clipboard.writeText(job.error || "");
+      new import_obsidian10.Notice("\u5DF2\u590D\u5236");
+    });
+    if (isCookieError(job.error)) {
+      textButton(actions2, "\u6253\u5F00 cookies \u76EE\u5F55", () => openCookiesFolder(ctx));
+    }
+  }
+  if (!job.result) {
+    renderLogs(container, job);
+    return;
+  }
+  const tabs = [
+    ["preview", "\u9884\u89C8"],
+    ["transcript", "\u6587\u7A3F"],
+    ["meta", "\u5143\u6570\u636E"],
+    ["logs", "\u65E5\u5FD7"]
+  ];
+  const tabRow = container.createDiv({ cls: "vs-tab-row is-inner" });
+  tabs.forEach(([value, label]) => {
+    const tab = tabRow.createEl("button", {
+      text: label,
+      cls: `vs-tab${ctx.state.detailTab === value ? " is-active" : ""}`,
+      attr: { type: "button" }
+    });
+    tab.addEventListener("click", () => {
+      ctx.state.detailTab = value;
+      ctx.renderPanels();
+    });
+  });
+  const body = container.createDiv({ cls: "vs-detail-body" });
+  switch (ctx.state.detailTab) {
+    case "transcript":
+      renderText(body, job.result.video_transcript, "\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u6587\u7A3F");
+      break;
+    case "meta":
+      renderText(body, JSON.stringify(job.result, null, 2).slice(0, 8e3), "\u6CA1\u6709\u5143\u6570\u636E");
+      break;
+    case "logs":
+      renderLogs(body, job);
+      break;
+    default:
+      renderPreview(body, ctx, job);
+  }
+  const actions = container.createDiv({ cls: "vs-detail-actions" });
+  if (job.state === "review") {
+    textButton(
+      actions,
+      "\u5199\u5165\u7B14\u8BB0",
+      async () => {
+        if (await ctx.plugin.jobService.writeResult(job)) {
+          new import_obsidian10.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+          ctx.closeDetail();
+        }
+      },
+      "is-primary"
+    );
+  } else if (job.notePath) {
+    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(job.notePath), "is-primary");
+  }
+  textButton(actions, "\u65B0\u5EFA\u7B14\u8BB0", async () => {
+    await ctx.plugin.jobService.createNoteFromResult(job);
+    ctx.renderPanels();
+  });
+  textButton(actions, "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", async () => {
+    if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
+  });
+  textButton(actions, "\u63D2\u5165\u5F53\u524D\u7B14\u8BB0", async () => {
+    if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
+  });
+  textButton(actions, "\u590D\u5236 JSON", () => {
+    void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
+    new import_obsidian10.Notice("\u5DF2\u590D\u5236 JSON");
+  });
+  if (job.state === "review") {
+    textButton(actions, "\u4E22\u5F03", async () => {
+      await ctx.plugin.jobService.discardResult(job);
+      ctx.closeDetail();
+    });
+  }
+}
+function renderPreview(body, ctx, job) {
+  const result = job.result;
+  if (!result) return;
+  const changes = [];
+  if (result.video_title) changes.push("video_title");
+  if (result.video_author) changes.push("video_author");
+  if (result.video_duration) changes.push("video_duration");
+  if (result.summary) changes.push("summary");
+  body.createDiv({
+    text: `\u5C06\u5199\u5165 frontmatter\uFF1A${changes.join("\u3001") || "\u65E0"}\uFF1B\u6B63\u6587 ${(result.note || result.summary || "").length} \u5B57`,
+    cls: "vs-preview-diff"
+  });
+  const markdown = [
+    result.summary ? `## \u603B\u7ED3
+
+${result.summary}` : "",
+    result.note ? `## \u7B14\u8BB0
+
+${result.note}` : ""
+  ].filter(Boolean).join("\n\n");
+  const markdownEl = body.createDiv({ cls: "vs-markdown" });
+  if (!markdown) {
+    markdownEl.setText("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587");
+    return;
+  }
+  void import_obsidian10.MarkdownRenderer.render(
+    ctx.plugin.app,
+    markdown.slice(0, 6e3),
+    markdownEl,
+    job.notePath || "",
+    ctx.plugin
+  );
+}
+function renderRecordDetail(container, ctx, record) {
+  renderHeader2(container, ctx, record.file, record.result);
+  const stats = container.createDiv({ cls: "vs-stat-grid" });
+  stat(stats, "\u6A21\u5F0F", modeLabel(record.mode));
+  if (record.language) stat(stats, "\u8BED\u8A00", languageLabel(record.language));
+  const time = parseLocaleTime(record.time);
+  stat(stats, "\u65F6\u95F4", time ? formatRelative(time) : record.time);
+  if (record.durationMs) stat(stats, "\u8017\u65F6", formatElapsed(record.durationMs));
+  if (record.url) stat(stats, "\u94FE\u63A5", record.url, true);
+  if (record.error) {
+    const errorBox = container.createDiv({ cls: "vs-error-box" });
+    const icon = errorBox.createDiv({ cls: "vs-error-icon" });
+    (0, import_obsidian10.setIcon)(icon, "alert-triangle");
+    errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
+  } else if (record.result === "error") {
+    container.createDiv({
+      text: "\u8FD9\u6761\u8BB0\u5F55\u662F\u65E7\u7248\u672C\u5199\u7684\uFF0C\u6CA1\u6709\u4FDD\u5B58\u5931\u8D25\u539F\u56E0\u3002\u91CD\u8DD1\u4E00\u6B21\u5C31\u80FD\u770B\u5230\u5177\u4F53\u9519\u8BEF\u3002",
+      cls: "vs-hint"
+    });
+  }
+  const actions = container.createDiv({ cls: "vs-detail-actions" });
+  const file = findNote2(ctx, record.file);
+  if (file) {
+    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(file.path), "is-primary");
+    textButton(actions, "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", async () => {
+      await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
+      ctx.closeDetail();
+    });
+  } else {
+    container.createDiv({ text: `\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, cls: "vs-hint" });
+  }
+}
+function renderLogs(container, job) {
+  const box = container.createDiv({ cls: "vs-log-box" });
+  if (job.logs.length === 0) {
+    emptyState(box, "file-clock", "\u6CA1\u6709\u65E5\u5FD7", "\u53EA\u6709\u4F1A\u4E0A\u62A5\u8FDB\u5EA6\u7684\u540E\u7AEF\u624D\u4F1A\u5199\u65E5\u5FD7");
+    return;
+  }
+  job.logs.slice().reverse().forEach((entry) => {
+    const line = box.createDiv({ cls: "vs-log-line" });
+    line.createSpan({
+      text: new Date(entry.time).toLocaleTimeString("zh-CN"),
+      cls: "vs-log-time"
+    });
+    line.createSpan({ text: entry.text, cls: "vs-log-text" });
+  });
+}
+function renderText(container, text, empty) {
+  if (!text) {
+    container.createDiv({ text: empty, cls: "vs-hint" });
+    return;
+  }
+  container.createEl("pre", { text: text.slice(0, 2e4), cls: "vs-pre" });
+}
+function stat(container, label, value, wide = false) {
+  const cell = container.createDiv({ cls: `vs-stat${wide ? " is-wide" : ""}` });
+  cell.createDiv({ text: label, cls: "vs-stat-label" });
+  cell.createDiv({ text: value, cls: "vs-stat-value" });
+}
+function isCookieError(error) {
+  return /cookie|登录|login|403|需要验证/i.test(error);
+}
+function openCookiesFolder(ctx) {
+  const path = ctx.plugin.settings.cookiesDirPath;
+  if (!path) {
+    new import_obsidian10.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
+    return;
+  }
+  const shell = window.require?.("electron")?.shell;
+  if (shell?.openPath) {
+    void shell.openPath(path);
+  } else {
+    new import_obsidian10.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
+  }
+}
+function findNote2(ctx, name) {
+  const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
+  if (direct instanceof import_obsidian10.TFile) return direct;
+  return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
+}
+
+// views/VideoSummaryView.ts
+var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
+var VideoSummaryView = class extends import_obsidian11.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
-    this.videoParts = [];
-    this.processingFiles = /* @__PURE__ */ new Set();
-    // 跟踪正在处理的文件
-    this.cancelProcessing = false;
-    this.ignoreCacheEnabled = false;
+    this.headerEl = null;
+    this.panelEl = null;
+    this.unsubscribe = [];
+    this.renderQueued = false;
+    this.tickTimer = null;
     this.plugin = plugin;
-    this.noteProcessor = new NoteProcessor(plugin.app.vault);
-    this.currentProcessingMode = plugin.settings.defaultMode || "summary";
-  }
-  getActiveProcessingMode() {
-    return this.currentProcessingMode || this.plugin.settings.defaultMode || "summary";
-  }
-  setActiveProcessingMode(mode) {
-    this.currentProcessingMode = mode;
-    this.plugin.settings.defaultMode = mode;
-    this.plugin.saveSettings();
-  }
-  looksLikeAbsoluteLocalPath(value) {
-    const fileValue = value.trim();
-    if (!fileValue) return false;
-    return fileValue.startsWith("/") || /^[A-Za-z]:[\\/]/.test(fileValue);
+    this.state = {
+      inputDraft: "",
+      transcriptDraft: "",
+      localFileDraft: "",
+      tab: plugin.settings.activePanelTab || "jobs",
+      detail: null,
+      detailTab: "preview",
+      librarySearch: "",
+      libraryFilter: plugin.settings.statusFilterValue || "all",
+      librarySort: plugin.settings.fileListSortBy || "mtime-desc",
+      ignoreCache: false,
+      advancedOpen: false,
+      partsEnabled: false,
+      partsStart: 1,
+      partsEnd: 5
+    };
   }
   getViewType() {
     return VIDEO_SUMMARY_VIEW_TYPE;
   }
   getDisplayText() {
-    return "\u89C6\u9891\u603B\u7ED3\u7BA1\u7406";
+    return "\u89C6\u9891\u603B\u7ED3";
   }
   getIcon() {
     return "video";
@@ -6280,2512 +7936,120 @@ var VideoSummaryView = class extends import_obsidian4.ItemView {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("video-summary-view");
-    this.renderCombinedInputSection(container);
-    await this.renderCombinedFileListAndHistory(container);
+    this.headerEl = container.createDiv({ cls: "vs-top" });
+    this.panelEl = container.createDiv({ cls: "vs-panels" });
+    this.unsubscribe.push(this.plugin.jobs.subscribe(() => this.schedulePanelRender()));
+    this.unsubscribe.push(this.plugin.noteIndex.subscribe(() => this.schedulePanelRender()));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.renderAll()));
+    this.tickTimer = window.setInterval(() => {
+      if (this.plugin.jobs.getActive().length > 0 && this.state.tab === "jobs" && !this.state.detail) {
+        this.schedulePanelRender();
+      }
+    }, 1e3);
+    this.renderAll();
   }
-  renderCombinedInputSection(container) {
-    const combinedSection = container.createEl("div", { cls: "combined-input-section" });
-    const modeContainer = combinedSection.createEl("div", { cls: "link-mode-container" });
-    const renderRadio = (id, value, text, checked) => {
-      const radio = modeContainer.createEl("input", {
-        type: "radio",
-        attr: { name: "link-mode-tab", id, value }
-      });
-      radio.checked = checked;
-      modeContainer.createEl("label", { text, attr: { for: id } });
-      return radio;
-    };
-    const singleRadio = renderRadio("mode-single", "single", "\u{1F517} \u5355\u4E2A\u94FE\u63A5", true);
-    const jsonRadio = renderRadio("mode-json", "json", "{ } JSON", false);
-    const multiRadio = renderRadio("mode-multi", "multi", "\u{1F4CB} \u6279\u91CF\u94FE\u63A5", false);
-    const inputWrapper = combinedSection.createEl("div", { cls: "input-wrapper" });
-    const linkInputWrapper = inputWrapper.createEl("div", { cls: "link-input-wrapper" });
-    linkInputWrapper.style.display = "flex";
-    linkInputWrapper.style.alignItems = "center";
-    const linkInput = linkInputWrapper.createEl("input", {
-      type: "text",
-      cls: "link-input",
-      attr: { placeholder: "\u5728\u6B64\u7C98\u8D34\u89C6\u9891\u94FE\u63A5 (YouTube / Bilibili / TikTok)..." }
-    });
-    linkInput.style.flex = "1";
-    const inputIgnoreBtn = linkInputWrapper.createEl("button", {
-      cls: "webhook-mini-btn ignore-cache-toggle",
-      attr: { title: "\u5FFD\u7565\u7F13\u5B58\uFF08\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF09", "aria-label": "\u5FFD\u7565\u7F13\u5B58", type: "button" }
-    });
-    const syncIgnoreBtnState = () => {
-      inputIgnoreBtn.textContent = this.ignoreCacheEnabled ? "\u27F3" : "\u27F3";
-      inputIgnoreBtn.classList.toggle("active", this.ignoreCacheEnabled);
-      inputIgnoreBtn.style.opacity = this.ignoreCacheEnabled ? "1" : "0.6";
-      inputIgnoreBtn.setAttribute("aria-pressed", this.ignoreCacheEnabled ? "true" : "false");
-    };
-    syncIgnoreBtnState();
-    inputIgnoreBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.ignoreCacheEnabled = !this.ignoreCacheEnabled;
-      syncIgnoreBtnState();
-    });
-    const webhookButtonsWrapper = linkInputWrapper.createEl("div", { cls: "webhook-mini-buttons" });
-    const webhookManageBtn = webhookButtonsWrapper.createEl("button", {
-      text: "\u2699",
-      cls: "webhook-mini-btn",
-      attr: { title: "\u8BBE\u7F6E Webhook" }
-    });
-    webhookManageBtn.onclick = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const settingApi = this.plugin.app.setting;
-      if (settingApi?.open) {
-        settingApi.open();
-        if (settingApi.openTabById) {
-          settingApi.openTabById(this.plugin.manifest.id);
-        }
-      } else {
-        new import_obsidian4.Notice("\u8BF7\u5728\u8BBE\u7F6E\u4E2D\u7BA1\u7406 Webhook");
-      }
-    };
-    const multiLinksContainer = inputWrapper.createEl("div", { cls: "multi-links-container" });
-    multiLinksContainer.style.display = "none";
-    const multiLinksTextarea = multiLinksContainer.createEl("textarea", {
-      cls: "transcript-textarea",
-      attr: { rows: 5, placeholder: "\u6BCF\u884C\u4E00\u4E2A\u94FE\u63A5..." }
-    });
-    const jsonInputWrapper = inputWrapper.createEl("div", { cls: "json-input-container" });
-    jsonInputWrapper.style.display = "none";
-    const jsonTextarea = jsonInputWrapper.createEl("textarea", {
-      cls: "manual-json-input",
-      attr: { rows: 8, placeholder: "\u7C98\u8D34 webhook \u8FD4\u56DE\u7684 JSON \u5185\u5BB9..." }
-    });
-    const updateInputVisibility = () => {
-      if (singleRadio.checked) {
-        linkInputWrapper.style.display = "flex";
-        multiLinksContainer.style.display = "none";
-        jsonInputWrapper.style.display = "none";
-      } else if (multiRadio.checked) {
-        linkInputWrapper.style.display = "none";
-        multiLinksContainer.style.display = "block";
-        jsonInputWrapper.style.display = "none";
-      } else if (jsonRadio.checked) {
-        linkInputWrapper.style.display = "none";
-        multiLinksContainer.style.display = "none";
-        jsonInputWrapper.style.display = "block";
-      }
-      this.updateGenerateButtonText();
-    };
-    singleRadio.onchange = updateInputVisibility;
-    multiRadio.onchange = updateInputVisibility;
-    jsonRadio.onchange = updateInputVisibility;
-    updateInputVisibility();
-    const settingsDetails = combinedSection.createEl("details", { cls: "basic-settings-details" });
-    settingsDetails.createEl("summary", { text: "\u914D\u7F6E\u9009\u9879" });
-    const settingsToolbar = settingsDetails.createEl("div", { cls: "settings-toolbar" });
-    const modeGroup = settingsToolbar.createEl("div", { cls: "toolbar-item" });
-    modeGroup.createEl("span", { text: "\u6A21\u5F0F" });
-    const modeSelect = modeGroup.createEl("select");
-    modeSelect.createEl("option", { text: "\u5B8C\u6574\u603B\u7ED3", value: "summary" });
-    modeSelect.createEl("option", { text: "\u4EC5\u6587\u7A3F", value: "transcript-only" });
-    modeSelect.createEl("option", { text: "\u4EC5\u4FE1\u606F", value: "info-only" });
-    modeSelect.value = this.getActiveProcessingMode();
-    modeSelect.onchange = () => {
-      this.setActiveProcessingMode(modeSelect.value);
-    };
-    const langGroup = settingsToolbar.createEl("div", { cls: "toolbar-item" });
-    langGroup.createEl("span", { text: "\u8BED\u8A00" });
-    const langSelect = langGroup.createEl("select");
-    langSelect.createEl("option", { text: "\u4E2D\u6587", value: "zh" });
-    langSelect.createEl("option", { text: "English", value: "en" });
-    langSelect.createEl("option", { text: "\u65E5\u672C\u8A9E", value: "ja" });
-    langSelect.value = this.plugin.settings.defaultLanguage;
-    langSelect.onchange = () => {
-      this.plugin.settings.defaultLanguage = langSelect.value;
-      this.plugin.saveSettings();
-    };
-    const aiGroup = settingsToolbar.createEl("div", { cls: "toolbar-item" });
-    aiGroup.createEl("span", { text: "\u5904\u7406\u6A21\u578B" });
-    const aiSelect = aiGroup.createEl("select");
-    const customModels = this.plugin.settings.customAiModels || [];
-    customModels.forEach((model) => {
-      aiSelect.createEl("option", { text: model, value: model });
-    });
-    aiSelect.value = this.plugin.settings.aiModel || "Gemini 3.1";
-    aiSelect.onchange = () => {
-      this.plugin.settings.aiModel = aiSelect.value;
-      this.plugin.api.setAiModel(aiSelect.value);
-      this.plugin.saveSettings();
-    };
-    const webhookGroup = settingsToolbar.createEl("div", {
-      cls: "toolbar-item webhook-toolbar-group"
-    });
-    const webhookLabelWrapper = webhookGroup.createEl("span", { cls: "webhook-label-wrapper" });
-    webhookLabelWrapper.style.display = "flex";
-    webhookLabelWrapper.style.alignItems = "center";
-    webhookLabelWrapper.style.gap = "4px";
-    webhookLabelWrapper.createEl("span", { text: "Webhook" });
-    const webhookSelect = webhookGroup.createEl("select");
-    const profiles = this.plugin.settings.webhookProfiles || [];
-    profiles.forEach((p) => {
-      webhookSelect.createEl("option", { text: p.name || p.url || "\u9ED8\u8BA4", value: p.id });
-    });
-    webhookSelect.value = this.plugin.settings.activeWebhookId;
-    webhookSelect.onchange = async () => {
-      await this.plugin.setActiveWebhook(webhookSelect.value, { silent: false });
-    };
-    const folderGroup = settingsToolbar.createEl("div", { cls: "toolbar-item full-width" });
-    folderGroup.createEl("span", { text: "\u4FDD\u5B58\u4F4D\u7F6E" });
-    const currentPath = this.plugin.settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939";
-    const displayPath = currentPath.length > 40 ? "..." + currentPath.slice(-35) : currentPath;
-    const folderBtn = folderGroup.createEl("div", {
-      text: displayPath,
-      cls: "clickable-text",
-      attr: { title: currentPath }
-      // 鼠标悬停显示全称
-    });
-    folderBtn.style.cursor = "pointer";
-    folderBtn.onclick = async () => {
-      const folders = this.plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian4.TFolder).map((folder) => folder.path).sort();
-      const modal = new FolderSelectModal(this.plugin.app, folders, (selectedPath) => {
-        const newPath = selectedPath || "\u5F53\u524D\u6587\u4EF6\u5939";
-        const newDisplayPath = newPath.length > 40 ? "..." + newPath.slice(-35) : newPath;
-        folderBtn.textContent = newDisplayPath;
-        folderBtn.setAttribute("title", newPath);
-        this.plugin.settings.outputFolder = selectedPath;
-        this.plugin.saveSettings();
-      });
-      modal.open();
-    };
-    const advancedContent = combinedSection.createEl("div", { cls: "advanced-content expanded" });
-    const transcriptRow = advancedContent.createEl("div", { cls: "advanced-row" });
-    transcriptRow.createEl("label", { text: "\u624B\u52A8\u63D0\u4F9B\u6587\u7A3F (\u53EF\u9009)", cls: "advanced-label" });
-    const transcriptArea = transcriptRow.createEl("textarea", {
-      cls: "advanced-input",
-      // 使用新的专用类名
-      attr: { rows: 4, placeholder: "\u5982\u679C\u89C6\u9891\u6CA1\u6709\u5B57\u5E55\uFF0C\u53EF\u5728\u6B64\u5904\u7C98\u8D34\u6587\u7A3F\u5185\u5BB9..." }
-    });
-    const localFileRow = advancedContent.createEl("div", { cls: "advanced-row" });
-    localFileRow.createEl("label", { text: "\u672C\u5730\u6587\u4EF6 (\u652F\u6301\u591A\u9009)", cls: "advanced-label" });
-    const localFileContainer = localFileRow.createEl("div", {
-      cls: "local-file-container",
-      attr: { style: "display: flex; gap: 8px; align-items: center;" }
-    });
-    const localFileInput = localFileContainer.createEl("input", {
-      type: "text",
-      cls: "advanced-input",
-      attr: {
-        placeholder: "\u4F8B\u5982: lecture-01.mp4 \u6216 uploads/lecture-01.mp4",
-        style: "flex: 1; margin: 0;"
-      }
-    });
-    localFileRow.createEl("p", {
-      text: "Docker/n8n \u573A\u666F\u5EFA\u8BAE\u586B uploads \u76EE\u5F55\u5185\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u9009\u62E9\u672C\u673A\u6587\u4EF6\u65F6\uFF0C\u8BF7\u628A\u6587\u4EF6\u653E\u5165 docker/uploads \u540E\u518D\u5904\u7406\u3002",
-      cls: "setting-item-description local-file-help"
-    });
-    localFileInput.addEventListener("blur", () => {
-      if (this.looksLikeAbsoluteLocalPath(localFileInput.value)) {
-        new import_obsidian4.Notice(
-          "\u672C\u5730\u6587\u4EF6\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002Docker \u573A\u666F\u8BF7\u628A\u6587\u4EF6\u653E\u5165 docker/uploads\uFF0C\u5E76\u53EA\u586B\u5199\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002"
-        );
-      }
-    });
-    const selectFileBtn = localFileContainer.createEl("button", {
-      text: "\u9009\u62E9",
-      cls: "btn-small",
-      attr: {
-        type: "button",
-        style: "margin: 0 0 0 6px; height: 28px; line-height: 1; padding: 0 12px; width: auto; min-width: 0; flex: none !important; font-size: 13px; white-space: nowrap;"
-      }
-    });
-    selectFileBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const fileInput = document.createElement("input");
-      fileInput.type = "file";
-      fileInput.multiple = true;
-      fileInput.addEventListener("change", (e2) => {
-        const files = e2.target.files;
-        if (files && files.length > 0) {
-          const names = Array.from(files).map((f) => f.name).filter((n) => !!n);
-          if (names.length > 0) {
-            const currentVal = localFileInput.value.trim();
-            const combinedVal = currentVal ? currentVal + (currentVal.endsWith(",") ? " " : ", ") + names.join(", ") : names.join(", ");
-            localFileInput.value = combinedVal;
-          }
-        }
-      });
-      fileInput.click();
-    });
-    const checkboxRow = advancedContent.createEl("div", { cls: "advanced-row" });
-    const checkboxContainer = checkboxRow.createEl("div", { cls: "checkbox-row" });
-    const multiPCheck = checkboxContainer.createEl("input", {
-      type: "checkbox",
-      attr: { id: "multi-p-checkbox" }
-    });
-    checkboxContainer.createEl("label", {
-      text: "\u6279\u91CF\u5904\u7406\u591A\u4E2A\u5206P (B\u7AD9/YouTube\u5217\u8868)",
-      attr: { for: "multi-p-checkbox" }
-    });
-    const multiPOptionsWrapper = advancedContent.createEl("div", {
-      cls: "multi-p-options-wrapper"
-    });
-    multiPOptionsWrapper.style.display = "none";
-    const batchMethodContainer = multiPOptionsWrapper.createEl("div", {
-      cls: "batch-method-container"
-    });
-    batchMethodContainer.style.display = "none";
-    const methodLabel = batchMethodContainer.createEl("div", { cls: "method-label" });
-    methodLabel.textContent = "\u9009\u62E9\u5904\u7406\u65B9\u5F0F:";
-    const methodOptions = batchMethodContainer.createEl("div", { cls: "method-options" });
-    const rangeOption = methodOptions.createEl("div", { cls: "method-option" });
-    const rangeRadio = rangeOption.createEl("input", { type: "radio" });
-    rangeRadio.setAttribute("id", "range-method");
-    rangeRadio.setAttribute("name", "batch-method");
-    rangeRadio.setAttribute("value", "range");
-    rangeRadio.checked = true;
-    const rangeLabel = rangeOption.createEl("label", { text: "\u6307\u5B9A\u5206P\u8303\u56F4" });
-    rangeLabel.setAttribute("for", "range-method");
-    const currentOption = methodOptions.createEl("div", { cls: "method-option" });
-    const currentRadio = currentOption.createEl("input", { type: "radio" });
-    currentRadio.setAttribute("id", "current-method");
-    currentRadio.setAttribute("name", "batch-method");
-    currentRadio.setAttribute("value", "current");
-    const currentLabel = currentOption.createEl("label", { text: "\u4ECE\u5F53\u524DP\u5F80\u540E\u5904\u7406" });
-    currentLabel.setAttribute("for", "current-method");
-    const rangeContainer = multiPOptionsWrapper.createEl("div", { cls: "range-input-container" });
-    rangeContainer.style.display = "none";
-    rangeContainer.createEl("span", { text: "\u5206P\u8303\u56F4: ", cls: "range-label" });
-    const startInput = rangeContainer.createEl("input", {
-      type: "number",
-      cls: "range-input"
-    });
-    startInput.setAttribute("placeholder", "\u5F00\u59CB");
-    startInput.setAttribute("min", "1");
-    startInput.setAttribute("max", "1000");
-    startInput.value = "1";
-    rangeContainer.createEl("span", { text: " \u5230 ", cls: "range-separator" });
-    const endInput = rangeContainer.createEl("input", {
-      type: "number",
-      cls: "range-input"
-    });
-    endInput.setAttribute("placeholder", "\u7ED3\u675F");
-    endInput.setAttribute("min", "1");
-    endInput.setAttribute("max", "1000");
-    endInput.value = "1";
-    const currentPContainer = multiPOptionsWrapper.createEl("div", { cls: "current-p-container" });
-    currentPContainer.style.display = "none";
-    currentPContainer.createEl("span", { text: "\u5904\u7406\u6570\u91CF: ", cls: "current-p-label" });
-    const currentPInput = currentPContainer.createEl("input", {
-      type: "number",
-      cls: "current-p-input"
-    });
-    currentPInput.setAttribute("placeholder", "\u5904\u7406\u6570\u91CF");
-    currentPInput.setAttribute("min", "1");
-    currentPInput.setAttribute("max", "100");
-    currentPInput.value = "5";
-    multiPCheck.onchange = () => {
-      const isMultiP = multiPCheck.checked;
-      multiPOptionsWrapper.style.display = isMultiP ? "block" : "none";
-      batchMethodContainer.style.display = isMultiP ? "block" : "none";
-      if (isMultiP) {
-        this.updateBatchMethodDisplay(rangeRadio.checked ? "range" : "current");
-      } else {
-        rangeContainer.style.display = "none";
-        currentPContainer.style.display = "none";
-      }
-      this.updateGenerateButtonText();
-    };
-    rangeRadio.onchange = () => {
-      if (rangeRadio.checked) {
-        this.updateBatchMethodDisplay("range");
-      }
-    };
-    currentRadio.onchange = () => {
-      if (currentRadio.checked) {
-        this.updateBatchMethodDisplay("current");
-      }
-    };
-    const actionRow = combinedSection.createEl("div", { cls: "action-buttons-row" });
-    const lastResultBtn = actionRow.createEl("button", {
-      text: "\u67E5\u770B\u4E0A\u6B21\u7ED3\u679C",
-      cls: "btn-small"
-    });
-    lastResultBtn.onclick = () => this.handleGetLastResult();
-    const addToQueueBtn = actionRow.createEl("button", {
-      text: "Process & Add to List",
-      cls: "btn-primary-large"
-    });
-    addToQueueBtn.textContent = "\u6DFB\u52A0\u5230\u5217\u8868";
-    addToQueueBtn.onclick = async () => {
-      const isSingleLink = singleRadio.checked;
-      const isJsonMode = jsonRadio.checked;
-      const rawUrl = linkInput.value.trim();
-      const singleUrl = isSingleLink && !isJsonMode && !multiPCheck.checked ? this.cleanVideoUrlKeepP(rawUrl) : this.cleanVideoUrl(rawUrl);
-      const isMultiP = multiPCheck.checked;
-      let outputFolder = this.plugin.settings.outputFolder || "";
-      if (!outputFolder) {
-        const activeFile = this.plugin.app.workspace.getActiveFile();
-        if (activeFile) {
-          outputFolder = activeFile.parent?.path || "";
-        }
-      }
-      if (outputFolder !== this.plugin.settings.outputFolder) {
-        this.plugin.settings.outputFolder = outputFolder;
-        await this.plugin.saveSettings();
-      }
-      const providedTranscript = transcriptArea.value.trim();
-      const localFile = localFileInput.value.trim();
-      if (isJsonMode) {
-        const jsonText = jsonTextarea.value.trim();
-        if (!jsonText) {
-          new import_obsidian4.Notice("\u8BF7\u8F93\u5165 webhook JSON \u5185\u5BB9");
-          return;
-        }
-        try {
-          const jsonData = JSON.parse(jsonText);
-          this.addPartToQueue({
-            title: jsonData.title || "JSON Input",
-            url: jsonData.url || "",
-            index: this.videoParts.length + 1,
-            providedTranscript: jsonText,
-            sourceType: "json"
-          });
-          new import_obsidian4.Notice("\u5DF2\u6DFB\u52A0 JSON \u5185\u5BB9\u5230\u5217\u8868");
-          jsonTextarea.value = "";
-        } catch {
-          new import_obsidian4.Notice("JSON \u683C\u5F0F\u9519\u8BEF");
-        }
-        return;
-      }
-      if (isSingleLink) {
-        if (!singleUrl && !localFile && !providedTranscript) {
-          new import_obsidian4.Notice("\u8BF7\u8F93\u5165\u89C6\u9891\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u6216\u6587\u7A3F\u5185\u5BB9");
-          return;
-        }
-        if (isMultiP) {
-          if (!rawUrl) {
-            new import_obsidian4.Notice("\u591A\u5206P\u6A21\u5F0F\u9700\u8981\u63D0\u4F9B\u89C6\u9891\u94FE\u63A5");
-            return;
-          }
-          const rangeRadioEl = this.multiPRadioRange;
-          const currentRadioEl = this.multiPRadioCurrent;
-          const startInputEl = this.multiPRangeStartInput;
-          const endInputEl = this.multiPRangeEndInput;
-          const countInputEl = this.multiPCountInput;
-          const useRange = rangeRadioEl ? rangeRadioEl.checked : true;
-          if (useRange) {
-            const startP = parseInt(startInputEl?.value || "1", 10) || 1;
-            const endP = parseInt(endInputEl?.value || "1", 10) || startP;
-            if (startP < 1 || endP < 1) {
-              new import_obsidian4.Notice("\u5206P\u8303\u56F4\u5FC5\u987B\u5927\u4E8E0");
-              return;
-            }
-            if (startP > endP) {
-              new import_obsidian4.Notice("\u5F00\u59CB\u5206P\u4E0D\u80FD\u5927\u4E8E\u7ED3\u675F\u5206P");
-              return;
-            }
-            if (endP - startP + 1 > 100) {
-              new import_obsidian4.Notice("\u4E00\u6B21\u6700\u591A\u5904\u7406100\u4E2A\u5206P");
-              return;
-            }
-            await this.generatePartsFromRangeToQueue(
-              rawUrl,
-              startP,
-              endP,
-              providedTranscript,
-              localFile
-            );
-          } else if (currentRadioEl && currentRadioEl.checked) {
-            const count = parseInt(countInputEl?.value || "5", 10) || 5;
-            if (count < 1 || count > 100) {
-              new import_obsidian4.Notice("\u5904\u7406\u6570\u91CF\u5FC5\u987B\u57281-100\u4E4B\u95F4");
-              return;
-            }
-            const currentP = this.extractCurrentPFromUrl(rawUrl);
-            if (!currentP) {
-              new import_obsidian4.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u4E2D\u63D0\u53D6\u5F53\u524D\u5206P\uFF0C\u8BF7\u4F7F\u7528\u5206P\u8303\u56F4\u65B9\u5F0F");
-              return;
-            }
-            await this.generatePartsFromRangeToQueue(
-              rawUrl,
-              currentP,
-              currentP + count - 1,
-              providedTranscript,
-              localFile
-            );
-          }
-          return;
-        }
-        if (localFile && localFile.includes(",")) {
-          const files = localFile.split(",").map((f) => f.trim()).filter((f) => f.length > 0);
-          files.forEach((file) => {
-            const fileName = file.split("/").pop() || file.split("\\").pop() || "local_file";
-            const title = "\u672C\u5730\u6587\u4EF6_" + fileName;
-            this.addPartToQueue({
-              title,
-              url: singleUrl,
-              // 假如提供了 URL，每个任务都带上（或者按需调整）
-              index: this.videoParts.length + 1,
-              providedTranscript,
-              localFileName: file,
-              sourceType: "single"
-            });
-          });
-          new import_obsidian4.Notice(`\u5DF2\u6DFB\u52A0 ${files.length} \u4E2A\u6587\u4EF6\u5230\u5217\u8868`);
-        } else {
-          let title = `Video ${this.videoParts.length + 1}`;
-          if (isSingleLink && singleUrl) {
-            const videoId = this.extractVideoId(singleUrl);
-            if (videoId) {
-              title = this.generateVideoTitle(singleUrl, videoId);
-            }
-          } else if (providedTranscript) {
-            const now = /* @__PURE__ */ new Date();
-            const timeStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-            const snippet = providedTranscript.trim().split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
-            title = snippet ? `\u6587\u7A3F_${timeStr}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${timeStr}`;
-          } else if (localFile) {
-            const fileName = localFile.split("/").pop() || localFile.split("\\").pop() || "local_file";
-            title = "\u672C\u5730\u6587\u4EF6_" + fileName;
-          }
-          this.addPartToQueue({
-            title,
-            url: singleUrl,
-            index: this.videoParts.length + 1,
-            providedTranscript,
-            localFileName: localFile,
-            sourceType: "single"
-          });
-          new import_obsidian4.Notice("\u5DF2\u6DFB\u52A0\u5230\u5217\u8868");
-        }
-        linkInput.value = "";
-        localFileInput.value = "";
-        transcriptArea.value = "";
-      } else {
-        const multiUrls = multiLinksTextarea.value.trim();
-        if (!multiUrls && !localFile && !providedTranscript) {
-          new import_obsidian4.Notice("\u8BF7\u8F93\u5165\u89C6\u9891\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u6216\u6587\u7A3F\u5185\u5BB9");
-          return;
-        }
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const rawUrls = multiUrls.match(urlRegex) || [];
-        const urls = Array.from(
-          new Set(
-            rawUrls.map((url) => this.cleanVideoUrl(url.trim())).filter((url) => url.length > 0)
-          )
-        );
-        if (urls.length === 0) {
-          new import_obsidian4.Notice("\u8BF7\u8F93\u5165\u81F3\u5C11\u4E00\u4E2A\u6709\u6548\u7684\u89C6\u9891\u94FE\u63A5");
-          return;
-        }
-        if (urls.length > 50) {
-          new import_obsidian4.Notice("\u4E00\u6B21\u6700\u591A\u5904\u740650\u4E2A\u89C6\u9891\u94FE\u63A5");
-          return;
-        }
-        urls.forEach((url) => {
-          let title = `Video ${this.videoParts.length + 1}`;
-          const videoId = this.extractVideoId(url);
-          if (videoId) {
-            title = this.generateVideoTitle(url, videoId);
-          }
-          this.addPartToQueue({
-            title,
-            url,
-            index: this.videoParts.length + 1,
-            providedTranscript,
-            // 如果是批量链接，通常不会共用一个 transcript，但这里按原有逻辑传递
-            localFileName: localFile,
-            sourceType: "multi"
-          });
-        });
-        new import_obsidian4.Notice(`\u5DF2\u6DFB\u52A0 ${urls.length} \u4E2A\u94FE\u63A5\u5230\u5217\u8868`);
-        multiLinksTextarea.value = "";
-      }
-    };
-    this.linkInput = linkInput;
-    this.multiLinksContainer = multiLinksContainer;
-    this.generateBtn = addToQueueBtn;
-    this.transcriptArea = transcriptArea;
-    this.localFileInput = localFileInput;
-    this.multiPCheck = multiPCheck;
-    this.multiPOptionsWrapper = multiPOptionsWrapper;
-    this.multiPMethodContainer = batchMethodContainer;
-    this.multiPRangeContainer = rangeContainer;
-    this.multiPCountContainer = currentPContainer;
-    this.multiPRangeStartInput = startInput;
-    this.multiPRangeEndInput = endInput;
-    this.multiPCountInput = currentPInput;
-    this.multiPRadioRange = rangeRadio;
-    this.multiPRadioCurrent = currentRadio;
-    this.renderPartsSelector(combinedSection);
-  }
-  renderSimplifiedProcessingOptions(container) {
-    const optionsContainer = container.createEl("div", { cls: "simplified-options-container" });
-    const modeContainer = optionsContainer.createEl("div", { cls: "option-group" });
-    modeContainer.createEl("label", { text: "\u5904\u7406\u6A21\u5F0F: ", cls: "option-label" });
-    const modeSelect = modeContainer.createEl("select", { cls: "option-select" });
-    modeSelect.createEl("option", { text: "\u5B8C\u6574\u603B\u7ED3", value: "summary" });
-    modeSelect.createEl("option", { text: "\u53EA\u63D0\u53D6\u6587\u7A3F", value: "transcript-only" });
-    modeSelect.createEl("option", { text: "\u53EA\u83B7\u53D6\u89C6\u9891\u4FE1\u606F", value: "info-only" });
-    modeSelect.value = this.getActiveProcessingMode();
-    const languageContainer = optionsContainer.createEl("div", { cls: "option-group" });
-    languageContainer.createEl("label", { text: "\u8BED\u8A00: ", cls: "option-label" });
-    const languageSelect = languageContainer.createEl("select", { cls: "option-select" });
-    languageSelect.createEl("option", { text: "\u4E2D\u6587", value: "zh" });
-    languageSelect.createEl("option", { text: "English", value: "en" });
-    languageSelect.createEl("option", { text: "\u65E5\u672C\u8A9E", value: "ja" });
-    languageSelect.value = this.plugin.settings.defaultLanguage;
-    modeSelect.onchange = () => {
-      this.setActiveProcessingMode(modeSelect.value);
-    };
-    languageSelect.onchange = () => {
-      this.plugin.settings.defaultLanguage = languageSelect.value;
-      this.plugin.saveSettings();
-    };
-  }
-  // 删除统计信息和批量处理按钮
-  async renderCombinedFileListAndHistory(container) {
-    const combinedSection = container.createEl("div", { cls: "combined-file-history-section" });
-    const titleRow = combinedSection.createEl("div", { cls: "title-row" });
-    const controlsGroup = titleRow.createEl("div", { cls: "controls-group" });
-    const searchInput = controlsGroup.createEl("input", {
-      cls: "list-search-input",
-      attr: { placeholder: "\u641C\u7D22\u6587\u4EF6\u540D..." }
-    });
-    const statusFilter = controlsGroup.createEl("select", { cls: "status-filter-select" });
-    statusFilter.createEl("option", { text: "\u5168\u90E8\u72B6\u6001", value: "all" });
-    statusFilter.createEl("option", { text: "\u5F85\u5904\u7406", value: "pending" });
-    statusFilter.createEl("option", { text: "\u5904\u7406\u4E2D", value: "running" });
-    statusFilter.createEl("option", { text: "\u5DF2\u5904\u7406", value: "success" });
-    statusFilter.createEl("option", { text: "\u5931\u8D25", value: "error" });
-    const savedStatusFilter = this.plugin.settings.statusFilterValue || "all";
-    statusFilter.value = savedStatusFilter;
-    const sortSelect = controlsGroup.createEl("select", { cls: "sort-select-inline" });
-    const refreshBtn = controlsGroup.createEl("button", {
-      text: "\u{1F504}",
-      cls: "action-btn icon-btn history-refresh-btn",
-      attr: { title: "\u5237\u65B0\u5217\u8868" }
-    });
-    refreshBtn.onclick = () => {
-      this.onOpen();
-    };
-    sortSelect.createEl("option", { text: "\u6587\u4EF6\u540DA-Z", value: "name-asc" });
-    sortSelect.createEl("option", { text: "\u6587\u4EF6\u540DZ-A", value: "name-desc" });
-    sortSelect.createEl("option", { text: "\u521B\u5EFA\u65F6\u95F4\uFF08\u6700\u65B0\uFF09", value: "ctime-desc" });
-    sortSelect.createEl("option", { text: "\u521B\u5EFA\u65F6\u95F4\uFF08\u6700\u65E9\uFF09", value: "ctime-asc" });
-    sortSelect.createEl("option", { text: "\u4FEE\u6539\u65F6\u95F4\uFF08\u6700\u65B0\uFF09", value: "mtime-desc" });
-    sortSelect.createEl("option", { text: "\u4FEE\u6539\u65F6\u95F4\uFF08\u6700\u65E9\uFF09", value: "mtime-asc" });
-    sortSelect.createEl("option", { text: "\u72B6\u6001\u4F18\u5148", value: "status" });
-    const savedSortBy = this.plugin.settings.fileListSortBy || "ctime-desc";
-    sortSelect.value = savedSortBy;
-    const files = this.plugin.app.vault.getMarkdownFiles();
-    const videoFiles = [];
-    for (const file of files) {
-      try {
-        const fm = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
-        if (VideoUtils.isVideoNoteFromFrontmatter(fm)) {
-          const status = VideoUtils.getProcessingStatusFromFrontmatter(fm) || "pending";
-          videoFiles.push({ file, status, content: "" });
-          continue;
-        }
-        const content = await this.plugin.app.vault.read(file);
-        if (VideoUtils.isVideoNote(content)) {
-          const status = this.getProcessingStatus(content) || "pending";
-          videoFiles.push({ file, status, content });
-        }
-      } catch (error) {
-        console.error(`\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.basename}`, error);
-      }
-    }
-    if (videoFiles.length === 0) {
-      combinedSection.createEl("p", { text: "\u672A\u627E\u5230\u89C6\u9891\u7B14\u8BB0", cls: "no-files" });
-      return;
-    }
-    const sortFiles = () => {
-      const sortBy = sortSelect.value;
-      const keyword = (searchInput.value || "").toLowerCase();
-      const statusSelected = statusFilter.value;
-      this.plugin.settings.fileListSortBy = sortBy;
-      this.plugin.saveSettings();
-      this.plugin.settings.statusFilterValue = statusSelected;
-      this.plugin.saveSettings();
-      const filtered = videoFiles.filter(({ file, status }) => {
-        const nameMatch = !keyword || file.basename.toLowerCase().includes(keyword);
-        const normalized = VideoUtils.normalizeStatus(status || "");
-        const statusMatch = statusSelected === "all" || normalized === statusSelected || statusSelected === "success" && normalized === "success";
-        return nameMatch && statusMatch;
-      });
-      const sortedFiles = [...filtered];
-      switch (sortBy) {
-        case "name-asc":
-          sortedFiles.sort((a, b) => a.file.basename.localeCompare(b.file.basename));
-          break;
-        case "name-desc":
-          sortedFiles.sort((a, b) => b.file.basename.localeCompare(a.file.basename));
-          break;
-        case "ctime-desc":
-          sortedFiles.sort((a, b) => b.file.stat.ctime - a.file.stat.ctime);
-          break;
-        case "ctime-asc":
-          sortedFiles.sort((a, b) => a.file.stat.ctime - b.file.stat.ctime);
-          break;
-        case "mtime-desc":
-          sortedFiles.sort((a, b) => b.file.stat.mtime - a.file.stat.mtime);
-          break;
-        case "mtime-asc":
-          sortedFiles.sort((a, b) => a.file.stat.mtime - b.file.stat.mtime);
-          break;
-        case "status": {
-          const statusOrder = {
-            pending: 0,
-            running: 1,
-            success: 2,
-            error: 3
-          };
-          sortedFiles.sort((a, b) => {
-            const aOrder = statusOrder[a.status] ?? 4;
-            const bOrder = statusOrder[b.status] ?? 4;
-            if (aOrder !== bOrder) return aOrder - bOrder;
-            return a.file.basename.localeCompare(b.file.basename);
-          });
-          break;
-        }
-      }
-      this.renderCombinedSortedFileList(combinedSection, sortedFiles);
-    };
-    sortSelect.onchange = sortFiles;
-    searchInput.oninput = () => {
-      sortFiles();
-    };
-    statusFilter.onchange = sortFiles;
-    sortFiles();
-  }
-  renderCombinedSortedFileList(container, sortedFiles) {
-    const existingLists = container.querySelectorAll(".file-list, .history-list, .combined-list");
-    existingLists.forEach((list) => list.remove());
-    const pendingFiles = sortedFiles.filter((f) => {
-      const status = VideoUtils.normalizeStatus(f.status || "");
-      return status === "pending" || f.status === "";
-    });
-    const runningFiles = sortedFiles.filter(
-      (f) => VideoUtils.normalizeStatus(f.status || "") === "running"
-    );
-    const errorFiles = sortedFiles.filter(
-      (f) => VideoUtils.normalizeStatus(f.status || "") === "error"
-    );
-    const processedFiles = sortedFiles.filter((f) => {
-      const status = VideoUtils.normalizeStatus(f.status || "");
-      return status === "success";
-    });
-    const combinedList = container.createEl("div", { cls: "combined-list" });
-    if (pendingFiles.length > 0) {
-      combinedList.createEl("div", {
-        text: `\u5F85\u5904\u7406 (${pendingFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(combinedList, pendingFiles, "pending");
-    }
-    if (runningFiles.length > 0) {
-      combinedList.createEl("div", {
-        text: `\u5904\u7406\u4E2D (${runningFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(combinedList, runningFiles, "running");
-    }
-    if (errorFiles.length > 0) {
-      combinedList.createEl("div", {
-        text: `\u5904\u7406\u5931\u8D25 (${errorFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(combinedList, errorFiles, "error");
-    }
-    if (processedFiles.length > 0) {
-      combinedList.createEl("div", {
-        text: `\u5DF2\u5904\u7406 (${processedFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(combinedList, processedFiles, "processed");
-    }
-    if (pendingFiles.length === 0 && runningFiles.length === 0 && errorFiles.length === 0 && processedFiles.length === 0) {
-      const header = combinedList.createEl("h4", {
-        text: `\u6240\u6709\u6587\u4EF6 (${sortedFiles.length})`,
-        cls: "collapsible"
-      });
-      const listEl = this.renderFileGroup(combinedList, sortedFiles, "all");
-      header.onclick = () => {
-        const collapsed = listEl.style.display === "none";
-        listEl.style.display = collapsed ? "block" : "none";
-        header.classList.toggle("collapsed", !collapsed);
-      };
+  async onClose() {
+    this.unsubscribe.forEach((off) => off());
+    this.unsubscribe = [];
+    if (this.tickTimer !== null) {
+      window.clearInterval(this.tickTimer);
+      this.tickTimer = null;
     }
   }
-  renderLinkInput(container) {
-    const linkSection = container.createEl("div", { cls: "link-input-section" });
-    const linkModeContainer = linkSection.createEl("div", { cls: "link-mode-container" });
-    const singleLinkRadio = linkModeContainer.createEl("input", { type: "radio" });
-    singleLinkRadio.setAttribute("id", "single-link-mode");
-    singleLinkRadio.setAttribute("name", "link-mode");
-    singleLinkRadio.setAttribute("value", "single");
-    singleLinkRadio.checked = true;
-    const singleLinkLabel = linkModeContainer.createEl("label", { text: "\u5355\u4E2A\u94FE\u63A5" });
-    singleLinkLabel.setAttribute("for", "single-link-mode");
-    const multiLinksRadio = linkModeContainer.createEl("input", { type: "radio" });
-    multiLinksRadio.setAttribute("id", "multi-links-mode");
-    multiLinksRadio.setAttribute("name", "link-mode");
-    multiLinksRadio.setAttribute("value", "multi");
-    const multiLinksLabel = linkModeContainer.createEl("label", { text: "\u6279\u91CF\u94FE\u63A5" });
-    multiLinksLabel.setAttribute("for", "multi-links-mode");
-    const jsonRadio = linkModeContainer.createEl("input", { type: "radio" });
-    jsonRadio.setAttribute("id", "json-mode");
-    jsonRadio.setAttribute("name", "link-mode");
-    jsonRadio.setAttribute("value", "json");
-    const jsonLabel = linkModeContainer.createEl("label", { text: "JSON" });
-    jsonLabel.setAttribute("for", "json-mode");
-    const inputContainer = linkSection.createEl("div", { cls: "link-input-container" });
-    const linkInput = inputContainer.createEl("input", {
-      type: "text",
-      cls: "link-input"
-    });
-    linkInput.setAttribute("placeholder", "\u8F93\u5165\u89C6\u9891\u94FE\u63A5 (YouTube/Bilibili/\u6296\u97F3/TikTok)");
-    const multiLinksContainer = linkSection.createEl("div", { cls: "multi-links-container" });
-    const multiLinksHeader = multiLinksContainer.createEl("div", { cls: "multi-links-header" });
-    multiLinksHeader.createEl("span", { text: "\u591A\u4E2A\u94FE\u63A5 (\u6BCF\u884C\u4E00\u4E2A): ", cls: "multi-links-label" });
-    const multiLinksTextarea = multiLinksContainer.createEl("textarea", {
-      cls: "multi-links-textarea"
-    });
-    multiLinksTextarea.setAttribute(
-      "placeholder",
-      "\u53EF\u4EE5\u8F93\u5165\u591A\u4E2A\u89C6\u9891\u94FE\u63A5\uFF0C\u6BCF\u884C\u4E00\u4E2A\n\u4F8B\u5982\uFF1A\nhttps://www.bilibili.com/video/BV1xx\nhttps://www.youtube.com/watch?v=xxx"
-    );
-    multiLinksContainer.style.display = "none";
-    const jsonContainer = linkSection.createEl("div", { cls: "json-input-container" });
-    jsonContainer.style.display = "none";
-    jsonContainer.createEl("textarea", {
-      cls: "manual-json-input",
-      attr: { rows: "1", placeholder: "\u7C98\u8D34 webhook \u8FD4\u56DE\u7684 JSON \u5185\u5BB9..." }
-    });
-    singleLinkRadio.onchange = () => {
-      if (singleLinkRadio.checked) {
-        linkInput.style.display = "block";
-        multiLinksContainer.style.display = "none";
-        jsonContainer.style.display = "none";
-        generateBtn.style.display = "block";
-      }
-      this.updateGenerateButtonText();
-    };
-    const updateModeVisibility = () => {
-      if (singleLinkRadio.checked) {
-        linkInput.style.display = "block";
-        multiLinksContainer.style.display = "none";
-        jsonContainer.style.display = "none";
-        generateBtn.style.display = "block";
-      } else if (multiLinksRadio.checked) {
-        linkInput.style.display = "none";
-        multiLinksContainer.style.display = "block";
-        jsonContainer.style.display = "none";
-        generateBtn.style.display = "block";
-      } else if (jsonRadio.checked) {
-        linkInput.style.display = "none";
-        multiLinksContainer.style.display = "none";
-        jsonContainer.style.display = "block";
-        generateBtn.style.display = "block";
-        generateBtn.textContent = "\u521B\u5EFA\u7B14\u8BB0";
-      }
-      this.updateGenerateButtonText();
-    };
-    singleLinkRadio.onchange = updateModeVisibility;
-    multiLinksRadio.onchange = updateModeVisibility;
-    jsonRadio.onchange = updateModeVisibility;
-    updateModeVisibility();
-    jsonRadio.onchange = () => {
-      if (jsonRadio.checked) {
-        linkInput.style.display = "none";
-        multiLinksContainer.style.display = "none";
-        jsonContainer.style.display = "block";
-        generateBtn.style.display = "block";
-        generateBtn.textContent = "\u521B\u5EFA\u7B14\u8BB0";
-      }
-    };
-    const multiPContainer = linkSection.createEl("div", { cls: "multi-p-container" });
-    const multiPCheckbox = multiPContainer.createEl("input", {
-      type: "checkbox"
-    });
-    multiPCheckbox.setAttribute("id", "multi-p-checkbox");
-    const multiPLabel = multiPContainer.createEl("label", {
-      text: "\u6279\u91CF\u5904\u7406\u591A\u4E2A\u5206P"
-    });
-    multiPLabel.setAttribute("for", "multi-p-checkbox");
-    const batchMethodContainer = linkSection.createEl("div", { cls: "batch-method-container" });
-    batchMethodContainer.style.display = "none";
-    const methodLabel = batchMethodContainer.createEl("div", { cls: "method-label" });
-    methodLabel.textContent = "\u9009\u62E9\u5904\u7406\u65B9\u5F0F:";
-    const methodOptions = batchMethodContainer.createEl("div", { cls: "method-options" });
-    const rangeOption = methodOptions.createEl("div", { cls: "method-option" });
-    const rangeRadio = rangeOption.createEl("input", { type: "radio" });
-    rangeRadio.setAttribute("id", "range-method");
-    rangeRadio.setAttribute("name", "batch-method");
-    rangeRadio.setAttribute("value", "range");
-    rangeRadio.checked = true;
-    const rangeLabel = rangeOption.createEl("label", { text: "\u6307\u5B9A\u5206P\u8303\u56F4" });
-    rangeLabel.setAttribute("for", "range-method");
-    const currentOption = methodOptions.createEl("div", { cls: "method-option" });
-    const currentRadio = currentOption.createEl("input", { type: "radio" });
-    currentRadio.setAttribute("id", "current-method");
-    currentRadio.setAttribute("name", "batch-method");
-    currentRadio.setAttribute("value", "current");
-    const currentLabel = currentOption.createEl("label", { text: "\u4ECE\u5F53\u524DP\u5F80\u540E\u5904\u7406" });
-    currentLabel.setAttribute("for", "current-method");
-    const rangeContainer = linkSection.createEl("div", { cls: "range-input-container" });
-    rangeContainer.style.display = "none";
-    rangeContainer.createEl("span", { text: "\u5206P\u8303\u56F4: ", cls: "range-label" });
-    const startInput = rangeContainer.createEl("input", {
-      type: "number",
-      cls: "range-input"
-    });
-    startInput.setAttribute("placeholder", "\u5F00\u59CB");
-    startInput.setAttribute("min", "1");
-    startInput.setAttribute("max", "1000");
-    startInput.value = "1";
-    rangeContainer.createEl("span", { text: " \u5230 ", cls: "range-separator" });
-    const endInput = rangeContainer.createEl("input", {
-      type: "number",
-      cls: "range-input"
-    });
-    endInput.setAttribute("placeholder", "\u7ED3\u675F");
-    endInput.setAttribute("min", "1");
-    endInput.setAttribute("max", "1000");
-    endInput.value = "1";
-    const currentPContainer = linkSection.createEl("div", { cls: "current-p-container" });
-    currentPContainer.style.display = "none";
-    currentPContainer.createEl("span", { text: "\u5904\u7406\u6570\u91CF: ", cls: "current-p-label" });
-    const currentPInput = currentPContainer.createEl("input", {
-      type: "number",
-      cls: "current-p-input"
-    });
-    currentPInput.setAttribute("placeholder", "\u5904\u7406\u6570\u91CF");
-    currentPInput.setAttribute("min", "1");
-    currentPInput.setAttribute("max", "100");
-    currentPInput.value = "5";
-    const extraInputContainer = linkSection.createEl("div", { cls: "extra-input-container" });
-    extraInputContainer.style.display = "none";
-    const optionsOutputContainer = linkSection.createEl("div", { cls: "options-output-container" });
-    const extraOptionsToggle = optionsOutputContainer.createEl("button", {
-      text: "\u663E\u793A\u9AD8\u7EA7\u9009\u9879",
-      cls: "action-btn secondary extra-options-toggle"
-    });
-    const outputContainer = optionsOutputContainer.createEl("div", {
-      cls: "output-folder-container"
-    });
-    outputContainer.createEl("span", { text: "\u8F93\u51FA\u4F4D\u7F6E: ", cls: "output-label" });
-    const folderSelectBtn = outputContainer.createEl("button", {
-      text: this.plugin.settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939",
-      cls: "folder-select-btn"
-    });
-    const transcriptContainer = extraInputContainer.createEl("div", {
-      cls: "transcript-container"
-    });
-    transcriptContainer.createEl("span", { text: "\u63D0\u4F9B\u7684\u6587\u7A3F: ", cls: "transcript-label" });
-    const transcriptTextarea = transcriptContainer.createEl("textarea", {
-      cls: "transcript-textarea"
-    });
-    transcriptTextarea.setAttribute("placeholder", "\u5982\u679C\u6709\u73B0\u6210\u7684\u6587\u7A3F\uFF0C\u53EF\u4EE5\u7C98\u8D34\u5728\u8FD9\u91CC\uFF08\u53EF\u9009\uFF09");
-    const localFileContainer = extraInputContainer.createEl("div", { cls: "local-file-container" });
-    localFileContainer.createEl("span", { text: "\u672C\u5730\u6587\u4EF6: ", cls: "local-file-label" });
-    const localFileInput = localFileContainer.createEl("input", {
-      type: "text",
-      cls: "local-file-input"
-    });
-    localFileInput.setAttribute("placeholder", "\u6587\u4EF6\u540D\u6216 uploads/\u76F8\u5BF9\u8DEF\u5F84\uFF08\u53EF\u9009\uFF09");
-    localFileContainer.createEl("div", {
-      text: "Docker/n8n \u573A\u666F\u4E0D\u8981\u76F4\u63A5\u586B macOS \u7EDD\u5BF9\u8DEF\u5F84\uFF1B\u8BF7\u5148\u653E\u5230 docker/uploads\u3002",
-      cls: "setting-item-description local-file-help"
-    });
-    localFileInput.addEventListener("blur", () => {
-      if (this.looksLikeAbsoluteLocalPath(localFileInput.value)) {
-        new import_obsidian4.Notice(
-          "\u672C\u5730\u6587\u4EF6\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002Docker \u573A\u666F\u8BF7\u628A\u6587\u4EF6\u653E\u5165 docker/uploads\uFF0C\u5E76\u53EA\u586B\u5199\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002"
-        );
-      }
-    });
-    extraOptionsToggle.onclick = () => {
-      const isVisible = extraInputContainer.style.display !== "none";
-      if (isVisible) {
-        extraInputContainer.style.display = "none";
-        extraOptionsToggle.textContent = "\u663E\u793A\u9AD8\u7EA7\u9009\u9879";
-        extraOptionsToggle.classList.remove("active");
-      } else {
-        extraInputContainer.style.display = "block";
-        extraOptionsToggle.textContent = "\u9690\u85CF\u9AD8\u7EA7\u9009\u9879";
-        extraOptionsToggle.classList.add("active");
-      }
-    };
-    folderSelectBtn.onclick = async () => {
-      const folders = this.plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian4.TFolder).map((folder) => folder.path).sort();
-      const modal = new FolderSelectModal(this.plugin.app, folders, (selectedPath) => {
-        folderSelectBtn.textContent = selectedPath || "\u5F53\u524D\u6587\u4EF6\u5939";
-        this.plugin.settings.outputFolder = selectedPath;
-        this.plugin.saveSettings();
-      });
-      modal.open();
-    };
-    multiPCheckbox.onchange = () => {
-      const isMultiP = multiPCheckbox.checked;
-      batchMethodContainer.style.display = isMultiP ? "block" : "none";
-      if (isMultiP) {
-        this.updateBatchMethodDisplay(rangeRadio.checked ? "range" : "current");
-      } else {
-        rangeContainer.style.display = "none";
-        currentPContainer.style.display = "none";
-      }
-      this.updateGenerateButtonText();
-    };
-    rangeRadio.onchange = () => {
-      if (rangeRadio.checked) {
-        this.updateBatchMethodDisplay("range");
-      }
-    };
-    currentRadio.onchange = () => {
-      if (currentRadio.checked) {
-        this.updateBatchMethodDisplay("current");
-      }
-    };
-    const handleMultiLinksProcessing = async () => {
-      const multiUrls = multiLinksTextarea.value.trim();
-      let outputFolder = this.plugin.settings.outputFolder || "";
-      if (!outputFolder) {
-        const activeFile = this.plugin.app.workspace.getActiveFile();
-        if (activeFile) {
-          outputFolder = activeFile.parent?.path || "";
-        }
-      }
-      const providedTranscript = transcriptTextarea.value.trim();
-      const localFile = localFileInput.value.trim();
-      if (!multiUrls && !localFile && !providedTranscript) {
-        new import_obsidian4.Notice("\u8BF7\u8F93\u5165\u89C6\u9891\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u6216\u6587\u7A3F\u5185\u5BB9");
-        return;
-      }
-      if (outputFolder !== this.plugin.settings.outputFolder) {
-        this.plugin.settings.outputFolder = outputFolder;
-        await this.plugin.saveSettings();
-      }
-      const urlRegex = /(https?:\/\/[^\s]+)/g;
-      const rawUrls = multiUrls.match(urlRegex) || [];
-      const urls = Array.from(
-        new Set(
-          rawUrls.map((url) => this.cleanVideoUrl(url.trim())).filter((url) => url.length > 0)
-        )
-      );
-      if (urls.length === 0) {
-        new import_obsidian4.Notice("\u8BF7\u8F93\u5165\u81F3\u5C11\u4E00\u4E2A\u6709\u6548\u7684\u89C6\u9891\u94FE\u63A5");
-        return;
-      }
-      if (urls.length > 50) {
-        new import_obsidian4.Notice("\u4E00\u6B21\u6700\u591A\u5904\u740650\u4E2A\u89C6\u9891\u94FE\u63A5");
-        return;
-      }
-      await this.processMultipleVideos(urls, providedTranscript, localFile);
-    };
-    const buttonContainer = inputContainer.createEl("div", { cls: "button-container" });
-    const getLastResultBtn = buttonContainer.createEl("button", {
-      text: "\u{1F4CB} \u83B7\u53D6\u4E0A\u6B21\u7ED3\u679C",
-      cls: "action-btn secondary get-last-result-btn",
-      attr: { title: "\u83B7\u53D6\u6700\u8FD1\u4E00\u6B21webhook\u8C03\u7528\u7684\u7ED3\u679C" }
-    });
-    getLastResultBtn.onclick = async () => {
-      await this.handleGetLastResult();
-    };
-    const generateBtn = buttonContainer.createEl("button", {
-      text: "\u5904\u7406\u5355\u4E2A\u89C6\u9891",
-      cls: "action-btn primary generate-btn"
-    });
-    generateBtn.onclick = async () => {
-      const isSingleLink = singleLinkRadio.checked;
-      const isMultiLinksMode = multiLinksRadio.checked;
-      const rawSingleUrl = linkInput.value.trim();
-      const isMultiP = multiPCheckbox.checked;
-      const singleUrl = isMultiP ? this.cleanVideoUrl(rawSingleUrl) : this.cleanVideoUrlKeepP(rawSingleUrl);
-      let outputFolder = this.plugin.settings.outputFolder || "";
-      if (!outputFolder) {
-        const activeFile = this.plugin.app.workspace.getActiveFile();
-        if (activeFile) {
-          outputFolder = activeFile.parent?.path || "";
-        }
-      }
-      const providedTranscript = transcriptTextarea.value.trim();
-      const localFile = localFileInput.value.trim();
-      if (isSingleLink && !singleUrl && !localFile && !providedTranscript) {
-        new import_obsidian4.Notice("\u8BF7\u8F93\u5165\u89C6\u9891\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u6216\u6587\u7A3F\u5185\u5BB9");
-        return;
-      }
-      if (isMultiLinksMode && !multiLinksTextarea.value.trim() && !localFile && !providedTranscript) {
-        new import_obsidian4.Notice("\u8BF7\u8F93\u5165\u89C6\u9891\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u6216\u6587\u7A3F\u5185\u5BB9");
-        return;
-      }
-      if (outputFolder !== this.plugin.settings.outputFolder) {
-        this.plugin.settings.outputFolder = outputFolder;
-        await this.plugin.saveSettings();
-      }
-      if (isMultiLinksMode) {
-        await handleMultiLinksProcessing();
-        return;
-      }
-      if (isSingleLink) {
-        if (isMultiP) {
-          const method = rangeRadio.checked ? "range" : "current";
-          if (method === "range") {
-            const startP = parseInt(startInput.value) || 1;
-            const endP = parseInt(endInput.value) || 1;
-            if (startP < 1 || endP < 1) {
-              new import_obsidian4.Notice("\u5206P\u8303\u56F4\u5FC5\u987B\u5927\u4E8E0");
-              return;
-            }
-            if (startP > endP) {
-              new import_obsidian4.Notice("\u5F00\u59CB\u5206P\u4E0D\u80FD\u5927\u4E8E\u7ED3\u675F\u5206P");
-              return;
-            }
-            if (endP - startP + 1 > 100) {
-              new import_obsidian4.Notice("\u4E00\u6B21\u6700\u591A\u5904\u7406100\u4E2A\u5206P");
-              return;
-            }
-            await this.generatePartsFromRange(
-              singleUrl,
-              startP,
-              endP,
-              providedTranscript,
-              localFile
-            );
-          } else {
-            const count = parseInt(currentPInput.value) || 5;
-            if (count < 1 || count > 100) {
-              new import_obsidian4.Notice("\u5904\u7406\u6570\u91CF\u5FC5\u987B\u57281-100\u4E4B\u95F4");
-              return;
-            }
-            const currentP = this.extractCurrentPFromUrl(rawSingleUrl);
-            if (currentP) {
-              await this.generatePartsFromRange(
-                singleUrl,
-                currentP,
-                currentP + count - 1,
-                providedTranscript,
-                localFile
-              );
-            } else {
-              new import_obsidian4.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u4E2D\u63D0\u53D6\u5F53\u524D\u5206P\uFF0C\u8BF7\u4F7F\u7528\u5206P\u8303\u56F4\u65B9\u5F0F");
-            }
-          }
-        } else {
-          await this.processSingleVideo(singleUrl, providedTranscript, localFile);
-        }
-      }
-    };
-    this.renderPartsSelector(linkSection);
-  }
-  updateBatchMethodDisplay(method) {
-    const rangeContainer = this.multiPRangeContainer;
-    const currentPContainer = this.multiPCountContainer;
-    if (!rangeContainer || !currentPContainer) return;
-    if (method === "range") {
-      rangeContainer.style.display = "flex";
-      currentPContainer.style.display = "none";
-    } else {
-      rangeContainer.style.display = "none";
-      currentPContainer.style.display = "flex";
-    }
-  }
-  extractCurrentPFromUrl(url) {
-    const pMatch = url.match(/[?&](?:p|index)=(\d+)/);
-    if (pMatch) {
-      return parseInt(pMatch[1]);
-    }
-    return null;
-  }
-  renderPartsSelector(container) {
-    const partsSection = container.createEl("div", { cls: "parts-section" });
-    partsSection.style.display = "none";
-    const headerBar = partsSection.createEl("div", { cls: "parts-header-bar" });
-    const infoDiv = headerBar.createEl("span", {
-      cls: "parts-info-text",
-      text: "\u68C0\u6D4B\u5230\u5206P\u89C6\u9891"
-      // 初始文字
-    });
-    const controlsDiv = headerBar.createEl("div", { cls: "parts-controls" });
-    const selectAllBtn = controlsDiv.createEl("button", { text: "\u5168\u9009", cls: "btn-text-only" });
-    selectAllBtn.onclick = () => this.selectAllParts();
-    const selectNoneBtn = controlsDiv.createEl("button", { text: "\u6E05\u7A7A", cls: "btn-text-only" });
-    selectNoneBtn.onclick = () => this.selectNoneParts();
-    const partsList = partsSection.createEl("div", { cls: "parts-list" });
-    const footer = partsSection.createEl("div", { cls: "parts-footer" });
-    const batchProcessBtn = footer.createEl("button", {
-      text: "\u6279\u91CF\u5904\u7406\u9009\u4E2D\u5206P",
-      cls: "batch-process-btn"
-      // 使用新定义的样式类
-    });
-    batchProcessBtn.onclick = () => this.batchProcessSelectedParts();
-    partsSection.partsList = partsList;
-    partsSection.batchProcessBtn = batchProcessBtn;
-    partsSection.infoDiv = infoDiv;
-    this.partsSectionEl = partsSection;
-  }
-  // 新增方法: 添加单个部分到队列
-  addPartToQueue(part) {
-    this.videoParts.push(part);
-    this.updatePartsListDisplay();
-  }
-  // 新增方法: 批量生成分P到队列
-  async generatePartsFromRangeToQueue(url, startP, endP, providedTranscript, localFile) {
-    try {
-      const videoId = this.extractVideoId(url);
-      if (!videoId) {
-        new import_obsidian4.Notice("\u65E0\u6CD5\u8BC6\u522B\u89C6\u9891\u94FE\u63A5\u683C\u5F0F");
-        return;
-      }
-      for (let i = startP; i <= endP; i++) {
-        const pUrl = this.generatePartUrl(url, videoId, i);
-        this.addPartToQueue({
-          title: `\u7B2C${i}P`,
-          url: pUrl,
-          index: i,
-          isCurrent: false,
-          providedTranscript,
-          localFileName: localFile,
-          sourceType: "playlist"
-        });
-      }
-      new import_obsidian4.Notice(`\u5DF2\u6DFB\u52A0 ${endP - startP + 1} \u4E2A\u5206P\u5230\u5217\u8868`);
-    } catch (error) {
-      new import_obsidian4.Notice(`\u751F\u6210\u5931\u8D25: ${error.message}`);
-    }
-  }
-  updatePartsListDisplay() {
-    const partsSection = this.containerEl.querySelector(".parts-section");
-    if (partsSection && this.videoParts.length > 0) {
-      partsSection.style.display = "block";
-      this.renderPartsList();
-    } else if (partsSection) {
-      partsSection.style.display = "none";
-    }
-  }
-  // 保留旧方法以兼容性（如果还有其他调用），或者可以废弃
-  async generatePartsFromRange(url, startP, endP, providedTranscript, localFile) {
-    return this.generatePartsFromRangeToQueue(url, startP, endP, providedTranscript, localFile);
-  }
-  extractVideoId(url) {
-    const cleanUrl = this.cleanVideoUrl(url);
-    const bilibiliMatch = cleanUrl.match(/\/video\/(BV[a-zA-Z0-9]+)/);
-    if (bilibiliMatch) {
-      return bilibiliMatch[1];
-    }
-    const youtubeMatch = cleanUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
-    if (youtubeMatch) {
-      return youtubeMatch[1];
-    }
-    const douyinMatch = cleanUrl.match(/\/video\/(\d+)/);
-    if (douyinMatch) {
-      return douyinMatch[1];
-    }
-    const tiktokMatch = cleanUrl.match(/\/video\/(\d+)/);
-    if (tiktokMatch) {
-      return tiktokMatch[1];
-    }
-    return null;
-  }
-  generatePartUrl(originalUrl, videoId, partIndex) {
-    if (originalUrl.includes("bilibili.com")) {
-      return partIndex === 1 ? `https://www.bilibili.com/video/${videoId}` : `https://www.bilibili.com/video/${videoId}?p=${partIndex}`;
-    }
-    if (originalUrl.includes("youtube.com") || originalUrl.includes("youtu.be")) {
-      try {
-        const cleanBase = this.cleanVideoUrl(originalUrl);
-        const urlObj = new URL(cleanBase);
-        urlObj.searchParams.set("index", String(partIndex));
-        return urlObj.toString();
-      } catch {
-        const baseUrl = this.cleanVideoUrl(originalUrl);
-        return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}index=${partIndex}`;
-      }
-    }
-    return originalUrl;
-  }
-  renderPartsList() {
-    const partsSection = this.partsSectionEl || this.containerEl.querySelector(".parts-section");
-    if (!partsSection) return;
-    const partsList = partsSection.querySelector(".parts-list");
-    const infoDiv = partsSection.querySelector(".parts-info-text");
-    if (!partsList) return;
-    partsList.empty();
-    if (infoDiv) {
-      infoDiv.textContent = `\u5171\u627E\u5230 ${this.videoParts.length} \u4E2A\u5206P`;
-    }
-    this.videoParts.forEach((part) => {
-      const partItem = partsList.createEl("div", { cls: "part-item" });
-      const checkbox = partItem.createEl("input", {
-        type: "checkbox",
-        attr: { id: `part-${part.index}` }
-      });
-      const isCurrent = part.isCurrent;
-      checkbox.checked = isCurrent || this.videoParts.length === 1;
-      const label = partItem.createEl("label", {
-        text: `${part.index}. ${part.title}`,
-        attr: { for: `part-${part.index}` }
-      });
-      if (isCurrent) label.style.fontWeight = "bold";
-      const linkContainer = partItem.createEl("div", { cls: "item-actions" });
-      const copyBtn = linkContainer.createEl("button", {
-        cls: "clickable-icon",
-        attr: { "aria-label": "\u590D\u5236\u94FE\u63A5", title: part.url }
-      });
-      copyBtn.innerHTML = "\u{1F517}";
-      copyBtn.onclick = () => this.copyToClipboard(part.url, part.index);
-      const deleteBtn = linkContainer.createEl("button", {
-        cls: "clickable-icon delete-icon",
-        attr: { "aria-label": "\u4ECE\u5217\u8868\u79FB\u9664", title: "\u79FB\u9664" }
-      });
-      deleteBtn.innerHTML = "\u{1F5D1}\uFE0F";
-      deleteBtn.style.color = "var(--text-error)";
-      deleteBtn.onclick = () => {
-        this.videoParts = this.videoParts.filter((p) => p !== part);
-        this.renderPartsList();
-        if (this.videoParts.length === 0) {
-          const partsSection2 = this.partsSectionEl;
-          if (partsSection2) partsSection2.style.display = "none";
-        }
-      };
-      part.checkbox = checkbox;
-    });
-  }
-  selectAllParts() {
-    this.videoParts.forEach((part) => {
-      if (part.checkbox) {
-        part.checkbox.checked = true;
-      }
-    });
-  }
-  selectNoneParts() {
-    this.videoParts.forEach((part) => {
-      if (part.checkbox) {
-        part.checkbox.checked = false;
-      }
-    });
-  }
-  async batchProcessSelectedParts() {
-    const selectedParts = this.videoParts.filter(
-      (part) => part.checkbox && part.checkbox.checked
-    );
-    if (selectedParts.length === 0) {
-      new import_obsidian4.Notice("\u8BF7\u9009\u62E9\u8981\u5904\u7406\u7684\u5206P");
-      return;
-    }
-    const batchBtn = this.containerEl.querySelector(".batch-process-btn");
-    if (batchBtn) {
-      batchBtn.disabled = true;
-      batchBtn.textContent = "\u5904\u7406\u4E2D...";
-      batchBtn.classList.add("processing");
-    }
-    try {
-      new import_obsidian4.Notice(`\u5F00\u59CB\u5904\u7406 ${selectedParts.length} \u4E2A\u5206P...`);
-      const createdFiles = [];
-      for (const part of selectedParts) {
-        const file = await this.createNoteForPart(part);
-        if (file) {
-          createdFiles.push(file);
-        }
-      }
-      if (createdFiles.length > 0) {
-      }
-      await this.refreshView();
-      if (createdFiles.length > 0) {
-        this.videoParts = this.videoParts.filter((p) => {
-          const isSelected = p.checkbox && p.checkbox.checked;
-          return !isSelected;
-        });
-        this.renderPartsList();
-        if (this.videoParts.length === 0) {
-          const partsSection = this.partsSectionEl;
-          if (partsSection) partsSection.style.display = "none";
-        }
-        new import_obsidian4.Notice(`\u6210\u529F\u521B\u5EFA ${createdFiles.length} \u4E2A\u7B14\u8BB0\uFF0C\u5F00\u59CB\u53D1\u9001\u5230n8n\u5904\u7406...`);
-        await this.batchProcessFiles(createdFiles);
-      }
-      await this.refreshView();
-    } catch (error) {
-      new import_obsidian4.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${error.message}`);
-    } finally {
-      if (batchBtn) {
-        batchBtn.disabled = false;
-        batchBtn.textContent = "\u6279\u91CF\u5904\u7406\u9009\u4E2D\u5206P";
-        batchBtn.classList.remove("processing");
-      }
-    }
-  }
-  async createNoteForPart(part) {
-    try {
-      let targetFolder = "";
-      if (this.plugin.settings.outputFolder) {
-        targetFolder = this.plugin.settings.outputFolder;
-      } else {
-        const activeFile = this.plugin.app.workspace.getActiveFile();
-        if (activeFile) {
-          const activePath = activeFile.path;
-          const lastSlashIndex = activePath.lastIndexOf("/");
-          if (lastSlashIndex > 0) {
-            targetFolder = activePath.substring(0, lastSlashIndex);
-          }
-        }
-      }
-      const cleanTitle = part.title.replace(/[<>:"/\\|?*]/g, "_");
-      let fileName = `${cleanTitle}.md`;
-      let targetPath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
-      let counter = 1;
-      while (await this.plugin.app.vault.adapter.exists(targetPath)) {
-        fileName = `${cleanTitle} (${counter}).md`;
-        targetPath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
-        counter++;
-      }
-      const filePath = targetPath;
-      const now = /* @__PURE__ */ new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const day = String(now.getDate()).padStart(2, "0");
-      const hours = String(now.getHours()).padStart(2, "0");
-      const minutes = String(now.getMinutes()).padStart(2, "0");
-      const seconds = String(now.getSeconds()).padStart(2, "0");
-      const dateString = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-      let yamlContent = `---
-link: ${part.url}
-status: pending
-video_title: ${part.title}
-date: ${dateString}`;
-      if (part.providedTranscript) {
-        yamlContent += `
-provided_transcript: |
-  ${part.providedTranscript.replace(/\n/g, "\n  ")}`;
-      }
-      if (part.localFiles && part.localFiles.length > 0) {
-        yamlContent += `
-local_file: ${part.localFiles.join(", ")}`;
-      } else if (part.localFileName) {
-        yamlContent += `
-local_file: ${part.localFileName}`;
-      }
-      yamlContent += `
----`;
-      const content = `${yamlContent}
-
-# ${part.title}
-
-## \u57FA\u672C\u4FE1\u606F
-- **\u89C6\u9891\u94FE\u63A5**: ${part.url}
-- **\u521B\u5EFA\u65F6\u95F4**: ${now.toLocaleString("zh-CN")}
-- **\u5904\u7406\u72B6\u6001**: \u5F85\u5904\u7406
-
-## \u89C6\u9891\u5185\u5BB9
-<!-- \u89C6\u9891\u603B\u7ED3\u5C06\u5728\u8FD9\u91CC\u751F\u6210 -->
-
-## \u7B14\u8BB0
-<!-- \u4E2A\u4EBA\u7B14\u8BB0\u5C06\u5728\u8FD9\u91CC\u751F\u6210 -->
-
-## \u6587\u7A3F
-<!-- \u89C6\u9891\u6587\u7A3F\u5C06\u5728\u8FD9\u91CC\u751F\u6210 -->
-`;
-      const file = await this.plugin.app.vault.create(filePath, content);
-      return file;
-    } catch (error) {
-      new import_obsidian4.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
-      return null;
-    }
-  }
-  async batchProcessFiles(files) {
-    if (files.length === 0) return;
-    this.resetCancelFlag();
-    for (const file of files) {
-      this.processingFiles.add(file.path);
-    }
-    const batchBtn = this.containerEl.querySelector(".batch-process-btn");
-    if (batchBtn) {
-      batchBtn.disabled = true;
-      batchBtn.textContent = "\u5904\u7406\u4E2D...";
-      batchBtn.classList.add("processing");
-    }
-    const statusNotice = new import_obsidian4.Notice(`\u6B63\u5728\u5904\u7406 ${files.length} \u4E2A\u6587\u4EF6...`, 0);
-    const activeMode = this.getActiveProcessingMode();
-    const activeLanguage = this.plugin.settings.defaultLanguage;
-    try {
-      const useCache = !this.ignoreCacheEnabled;
-      const failedFiles = [];
-      const requests = [];
-      for (const file of files) {
-        const metadata = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter || {};
-        let link = "";
-        if (metadata.link && Array.isArray(metadata.link) && metadata.link.length > 0) {
-          link = metadata.link[0];
-        } else if (metadata.link && Array.isArray(metadata.link) && metadata.link.length === 0) {
-          link = "";
-        } else if (typeof metadata.link === "string") {
-          link = metadata.link;
-        }
-        const input = {
-          url: link
-        };
-        if (metadata.provided_transcript) {
-          input.transcript = metadata.provided_transcript;
-        }
-        const localFile = metadata.local_file || metadata.localFileName || metadata.localFile;
-        if (localFile) {
-          input.localFile = localFile;
-        }
-        requests.push({
-          noteName: file.basename,
-          input,
-          mode: activeMode,
-          language: activeLanguage
-        });
-      }
-      for (const file of files) {
-        await this.noteProcessor.setProcessingStatus(file, "running");
-      }
-      const results = await this.plugin.api.batchProcess(
-        requests,
-        this.plugin.settings.batchConcurrency,
-        async (result) => {
-          const file = files[result.index];
-          if (!file) return;
-          try {
-            if (result.success && result.result) {
-              await this.noteProcessor.updateNote(file, result.result, activeMode, {
-                autoRename: this.plugin.settings.autoRenameEnabled,
-                conflictStrategy: this.plugin.settings.renameConflictStrategy
-              });
-              await this.noteProcessor.setProcessingStatus(
-                file,
-                this.plugin.settings.successStatusValue ?? "success"
-              );
-              this.processingFiles.delete(file.path);
-              this.addToHistory(file.basename, "success", activeMode);
-              statusNotice.setMessage(
-                `\u2705 \u5DF2\u5904\u7406 ${result.index + 1}/${files.length}: ${file.basename}`
-              );
-            } else {
-              failedFiles.push({
-                file,
-                request: requests[result.index],
-                index: result.index
-              });
-              statusNotice.setMessage(
-                `\u274C \u5904\u7406\u5931\u8D25 ${result.index + 1}/${files.length}: ${file.basename} - ${result.error}`
-              );
-            }
-          } catch (error) {
-            failedFiles.push({
-              file,
-              request: requests[result.index],
-              index: result.index
-            });
-            statusNotice.setMessage(
-              `\u274C \u66F4\u65B0\u5931\u8D25 ${result.index + 1}/${files.length}: ${file.basename} - ${error.message}`
-            );
-          }
-        },
-        useCache
-      );
-      if (this.shouldCancelProcessing()) {
-        statusNotice.setMessage("\u274C \u5904\u7406\u5DF2\u88AB\u53D6\u6D88");
-        statusNotice.hide();
-        return;
-      }
-      await this.plugin.saveSettings();
-      const successCount = results.filter((r) => r.success).length;
-      const errorCount = results.length - successCount;
-      if (errorCount === 0) {
-        statusNotice.setMessage(`\u2705 \u6279\u91CF\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F\u5904\u7406 ${successCount} \u4E2A\u6587\u4EF6`);
-      } else {
-        statusNotice.setMessage(`\u26A0\uFE0F \u6279\u91CF\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F ${successCount} \u4E2A\uFF0C\u5931\u8D25 ${errorCount} \u4E2A`);
-      }
-      setTimeout(() => {
-        statusNotice.hide();
-      }, 3e3);
-    } catch (error) {
-      statusNotice.setMessage(`\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${error.message}`);
-      for (const file of files) {
-        await this.noteProcessor.setProcessingStatus(file, "error");
-        this.addToHistory(file.basename, "error", activeMode);
-      }
-      await this.plugin.saveSettings();
-      setTimeout(() => {
-        statusNotice.hide();
-      }, 5e3);
-    } finally {
-      for (const file of files) {
-        this.processingFiles.delete(file.path);
-      }
-      if (batchBtn) {
-        batchBtn.disabled = false;
-        batchBtn.textContent = "\u6279\u91CF\u5904\u7406\u9009\u4E2D\u5206P";
-        batchBtn.classList.remove("processing");
-      }
-      await this.refreshView();
-    }
-  }
-  addToHistory(fileName, result, mode) {
-    const historyRecord = {
-      file: fileName,
-      time: (/* @__PURE__ */ new Date()).toLocaleString("zh-CN"),
-      result,
-      mode
-    };
-    this.plugin.settings.history.push(historyRecord);
-  }
-  async processSingleVideo(url, providedTranscript, localFile) {
-    try {
-      let title = "";
-      let videoId = "";
-      if (url && url.trim()) {
-        const extractedVideoId = this.extractVideoId(url);
-        if (!extractedVideoId) {
-          new import_obsidian4.Notice("\u65E0\u6CD5\u8BC6\u522B\u89C6\u9891\u94FE\u63A5\u683C\u5F0F");
-          return;
-        }
-        videoId = extractedVideoId;
-        title = this.generateVideoTitle(url, videoId);
-      } else if (providedTranscript && providedTranscript.trim()) {
-        const now = /* @__PURE__ */ new Date();
-        const timeStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-        const snippet = providedTranscript.trim().split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
-        title = snippet ? `\u6587\u7A3F_${timeStr}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${timeStr}`;
-      } else if (localFile && localFile.trim()) {
-        const fileName = localFile.split("/").pop() || localFile.split("\\").pop() || "local_file";
-        title = "\u672C\u5730\u6587\u4EF6_" + fileName;
-      } else {
-        new import_obsidian4.Notice("\u8BF7\u63D0\u4F9B\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u8DEF\u5F84");
-        return;
-      }
-      this.videoParts = [
-        {
-          title,
-          url: url || "",
-          index: 1,
-          isCurrent: false,
-          providedTranscript,
-          localFileName: localFile
-        }
-      ];
-      const partsSection = this.containerEl.querySelector(".parts-section");
-      if (partsSection) {
-        partsSection.style.display = "block";
-      }
-      this.renderPartsList();
-      new import_obsidian4.Notice(`\u5DF2\u51C6\u5907\u5904\u7406: ${title}`);
-    } catch (error) {
-      new import_obsidian4.Notice(`\u5904\u7406\u5931\u8D25: ${error.message}`);
-    }
-  }
-  async processMultipleVideos(urls, providedTranscript, localFile) {
-    try {
-      new import_obsidian4.Notice(`\u6B63\u5728\u5904\u7406 ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5...`);
-      this.videoParts = [];
-      for (let i = 0; i < urls.length; i++) {
-        const url = urls[i];
-        const videoId = this.extractVideoId(url);
-        if (!videoId) {
-          new import_obsidian4.Notice(`\u65E0\u6CD5\u8BC6\u522B\u7B2C ${i + 1} \u4E2A\u94FE\u63A5\u683C\u5F0F: ${url}`);
-          continue;
-        }
-        const title = this.generateVideoTitle(url, videoId);
-        this.videoParts.push({
-          title,
-          url,
-          index: i + 1,
-          isCurrent: false,
-          providedTranscript,
-          localFileName: localFile
-        });
-      }
-      if (this.videoParts.length === 0) {
-        new import_obsidian4.Notice("\u6CA1\u6709\u6709\u6548\u7684\u89C6\u9891\u94FE\u63A5");
-        return;
-      }
-      const partsSection = this.containerEl.querySelector(".parts-section");
-      if (partsSection) {
-        partsSection.style.display = "block";
-      }
-      this.renderPartsList();
-      new import_obsidian4.Notice(`\u5DF2\u51C6\u5907\u5904\u7406 ${this.videoParts.length} \u4E2A\u89C6\u9891`);
-    } catch (error) {
-      new import_obsidian4.Notice(`\u5904\u7406\u5931\u8D25: ${error.message}`);
-    }
-  }
-  generateVideoTitle(url, videoId) {
-    if (url.includes("bilibili.com")) {
-      return `B\u7AD9\u89C6\u9891_${videoId}`;
-    } else if (url.includes("youtube.com") || url.includes("youtu.be")) {
-      return `YouTube\u89C6\u9891_${videoId}`;
-    } else if (url.includes("douyin.com")) {
-      return `\u6296\u97F3\u89C6\u9891_${videoId}`;
-    } else if (url.includes("tiktok.com")) {
-      return `TikTok\u89C6\u9891_${videoId}`;
-    } else {
-      return `\u89C6\u9891_${videoId}`;
-    }
-  }
-  // 删除统计信息和批量处理按钮相关方法
-  async renderFileList(container) {
-    const listEl = container.createEl("div", { cls: "file-list-section" });
-    const titleRow = listEl.createEl("div", { cls: "title-row" });
-    const sortSelect = titleRow.createEl("select", { cls: "sort-select-inline" });
-    sortSelect.createEl("option", { text: "\u6587\u4EF6\u540DA-Z", value: "name-asc" });
-    sortSelect.createEl("option", { text: "\u6587\u4EF6\u540DZ-A", value: "name-desc" });
-    sortSelect.createEl("option", { text: "\u521B\u5EFA\u65F6\u95F4\uFF08\u6700\u65B0\uFF09", value: "ctime-desc" });
-    sortSelect.createEl("option", { text: "\u521B\u5EFA\u65F6\u95F4\uFF08\u6700\u65E9\uFF09", value: "ctime-asc" });
-    sortSelect.createEl("option", { text: "\u4FEE\u6539\u65F6\u95F4\uFF08\u6700\u65B0\uFF09", value: "mtime-desc" });
-    sortSelect.createEl("option", { text: "\u4FEE\u6539\u65F6\u95F4\uFF08\u6700\u65E9\uFF09", value: "mtime-asc" });
-    sortSelect.createEl("option", { text: "\u72B6\u6001\u4F18\u5148", value: "status" });
-    sortSelect.value = "ctime-desc";
-    const files = this.plugin.app.vault.getMarkdownFiles();
-    const videoFiles = [];
-    for (const file of files) {
-      try {
-        const content = await this.plugin.app.vault.read(file);
-        const hasVideo = this.noteProcessor.hasVideoContent(content);
-        if (hasVideo) {
-          const status = this.noteProcessor.getProcessingStatus(content);
-          videoFiles.push({
-            file,
-            status: status || "pending",
-            content
-          });
-        }
-      } catch (error) {
-        console.error(`\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.basename}`, error);
-      }
-    }
-    if (videoFiles.length === 0) {
-      listEl.createEl("p", { text: "\u672A\u627E\u5230\u89C6\u9891\u7B14\u8BB0", cls: "no-files" });
-      return;
-    }
-    const sortFiles = () => {
-      const sortBy = sortSelect.value;
-      const sortedFiles = [...videoFiles];
-      switch (sortBy) {
-        case "name-asc":
-          sortedFiles.sort((a, b) => a.file.basename.localeCompare(b.file.basename));
-          break;
-        case "name-desc":
-          sortedFiles.sort((a, b) => b.file.basename.localeCompare(a.file.basename));
-          break;
-        case "ctime-desc":
-          sortedFiles.sort((a, b) => b.file.stat.ctime - a.file.stat.ctime);
-          break;
-        case "ctime-asc":
-          sortedFiles.sort((a, b) => a.file.stat.ctime - b.file.stat.ctime);
-          break;
-        case "mtime-desc":
-          sortedFiles.sort((a, b) => b.file.stat.mtime - a.file.stat.mtime);
-          break;
-        case "mtime-asc":
-          sortedFiles.sort((a, b) => a.file.stat.mtime - b.file.stat.mtime);
-          break;
-        case "status": {
-          const statusOrder = {
-            pending: 0,
-            running: 1,
-            success: 2,
-            error: 3
-          };
-          sortedFiles.sort((a, b) => {
-            const aOrder = statusOrder[a.status] ?? 4;
-            const bOrder = statusOrder[b.status] ?? 4;
-            if (aOrder !== bOrder) return aOrder - bOrder;
-            return a.file.basename.localeCompare(b.file.basename);
-          });
-          break;
-        }
-      }
-      this.renderSortedFileList(listEl, sortedFiles);
-    };
-    sortSelect.onchange = sortFiles;
-    sortFiles();
-  }
-  renderSortedFileList(container, sortedFiles) {
-    const existingLists = container.querySelectorAll(".file-list");
-    existingLists.forEach((list) => list.remove());
-    const pendingFiles = sortedFiles.filter((f) => {
-      const status = f.status || "";
-      return !status || status === "pending";
-    });
-    const runningFiles = sortedFiles.filter((f) => f.status === "running");
-    const errorFiles = sortedFiles.filter((f) => f.status === "error");
-    const processedFiles = sortedFiles.filter((f) => {
-      const status = f.status || "";
-      return status && status !== "pending" && status !== "running" && status !== "error";
-    });
-    if (pendingFiles.length > 0) {
-      container.createEl("div", {
-        text: `\u5F85\u5904\u7406 (${pendingFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(container, pendingFiles, "pending");
-    }
-    if (runningFiles.length > 0) {
-      container.createEl("div", {
-        text: `\u5904\u7406\u4E2D (${runningFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(container, runningFiles, "running");
-    }
-    if (errorFiles.length > 0) {
-      container.createEl("div", {
-        text: `\u5904\u7406\u5931\u8D25 (${errorFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(container, errorFiles, "error");
-    }
-    if (processedFiles.length > 0) {
-      container.createEl("div", {
-        text: `\u5DF2\u5904\u7406 (${processedFiles.length})`,
-        cls: "section-title-small"
-      });
-      this.renderFileGroup(container, processedFiles, "processed");
-    }
-  }
-  renderFileGroup(container, files, groupType) {
-    const fileList = container.createEl("div", { cls: "file-list-container" });
-    files.forEach(({ file, status }) => {
-      const itemEl = fileList.createEl("div", { cls: "file-list-item" });
-      const infoMain = itemEl.createEl("div", { cls: "file-info-main" });
-      let statusClass = "pending";
-      let statusText = "\u5F85\u5904\u7406";
-      const normalizedStatus = VideoUtils.normalizeStatus(status || "");
-      if (normalizedStatus === "success") {
-        statusClass = "success";
-        statusText = "\u5DF2\u5B8C\u6210";
-      } else if (normalizedStatus === "error") {
-        statusClass = "error";
-        statusText = "\u5931\u8D25";
-      } else if (normalizedStatus === "running") {
-        statusClass = "pending";
-        statusText = "\u5904\u7406\u4E2D...";
-      }
-      infoMain.createEl("span", { text: statusText, cls: `status-pill ${statusClass}` });
-      const nameSpan = infoMain.createEl("span", { text: file.basename, cls: "file-title" });
-      nameSpan.style.cursor = "pointer";
-      nameSpan.onclick = () => this.plugin.app.workspace.getLeaf().openFile(file);
-      const actionsEl = itemEl.createEl("div", { cls: "item-actions" });
-      if (normalizedStatus !== "running") {
-        if (groupType === "pending" || groupType === "error") {
-          const processBtn = actionsEl.createEl("button", {
-            cls: "clickable-icon",
-            attr: { "aria-label": "\u5904\u7406" }
-          });
-          processBtn.innerHTML = "\u25B6\uFE0F";
-          processBtn.onclick = () => this.handleProcessAction(file);
-        } else if (groupType === "processed") {
-          const reprocessBtn = actionsEl.createEl("button", {
-            cls: "clickable-icon",
-            attr: { "aria-label": "\u91CD\u65B0\u5904\u7406" }
-          });
-          reprocessBtn.innerHTML = "\u{1F504}";
-          reprocessBtn.onclick = () => this.handleProcessAction(file);
-        }
-      } else {
-        const cancelBtn = actionsEl.createEl("button", {
-          cls: "clickable-icon",
-          attr: { "aria-label": "\u53D6\u6D88" }
-        });
-        cancelBtn.innerHTML = "\u274C";
-        cancelBtn.onclick = async () => {
-          this.plugin.api.cancelByNoteName(file.basename);
-          this.cancelProcessing = true;
-          await this.cancelFileProcessing(file);
-        };
-      }
-      const deleteBtn = actionsEl.createEl("button", {
-        cls: "clickable-icon",
-        attr: { "aria-label": "\u5220\u9664\u7B14\u8BB0" }
-      });
-      deleteBtn.innerHTML = "\u{1F5D1}\uFE0F";
-      deleteBtn.onclick = () => this.quickDeleteFile(file);
-    });
-    return fileList;
-  }
-  renderHistory(container) {
-    const historyEl = container.createEl("div", { cls: "history-section" });
-    const titleRow = historyEl.createEl("div", { cls: "title-row" });
-    const refreshBtn = titleRow.createEl("button", {
-      text: "\u{1F504}",
-      cls: "action-btn icon-btn history-refresh-btn",
-      attr: { title: "\u5237\u65B0\u5386\u53F2\u8BB0\u5F55" }
-    });
-    refreshBtn.onclick = () => {
-      this.renderHistory(container);
-    };
-    const deleteHistoryBtn = titleRow.createEl("button", {
-      text: "\u{1F5D1}\uFE0F \u5220\u9664\u5386\u53F2",
-      cls: "action-btn history-delete-btn",
-      attr: { title: "\u5220\u9664\u6240\u6709\u5386\u53F2\u8BB0\u5F55" }
-    });
-    deleteHistoryBtn.onclick = async () => {
-      if (confirm("\u786E\u5B9A\u8981\u5220\u9664\u6240\u6709\u5386\u53F2\u8BB0\u5F55\u5417\uFF1F")) {
-        this.plugin.settings.history = [];
-        await this.plugin.saveSettings();
-        new import_obsidian4.Notice("\u5386\u53F2\u8BB0\u5F55\u5DF2\u5220\u9664");
-        this.renderHistory(container);
-      }
-    };
-    const clearCacheBtn = titleRow.createEl("button", {
-      text: "\u{1F5C4}\uFE0F \u6E05\u7A7A\u7F13\u5B58",
-      cls: "action-btn history-clear-cache-btn",
-      attr: { title: "\u6E05\u7A7A\u6240\u6709\u7F13\u5B58" }
-    });
-    clearCacheBtn.onclick = async () => {
-      if (confirm("\u786E\u5B9A\u8981\u6E05\u7A7A\u6240\u6709\u7F13\u5B58\u5417\uFF1F\u8FD9\u5C06\u5220\u9664\u6240\u6709\u5DF2\u7F13\u5B58\u7684\u89C6\u9891\u5904\u7406\u7ED3\u679C\u3002")) {
-        try {
-          await this.plugin.api.clearCache();
-          new import_obsidian4.Notice("\u7F13\u5B58\u5DF2\u6E05\u7A7A");
-        } catch (error) {
-          new import_obsidian4.Notice(`\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error.message}`);
-        }
-      }
-    };
-    if (!this.plugin.settings.history || this.plugin.settings.history.length === 0) {
-      historyEl.createEl("p", { text: "\u6682\u65E0\u5904\u7406\u5386\u53F2", cls: "no-history" });
-      return;
-    }
-    const sortSelect = titleRow.createEl("select", { cls: "sort-select-inline" });
-    sortSelect.createEl("option", { text: "\u521B\u5EFA\u65F6\u95F4\uFF08\u6700\u65B0\uFF09", value: "time-desc" });
-    sortSelect.createEl("option", { text: "\u521B\u5EFA\u65F6\u95F4\uFF08\u6700\u65E9\uFF09", value: "time-asc" });
-    sortSelect.createEl("option", { text: "\u6587\u4EF6\u540DA-Z", value: "name-asc" });
-    sortSelect.createEl("option", { text: "\u6587\u4EF6\u540DZ-A", value: "name-desc" });
-    sortSelect.createEl("option", { text: "\u6210\u529F\u4F18\u5148", value: "success-first" });
-    sortSelect.createEl("option", { text: "\u5931\u8D25\u4F18\u5148", value: "error-first" });
-    const savedHistorySortBy = this.plugin.settings.historySortBy || "time-desc";
-    sortSelect.value = savedHistorySortBy;
-    const sortHistory = () => {
-      const sortBy = sortSelect.value;
-      const sortedHistory = [...this.plugin.settings.history];
-      switch (sortBy) {
-        case "time-desc":
-          sortedHistory.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-          break;
-        case "time-asc":
-          sortedHistory.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-          break;
-        case "name-asc":
-          sortedHistory.sort((a, b) => a.file.localeCompare(b.file));
-          break;
-        case "name-desc":
-          sortedHistory.sort((a, b) => b.file.localeCompare(a.file));
-          break;
-        case "success-first":
-          sortedHistory.sort((a, b) => {
-            if (a.result === "success" && b.result !== "success") return -1;
-            if (a.result !== "success" && b.result === "success") return 1;
-            return new Date(b.time).getTime() - new Date(a.time).getTime();
-          });
-          break;
-        case "error-first":
-          sortedHistory.sort((a, b) => {
-            if (a.result === "error" && b.result !== "error") return -1;
-            if (a.result !== "error" && b.result === "error") return 1;
-            return new Date(b.time).getTime() - new Date(a.time).getTime();
-          });
-          break;
-      }
-      this.plugin.settings.historySortBy = sortBy;
-      this.plugin.saveSettings();
-      this.renderHistoryList(historyEl, sortedHistory);
-    };
-    sortSelect.onchange = sortHistory;
-    sortHistory();
-  }
-  renderHistoryList(container, history) {
-    const existingList = container.querySelector(".history-list");
-    if (existingList) {
-      existingList.remove();
-    }
-    const historyList = container.createEl("div", { cls: "history-list" });
-    history.forEach((record) => {
-      const historyItem = historyList.createEl("div", { cls: "history-item" });
-      historyItem.createEl("span", {
-        text: record.result === "success" ? "\u2705" : "\u274C",
-        cls: "history-status"
-      });
-      const fileNameEl = historyItem.createEl("span", {
-        text: record.file,
-        cls: "history-file clickable"
-      });
-      fileNameEl.onclick = async () => {
-        try {
-          let file = null;
-          file = this.plugin.app.vault.getAbstractFileByPath(`${record.file}.md`);
-          if (!file) {
-            const allFiles = this.plugin.app.vault.getMarkdownFiles();
-            file = allFiles.find((f) => f.basename === record.file) || null;
-          }
-          if (!file) {
-            const allFiles = this.plugin.app.vault.getMarkdownFiles();
-            file = allFiles.find(
-              (f) => f.basename.includes(record.file) || record.file.includes(f.basename)
-            ) || null;
-          }
-          if (file && file instanceof import_obsidian4.TFile) {
-            const leaf = this.plugin.app.workspace.getLeaf();
-            await leaf.openFile(file);
-            new import_obsidian4.Notice(`\u5DF2\u6253\u5F00\u6587\u4EF6: ${file.basename}`);
-          } else {
-            const allFiles = this.plugin.app.vault.getMarkdownFiles();
-            const similarFiles = allFiles.filter(
-              (f) => f.basename.toLowerCase().includes(record.file.toLowerCase()) || record.file.toLowerCase().includes(f.basename.toLowerCase())
-            ).slice(0, 5);
-            if (similarFiles.length > 0) {
-              const similarNames = similarFiles.map((f) => f.basename).join(", ");
-              new import_obsidian4.Notice(`\u6587\u4EF6\u4E0D\u5B58\u5728: ${record.file}
-\u76F8\u4F3C\u6587\u4EF6: ${similarNames}`);
-            } else {
-              new import_obsidian4.Notice(`\u6587\u4EF6\u4E0D\u5B58\u5728: ${record.file}`);
-            }
-          }
-        } catch (error) {
-          new import_obsidian4.Notice(`\u6253\u5F00\u6587\u4EF6\u5931\u8D25: ${error.message}`);
-        }
-      };
-      const infoEl = historyItem.createEl("span", {
-        cls: "history-info"
-      });
-      const modeText = record.mode === "summary" ? "\u603B\u7ED3" : record.mode === "transcript-only" ? "\u6587\u7A3F" : "\u4FE1\u606F";
-      const langText = record.language === "zh" ? "\u4E2D\u6587" : record.language === "en" ? "\u82F1\u6587" : record.language === "ja" ? "\u65E5\u6587" : "\u4E2D\u6587";
-      infoEl.textContent = `${modeText} (${langText})`;
-      historyItem.createEl("span", {
-        text: record.time,
-        cls: "history-time"
-      });
-      const actionsEl = historyItem.createEl("div", { cls: "history-actions" });
-      const deleteBtn = actionsEl.createEl("button", {
-        text: "\u{1F5D1}\uFE0F",
-        cls: "btn-small history-delete-item-btn",
-        attr: { title: "\u5220\u9664\u6B64\u6761\u5386\u53F2\u8BB0\u5F55\u548C\u7F13\u5B58" }
-      });
-      deleteBtn.onclick = async () => {
-        if (confirm(`\u786E\u5B9A\u8981\u5220\u9664\u5386\u53F2\u8BB0\u5F55 "${record.file}" \u53CA\u5176\u7F13\u5B58\u5417\uFF1F`)) {
-          try {
-            let file = null;
-            file = this.plugin.app.vault.getAbstractFileByPath(`${record.file}.md`);
-            if (!file) {
-              const allFiles = this.plugin.app.vault.getMarkdownFiles();
-              file = allFiles.find((f) => f.basename === record.file) || null;
-            }
-            if (file) {
-              try {
-                const content = await this.plugin.app.vault.read(file);
-                const url = this.noteProcessor.extractVideoUrl(content);
-                if (url && record.mode && record.language) {
-                  await this.plugin.api.removeCacheItem(
-                    url,
-                    record.mode,
-                    record.language
-                  );
-                }
-              } catch (error) {
-                console.error("\u5220\u9664\u7F13\u5B58\u5931\u8D25:", error);
-              }
-            }
-            const index = this.plugin.settings.history.findIndex(
-              (h) => h.file === record.file && h.time === record.time
-            );
-            if (index !== -1) {
-              this.plugin.settings.history.splice(index, 1);
-              await this.plugin.saveSettings();
-              new import_obsidian4.Notice("\u5386\u53F2\u8BB0\u5F55\u548C\u7F13\u5B58\u5DF2\u5220\u9664");
-              this.renderHistory(container);
-            }
-          } catch (error) {
-            new import_obsidian4.Notice(`\u5220\u9664\u5931\u8D25: ${error.message}`);
-          }
-        }
-      };
-    });
-  }
-  async processFile(file) {
-    await this.plugin.fileProcessor.processFile(file);
-    await this.refreshView();
-  }
-  async handleProcessAction(file) {
-    if (this.ignoreCacheEnabled) {
-      await this.forceRefreshFile(file);
-      return;
-    }
-    await this.processFile(file);
-  }
-  /**
-   * 强制刷新文件（不使用缓存）
-   */
-  async forceRefreshFile(file) {
-    try {
-      const content = await this.plugin.app.vault.read(file);
-      const videoInput = this.noteProcessor.buildVideoInput(content);
-      if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian4.Notice("\u6587\u4EF6\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
-        return;
-      }
-      await this.noteProcessor.setProcessingStatus(file, "running");
-      const notice = new import_obsidian4.Notice("\u{1F504} \u6B63\u5728\u5F3A\u5236\u5237\u65B0\uFF08\u4E0D\u4F7F\u7528\u7F13\u5B58\uFF09...", 0);
-      try {
-        const mode = this.getActiveProcessingMode();
-        const language = this.plugin.settings.defaultLanguage;
-        const result = await this.plugin.api.processVideo(
-          file.basename,
-          videoInput,
-          mode,
-          language,
-          false
-          // 不使用缓存，强制刷新
-        );
-        await this.noteProcessor.updateNote(file, result, mode, {
-          autoRename: this.plugin.settings.autoRenameEnabled,
-          conflictStrategy: this.plugin.settings.renameConflictStrategy
-        });
-        await this.noteProcessor.setProcessingStatus(
-          file,
-          this.plugin.settings.successStatusValue ?? "success"
-        );
-        notice.hide();
-        new import_obsidian4.Notice("\u2705 \u5F3A\u5236\u5237\u65B0\u5B8C\u6210", 3e3);
-        await this.refreshView();
-      } catch (error) {
-        notice.hide();
-        await this.noteProcessor.setProcessingStatus(file, "error");
-        new import_obsidian4.Notice(`\u274C \u5F3A\u5236\u5237\u65B0\u5931\u8D25: ${error.message}`, 5e3);
-      }
-    } catch (error) {
-      new import_obsidian4.Notice(`\u5F3A\u5236\u5237\u65B0\u5931\u8D25: ${error.message}`);
-    }
-  }
-  async quickDeleteFile(file) {
-    try {
-      const confirmed = await this.confirmDelete(file);
-      if (!confirmed) return;
-      await this.plugin.app.vault.trash(file, true);
-      new import_obsidian4.Notice(`\u{1F5D1}\uFE0F \u5DF2\u5220\u9664 ${file.basename}`);
-      await this.refreshView();
-    } catch (error) {
-      new import_obsidian4.Notice(`\u5220\u9664\u5931\u8D25: ${error.message}`);
-    }
-  }
-  async confirmDelete(file) {
-    return await new Promise((resolve) => {
-      new ConfirmModal(
-        this.plugin.app,
-        "\u5220\u9664\u7B14\u8BB0",
-        `\u786E\u5B9A\u8981\u5220\u9664 "${file.basename}" \u5417\uFF1F\u6B64\u64CD\u4F5C\u4E0D\u53EF\u64A4\u9500\u3002`,
-        resolve
-      ).open();
-    });
-  }
-  /**
-   * 处理获取上次webhook结果
-   */
-  async processJsonInput(jsonText) {
-    try {
-      const parsed = JSON.parse(jsonText);
-      const normalizedResult = this.plugin.api.normalizeWebhookPayload(parsed);
-      const input = this.extractVideoInputFromPayload(parsed);
-      await this.createNoteFromWebhookResult({
-        result: normalizedResult,
-        input,
-        mode: "summary",
-        language: this.plugin.settings.defaultLanguage,
-        timestamp: Date.now()
-      });
-      new import_obsidian4.Notice("\u2705 \u5DF2\u6839\u636E JSON \u521B\u5EFA\u7B14\u8BB0");
-    } catch (error) {
-      new import_obsidian4.Notice(`\u89E3\u6790\u5931\u8D25: ${error.message}`);
-    }
-  }
-  async handleGetLastResult() {
-    try {
-      const history = this.plugin.api.getWebhookHistory();
-      if (!history || history.length === 0) {
-        new import_obsidian4.Notice("\u6682\u65F6\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C");
-        return;
-      }
-      const modal = new import_obsidian4.Modal(this.plugin.app);
-      modal.titleEl.textContent = "Webhook \u5386\u53F2\u7ED3\u679C\uFF08\u6700\u8FD150\u6761\uFF09";
-      const list = modal.contentEl.createEl("div", { cls: "webhook-history-list" });
-      list.style.maxHeight = "420px";
-      list.style.overflowY = "auto";
-      history.forEach((entry, index) => {
-        const item = list.createEl("div", { cls: "webhook-history-item" });
-        item.createEl("div", {
-          text: `${index + 1}. ${new Date(entry.timestamp).toLocaleString("zh-CN")} \xB7 ${entry.mode === "summary" ? "\u603B\u7ED3" : entry.mode === "transcript-only" ? "\u6587\u7A3F" : "\u4FE1\u606F"} (${entry.language})`,
-          cls: "history-meta"
-        });
-        if (entry.input.url) {
-          item.createEl("div", {
-            text: entry.input.url,
-            cls: "history-link"
-          });
-        }
-        if (entry.result.video_title || entry.result.video_author) {
-          item.createEl("div", {
-            text: `${entry.result.video_title ?? ""}${entry.result.video_author ? ` \xB7 ${entry.result.video_author}` : ""}`,
-            cls: "history-title"
-          });
-        }
-        const actions = item.createEl("div", { cls: "history-actions" });
-        const applyBtn = actions.createEl("button", { text: "\u5E94\u7528\u5230\u5F53\u524D\u6587\u4EF6", cls: "mod-cta" });
-        applyBtn.onclick = async () => {
-          await this.applyResultToCurrentFile(entry);
-        };
-        const insertBtn = actions.createEl("button", {
-          text: "\u63D2\u5165\u5230\u5F53\u524D\u7B14\u8BB0",
-          cls: "mod-secondary"
-        });
-        insertBtn.onclick = async () => {
-          await this.insertResultIntoCurrentFile(entry);
-        };
-        const newNoteBtn = actions.createEl("button", { text: "\u65B0\u5EFA\u7B14\u8BB0", cls: "mod-secondary" });
-        newNoteBtn.onclick = async () => {
-          await this.createNoteFromWebhookResult(entry);
-        };
-        const copyBtn = actions.createEl("button", { text: "\u590D\u5236JSON", cls: "mod-secondary" });
-        copyBtn.onclick = async () => {
-          try {
-            await navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
-            new import_obsidian4.Notice("\u2705 \u7ED3\u679C\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F");
-          } catch (error) {
-            new import_obsidian4.Notice(`\u590D\u5236\u5931\u8D25: ${error.message}`);
-          }
-        };
-      });
-      const footer = modal.contentEl.createEl("div", { cls: "webhook-history-footer" });
-      footer.textContent = "\u63D0\u793A\uFF1A\u5386\u53F2\u7ED3\u679C\u4FDD\u7559\u6700\u65B020\u6761\uFF0C\u540E\u7EED\u8C03\u7528\u4F1A\u81EA\u52A8\u66FF\u6362\u6700\u65E9\u7684\u8BB0\u5F55\u3002";
-      modal.open();
-    } catch (error) {
-      new import_obsidian4.Notice(`\u83B7\u53D6\u4E0A\u6B21\u7ED3\u679C\u5931\u8D25: ${error.message}`);
-    }
-  }
-  async applyResultToCurrentFile(entry) {
-    const activeFile = this.plugin.app.workspace.getActiveFile();
-    if (!activeFile) {
-      new import_obsidian4.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u6587\u4EF6");
-      return;
-    }
-    try {
-      await this.noteProcessor.updateNote(activeFile, entry.result, entry.mode, {
-        autoRename: this.plugin.settings.autoRenameEnabled,
-        conflictStrategy: this.plugin.settings.renameConflictStrategy
-      });
-      await this.noteProcessor.setProcessingStatus(
-        activeFile,
-        this.plugin.settings.successStatusValue ?? "success"
-      );
-      new import_obsidian4.Notice("\u2705 \u5DF2\u5E94\u7528\u5230\u5F53\u524D\u6587\u4EF6");
-      await this.refreshView();
-    } catch (error) {
-      new import_obsidian4.Notice(`\u5E94\u7528\u5931\u8D25: ${error.message}`);
-    }
-  }
-  async insertResultIntoCurrentFile(entry) {
-    const activeFile = this.plugin.app.workspace.getActiveFile();
-    if (!activeFile) {
-      new import_obsidian4.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u6587\u4EF6");
-      return;
-    }
-    try {
-      const content = await this.plugin.app.vault.read(activeFile);
-      const insertion = this.buildInsertionContent(entry.result);
-      const newContent = `${content.trim()}
-
-${insertion}`;
-      await this.plugin.app.vault.modify(activeFile, newContent);
-      new import_obsidian4.Notice("\u2705 \u4FE1\u606F\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
-    } catch (error) {
-      new import_obsidian4.Notice(`\u63D2\u5165\u5931\u8D25: ${error.message}`);
-    }
-  }
-  buildInsertionContent(result) {
-    const lines = [];
-    lines.push("---");
-    lines.push("## Webhook \u7ED3\u679C");
-    if (result.video_title) lines.push(`- **\u6807\u9898**: ${result.video_title}`);
-    if (result.video_author) lines.push(`- **\u4F5C\u8005**: ${result.video_author}`);
-    if (result.video_duration) lines.push(`- **\u65F6\u957F**: ${result.video_duration}`);
-    if (result.summary) {
-      lines.push("");
-      lines.push("### \u603B\u7ED3");
-      lines.push(result.summary);
-    }
-    if (result.note) {
-      lines.push("");
-      lines.push("### \u5927\u7EB2");
-      lines.push(result.note);
-    }
-    if (result.video_transcript) {
-      lines.push("");
-      lines.push("### \u6587\u7A3F");
-      lines.push(result.video_transcript);
-    }
-    lines.push("---");
-    return lines.join("\n");
-  }
-  async createNoteFromWebhookResult(entry) {
-    try {
-      const folder = this.plugin.settings.outputFolder || this.plugin.app.workspace.getActiveFile()?.parent?.path || "";
-      const baseTitle = entry.result.video_title || (entry.input.url ? this.generateVideoTitle(
-        entry.input.url,
-        this.extractVideoId(entry.input.url) || "video"
-      ) : "Webhook\u7ED3\u679C");
-      const fileName = `${this.sanitizeFileName(baseTitle)}_${entry.timestamp}.md`;
-      const filePath = folder ? `${folder}/${fileName}` : fileName;
-      const fm = ["---"];
-      fm.push(`status: ${this.plugin.settings.successStatusValue ?? "success"}`);
-      if (entry.input.url) fm.push(`link: ${this.yamlEscape(entry.input.url)}`);
-      if (entry.result.video_title)
-        fm.push(`video_title: ${this.yamlEscape(entry.result.video_title)}`);
-      if (entry.result.video_author)
-        fm.push(`video_author: ${this.yamlEscape(entry.result.video_author)}`);
-      if (entry.result.video_duration)
-        fm.push(`video_duration: ${this.yamlEscape(entry.result.video_duration)}`);
-      fm.push(`date: ${new Date(entry.timestamp).toISOString()}`);
-      if (entry.result.summary) {
-        fm.push("summary: |");
-        fm.push(`  ${entry.result.summary.replace(/\n/g, "\n  ")}`);
-      }
-      if (entry.result.video_transcript) {
-        fm.push("video_transcript: |");
-        fm.push(`  ${entry.result.video_transcript.replace(/\n/g, "\n  ")}`);
-      }
-      fm.push("---\n");
-      const noteContent = entry.result.note?.trim() ?? "";
-      const content = `${fm.join("\n")}${noteContent}`;
-      await this.plugin.app.vault.create(filePath, content);
-      new import_obsidian4.Notice(`\u2705 \u5DF2\u521B\u5EFA\u7B14\u8BB0: ${fileName}`);
-    } catch (error) {
-      new import_obsidian4.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
-    }
-  }
-  sanitizeFileName(name) {
-    return name.replace(/[<>:"/\\|?*]/g, "_").trim() || "webhook_result";
-  }
-  yamlEscape(value) {
-    const trimmed = value.trim();
-    if (!trimmed) return '""';
-    const needsQuotes = /[:[\]{}#,&*!?|<>=@`]/.test(trimmed);
-    const escaped = trimmed.replace(/"/g, '\\"');
-    return needsQuotes ? `"${escaped}"` : escaped;
-  }
-  extractVideoInputFromPayload(raw) {
-    const sources = [];
-    const collectSources = (obj) => {
-      if (!obj || typeof obj !== "object") return;
-      sources.push(obj);
-      if (obj.metadata && typeof obj.metadata === "object") sources.push(obj.metadata);
-      if (obj.input && typeof obj.input === "object") sources.push(obj.input);
-    };
-    if (Array.isArray(raw)) {
-      raw.forEach(collectSources);
-    } else {
-      collectSources(raw);
-    }
-    const pick = (keys) => {
-      for (const source of sources) {
-        for (const key of keys) {
-          const value = source[key];
-          if (typeof value === "string" && value.trim()) {
-            return value.trim();
-          }
-        }
-      }
-      return void 0;
-    };
-    const input = {};
-    const link = pick(["link", "url"]);
-    if (link) input.url = link;
-    const transcript = pick(["provided_transcript", "transcript"]);
-    if (transcript) input.transcript = transcript;
-    const localFile = pick(["local_file", "localFileName", "localFile"]);
-    if (localFile) input.localFile = localFile;
-    return input;
-  }
-  /**
-   * 强制刷新历史记录（重新处理但不使用缓存）
-   */
-  async forceRefreshRecord(record) {
-    try {
-      let file = null;
-      file = this.plugin.app.vault.getAbstractFileByPath(`${record.file}.md`);
-      if (!file) {
-        const allFiles = this.plugin.app.vault.getMarkdownFiles();
-        file = allFiles.find((f) => f.basename === record.file) || null;
-      }
-      if (!file) {
-        const allFiles = this.plugin.app.vault.getMarkdownFiles();
-        file = allFiles.find(
-          (f) => f.basename.includes(record.file) || record.file.includes(f.basename)
-        ) || null;
-      }
-      if (!file) {
-        new import_obsidian4.Notice(`\u627E\u4E0D\u5230\u6587\u4EF6: ${record.file}`);
-        return;
-      }
-      const content = await this.plugin.app.vault.read(file);
-      const videoInput = this.noteProcessor.buildVideoInput(content);
-      if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian4.Notice("\u6587\u4EF6\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
-        return;
-      }
-      await this.noteProcessor.setProcessingStatus(file, "running");
-      const langText = record.language === "zh" ? "\u4E2D\u6587" : record.language === "en" ? "\u82F1\u6587" : record.language === "ja" ? "\u65E5\u6587" : "\u4E2D\u6587";
-      const modeText = record.mode === "summary" ? "\u603B\u7ED3" : record.mode === "transcript-only" ? "\u6587\u7A3F" : "\u4FE1\u606F";
-      const notice = new import_obsidian4.Notice(`\u{1F504} \u6B63\u5728\u5F3A\u5236\u5237\u65B0\uFF08\u4E0D\u4F7F\u7528\u7F13\u5B58\uFF09: ${modeText} (${langText})...`, 0);
-      try {
-        const result = await this.plugin.api.processVideo(
-          file.basename,
-          videoInput,
-          record.mode || "summary",
-          record.language || "zh",
-          false
-          // 不使用缓存，强制刷新
-        );
-        await this.noteProcessor.updateNote(file, result, record.mode || "summary", {
-          autoRename: this.plugin.settings.autoRenameEnabled,
-          conflictStrategy: this.plugin.settings.renameConflictStrategy
-        });
-        await this.noteProcessor.setProcessingStatus(
-          file,
-          this.plugin.settings.successStatusValue ?? "success"
-        );
-        const index = this.plugin.settings.history.findIndex(
-          (h) => h.file === record.file && h.time === record.time
-        );
-        if (index !== -1) {
-          this.plugin.settings.history[index] = {
-            ...this.plugin.settings.history[index],
-            time: (/* @__PURE__ */ new Date()).toLocaleString(),
-            result: "success"
-          };
-          await this.plugin.saveSettings();
-        }
-        notice.hide();
-        new import_obsidian4.Notice("\u2705 \u5F3A\u5236\u5237\u65B0\u5B8C\u6210", 3e3);
-        await this.refreshView();
-      } catch (error) {
-        notice.hide();
-        await this.noteProcessor.setProcessingStatus(file, "error");
-        new import_obsidian4.Notice(`\u274C \u5F3A\u5236\u5237\u65B0\u5931\u8D25: ${error.message}`, 5e3);
-      }
-    } catch (error) {
-      new import_obsidian4.Notice(`\u5F3A\u5236\u5237\u65B0\u5931\u8D25: ${error.message}`);
-    }
-  }
-  /**
-   * 取消指定文件的处理
-   */
-  async cancelFileProcessing(file) {
-    try {
-      this.processingFiles.delete(file.path);
-      await this.noteProcessor.setProcessingStatus(file, "pending");
-      await this.refreshView();
-      new import_obsidian4.Notice(`\u5DF2\u53D6\u6D88\u5904\u7406: ${file.basename}`);
-    } catch (error) {
-      console.error("\u53D6\u6D88\u5904\u7406\u5931\u8D25:", error);
-      new import_obsidian4.Notice(`\u53D6\u6D88\u5904\u7406\u5931\u8D25: ${error.message}`);
-    }
-  }
-  /**
-   * 检查是否应该取消处理
-   */
-  shouldCancelProcessing() {
-    return this.cancelProcessing;
-  }
-  /**
-   * 重置取消标志
-   */
-  resetCancelFlag() {
-    this.cancelProcessing = false;
-  }
+  /** 兼容旧调用方（main.ts 里的 refreshVideoSummaryView） */
   async refreshView() {
-    try {
-      const container = this.containerEl.children[1];
-      if (!container) return;
-      container.empty();
-      container.addClass("video-summary-view");
-      this.renderCombinedInputSection(container);
-      await this.renderCombinedFileListAndHistory(container);
-    } catch (error) {
-      console.error("\u5237\u65B0\u89C6\u56FE\u5931\u8D25:", error);
-    }
+    this.renderAll();
   }
-  getStatusText(status) {
-    return VideoUtils.getStatusText(status);
+  context() {
+    return {
+      plugin: this.plugin,
+      state: this.state,
+      renderPanels: () => this.renderPanels(),
+      renderAll: () => this.renderAll(),
+      openNote: (path) => this.openNote(path),
+      openDetail: (ref) => {
+        this.state.detail = ref;
+        this.state.detailTab = "preview";
+        this.renderPanels();
+      },
+      closeDetail: () => {
+        this.state.detail = null;
+        this.renderPanels();
+      },
+      submitOptions: () => ({
+        mode: this.plugin.settings.defaultMode,
+        language: this.plugin.settings.defaultLanguage,
+        useCache: this.plugin.settings.enableCache && !this.state.ignoreCache,
+        previewBeforeWrite: this.plugin.settings.previewBeforeWrite === true
+      })
+    };
   }
-  getStatusClass(status) {
-    return VideoUtils.getStatusClass(status);
+  renderAll() {
+    if (!this.headerEl) return;
+    this.headerEl.empty();
+    renderActionBar(this.headerEl, this.context());
+    this.renderPanels();
   }
-  async copyToClipboard(text, partIndex) {
-    try {
-      await navigator.clipboard.writeText(text);
-      new import_obsidian4.Notice(`\u7B2C${partIndex}P\u94FE\u63A5\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F`);
-    } catch {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      new import_obsidian4.Notice(`\u7B2C${partIndex}P\u94FE\u63A5\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F`);
-    }
+  schedulePanelRender() {
+    if (this.renderQueued) return;
+    this.renderQueued = true;
+    window.requestAnimationFrame(() => {
+      this.renderQueued = false;
+      this.renderPanels();
+    });
   }
-  updateGenerateButtonText() {
-    const generateBtn = this.containerEl.querySelector(".generate-btn");
-    if (!generateBtn) return;
-    const singleMode = this.containerEl.querySelector("#single-link-mode");
-    const multiMode = this.containerEl.querySelector("#multi-links-mode");
-    const jsonMode = this.containerEl.querySelector("#json-mode");
-    const multiPCheckbox = this.containerEl.querySelector("#multi-p-checkbox");
-    if (jsonMode?.checked) {
-      generateBtn.textContent = "\u521B\u5EFA\u7B14\u8BB0";
-      generateBtn.style.display = "block";
+  renderPanels() {
+    const panel = this.panelEl;
+    if (!panel) return;
+    const scrollTop = panel.scrollTop;
+    panel.empty();
+    if (this.state.detail) {
+      renderDetailPanel(panel, this.context());
       return;
     }
-    if (singleMode?.checked) {
-      if (multiPCheckbox?.checked) {
-        generateBtn.textContent = "\u751F\u6210\u5206P\u94FE\u63A5";
-      } else {
-        generateBtn.textContent = "\u5F00\u59CB\u5904\u7406";
-      }
-      generateBtn.style.display = "block";
-      return;
+    this.renderTabs(panel);
+    const body = panel.createDiv({ cls: "vs-panel-body" });
+    if (this.state.tab === "library") {
+      renderLibraryPanel(body, this.context());
+    } else {
+      renderJobsPanel(body, this.context());
     }
-    if (multiMode?.checked) {
-      generateBtn.textContent = "\u5F00\u59CB\u5904\u7406";
-      generateBtn.style.display = "block";
-      return;
+    panel.scrollTop = scrollTop;
+  }
+  renderTabs(panel) {
+    const activeCount = this.plugin.jobs.getActive().length + this.plugin.jobs.countByState("review");
+    const libraryCount = this.plugin.noteIndex.getAll().length;
+    const tabs = [
+      ["jobs", activeCount > 0 ? `\u4EFB\u52A1 ${activeCount}` : "\u4EFB\u52A1"],
+      ["library", `\u7B14\u8BB0\u5E93 ${libraryCount}`]
+    ];
+    const row = panel.createDiv({ cls: "vs-tab-row" });
+    tabs.forEach(([value, label]) => {
+      const tab = row.createEl("button", {
+        text: label,
+        cls: `vs-tab${this.state.tab === value ? " is-active" : ""}`,
+        attr: { type: "button" }
+      });
+      tab.addEventListener("click", async () => {
+        if (this.state.tab === value) return;
+        this.state.tab = value;
+        this.plugin.settings.activePanelTab = value;
+        await this.plugin.saveSettings();
+        if (value === "library") resetLibraryPaging();
+        this.renderPanels();
+      });
+    });
+  }
+  openNote(path) {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof import_obsidian11.TFile) {
+      void this.app.workspace.getLeaf(false).openFile(file);
     }
-    generateBtn.style.display = "block";
-  }
-  /**
-   * 清理视频链接，去除多余参数
-   */
-  cleanVideoUrl(url) {
-    return VideoUtils.cleanVideoUrl(url);
-  }
-  /**
-   * 清理视频链接，但保留p参数（用于单个链接模式）
-   */
-  cleanVideoUrlKeepP(url) {
-    return VideoUtils.cleanVideoUrlKeepP(url);
-  }
-  /**
-   * 检查是否有视频元数据
-   */
-  hasVideoMetadata(content) {
-    return VideoUtils.hasVideoMetadata(content);
-  }
-  /**
-   * 获取处理状态
-   */
-  getProcessingStatus(content) {
-    return VideoUtils.getProcessingStatus(content);
   }
 };
 
 // utils/FileProcessor.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 var FileProcessor = class {
   constructor(app, plugin) {
     this.app = app;
@@ -8800,12 +8064,12 @@ var FileProcessor = class {
       await leaf.openFile(file);
       setTimeout(() => {
         const view = leaf.view;
-        if (view instanceof import_obsidian5.MarkdownView) {
+        if (view instanceof import_obsidian12.MarkdownView) {
           new VideoSummaryModal(this.app, this.plugin, view.editor, view).open();
         }
       }, 100);
     } catch (error) {
-      new import_obsidian5.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${error.message}`);
+      new import_obsidian12.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${error.message}`);
     }
   }
   /**
@@ -8921,9 +8185,591 @@ var FileProcessor = class {
   }
 };
 
+// core/JobStore.ts
+var JobStore = class {
+  constructor() {
+    this.jobs = [];
+    this.listeners = /* @__PURE__ */ new Set();
+    this.runner = null;
+    this.running = 0;
+    this.seq = 0;
+    this.concurrency = 2;
+    this.cancelled = /* @__PURE__ */ new Set();
+  }
+  setRunner(runner) {
+    this.runner = runner;
+  }
+  setConcurrency(value) {
+    this.concurrency = Math.max(1, value || 1);
+    this.pump();
+  }
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  emit() {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        console.error("[JobStore] listener failed", error);
+      }
+    });
+  }
+  getAll() {
+    return this.jobs;
+  }
+  get(id) {
+    return this.jobs.find((job) => job.id === id);
+  }
+  getActive() {
+    return this.jobs.filter((job) => job.state === "queued" || job.state === "running");
+  }
+  countByState(state) {
+    return this.jobs.filter((job) => job.state === state).length;
+  }
+  enqueue(spec) {
+    const job = {
+      id: `job-${Date.now().toString(36)}-${this.seq += 1}`,
+      title: spec.title,
+      notePath: spec.notePath,
+      input: spec.input,
+      mode: spec.mode,
+      language: spec.language,
+      useCache: spec.useCache,
+      platform: spec.platform,
+      awaitingWrite: spec.awaitingWrite === true,
+      state: "queued",
+      createdAt: Date.now(),
+      logs: []
+    };
+    this.jobs.unshift(job);
+    this.emit();
+    this.pump();
+    return job;
+  }
+  /** 等一个任务跑到终态（命令面板走的是同步语义，需要等结果） */
+  waitFor(id) {
+    const terminal = (state) => state === "success" || state === "error" || state === "cancelled" || state === "review";
+    const current = this.get(id);
+    if (!current || terminal(current.state)) return Promise.resolve(current);
+    return new Promise((resolve) => {
+      const off = this.subscribe(() => {
+        const job = this.get(id);
+        if (!job || terminal(job.state)) {
+          off();
+          resolve(job);
+        }
+      });
+    });
+  }
+  update(id, patch) {
+    const job = this.get(id);
+    if (!job) return;
+    Object.assign(job, patch);
+    this.emit();
+  }
+  log(id, text) {
+    const job = this.get(id);
+    if (!job) return;
+    job.logs.push({ time: Date.now(), text });
+    if (job.logs.length > 200) job.logs.shift();
+    this.emit();
+  }
+  cancel(id) {
+    const job = this.get(id);
+    if (!job) return;
+    if (job.state === "queued") {
+      job.state = "cancelled";
+      job.endedAt = Date.now();
+      this.emit();
+      return;
+    }
+    if (job.state === "running") {
+      this.cancelled.add(id);
+      this.log(id, "\u5DF2\u8BF7\u6C42\u53D6\u6D88");
+    }
+  }
+  isCancelRequested(id) {
+    return this.cancelled.has(id);
+  }
+  retry(id) {
+    const job = this.get(id);
+    if (!job) return;
+    this.cancelled.delete(id);
+    job.state = "queued";
+    job.error = void 0;
+    job.result = void 0;
+    job.awaitingWrite = false;
+    job.stageLabel = void 0;
+    job.progress = void 0;
+    job.startedAt = void 0;
+    job.endedAt = void 0;
+    job.useCache = false;
+    this.log(id, "\u91CD\u65B0\u6392\u961F\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09");
+    this.emit();
+    this.pump();
+  }
+  remove(id) {
+    this.jobs = this.jobs.filter((job) => job.id !== id);
+    this.cancelled.delete(id);
+    this.emit();
+  }
+  clearFinished() {
+    this.jobs = this.jobs.filter(
+      (job) => job.state === "queued" || job.state === "running" || job.state === "review"
+    );
+    this.emit();
+  }
+  pump() {
+    if (!this.runner) return;
+    while (this.running < this.concurrency) {
+      const next = this.jobs.filter((job) => job.state === "queued").pop();
+      if (!next) return;
+      void this.run(next);
+    }
+  }
+  async run(job) {
+    if (!this.runner) return;
+    this.running += 1;
+    job.state = "running";
+    job.startedAt = Date.now();
+    job.error = void 0;
+    this.emit();
+    try {
+      const result = await this.runner(job, (progress) => {
+        if (progress.stageLabel !== void 0) job.stageLabel = progress.stageLabel;
+        if (progress.progress !== void 0) job.progress = progress.progress;
+        if (progress.message) this.log(job.id, progress.message);
+        this.emit();
+      });
+      if (this.cancelled.has(job.id)) {
+        job.state = "cancelled";
+      } else {
+        job.result = result;
+        job.state = job.awaitingWrite ? "review" : "success";
+      }
+    } catch (error) {
+      job.state = this.cancelled.has(job.id) ? "cancelled" : "error";
+      job.error = error instanceof Error ? error.message : String(error);
+      this.log(job.id, job.error);
+    } finally {
+      this.cancelled.delete(job.id);
+      job.endedAt = Date.now();
+      job.progress = void 0;
+      job.stageLabel = void 0;
+      this.running -= 1;
+      this.emit();
+      this.pump();
+    }
+  }
+};
+
+// core/JobService.ts
+var import_obsidian13 = require("obsidian");
+
+// core/NoteFactory.ts
+var NoteFactory = class {
+  constructor(app) {
+    this.app = app;
+  }
+  /** 为一个待处理任务创建占位笔记 */
+  async createStubNote(draft, options) {
+    const targetFolder = this.resolveFolder(options.outputFolder);
+    const filePath = await this.uniquePath(targetFolder, sanitizeFileName(draft.title));
+    const now = /* @__PURE__ */ new Date();
+    const dateString = formatDateTime(now);
+    const lines = ["---"];
+    if (draft.input.url) lines.push(`link: ${yamlEscape(draft.input.url)}`);
+    lines.push("status: pending");
+    lines.push(`video_title: ${yamlEscape(draft.title)}`);
+    lines.push(`date: ${dateString}`);
+    if (draft.input.transcript) {
+      lines.push("provided_transcript: |");
+      lines.push(`  ${draft.input.transcript.replace(/\n/g, "\n  ")}`);
+    }
+    if (draft.input.localFile) {
+      lines.push(`local_file: ${yamlEscape(draft.input.localFile)}`);
+    }
+    lines.push("---");
+    const content = `${lines.join("\n")}
+
+# ${draft.title}
+
+## \u57FA\u672C\u4FE1\u606F
+- **\u89C6\u9891\u94FE\u63A5**: ${draft.input.url || "\uFF08\u65E0\uFF09"}
+- **\u521B\u5EFA\u65F6\u95F4**: ${now.toLocaleString("zh-CN")}
+- **\u5904\u7406\u72B6\u6001**: \u5F85\u5904\u7406
+
+## \u89C6\u9891\u5185\u5BB9
+<!-- \u89C6\u9891\u603B\u7ED3\u5C06\u5728\u8FD9\u91CC\u751F\u6210 -->
+
+## \u7B14\u8BB0
+<!-- \u4E2A\u4EBA\u7B14\u8BB0\u5C06\u5728\u8FD9\u91CC\u751F\u6210 -->
+
+## \u6587\u7A3F
+<!-- \u89C6\u9891\u6587\u7A3F\u5C06\u5728\u8FD9\u91CC\u751F\u6210 -->
+`;
+    try {
+      return await this.app.vault.create(filePath, content);
+    } catch (error) {
+      console.error("[NoteFactory] \u521B\u5EFA\u7B14\u8BB0\u5931\u8D25", error);
+      return null;
+    }
+  }
+  /** 直接把一份 webhook 结果落成新笔记 */
+  async createNoteFromResult(entry, options) {
+    const folder = this.resolveFolder(options.outputFolder);
+    const baseTitle = entry.result.video_title || (entry.input.url ? titleForUrl(entry.input.url) : "Webhook\u7ED3\u679C");
+    const fileName = `${sanitizeFileName(baseTitle)}_${entry.timestamp}`;
+    const filePath = await this.uniquePath(folder, fileName);
+    const fm = ["---"];
+    fm.push(`status: ${options.successStatusValue || "success"}`);
+    if (entry.input.url) fm.push(`link: ${yamlEscape(entry.input.url)}`);
+    if (entry.result.video_title) fm.push(`video_title: ${yamlEscape(entry.result.video_title)}`);
+    if (entry.result.video_author)
+      fm.push(`video_author: ${yamlEscape(entry.result.video_author)}`);
+    if (entry.result.video_duration)
+      fm.push(`video_duration: ${yamlEscape(entry.result.video_duration)}`);
+    fm.push(`date: ${new Date(entry.timestamp).toISOString()}`);
+    if (entry.result.summary) {
+      fm.push("summary: |");
+      fm.push(`  ${entry.result.summary.replace(/\n/g, "\n  ")}`);
+    }
+    if (entry.result.video_transcript) {
+      fm.push("video_transcript: |");
+      fm.push(`  ${entry.result.video_transcript.replace(/\n/g, "\n  ")}`);
+    }
+    fm.push("---\n");
+    try {
+      return await this.app.vault.create(
+        filePath,
+        `${fm.join("\n")}${entry.result.note?.trim() ?? ""}`
+      );
+    } catch (error) {
+      console.error("[NoteFactory] \u4ECE\u7ED3\u679C\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25", error);
+      return null;
+    }
+  }
+  resolveFolder(outputFolder) {
+    if (outputFolder) return outputFolder;
+    const activeFile = this.app.workspace.getActiveFile();
+    return activeFile?.parent?.path && activeFile.parent.path !== "/" ? activeFile.parent.path : "";
+  }
+  async uniquePath(folder, baseName) {
+    let candidate = folder ? `${folder}/${baseName}.md` : `${baseName}.md`;
+    let counter = 1;
+    while (await this.app.vault.adapter.exists(candidate)) {
+      const name = `${baseName} (${counter})`;
+      candidate = folder ? `${folder}/${name}.md` : `${name}.md`;
+      counter += 1;
+    }
+    return candidate;
+  }
+};
+function buildInsertionContent(result) {
+  const lines = ["---", "## Webhook \u7ED3\u679C"];
+  if (result.video_title) lines.push(`- **\u6807\u9898**: ${result.video_title}`);
+  if (result.video_author) lines.push(`- **\u4F5C\u8005**: ${result.video_author}`);
+  if (result.video_duration) lines.push(`- **\u65F6\u957F**: ${result.video_duration}`);
+  if (result.summary) {
+    lines.push("", "### \u603B\u7ED3", result.summary);
+  }
+  if (result.note) {
+    lines.push("", "### \u5927\u7EB2", result.note);
+  }
+  if (result.video_transcript) {
+    lines.push("", "### \u6587\u7A3F", result.video_transcript);
+  }
+  lines.push("---");
+  return lines.join("\n");
+}
+function extractVideoInputFromPayload(raw) {
+  const sources = [];
+  const collect = (obj) => {
+    if (!obj || typeof obj !== "object") return;
+    sources.push(obj);
+    if (obj.metadata && typeof obj.metadata === "object") sources.push(obj.metadata);
+    if (obj.input && typeof obj.input === "object") sources.push(obj.input);
+  };
+  if (Array.isArray(raw)) raw.forEach(collect);
+  else collect(raw);
+  const pick = (keys) => {
+    for (const source of sources) {
+      for (const key of keys) {
+        const value = source[key];
+        if (typeof value === "string" && value.trim()) return value.trim();
+      }
+    }
+    return void 0;
+  };
+  const input = {};
+  const link = pick(["link", "url"]);
+  if (link) input.url = link;
+  const transcript = pick(["provided_transcript", "transcript"]);
+  if (transcript) input.transcript = transcript;
+  const localFile = pick(["local_file", "localFileName", "localFile"]);
+  if (localFile) input.localFile = localFile;
+  return input;
+}
+function sanitizeFileName(name) {
+  return name.replace(/[<>:"/\\|?*]/g, "_").trim() || "video_note";
+}
+function yamlEscape(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return '""';
+  const needsQuotes = /[:[\]{}#,&*!?|<>=@`]/.test(trimmed);
+  return needsQuotes ? `"${trimmed.replace(/"/g, '\\"')}"` : trimmed;
+}
+function formatDateTime(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+// core/JobService.ts
+var JobService = class {
+  constructor(plugin, store) {
+    this.plugin = plugin;
+    this.store = store;
+    this.noteProcessor = new NoteProcessor(plugin.app.vault);
+    this.noteFactory = new NoteFactory(plugin.app);
+    this.store.setRunner((job, report) => this.runJob(job, report));
+    this.store.setConcurrency(plugin.settings.batchConcurrency || 2);
+  }
+  /** 提交一批草稿：JSON 直接落笔记，其余建占位笔记后入队 */
+  async submit(drafts, options) {
+    if (drafts.length === 0) return 0;
+    const jsonDrafts = drafts.filter((draft) => draft.source === "json");
+    const runnableDrafts = drafts.filter((draft) => draft.source !== "json");
+    for (const draft of jsonDrafts) {
+      await this.createNoteFromJson(draft.rawJson || "", options.language);
+    }
+    if (runnableDrafts.length === 0) return jsonDrafts.length;
+    if (!await this.plugin.ensureBackendReady()) {
+      new import_obsidian13.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
+      return jsonDrafts.length;
+    }
+    let queued = 0;
+    for (const draft of runnableDrafts) {
+      const file = await this.noteFactory.createStubNote(draft, {
+        outputFolder: this.plugin.settings.outputFolder || "",
+        successStatusValue: this.plugin.settings.successStatusValue ?? "success"
+      });
+      if (!file) {
+        new import_obsidian13.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
+        continue;
+      }
+      this.store.enqueue({
+        title: draft.title,
+        input: draft.input,
+        mode: options.mode,
+        language: options.language,
+        useCache: options.useCache,
+        notePath: file.path,
+        platform: draft.platform,
+        awaitingWrite: options.previewBeforeWrite
+      });
+      queued += 1;
+    }
+    return queued + jsonDrafts.length;
+  }
+  /** 对已有笔记发起处理（笔记库里的 ▶ 和重跑都走这里） */
+  async submitFile(file, options) {
+    const content = await this.plugin.app.vault.read(file);
+    const input = this.noteProcessor.buildVideoInput(content);
+    if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
+      new import_obsidian13.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
+      return null;
+    }
+    if (!await this.plugin.ensureBackendReady()) return null;
+    return this.store.enqueue({
+      title: file.basename,
+      input,
+      mode: options.mode,
+      language: options.language,
+      useCache: options.useCache,
+      notePath: file.path,
+      platform: input.url ? detectPlatform2(input.url) : void 0,
+      awaitingWrite: options.previewBeforeWrite
+    });
+  }
+  async cancel(job) {
+    this.store.cancel(job.id);
+    const noteName = job.notePath ? basenameOf(job.notePath) : job.title;
+    this.plugin.api.cancelByNoteName(noteName);
+    const file = this.fileFor(job);
+    if (file) {
+      await this.noteProcessor.setProcessingStatus(file, "pending");
+    }
+  }
+  /** 预览确认后写入笔记 */
+  async writeResult(job) {
+    if (!job.result) return false;
+    const file = this.fileFor(job);
+    if (!file) {
+      new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+      return false;
+    }
+    try {
+      await this.applyResult(file, job.result, job.mode);
+      this.store.update(job.id, { state: "success", awaitingWrite: false });
+      this.plugin.addToHistory(file.basename, "success", job.mode, {
+        url: job.input.url,
+        platform: job.platform,
+        durationMs: job.endedAt && job.startedAt ? job.endedAt - job.startedAt : void 0
+      });
+      return true;
+    } catch (error) {
+      new import_obsidian13.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf(error)}`);
+      return false;
+    }
+  }
+  /** 丢弃结果，把笔记退回待处理 */
+  async discardResult(job) {
+    const file = this.fileFor(job);
+    if (file) await this.noteProcessor.setProcessingStatus(file, "pending");
+    this.store.update(job.id, { state: "cancelled", awaitingWrite: false });
+  }
+  /** 把结果按正常写入规则应用到当前打开的笔记（等价旧版"应用到当前文件"） */
+  async applyToActiveNote(result, mode) {
+    const activeFile = this.plugin.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new import_obsidian13.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      return;
+    }
+    try {
+      await this.applyResult(activeFile, result, mode);
+      new import_obsidian13.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
+    } catch (error) {
+      new import_obsidian13.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf(error)}`);
+    }
+  }
+  /** 把结果插到当前打开的笔记末尾 */
+  async insertIntoActiveNote(result) {
+    const activeFile = this.plugin.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new import_obsidian13.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      return;
+    }
+    const content = await this.plugin.app.vault.read(activeFile);
+    await this.plugin.app.vault.modify(
+      activeFile,
+      `${content.trim()}
+
+${buildInsertionContent(result)}`
+    );
+    new import_obsidian13.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
+  }
+  /** 用结果新建一篇笔记 */
+  async createNoteFromResult(job) {
+    if (!job.result) return;
+    const file = await this.noteFactory.createNoteFromResult(
+      {
+        result: job.result,
+        input: job.input,
+        mode: job.mode,
+        language: job.language,
+        timestamp: job.endedAt || Date.now()
+      },
+      {
+        outputFolder: this.plugin.settings.outputFolder || "",
+        successStatusValue: this.plugin.settings.successStatusValue ?? "success"
+      }
+    );
+    if (file) new import_obsidian13.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
+  }
+  async createNoteFromJson(jsonText, language) {
+    try {
+      const parsed = JSON.parse(jsonText);
+      const result = this.plugin.api.normalizeWebhookPayload(parsed);
+      const file = await this.noteFactory.createNoteFromResult(
+        {
+          result,
+          input: extractVideoInputFromPayload(parsed),
+          mode: "summary",
+          language,
+          timestamp: Date.now()
+        },
+        {
+          outputFolder: this.plugin.settings.outputFolder || "",
+          successStatusValue: this.plugin.settings.successStatusValue ?? "success"
+        }
+      );
+      if (file) new import_obsidian13.Notice(`\u5DF2\u6839\u636E JSON \u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
+    } catch (error) {
+      new import_obsidian13.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf(error)}`);
+    }
+  }
+  async runJob(job, report) {
+    const file = this.fileFor(job);
+    const noteName = file ? file.basename : job.title;
+    if (file) {
+      await this.noteProcessor.setProcessingStatus(file, "running");
+    }
+    try {
+      const result = await this.plugin.api.processVideo(
+        noteName,
+        job.input,
+        job.mode,
+        job.language,
+        job.useCache,
+        report
+      );
+      if (job.awaitingWrite) {
+        return result;
+      }
+      if (file) {
+        await this.applyResult(file, result, job.mode);
+      }
+      this.plugin.addToHistory(noteName, "success", job.mode, {
+        url: job.input.url,
+        platform: job.platform,
+        durationMs: job.startedAt ? Date.now() - job.startedAt : void 0
+      });
+      return result;
+    } catch (error) {
+      const message = messageOf(error);
+      if (file) {
+        await this.noteProcessor.setProcessingError(file, error);
+      }
+      this.plugin.addToHistory(noteName, "error", job.mode, {
+        url: job.input.url,
+        platform: job.platform,
+        error: message,
+        durationMs: job.startedAt ? Date.now() - job.startedAt : void 0
+      });
+      throw error;
+    }
+  }
+  async applyResult(file, result, mode) {
+    await this.noteProcessor.updateNote(file, result, mode, {
+      autoRename: this.plugin.settings.autoRenameEnabled,
+      conflictStrategy: this.plugin.settings.renameConflictStrategy
+    });
+    await this.noteProcessor.setProcessingStatus(
+      file,
+      this.plugin.settings.successStatusValue ?? "success"
+    );
+  }
+  fileFor(job) {
+    if (!job.notePath) return null;
+    const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
+    return file instanceof import_obsidian13.TFile ? file : null;
+  }
+};
+function basenameOf(path) {
+  const name = path.split("/").pop() || path;
+  return name.replace(/\.md$/i, "");
+}
+function messageOf(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // main.ts
-var import_obsidian7 = require("obsidian");
-var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
+var import_obsidian15 = require("obsidian");
+var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
   constructor() {
     super(...arguments);
     // history.json 延迟写入
@@ -8937,6 +8783,10 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
     this.initializeApiInstance();
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = new NoteProcessor(this.app.vault);
+    this.jobs = new JobStore();
+    this.jobService = new JobService(this, this.jobs);
+    this.noteIndex = new NoteIndex(this.app);
+    this.app.workspace.onLayoutReady(() => this.noteIndex.build());
     this.registerView(
       VIDEO_SUMMARY_VIEW_TYPE,
       (leaf) => new VideoSummaryView(leaf, this)
@@ -8948,13 +8798,15 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
     });
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
-      this.app.vault.on("modify", (file) => {
-        if (file instanceof import_obsidian6.TFile && file.extension === "md") {
-          setTimeout(() => {
-            this.refreshVideoSummaryView();
-          }, 500);
+      this.app.metadataCache.on("changed", (file) => {
+        if (file instanceof import_obsidian14.TFile && file.extension === "md") {
+          void this.noteIndex.refreshFile(file);
         }
       })
+    );
+    this.registerEvent(this.app.vault.on("delete", (file) => this.noteIndex.handleDelete(file)));
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => this.noteIndex.handleRename(file, oldPath))
     );
     console.log("Video Summary Plugin loaded");
   }
@@ -9055,7 +8907,7 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
   registerContextMenu() {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
-        if (file instanceof import_obsidian6.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian14.TFile && file.extension === "md") {
           menu.addItem((item) => {
             item.setTitle("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406").setIcon("video").onClick(async () => {
               await this.processFile(file);
@@ -9074,7 +8926,7 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian6.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -9082,19 +8934,19 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian6.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new import_obsidian6.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processCurrentNoteWithMode(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian6.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -9102,32 +8954,32 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian6.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian6.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async updateVideoInfoOnly(editor, view, forceRename) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian6.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
       const videoInput = this.noteProcessor.buildVideoInput(content);
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian6.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
-      const statusNotice = new import_obsidian6.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
+      const statusNotice = new import_obsidian14.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
       try {
         const result = await this.api.processVideo(
           file.basename,
@@ -9154,26 +9006,26 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
         setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian6.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async reprocessCurrentNote(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian6.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.processFile(file);
     } catch (error) {
-      new import_obsidian6.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async quickProcessCurrentNote(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian6.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -9181,14 +9033,14 @@ var VideoSummaryPlugin = class extends import_obsidian6.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian6.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
         return;
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
-      const statusNotice = new import_obsidian6.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
+      const statusNotice = new import_obsidian14.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
       let isMerge = false;
       let localFiles = [];
       if (localFileName && localFileName.includes(",")) {
@@ -9290,19 +9142,19 @@ ${extractResult.video_transcript}
         setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian6.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processFullTextAsTranscript(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian6.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new import_obsidian6.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
+        new import_obsidian14.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
         return;
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
@@ -9311,7 +9163,7 @@ ${extractResult.video_transcript}
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
-      const statusNotice = new import_obsidian6.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
+      const statusNotice = new import_obsidian14.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
       try {
         const input = {
           transcript: fullText
@@ -9352,7 +9204,7 @@ ${extractResult.video_transcript}
         setTimeout(() => statusNotice.hide(), 5e3);
       }
     } catch (error) {
-      new import_obsidian6.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processAllPendingVideos() {
@@ -9380,7 +9232,7 @@ ${extractResult.video_transcript}
         }
       }
       if (pendingFiles.length === 0) {
-        new import_obsidian6.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
+        new import_obsidian14.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
         return;
       }
       const confirmed = await this.showConfirmDialog(
@@ -9399,7 +9251,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       if (!await this.ensureBackendReady()) {
         return;
       }
-      const progressNotice = new import_obsidian6.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
+      const progressNotice = new import_obsidian14.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < pendingFiles.length; i++) {
@@ -9408,11 +9260,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
           progressNotice.setMessage(`\u5904\u7406\u4E2D (${i + 1}/${pendingFiles.length})`);
           await this.processFileWithMode(file, this.settings.defaultMode);
           successCount++;
-          this.addToHistory(file.basename, "success", this.settings.defaultMode);
         } catch (error) {
           errorCount++;
           console.error(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${file.basename}`, error);
-          this.addToHistory(file.basename, "error", this.settings.defaultMode);
         }
         if (i < pendingFiles.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 1e3));
@@ -9422,7 +9272,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       progressNotice.setMessage(`\u5B8C\u6210\uFF01\u6210\u529F: ${successCount}, \u5931\u8D25: ${errorCount}`);
       setTimeout(() => progressNotice.hide(), 3e3);
     } catch (error) {
-      new import_obsidian6.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async showConfirmDialog(title, message) {
@@ -9431,7 +9281,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       modal.open();
     });
   }
-  addToHistory(fileName, result, mode) {
+  addToHistory(fileName, result, mode, meta) {
     if (!this.settings.history) {
       this.settings.history = [];
     }
@@ -9439,7 +9289,12 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       file: fileName,
       result,
       mode,
-      time: (/* @__PURE__ */ new Date()).toLocaleString("zh-CN")
+      time: (/* @__PURE__ */ new Date()).toLocaleString("zh-CN"),
+      language: this.settings.defaultLanguage,
+      url: meta?.url,
+      platform: meta?.platform,
+      error: meta?.error,
+      durationMs: meta?.durationMs
     });
     this.trimHistory();
     this.queueHistorySave();
@@ -9448,9 +9303,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new import_obsidian6.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
+      new import_obsidian14.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
     } catch (error) {
-      new import_obsidian6.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${error.message}`);
+      new import_obsidian14.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${error.message}`);
     }
   }
   async testProcessingBackendConnection() {
@@ -9458,14 +9313,14 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       const result = await this.api.testConnection();
       const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
       if (result.success) {
-        new import_obsidian6.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
+        new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
       } else {
         const hint = result.hint ? `
 \u5EFA\u8BAE: ${result.hint}` : "";
-        new import_obsidian6.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+        new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
       }
     } catch (error) {
-      new import_obsidian6.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
+      new import_obsidian14.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
     }
   }
   formatErrorForNotice(error) {
@@ -9508,12 +9363,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       if (confirmed) {
         await this.setActiveBackend(otherBackend);
         this.lastPreflight = null;
-        new import_obsidian6.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
+        new import_obsidian14.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
         return true;
       }
       return false;
     }
-    new import_obsidian6.Notice(
+    new import_obsidian14.Notice(
       `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
 \uFF08${otherLabel} \u4E5F\u672A\u68C0\u6D4B\u5230\uFF09\u8BF7\u5148\u542F\u52A8\u5904\u7406\u670D\u52A1\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5 URL\u3002`,
       8e3
@@ -9720,7 +9575,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   async setActiveWebhook(profileId, options = {}) {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new import_obsidian6.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 Webhook \u914D\u7F6E");
+      new import_obsidian14.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 Webhook \u914D\u7F6E");
       return null;
     }
     this.settings.activeWebhookId = profileId;
@@ -9729,7 +9584,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
-      new import_obsidian6.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
+      new import_obsidian14.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
     }
     return profile;
   }
@@ -9759,46 +9614,34 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   extractLocalFileName(content) {
     return VideoUtils.extractLocalFileName(content);
   }
+  /**
+   * 命令面板 / 右键菜单的处理入口。
+   * 自 2.3.0 起统一走任务队列，这样命令触发的处理也能在侧栏看到进度、取消和失败原因，
+   * 状态写回、历史记录、错误处理都由 JobService 统一负责（不再各写一份）。
+   */
   async processFileWithMode(file, mode) {
-    try {
-      const content = await this.app.vault.read(file);
-      const url = this.extractVideoUrl(content);
-      const providedTranscript = this.extractProvidedTranscript(content);
-      const localFileName = this.extractLocalFileName(content);
-      if (!url && !providedTranscript && !localFileName) {
-        throw new Error("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
-      }
-      if (!await this.ensureBackendReady()) {
-        return;
-      }
-      await this.noteProcessor.setProcessingStatus(file, "running");
-      const input = {};
-      if (url) input.url = url;
-      if (providedTranscript) input.transcript = providedTranscript;
-      if (localFileName) input.localFile = localFileName;
-      const result = await this.api.processVideo(
-        file.basename,
-        input,
-        mode,
-        this.settings.defaultLanguage,
-        this.settings.enableCache !== false
-        // 根据设置决定是否使用缓存
-      );
-      await this.noteProcessor.updateNote(file, result, mode, {
-        autoRename: this.settings.autoRenameEnabled,
-        conflictStrategy: this.settings.renameConflictStrategy
-      });
-      await this.noteProcessor.setProcessingStatus(
-        file,
-        this.settings.successStatusValue ?? "success"
-      );
-      this.addToHistory(file.basename, "success", mode);
-      new import_obsidian6.Notice(`\u2705 ${this.getModeDisplayText(mode)}\u5B8C\u6210`);
-    } catch (error) {
-      await this.noteProcessor.setProcessingError(file, error);
-      this.addToHistory(file.basename, "error", mode);
-      new import_obsidian6.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+    const job = await this.jobService.submitFile(file, {
+      mode,
+      language: this.settings.defaultLanguage,
+      useCache: this.settings.enableCache !== false,
+      previewBeforeWrite: this.settings.previewBeforeWrite === true
+    });
+    if (!job) return;
+    const finished = await this.jobs.waitFor(job.id);
+    if (!finished) return;
+    if (finished.state === "error") {
+      new import_obsidian14.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
+      throw new Error(finished.error || "\u5904\u7406\u5931\u8D25");
     }
+    if (finished.state === "cancelled") {
+      new import_obsidian14.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
+      return;
+    }
+    if (finished.state === "review") {
+      new import_obsidian14.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
+      return;
+    }
+    new import_obsidian14.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
   }
   /**
    * 刷新视频总结视图
@@ -9812,16 +9655,6 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       default:
         return "\u89C6\u9891\u4FE1\u606F";
     }
-  }
-  refreshVideoSummaryView() {
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view.getViewType() === "video-summary-view") {
-        const view = leaf.view;
-        if (view.refreshView) {
-          view.refreshView();
-        }
-      }
-    });
   }
   /**
    * 自动重命名文件
@@ -9889,13 +9722,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian6.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "excluded");
-      new import_obsidian6.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
+      new import_obsidian14.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
     } catch (error) {
-      new import_obsidian6.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
+      new import_obsidian14.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
     }
   }
   /**
@@ -9914,12 +9747,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     try {
       const rawUrl = (params.url || params.link || "").trim();
       if (!rawUrl) {
-        new import_obsidian6.Notice("video-summary \u534F\u8BAE\u8C03\u7528\u7F3A\u5C11 url \u53C2\u6570", 6e3);
+        new import_obsidian14.Notice("video-summary \u534F\u8BAE\u8C03\u7528\u7F3A\u5C11 url \u53C2\u6570", 6e3);
         return;
       }
       const url = VideoUtils.cleanVideoUrlKeepP(rawUrl);
       if (!VideoUtils.isValidVideoUrl(url)) {
-        new import_obsidian6.Notice(`\u4E0D\u662F\u53D7\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5: ${url}`, 6e3);
+        new import_obsidian14.Notice(`\u4E0D\u662F\u53D7\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5: ${url}`, 6e3);
         return;
       }
       const fallbackTitle = `Video ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace("T", " ").replace(":", "-")}`;
@@ -9954,7 +9787,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         ""
       ].join("\n");
       const file = await this.app.vault.create(notePath, content);
-      new import_obsidian6.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0\uFF0C\u5F00\u59CB\u5904\u7406: ${file.basename}`);
+      new import_obsidian14.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0\uFF0C\u5F00\u59CB\u5904\u7406: ${file.basename}`);
       const leaf = this.app.workspace.getLeaf(true);
       await leaf.openFile(file);
       const requestedMode = (params.mode || "").trim();
@@ -9963,11 +9796,11 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       ) ? requestedMode : this.settings.defaultMode;
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian6.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian14.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
 };
-var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
+var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.activeTab = "general";
@@ -10020,11 +9853,11 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     });
   }
   createSetupGuideSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section setup-guide-section" });
-    const titleRow = section.createDiv({ cls: "setup-guide-title-row" });
+    const section2 = containerEl.createEl("div", { cls: "setting-section setup-guide-section" });
+    const titleRow = section2.createDiv({ cls: "setup-guide-title-row" });
     titleRow.createEl("h3", { text: "\u5B89\u88C5\u68C0\u67E5" });
     if (this.plugin.settings.setupGuideDismissed) {
-      new import_obsidian6.Setting(section).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
+      new import_obsidian14.Setting(section2).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
         (button) => button.setButtonText("\u663E\u793A\u68C0\u67E5\u6E05\u5355").onClick(async () => {
           this.plugin.settings.setupGuideDismissed = false;
           await this.plugin.saveSettings();
@@ -10033,12 +9866,12 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       );
       return;
     }
-    section.createEl("p", {
+    section2.createEl("p", {
       text: "\u7B2C\u4E00\u6B21\u4F7F\u7528\u65F6\uFF0C\u5148\u786E\u8BA4\u8FD9\u51E0\u9879\u3002\u8FDE\u63A5\u8BCA\u65AD\u4F1A\u53D1\u9001\u4E00\u4E2A\u8F7B\u91CF\u6D4B\u8BD5\u8BF7\u6C42\uFF0C\u4E0D\u4F1A\u5904\u7406\u771F\u5B9E\u89C6\u9891\u3002",
       cls: "setting-item-description"
     });
     const checks = this.getSetupChecks();
-    const list = section.createDiv({ cls: "setup-check-list" });
+    const list = section2.createDiv({ cls: "setup-check-list" });
     checks.forEach((check) => {
       const row = list.createDiv({ cls: `setup-check-item is-${check.state}` });
       row.createSpan({ text: this.getSetupCheckIcon(check.state), cls: "setup-check-icon" });
@@ -10046,8 +9879,8 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       textWrap.createEl("strong", { text: check.label });
       textWrap.createEl("span", { text: check.detail });
     });
-    const resultBox = section.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian6.Setting(section).setName("\u8FDE\u63A5\u8BCA\u65AD").setDesc("\u5982\u679C\u8FD9\u91CC\u5931\u8D25\uFF0C\u4F18\u5148\u6309\u8BCA\u65AD\u5EFA\u8BAE\u5904\u7406\uFF0C\u518D\u67E5\u770B n8n Execution \u65E5\u5FD7\u3002").addButton(
+    const resultBox = section2.createDiv({ cls: "setup-diagnostic-result" });
+    new import_obsidian14.Setting(section2).setName("\u8FDE\u63A5\u8BCA\u65AD").setDesc("\u5982\u679C\u8FD9\u91CC\u5931\u8D25\uFF0C\u4F18\u5148\u6309\u8BCA\u65AD\u5EFA\u8BAE\u5904\u7406\uFF0C\u518D\u67E5\u770B n8n Execution \u65E5\u5FD7\u3002").addButton(
       (button) => button.setButtonText("\u8FD0\u884C\u8BCA\u65AD").setCta().onClick(async () => {
         button.setDisabled(true);
         button.setButtonText("\u8BCA\u65AD\u4E2D...");
@@ -10187,13 +10020,13 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     }
   }
   createPlatformMatrixSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section platform-matrix-section" });
-    section.createEl("h3", { text: "\u5E73\u53F0\u80FD\u529B\u77E9\u9635" });
-    section.createEl("p", {
+    const section2 = containerEl.createEl("div", { cls: "setting-section platform-matrix-section" });
+    section2.createEl("h3", { text: "\u5E73\u53F0\u80FD\u529B\u77E9\u9635" });
+    section2.createEl("p", {
       text: "\u4E0D\u540C\u5E73\u53F0\u7684\u53EF\u7528\u6027\u4E0D\u4E00\u6837\u3002\u4F18\u5148\u7528\u672C\u5730\u6587\u4EF6\u3001\u516C\u5F00 YouTube/Bilibili \u6216\u5DF2\u7C98\u8D34\u6587\u7A3F\uFF1B\u77ED\u89C6\u9891\u5E73\u53F0\u901A\u5E38\u9700\u8981 cookies\u3002",
       cls: "setting-item-description"
     });
-    const grid = section.createDiv({ cls: "platform-matrix-grid" });
+    const grid = section2.createDiv({ cls: "platform-matrix-grid" });
     PLATFORM_CAPABILITIES.forEach((item) => {
       const card = grid.createDiv({ cls: `platform-matrix-card is-${item.status}` });
       const header = card.createDiv({ cls: "platform-matrix-card-header" });
@@ -10224,14 +10057,14 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   createCookiesSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u{1F36A} Cookies \u7BA1\u7406" });
-    section.createEl("p", {
+    const section2 = containerEl.createEl("div", { cls: "setting-section" });
+    section2.createEl("h3", { text: "\u{1F36A} Cookies \u7BA1\u7406" });
+    section2.createEl("p", {
       text: "\u53D7\u9650\u5E73\u53F0\uFF08Bilibili / \u6296\u97F3 / \u5C0F\u7EA2\u4E66 / TikTok\uFF09\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002\u76EE\u5F55\u4E00\u822C\u662F n8n docker \u9879\u76EE\u91CC\u7684 docker/cookies\uFF1B\u6587\u4EF6\u540D\u5982 bilibili_cookies.txt\u3002",
       cls: "setting-item-description"
     });
-    const resultBox = section.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian6.Setting(section).setName("Cookies \u76EE\u5F55").setDesc("docker/cookies \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 /Users/you/n8n-project/docker/cookies").addText(
+    const resultBox = section2.createDiv({ cls: "setup-diagnostic-result" });
+    new import_obsidian14.Setting(section2).setName("Cookies \u76EE\u5F55").setDesc("docker/cookies \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 /Users/you/n8n-project/docker/cookies").addText(
       (text) => text.setPlaceholder("/path/to/docker/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
@@ -10240,18 +10073,18 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       (button) => button.setButtonText("\u6253\u5F00\u76EE\u5F55").onClick(() => {
         const dir = (this.plugin.settings.cookiesDirPath || "").trim();
         if (!dir) {
-          new import_obsidian6.Notice("\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84");
+          new import_obsidian14.Notice("\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84");
           return;
         }
         try {
           const electron = window.require?.("electron");
           if (!electron?.shell?.openPath) {
-            new import_obsidian6.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
+            new import_obsidian14.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
             return;
           }
           electron.shell.openPath(dir);
         } catch (error) {
-          new import_obsidian6.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
+          new import_obsidian14.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
         }
       })
     ).addButton(
@@ -10308,9 +10141,9 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       let hasStale = false;
       files.forEach((name) => {
         try {
-          const stat = fs.statSync(pathModule.join(dir, name));
-          const ageDays = Math.floor((now - stat.mtimeMs) / (24 * 60 * 60 * 1e3));
-          const sizeKb = Math.max(1, Math.round(stat.size / 1024));
+          const stat2 = fs.statSync(pathModule.join(dir, name));
+          const ageDays = Math.floor((now - stat2.mtimeMs) / (24 * 60 * 60 * 1e3));
+          const sizeKb = Math.max(1, Math.round(stat2.size / 1024));
           const stale = ageDays > STALE_DAYS;
           if (stale) hasStale = true;
           list.createEl("li", {
@@ -10362,21 +10195,21 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     });
   }
   createApiSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u{1F517} \u4E3B\u5165\u53E3\u4E0E API \u914D\u7F6E" });
-    this.createWorkflowCompatibilityCard(section);
-    new import_obsidian6.Setting(section).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
+    const section2 = containerEl.createEl("div", { cls: "setting-section" });
+    section2.createEl("h3", { text: "\u{1F517} \u4E3B\u5165\u53E3\u4E0E API \u914D\u7F6E" });
+    this.createWorkflowCompatibilityCard(section2);
+    new import_obsidian14.Setting(section2).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
       "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u5F53\u524D\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8981\u8C03\u7528 n8n \u8FD8\u662F\u672C\u5730 Codex worker\u3002"
     ).addDropdown(
       (dropdown) => dropdown.addOption("n8n", "n8n / \u517C\u5BB9 Webhook").addOption("codex-worker", "Codex Video Worker").setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
         await this.plugin.setActiveBackend(value);
-        new import_obsidian6.Notice(
+        new import_obsidian14.Notice(
           value === "codex-worker" ? "\u5DF2\u5207\u6362\u5230 Codex Video Worker" : "\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook"
         );
         this.display();
       })
     );
-    new import_obsidian6.Setting(section).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u4F4D\u4E8E\u540C\u4E00 host \u7684 /dashboard\u3002").addText(
+    new import_obsidian14.Setting(section2).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u4F4D\u4E8E\u540C\u4E00 host \u7684 /dashboard\u3002").addText(
       (text) => text.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
         this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
         if (this.plugin.settings.activeBackend === "codex-worker") {
@@ -10389,7 +10222,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         this.plugin.openCodexWorkerDashboard();
       })
     );
-    const webhookSetting = new import_obsidian6.Setting(section).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc(
+    const webhookSetting = new import_obsidian14.Setting(section2).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc(
       "\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A Webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n / \u517C\u5BB9 Webhook\u3002"
     );
     let webhookDropdown = null;
@@ -10417,7 +10250,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       }
     };
     refreshDropdownOptions();
-    const workflowDiagnosticResult = section.createDiv({ cls: "setup-diagnostic-result" });
+    const workflowDiagnosticResult = section2.createDiv({ cls: "setup-diagnostic-result" });
     webhookSetting.addButton(
       (button) => button.setButtonText("\u6D4B\u8BD5\u5F53\u524D\u540E\u7AEF").onClick(async () => {
         button.setDisabled(true);
@@ -10426,11 +10259,11 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
           const res = await this.plugin.api.testConnection();
           const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
           if (res.success) {
-            new import_obsidian6.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
+            new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
           } else {
             const hint = res.hint ? `
 \u5EFA\u8BAE: ${res.hint}` : "";
-            new import_obsidian6.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+            new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
           }
           this.renderConnectionResult(workflowDiagnosticResult, res);
         } catch (error) {
@@ -10444,7 +10277,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         }
       })
     );
-    const profilesContainer = section.createEl("div", { cls: "webhook-profiles-container" });
+    const profilesContainer = section2.createEl("div", { cls: "webhook-profiles-container" });
     const renderProfiles = () => {
       profilesContainer.empty();
       if (this.plugin.settings.webhookProfiles.length === 0) {
@@ -10498,7 +10331,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new import_obsidian6.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A Webhook");
+            new import_obsidian14.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A Webhook");
             return;
           }
           this.plugin.settings.webhookProfiles = this.plugin.settings.webhookProfiles.filter(
@@ -10516,7 +10349,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       });
     };
     renderProfiles();
-    new import_obsidian6.Setting(section).addButton(
+    new import_obsidian14.Setting(section2).addButton(
       (button) => button.setButtonText("\u6DFB\u52A0 Webhook").setCta().onClick(async () => {
         const newProfile = {
           id: `webhook-${Date.now()}`,
@@ -10531,15 +10364,15 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     );
   }
   createBasicSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u2699\uFE0F \u57FA\u7840\u914D\u7F6E" });
-    new import_obsidian6.Setting(section).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
+    const section2 = containerEl.createEl("div", { cls: "setting-section" });
+    section2.createEl("h3", { text: "\u2699\uFE0F \u57FA\u7840\u914D\u7F6E" });
+    new import_obsidian14.Setting(section2).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
         await this.plugin.saveSettings();
       })
     );
-    const aiSection = section.createEl("div", { cls: "setting-section" });
+    const aiSection = section2.createEl("div", { cls: "setting-section" });
     aiSection.createEl("h4", { text: "\u81EA\u5B9A\u4E49\u5904\u7406\u6A21\u578B", cls: "setting-item-name" });
     aiSection.createEl("p", {
       text: "\u6DFB\u52A0\u4F60\u8981\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u6A21\u578B\u540D\u79F0\uFF08\u9700\u4E0E n8n Switch \u8282\u70B9\u7684\u503C\u5B8C\u5168\u4E00\u81F4\uFF09\u3002",
@@ -10590,7 +10423,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.customAiModels.length <= 1) {
-            new import_obsidian6.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A\u5904\u7406\u6A21\u578B");
+            new import_obsidian14.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A\u5904\u7406\u6A21\u578B");
             return;
           }
           this.plugin.settings.customAiModels.splice(index, 1);
@@ -10604,7 +10437,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       });
     };
     renderAiModels();
-    new import_obsidian6.Setting(aiSection).addButton(
+    new import_obsidian14.Setting(aiSection).addButton(
       (button) => button.setButtonText("\u6DFB\u52A0\u65B0\u6A21\u578B").onClick(async () => {
         this.plugin.settings.customAiModels.push("\u65B0\u6A21\u578B");
         await this.plugin.saveSettings();
@@ -10612,7 +10445,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         renderAiModels();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u9ED8\u8BA4\u5904\u7406\u6A21\u578B").setDesc("\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u9ED8\u8BA4\u6A21\u578B\u6807\u7B7E").addDropdown((dropdown) => {
+    new import_obsidian14.Setting(section2).setName("\u9ED8\u8BA4\u5904\u7406\u6A21\u578B").setDesc("\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u9ED8\u8BA4\u6A21\u578B\u6807\u7B7E").addDropdown((dropdown) => {
       aiDropdown = dropdown;
       dropdown.onChange(async (value) => {
         this.plugin.settings.aiModel = value;
@@ -10620,20 +10453,20 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       });
     });
     refreshAiDropdownOptions();
-    new import_obsidian6.Setting(section).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian14.Setting(section2).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
+    new import_obsidian14.Setting(section2).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u7684\u9ED8\u8BA4\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u5F53\u524D\u6587\u4EF6\u6240\u5728\u6587\u4EF6\u5939\uFF09").addText(
+    new import_obsidian14.Setting(section2).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u7684\u9ED8\u8BA4\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u5F53\u524D\u6587\u4EF6\u6240\u5728\u6587\u4EF6\u5939\uFF09").addText(
       (text) => text.setPlaceholder("\u4F8B\u5982: Videos/2024").setValue(this.plugin.settings.outputFolder).onChange(async (value) => {
         this.plugin.settings.outputFolder = value;
         await this.plugin.saveSettings();
@@ -10641,31 +10474,31 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     );
   }
   createQuickProcessingSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u26A1 \u4E00\u952E\u5904\u7406\u914D\u7F6E" });
-    const summarySubsection = section.createEl("div", { cls: "setting-subsection" });
+    const section2 = containerEl.createEl("div", { cls: "setting-section" });
+    section2.createEl("h3", { text: "\u26A1 \u4E00\u952E\u5904\u7406\u914D\u7F6E" });
+    const summarySubsection = section2.createEl("div", { cls: "setting-subsection" });
     summarySubsection.createEl("h4", { text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E" });
-    new import_obsidian6.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    new import_obsidian14.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian14.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
       })
     );
-    const transcriptSubsection = section.createEl("div", { cls: "setting-subsection" });
+    const transcriptSubsection = section2.createEl("div", { cls: "setting-subsection" });
     transcriptSubsection.createEl("h4", { text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E" });
-    new import_obsidian6.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    new import_obsidian14.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian14.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -10673,27 +10506,27 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     );
   }
   createFileProcessingSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u{1F4C1} \u6587\u4EF6\u5904\u7406\u914D\u7F6E" });
-    new import_obsidian6.Setting(section).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
+    const section2 = containerEl.createEl("div", { cls: "setting-section" });
+    section2.createEl("h3", { text: "\u{1F4C1} \u6587\u4EF6\u5904\u7406\u914D\u7F6E" });
+    new import_obsidian14.Setting(section2).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
+    new import_obsidian14.Setting(section2).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
       (drop) => drop.addOption("append-number", "\u8FFD\u52A0\u7F16\u53F7").addOption("append-date", "\u8FFD\u52A0\u65E5\u671F").addOption("skip", "\u8DF3\u8FC7").setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
+    new import_obsidian14.Setting(section2).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
+    new import_obsidian14.Setting(section2).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
       (text) => text.setPlaceholder("success").setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         this.plugin.settings.successStatusValue = value ?? "success";
         await this.plugin.saveSettings();
@@ -10701,15 +10534,15 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     );
   }
   createPayloadKeysSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u{1F4E1} Webhook Payload \u952E\u914D\u7F6E" });
-    section.createEl("p", {
+    const section2 = containerEl.createEl("div", { cls: "setting-section" });
+    section2.createEl("h3", { text: "\u{1F4E1} Webhook Payload \u952E\u914D\u7F6E" });
+    section2.createEl("p", {
       text: "\u81EA\u5B9A\u4E49\u53D1\u9001\u5230 n8n webhook \u7684 JSON \u5BF9\u8C61\u4E2D\u7684\u952E\u540D\u3002\u8FD9\u5141\u8BB8\u60A8\u9002\u5E94\u4E0D\u540C\u7684 n8n \u5DE5\u4F5C\u6D41\u914D\u7F6E\u3002",
       cls: "setting-item-description"
     });
     const keys = this.plugin.settings.payloadKeys;
     const createKeySetting = (name, desc, key) => {
-      new import_obsidian6.Setting(section).setName(name).setDesc(desc).addText(
+      new import_obsidian14.Setting(section2).setName(name).setDesc(desc).addText(
         (text) => text.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
           keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
           this.plugin.api.setPayloadKeys(keys);
@@ -10726,16 +10559,16 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
     createKeySetting("\u672C\u5730\u6587\u4EF6\u952E", "\u53D1\u9001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u7684\u952E\u540D", "local_file");
   }
   createAdvancedSection(containerEl) {
-    const section = containerEl.createEl("div", { cls: "setting-section" });
-    section.createEl("h3", { text: "\u{1F527} \u9AD8\u7EA7\u914D\u7F6E" });
-    new import_obsidian6.Setting(section).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
+    const section2 = containerEl.createEl("div", { cls: "setting-section" });
+    section2.createEl("h3", { text: "\u{1F527} \u9AD8\u7EA7\u914D\u7F6E" });
+    new import_obsidian14.Setting(section2).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
+    new import_obsidian14.Setting(section2).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
       "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.preflightCheckEnabled !== false).onChange(async (value) => {
@@ -10743,7 +10576,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian6.Setting(section).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
+    new import_obsidian14.Setting(section2).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
       "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
@@ -10752,7 +10585,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    const historyLimitSetting = new import_obsidian6.Setting(section).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
+    const historyLimitSetting = new import_obsidian14.Setting(section2).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
       `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`
     ).addSlider(
       (slider) => slider.setLimits(100, 1e3, 50).setValue(this.plugin.settings.historyLimit ?? 300).setDynamicTooltip().onChange(async (value) => {
@@ -10763,30 +10596,30 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         );
       })
     );
-    const cacheSubsection = section.createEl("div", { cls: "cache-subsection" });
+    const cacheSubsection = section2.createEl("div", { cls: "cache-subsection" });
     cacheSubsection.createEl("h4", { text: "\u{1F5C4}\uFE0F \u7F13\u5B58\u914D\u7F6E" });
-    const cacheStatusSetting = new import_obsidian6.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
+    const cacheStatusSetting = new import_obsidian14.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
       (button) => button.setButtonText("\u{1F4CA} \u67E5\u770B\u72B6\u6001").setClass("cache-status-btn").onClick(async () => {
         try {
           const stats = await this.plugin.api.getCacheStats();
           await this.showCachePreviewModal(stats);
         } catch (error) {
           console.error("\u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-          new import_obsidian6.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${error.message}`, 5e3);
+          new import_obsidian14.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${error.message}`, 5e3);
         }
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian6.Setting(cacheSubsection).setName("\u2705 \u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
+    const enableCacheSetting = new import_obsidian14.Setting(cacheSubsection).setName("\u2705 \u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
         await this.plugin.saveSettings();
-        new import_obsidian6.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
+        new import_obsidian14.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian6.Setting(cacheSubsection).setName("\u23F0 \u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
+    const expirySetting = new import_obsidian14.Setting(cacheSubsection).setName("\u23F0 \u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
       (slider) => slider.setLimits(1, 365, 1).setValue(this.plugin.settings.cacheExpiryDays ?? 30).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.cacheExpiryDays = value;
         this.plugin.api.setCacheConfig(1e3, value);
@@ -10807,7 +10640,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new import_obsidian6.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian14.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
       }
     };
     const cleanupBtn = quickActionsContainer.createEl("button", {
@@ -10818,10 +10651,10 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       try {
         await this.plugin.api.cleanupCache();
         const stats = await this.plugin.api.getCacheStats();
-        new import_obsidian6.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
+        new import_obsidian14.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
       } catch (error) {
         console.error("\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25:", error);
-        new import_obsidian6.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian14.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
       }
     };
     const clearBtn = quickActionsContainer.createEl("button", {
@@ -10841,10 +10674,10 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
       if (confirmed) {
         try {
           await this.plugin.api.clearCache();
-          new import_obsidian6.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
+          new import_obsidian14.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
         } catch (error) {
           console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-          new import_obsidian6.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
+          new import_obsidian14.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
         }
       }
     };
@@ -10867,7 +10700,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
   async showCachePreviewModal(stats) {
     console.log("\u{1F3AC} \u5F00\u59CB\u521B\u5EFA\u7F13\u5B58\u9884\u89C8\u6A21\u6001\u6846");
     console.log("\u{1F4CA} \u7EDF\u8BA1\u4FE1\u606F:", stats);
-    const modal = new import_obsidian7.Modal(this.app);
+    const modal = new import_obsidian15.Modal(this.app);
     modal.titleEl.setText("\u{1F4CA} \u7F13\u5B58\u9884\u89C8");
     console.log("\u{1F4DD} \u6A21\u6001\u6846\u6807\u9898\u5DF2\u8BBE\u7F6E");
     const { contentEl } = modal;
@@ -10879,7 +10712,7 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error("\u274C \u5237\u65B0\u6A21\u6001\u6846\u5185\u5BB9\u5931\u8D25:", error);
-        new import_obsidian6.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian14.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${error.message}`, 5e3);
       }
     };
     const renderModalContent = async (container, currentStats) => {
@@ -10972,9 +10805,9 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new import_obsidian6.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
+            new import_obsidian14.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
           } catch (error) {
-            new import_obsidian6.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${error.message}`, 5e3);
+            new import_obsidian14.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${error.message}`, 5e3);
           }
         };
       }
@@ -11033,12 +10866,12 @@ var VideoSummarySettingTab = class extends import_obsidian6.PluginSettingTab {
         "zh",
         testResult
       );
-      new import_obsidian6.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
+      new import_obsidian14.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
       const stats = await this.plugin.api.getCacheStats();
       console.log("\u6D4B\u8BD5\u6570\u636E\u6DFB\u52A0\u540E\u7684\u7F13\u5B58\u7EDF\u8BA1:", stats);
     } catch (error) {
       console.error("\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25:", error);
-      new import_obsidian6.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
+      new import_obsidian14.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
     }
   }
   /**

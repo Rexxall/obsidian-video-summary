@@ -20,6 +20,16 @@ export interface EndpointProbeResult {
   error?: string;
 }
 
+/**
+ * 处理进度回调。只有会轮询任务状态的后端（codex-worker）能上报阶段；
+ * n8n 是一次性 POST，拿不到中间态，此时回调不会被调用，界面只显示计时。
+ */
+export type ProcessProgressReporter = (progress: {
+  stageLabel?: string;
+  progress?: number;
+  message?: string;
+}) => void;
+
 export class VideoSummaryAPI {
   private webhookUrl: string;
   private timeout: number;
@@ -124,6 +134,7 @@ export class VideoSummaryAPI {
     mode: ProcessingMode,
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
+    onProgress?: ProcessProgressReporter,
   ): Promise<ProcessingResult> {
     // 短链先展开再处理（缓存 key 也用展开后的链接）
     input = await this.resolveInputUrl(input);
@@ -135,6 +146,7 @@ export class VideoSummaryAPI {
         if (this.debugMode) {
           console.log(`[VideoSummaryAPI] 使用缓存结果: ${input.url}`);
         }
+        onProgress?.({ stageLabel: '命中缓存', progress: 1, message: '命中缓存，未请求后端' });
         return cachedResult;
       }
     }
@@ -144,7 +156,7 @@ export class VideoSummaryAPI {
 
     if (this.backend === 'codex-worker') {
       try {
-        const result = await this.processCodexWorkerJob(payload);
+        const result = await this.processCodexWorkerJob(payload, onProgress);
         this.recordWebhookResult(result, input, mode, language);
 
         this.lastWebhookResult = {
@@ -570,7 +582,10 @@ export class VideoSummaryAPI {
     }
   }
 
-  private async processCodexWorkerJob(payload: any): Promise<ProcessingResult> {
+  private async processCodexWorkerJob(
+    payload: any,
+    onProgress?: ProcessProgressReporter,
+  ): Promise<ProcessingResult> {
     const jobsUrl = this.getCodexWorkerJobsUrl();
     const response = await fetch(jobsUrl, {
       method: 'POST',
@@ -605,6 +620,14 @@ export class VideoSummaryAPI {
       }
 
       latestJob = await statusResponse.json();
+      if (onProgress) {
+        const stageLabel = pickString(latestJob, ['stage', 'step', 'phase', 'status']);
+        const message = pickString(latestJob, ['message', 'detail', 'lastLog']);
+        const progress = pickRatio(latestJob, ['progress', 'percent', 'percentage']);
+        if (stageLabel || message || progress !== undefined) {
+          onProgress({ stageLabel, message, progress });
+        }
+      }
       if (latestJob.status === 'success') {
         return this.parseSummaryResponse(latestJob.result);
       }
@@ -1336,4 +1359,27 @@ export class VideoSummaryAPI {
       return String(error);
     }
   }
+}
+
+/** 从后端返回的 job JSON 里挑第一个非空字符串字段 */
+function pickString(source: any, keys: string[]): string | undefined {
+  if (!source || typeof source !== 'object') return undefined;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+/** 把 0-1 或 0-100 的进度字段统一成 0-1 */
+function pickRatio(source: any, keys: string[]): number | undefined {
+  if (!source || typeof source !== 'object') return undefined;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const ratio = value > 1 ? value / 100 : value;
+      return Math.min(1, Math.max(0, ratio));
+    }
+  }
+  return undefined;
 }

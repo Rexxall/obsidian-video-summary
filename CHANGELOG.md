@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented here.
 
+## 2.3.0
+
+Sidebar rewrite. The panel is now four layers: action bar, job stream, note library, detail.
+
+- Jobs are first-class: queued/running/failed work lives in a store on the plugin, survives closing
+  the panel, and shows stage, elapsed time, cancel, and retry. Progress stages are reported only by
+  backends that expose job status (Codex worker); the n8n webhook is a single request, so the card
+  says so instead of faking stages.
+- One smart input replaces the single/multi/JSON radio group: URLs, multi-line batches, local file
+  names, pasted transcripts, and webhook JSON are detected from the content.
+- Settings moved into inline chips (mode, language, model, webhook, output folder) with a popover.
+- Optional preview before write: results can be inspected (summary, transcript, metadata, raw JSON)
+  and then written to the note, sent to a new note, or discarded.
+- Failure reasons are recorded and displayed. History entries now carry the error message, source
+  URL, platform, and duration.
+- The note library is index-backed with incremental updates instead of a full vault scan on every
+  render, filters by status chips, and renders in pages.
+- Commands and the batch runner now go through the same job queue, so command-triggered work shows
+  up in the panel.
+- Visual pass: lucide icons instead of emoji, Obsidian theme variables everywhere, no hardcoded
+  colors and no `!important`. Stylesheet went from 3610 to about 2200 lines.
+- Removed the orphaned root `VideoSummaryModal.ts` and the duplicate render paths in the old view.
+- `minAppVersion` raised to 1.4.0 because the view uses `MarkdownRenderer.render`.
+
+## 2.2.0
+
+- Split processing history into `history.json` so `data.json` stops growing without bound.
+- Added backend preflight checks, a cookies manager, `obsidian://video-summary` protocol handling,
+  and automatic short-link expansion.
+
 ## 2.1.4
 
 - Added Bilibili cookie support with the expected `bilibili_cookies.txt` filename.

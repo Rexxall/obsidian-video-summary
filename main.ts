@@ -38,6 +38,9 @@ import { VideoUtils } from './utils/VideoUtils';
 import { FileProcessor } from './utils/FileProcessor';
 import { RetryUtils } from './utils/RetryUtils';
 import { NoteProcessor } from './utils/NoteProcessor';
+import { JobStore } from './core/JobStore';
+import { JobService } from './core/JobService';
+import { NoteIndex } from './core/NoteIndex';
 import { Modal } from 'obsidian';
 
 export default class VideoSummaryPlugin extends Plugin {
@@ -45,6 +48,10 @@ export default class VideoSummaryPlugin extends Plugin {
   api: VideoSummaryAPI;
   fileProcessor: FileProcessor;
   noteProcessor: NoteProcessor;
+  /** 任务与索引挂在插件上，侧栏开关不影响它们 */
+  jobs: JobStore;
+  jobService: JobService;
+  noteIndex: NoteIndex;
 
   // history.json 延迟写入
   private historySaveTimer: number | null = null;
@@ -70,6 +77,12 @@ export default class VideoSummaryPlugin extends Plugin {
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = new NoteProcessor(this.app.vault);
 
+    // 任务队列 + 视频笔记索引
+    this.jobs = new JobStore();
+    this.jobService = new JobService(this, this.jobs);
+    this.noteIndex = new NoteIndex(this.app);
+    this.app.workspace.onLayoutReady(() => this.noteIndex.build());
+
     // 注册视图类型
     this.registerView(
       VIDEO_SUMMARY_VIEW_TYPE,
@@ -90,16 +103,17 @@ export default class VideoSummaryPlugin extends Plugin {
     // 注册设置页面
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
 
-    // 注册文件修改事件监听器
+    // 索引增量维护：以前是每次文件变动就整块重建侧栏 DOM，现在只更新受影响的那条记录
     this.registerEvent(
-      this.app.vault.on('modify', (file) => {
+      this.app.metadataCache.on('changed', (file) => {
         if (file instanceof TFile && file.extension === 'md') {
-          // 延迟刷新，避免频繁更新
-          setTimeout(() => {
-            this.refreshVideoSummaryView();
-          }, 500);
+          void this.noteIndex.refreshFile(file);
         }
       }),
+    );
+    this.registerEvent(this.app.vault.on('delete', (file) => this.noteIndex.handleDelete(file)));
+    this.registerEvent(
+      this.app.vault.on('rename', (file, oldPath) => this.noteIndex.handleRename(file, oldPath)),
     );
 
     console.log('Video Summary Plugin loaded');
@@ -694,18 +708,12 @@ export default class VideoSummaryPlugin extends Plugin {
           // 更新进度
           progressNotice.setMessage(`处理中 (${i + 1}/${pendingFiles.length})`);
 
-          // 处理文件
+          // 处理文件（历史记录由 JobService 统一写，这里不再重复追加）
           await this.processFileWithMode(file, this.settings.defaultMode);
           successCount++;
-
-          // 添加成功记录到历史
-          this.addToHistory(file.basename, 'success', this.settings.defaultMode as string);
         } catch (error) {
           errorCount++;
           console.error(`处理文件失败: ${file.basename}`, error);
-
-          // 添加失败记录到历史
-          this.addToHistory(file.basename, 'error', this.settings.defaultMode as string);
         }
 
         // 添加延迟避免API限制
@@ -732,17 +740,27 @@ export default class VideoSummaryPlugin extends Plugin {
     });
   }
 
-  private addToHistory(fileName: string, result: 'success' | 'error', mode: string) {
+  addToHistory(
+    fileName: string,
+    result: 'success' | 'error',
+    mode: string,
+    meta?: { url?: string; platform?: string; error?: string; durationMs?: number },
+  ) {
     if (!this.settings.history) {
       this.settings.history = [];
     }
 
-    // 添加新记录
+    // 添加新记录（失败原因一并记下，界面上就能看到为什么挂了）
     this.settings.history.push({
       file: fileName,
       result: result,
       mode: mode as any,
       time: new Date().toLocaleString('zh-CN'),
+      language: this.settings.defaultLanguage,
+      url: meta?.url,
+      platform: meta?.platform,
+      error: meta?.error,
+      durationMs: meta?.durationMs,
     });
 
     // 限容并直接排队落盘（不依赖调用方随后是否 saveSettings）
@@ -750,7 +768,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.queueHistorySave();
   }
 
-  private async clearProcessingHistory() {
+  async clearProcessingHistory() {
     try {
       this.settings.history = [];
       await this.saveSettings();
@@ -980,8 +998,7 @@ export default class VideoSummaryPlugin extends Plugin {
   // ===== history.json 读写 =====
 
   private get historyFilePath(): string {
-    const dir =
-      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     return `${dir}/history.json`;
   }
 
@@ -1152,66 +1169,36 @@ export default class VideoSummaryPlugin extends Plugin {
     return VideoUtils.extractLocalFileName(content);
   }
 
+  /**
+   * 命令面板 / 右键菜单的处理入口。
+   * 自 2.3.0 起统一走任务队列，这样命令触发的处理也能在侧栏看到进度、取消和失败原因，
+   * 状态写回、历史记录、错误处理都由 JobService 统一负责（不再各写一份）。
+   */
   private async processFileWithMode(file: TFile, mode: ProcessingMode) {
-    try {
-      const content = await this.app.vault.read(file);
+    const job = await this.jobService.submitFile(file, {
+      mode,
+      language: this.settings.defaultLanguage,
+      useCache: this.settings.enableCache !== false,
+      previewBeforeWrite: this.settings.previewBeforeWrite === true,
+    });
+    if (!job) return;
 
-      // 提取所有可能的输入数据
-      const url = this.extractVideoUrl(content);
-      const providedTranscript = this.extractProvidedTranscript(content);
-      const localFileName = this.extractLocalFileName(content);
+    const finished = await this.jobs.waitFor(job.id);
+    if (!finished) return;
 
-      // 检查是否有任何输入数据
-      if (!url && !providedTranscript && !localFileName) {
-        throw new Error('笔记中没有找到视频链接、文稿内容或本地文件名');
-      }
-
-      // 后端自检（60s 内结果有缓存，批量场景不会反复 ping）
-      if (!(await this.ensureBackendReady())) {
-        return;
-      }
-
-      // 更新状态为处理中
-      await this.noteProcessor.setProcessingStatus(file, 'running');
-
-      // 构建输入数据
-      const input: any = {};
-      if (url) input.url = url;
-      if (providedTranscript) input.transcript = providedTranscript;
-      if (localFileName) input.localFile = localFileName;
-
-      // 调用API处理
-      const result = await this.api.processVideo(
-        file.basename,
-        input,
-        mode,
-        this.settings.defaultLanguage,
-        this.settings.enableCache !== false, // 根据设置决定是否使用缓存
-      );
-
-      // 更新文件内容（按设置控制自动重命名）
-      await this.noteProcessor.updateNote(file, result, mode, {
-        autoRename: this.settings.autoRenameEnabled,
-        conflictStrategy: this.settings.renameConflictStrategy,
-      });
-
-      // 更新状态为成功（使用可配置值）并记录历史
-      await this.noteProcessor.setProcessingStatus(
-        file,
-        this.settings.successStatusValue ?? 'success',
-      );
-      this.addToHistory(file.basename, 'success', mode);
-
-      new Notice(`✅ ${this.getModeDisplayText(mode)}完成`);
-    } catch (error) {
-      // 更新状态为错误
-      await this.noteProcessor.setProcessingError(file, error);
-
-      // 添加到历史记录
-      this.addToHistory(file.basename, 'error', mode);
-
-      new Notice(`处理失败: ${this.formatErrorForNotice(error)}`, 8000);
+    if (finished.state === 'error') {
+      new Notice(`处理失败: ${finished.error || '未知错误'}`, 8000);
+      throw new Error(finished.error || '处理失败');
     }
+    if (finished.state === 'cancelled') {
+      new Notice('处理已取消');
+      return;
+    }
+    if (finished.state === 'review') {
+      new Notice(`${this.getModeDisplayText(mode)}已就绪，去侧栏确认写入`, 6000);
+      return;
+    }
+    new Notice(`${this.getModeDisplayText(mode)}完成`);
   }
 
   /**
@@ -1228,17 +1215,6 @@ export default class VideoSummaryPlugin extends Plugin {
     }
   }
 
-  private refreshVideoSummaryView(): void {
-    // 查找所有视频总结视图并刷新
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view.getViewType() === 'video-summary-view') {
-        const view = leaf.view as any;
-        if (view.refreshView) {
-          view.refreshView();
-        }
-      }
-    });
-  }
 
   /**
    * 自动重命名文件
@@ -2514,13 +2490,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
         '发送前把 b23.tv / v.douyin.com / xhslink.com 等短链展开成最终链接，减少后端下载失败（仅桌面端生效，失败时自动回退原链接）。',
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.expandShortLinks !== false)
-          .onChange(async (value) => {
-            this.plugin.settings.expandShortLinks = value;
-            this.plugin.api.setExpandShortLinks(value);
-            await this.plugin.saveSettings();
-          }),
+        toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
+          this.plugin.settings.expandShortLinks = value;
+          this.plugin.api.setExpandShortLinks(value);
+          await this.plugin.saveSettings();
+        }),
       );
 
     // 历史记录上限

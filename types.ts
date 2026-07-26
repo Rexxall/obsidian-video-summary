@@ -55,6 +55,10 @@ export interface VideoSummarySettings {
   fileListSortBy: string; // 文件列表排序方式
   historySortBy: string; // 历史记录排序方式
   statusFilterValue: string; // 状态筛选值
+  /** 侧栏当前停留的分页：任务流 / 笔记库 */
+  activePanelTab: 'jobs' | 'library';
+  /** 处理完先进预览，确认后才写入笔记 */
+  previewBeforeWrite: boolean;
 
   // 历史记录
   // 注意：history / webhookHistory 自 2.2.0 起持久化在插件目录的 history.json，
@@ -98,6 +102,12 @@ export interface ProcessingHistory {
   result: 'success' | 'error';
   mode: ProcessingMode;
   language?: string;
+  // 以下字段自 2.3.0 起记录；旧记录没有，读的时候都当可选处理
+  url?: string;
+  platform?: string;
+  /** 失败原因原文，界面直接显示，不用再翻控制台 */
+  error?: string;
+  durationMs?: number;
 }
 
 export interface WebhookHistoryEntry {

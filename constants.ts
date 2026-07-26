@@ -123,6 +123,8 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   fileListSortBy: 'ctime-desc', // 默认按创建时间（最新）排序
   historySortBy: 'time-desc', // 默认按时间（最新）排序
   statusFilterValue: 'all', // 默认显示全部状态
+  activePanelTab: 'jobs', // 侧栏默认停在任务流
+  previewBeforeWrite: false, // 默认沿用直接写入；打开后结果先预览再落笔记
   history: [],
   webhookHistory: [],
   historyLimit: DEFAULT_HISTORY_LIMIT,
