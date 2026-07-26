@@ -19,6 +19,9 @@ import {
 } from '../ui';
 import { platformLabel } from '../../core/NoteIndex';
 
+const RECENT_HISTORY_LIMIT = 3;
+let historyExpanded = false;
+
 /** 任务流：正在跑的、等确认的、最近跑完的，都在这一屏 */
 export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
   const jobs = ctx.plugin.jobs.getAll();
@@ -29,12 +32,10 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
   );
 
   if (active.length > 0) {
-    section(container, `进行中 ${active.length}`);
     active.forEach((job) => renderActiveJob(container, ctx, job));
   }
 
   if (review.length > 0) {
-    section(container, `待确认 ${review.length}`);
     review.forEach((job) => renderReviewJob(container, ctx, job));
   }
 
@@ -76,7 +77,24 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
         },
       ]);
     });
-    historyRows.slice(0, 60).forEach((row) => renderHistoryRow(container, ctx, row));
+    const visibleHistory = historyExpanded
+      ? historyRows.slice(0, 60)
+      : historyRows.slice(0, RECENT_HISTORY_LIMIT);
+    visibleHistory.forEach((row) => renderHistoryRow(container, ctx, row));
+
+    if (historyRows.length > RECENT_HISTORY_LIMIT) {
+      const more = container.createEl('button', {
+        text: historyExpanded
+          ? '收起最近完成'
+          : `显示更多 · 还有 ${historyRows.length - RECENT_HISTORY_LIMIT} 条`,
+        cls: 'vs-more-btn vs-history-more',
+        attr: { type: 'button' },
+      });
+      more.addEventListener('click', () => {
+        historyExpanded = !historyExpanded;
+        ctx.renderPanels();
+      });
+    }
   }
 
   if (active.length === 0 && review.length === 0 && historyRows.length === 0) {
@@ -247,17 +265,20 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   });
 
   // 状态胶囊即动作：失败行点一下就是跳过缓存重跑
-  if (row.state === 'error') {
-    statusPill(item, 'error', {
-      label: '重试',
-      title: '跳过缓存重新处理',
-      onClick: () => void rerun(ctx, row),
-    });
-  } else {
-    statusPill(item, row.state, { label: row.state === 'success' ? '完成' : '已取消' });
-  }
+  const statePill =
+    row.state === 'error'
+      ? statusPill(item, 'error', {
+          label: '重试',
+          title: '跳过缓存重新处理',
+          onClick: () => void rerun(ctx, row),
+        })
+      : statusPill(item, row.state, {
+          label: row.state === 'success' ? '完成' : '已取消',
+        });
+  statePill.addClass('vs-row-status');
 
-  iconButton(item, 'more-horizontal', '更多操作', (event) => {
+  const actions = item.createDiv({ cls: 'vs-row-actions' });
+  iconButton(actions, 'more-horizontal', '更多操作', (event) => {
     showMenu(event, [
       {
         title: '打开笔记',

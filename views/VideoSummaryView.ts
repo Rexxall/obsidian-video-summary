@@ -154,7 +154,15 @@ export class VideoSummaryView extends ItemView {
     const scrollTop = panel.scrollTop;
     panel.empty();
 
+    // 设计稿的笔记库与详情都是独立页面：只在任务页保留顶部输入区。
+    // 旧实现把 ActionBar 永久钉在三种页面上方，实际运行时会比 2b/2c 多出半屏内容。
+    this.headerEl?.toggleAttribute(
+      'hidden',
+      this.state.tab === 'library' || this.state.detail !== null,
+    );
+
     if (this.state.detail) {
+      panel.scrollTop = 0;
       renderDetailPanel(panel, this.context());
       return;
     }

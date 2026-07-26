@@ -157,7 +157,7 @@ function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry)
   body.addEventListener('click', () => ctx.openNote(entry.path));
 
   // 状态胶囊即筛选：点一下就把列表收敛到同状态
-  statusPill(row, entry.status, {
+  const statePill = statusPill(row, entry.status, {
     onClick: async () => {
       ctx.state.libraryFilter = entry.status as typeof ctx.state.libraryFilter;
       ctx.plugin.settings.statusFilterValue = entry.status;
@@ -167,12 +167,13 @@ function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry)
     },
     title: `只看${entry.status === 'success' ? '已完成' : entry.status === 'error' ? '失败' : entry.status === 'running' ? '处理中' : '待处理'}`,
   });
+  statePill.addClass('vs-row-status');
 
   const actions = row.createDiv({ cls: 'vs-row-actions' });
   if (entry.status !== 'running') {
     iconButton(
       actions,
-      entry.status === 'success' ? 'refresh-cw' : 'play',
+      'play',
       entry.status === 'success' ? '重跑' : '处理',
       async () => {
         const file = fileOf(ctx, entry);

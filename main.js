@@ -6961,32 +6961,16 @@ function renderChips(chips, ctx) {
       }
     }))
   );
-  const profiles = settings.webhookProfiles || [];
-  if (profiles.length > 1) {
-    const active = profiles.find((profile) => profile.id === settings.activeWebhookId);
-    configChip(
-      chips,
-      "Webhook",
-      active?.name || active?.url || "\u9ED8\u8BA4",
-      profiles.map((profile) => ({
-        title: profile.name || profile.url,
-        onClick: async () => {
-          await plugin.setActiveWebhook(profile.id, { silent: false });
-          ctx.renderAll();
-        }
-      }))
-    );
-  }
   const folderChip = chips.createEl("button", {
     cls: "vs-chip",
     attr: { type: "button", title: `\u4FDD\u5B58\u4F4D\u7F6E\uFF1A${settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"}` }
   });
+  const folderCaret = folderChip.createSpan({ cls: "vs-chip-caret" });
+  (0, import_obsidian7.setIcon)(folderCaret, "folder");
   folderChip.createSpan({
     text: shortenPath(settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"),
     cls: "vs-chip-value"
   });
-  const folderCaret = folderChip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian7.setIcon)(folderCaret, "folder");
   folderChip.addEventListener("click", (event) => {
     event.preventDefault();
     const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian7.TFolder).map((folder) => folder.path).sort();
@@ -7005,7 +6989,7 @@ function renderChips(chips, ctx) {
   });
   const previewIcon = previewChip.createSpan({ cls: "vs-chip-caret" });
   (0, import_obsidian7.setIcon)(previewIcon, settings.previewBeforeWrite ? "eye" : "eye-off");
-  previewChip.createSpan({ text: "\u5199\u5165\u524D\u9884\u89C8", cls: "vs-chip-value" });
+  previewChip.createSpan({ text: "\u5148\u9884\u89C8", cls: "vs-chip-value" });
   previewChip.addEventListener("click", async (event) => {
     event.preventDefault();
     settings.previewBeforeWrite = !settings.previewBeforeWrite;
@@ -7014,6 +6998,24 @@ function renderChips(chips, ctx) {
   });
 }
 function renderAdvanced(container, ctx, mainInput) {
+  const { plugin } = ctx;
+  const profiles = plugin.settings.webhookProfiles || [];
+  if (profiles.length > 1) {
+    const backendRow = container.createDiv({ cls: "vs-field" });
+    backendRow.createEl("label", { text: "\u5904\u7406\u540E\u7AEF", cls: "vs-field-label" });
+    const backendSelect = backendRow.createEl("select", { cls: "vs-field-input" });
+    profiles.forEach((profile) => {
+      backendSelect.createEl("option", {
+        text: profile.name || profile.url,
+        attr: { value: profile.id }
+      });
+    });
+    backendSelect.value = plugin.settings.activeWebhookId || profiles[0]?.id || "";
+    backendSelect.addEventListener("change", async () => {
+      await plugin.setActiveWebhook(backendSelect.value, { silent: false });
+      ctx.renderAll();
+    });
+  }
   const transcriptRow = container.createDiv({ cls: "vs-field" });
   transcriptRow.createEl("label", { text: "\u624B\u52A8\u6587\u7A3F", cls: "vs-field-label" });
   const transcript = transcriptRow.createEl("textarea", {
@@ -7166,6 +7168,8 @@ function shortenPath(path) {
 
 // views/panels/JobsPanel.ts
 var import_obsidian8 = require("obsidian");
+var RECENT_HISTORY_LIMIT = 3;
+var historyExpanded = false;
 function renderJobsPanel(container, ctx) {
   const jobs = ctx.plugin.jobs.getAll();
   const active = jobs.filter((job) => job.state === "queued" || job.state === "running");
@@ -7174,11 +7178,9 @@ function renderJobsPanel(container, ctx) {
     (job) => job.state === "success" || job.state === "error" || job.state === "cancelled"
   );
   if (active.length > 0) {
-    section(container, `\u8FDB\u884C\u4E2D ${active.length}`);
     active.forEach((job) => renderActiveJob(container, ctx, job));
   }
   if (review.length > 0) {
-    section(container, `\u5F85\u786E\u8BA4 ${review.length}`);
     review.forEach((job) => renderReviewJob(container, ctx, job));
   }
   const historyRows = buildHistoryRows(ctx, finished);
@@ -7219,7 +7221,19 @@ function renderJobsPanel(container, ctx) {
         }
       ]);
     });
-    historyRows.slice(0, 60).forEach((row) => renderHistoryRow(container, ctx, row));
+    const visibleHistory = historyExpanded ? historyRows.slice(0, 60) : historyRows.slice(0, RECENT_HISTORY_LIMIT);
+    visibleHistory.forEach((row) => renderHistoryRow(container, ctx, row));
+    if (historyRows.length > RECENT_HISTORY_LIMIT) {
+      const more = container.createEl("button", {
+        text: historyExpanded ? "\u6536\u8D77\u6700\u8FD1\u5B8C\u6210" : `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${historyRows.length - RECENT_HISTORY_LIMIT} \u6761`,
+        cls: "vs-more-btn vs-history-more",
+        attr: { type: "button" }
+      });
+      more.addEventListener("click", () => {
+        historyExpanded = !historyExpanded;
+        ctx.renderPanels();
+      });
+    }
   }
   if (active.length === 0 && review.length === 0 && historyRows.length === 0) {
     emptyState(container, "inbox", "\u8FD8\u6CA1\u6709\u4EFB\u52A1", "\u5728\u4E0A\u9762\u8D34\u4E00\u6761\u94FE\u63A5\uFF0C\u6216\u8005\u5230\u7B14\u8BB0\u5E93\u91CC\u6311\u4E00\u7BC7\u5904\u7406");
@@ -7352,16 +7366,16 @@ function renderHistoryRow(container, ctx, row) {
       ctx.openDetail({ kind: "history", file: row.record.file, time: row.record.time });
     }
   });
-  if (row.state === "error") {
-    statusPill(item, "error", {
-      label: "\u91CD\u8BD5",
-      title: "\u8DF3\u8FC7\u7F13\u5B58\u91CD\u65B0\u5904\u7406",
-      onClick: () => void rerun(ctx, row)
-    });
-  } else {
-    statusPill(item, row.state, { label: row.state === "success" ? "\u5B8C\u6210" : "\u5DF2\u53D6\u6D88" });
-  }
-  iconButton(item, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
+  const statePill = row.state === "error" ? statusPill(item, "error", {
+    label: "\u91CD\u8BD5",
+    title: "\u8DF3\u8FC7\u7F13\u5B58\u91CD\u65B0\u5904\u7406",
+    onClick: () => void rerun(ctx, row)
+  }) : statusPill(item, row.state, {
+    label: row.state === "success" ? "\u5B8C\u6210" : "\u5DF2\u53D6\u6D88"
+  });
+  statePill.addClass("vs-row-status");
+  const actions = item.createDiv({ cls: "vs-row-actions" });
+  iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
     showMenu(event, [
       {
         title: "\u6253\u5F00\u7B14\u8BB0",
@@ -7605,7 +7619,7 @@ function renderRow(listEl, ctx, entry) {
   platformText(sub, entry.platform, platformLabel(entry.platform));
   sub.createSpan({ text: formatRelative(entry.mtime) });
   body.addEventListener("click", () => ctx.openNote(entry.path));
-  statusPill(row, entry.status, {
+  const statePill = statusPill(row, entry.status, {
     onClick: async () => {
       ctx.state.libraryFilter = entry.status;
       ctx.plugin.settings.statusFilterValue = entry.status;
@@ -7615,11 +7629,12 @@ function renderRow(listEl, ctx, entry) {
     },
     title: `\u53EA\u770B${entry.status === "success" ? "\u5DF2\u5B8C\u6210" : entry.status === "error" ? "\u5931\u8D25" : entry.status === "running" ? "\u5904\u7406\u4E2D" : "\u5F85\u5904\u7406"}`
   });
+  statePill.addClass("vs-row-status");
   const actions = row.createDiv({ cls: "vs-row-actions" });
   if (entry.status !== "running") {
     iconButton(
       actions,
-      entry.status === "success" ? "refresh-cw" : "play",
+      "play",
       entry.status === "success" ? "\u91CD\u8DD1" : "\u5904\u7406",
       async () => {
         const file = fileOf(ctx, entry);
@@ -8191,7 +8206,12 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     if (!panel) return;
     const scrollTop = panel.scrollTop;
     panel.empty();
+    this.headerEl?.toggleAttribute(
+      "hidden",
+      this.state.tab === "library" || this.state.detail !== null
+    );
     if (this.state.detail) {
+      panel.scrollTop = 0;
       renderDetailPanel(panel, this.context());
       return;
     }

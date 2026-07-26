@@ -248,33 +248,16 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
     })),
   );
 
-  const profiles = settings.webhookProfiles || [];
-  if (profiles.length > 1) {
-    const active = profiles.find((profile) => profile.id === settings.activeWebhookId);
-    configChip(
-      chips,
-      'Webhook',
-      active?.name || active?.url || '默认',
-      profiles.map((profile) => ({
-        title: profile.name || profile.url,
-        onClick: async () => {
-          await plugin.setActiveWebhook(profile.id, { silent: false });
-          ctx.renderAll();
-        },
-      })),
-    );
-  }
-
   const folderChip = chips.createEl('button', {
     cls: 'vs-chip',
     attr: { type: 'button', title: `保存位置：${settings.outputFolder || '当前文件夹'}` },
   });
+  const folderCaret = folderChip.createSpan({ cls: 'vs-chip-caret' });
+  setIcon(folderCaret, 'folder');
   folderChip.createSpan({
     text: shortenPath(settings.outputFolder || '当前文件夹'),
     cls: 'vs-chip-value',
   });
-  const folderCaret = folderChip.createSpan({ cls: 'vs-chip-caret' });
-  setIcon(folderCaret, 'folder');
   folderChip.addEventListener('click', (event) => {
     event.preventDefault();
     const folders = plugin.app.vault
@@ -300,7 +283,7 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
   });
   const previewIcon = previewChip.createSpan({ cls: 'vs-chip-caret' });
   setIcon(previewIcon, settings.previewBeforeWrite ? 'eye' : 'eye-off');
-  previewChip.createSpan({ text: '写入前预览', cls: 'vs-chip-value' });
+  previewChip.createSpan({ text: '先预览', cls: 'vs-chip-value' });
   previewChip.addEventListener('click', async (event) => {
     event.preventDefault();
     settings.previewBeforeWrite = !settings.previewBeforeWrite;
@@ -322,6 +305,25 @@ function renderAdvanced(
   ctx: ViewContext,
   mainInput: HTMLTextAreaElement,
 ): AdvancedFields {
+  const { plugin } = ctx;
+  const profiles = plugin.settings.webhookProfiles || [];
+  if (profiles.length > 1) {
+    const backendRow = container.createDiv({ cls: 'vs-field' });
+    backendRow.createEl('label', { text: '处理后端', cls: 'vs-field-label' });
+    const backendSelect = backendRow.createEl('select', { cls: 'vs-field-input' });
+    profiles.forEach((profile) => {
+      backendSelect.createEl('option', {
+        text: profile.name || profile.url,
+        attr: { value: profile.id },
+      });
+    });
+    backendSelect.value = plugin.settings.activeWebhookId || profiles[0]?.id || '';
+    backendSelect.addEventListener('change', async () => {
+      await plugin.setActiveWebhook(backendSelect.value, { silent: false });
+      ctx.renderAll();
+    });
+  }
+
   const transcriptRow = container.createDiv({ cls: 'vs-field' });
   transcriptRow.createEl('label', { text: '手动文稿', cls: 'vs-field-label' });
   const transcript = transcriptRow.createEl('textarea', {
