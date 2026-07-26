@@ -430,6 +430,19 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
     return;
   }
 
+  // 输入框里打了一小段既不是链接也不是路径的文字，多半是手滑，不该悄悄建一篇"文稿"笔记
+  const looksAccidental =
+    drafts.length === 1 &&
+    drafts[0].source === 'transcript' &&
+    !transcript &&
+    raw.length > 0 &&
+    raw.length < 40 &&
+    !raw.includes('\n');
+  if (looksAccidental) {
+    new Notice(`"${raw}" 不像链接或文件名。要当作文稿处理，请把内容贴进高级选项里的「手动文稿」。`, 8000);
+    return;
+  }
+
   if (drafts.length > 50) {
     new Notice('一次最多提交 50 条');
     return;

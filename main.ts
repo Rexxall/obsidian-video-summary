@@ -1438,12 +1438,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
     switch (this.activeTab) {
       case 'general':
         this.createSetupGuideSection(tabContent);
-        this.createPlatformMatrixSection(tabContent);
-        this.createCookiesSection(tabContent);
         this.createBasicSection(tabContent);
         break;
       case 'workflow':
         this.createApiSection(tabContent);
+        this.createCookiesSection(tabContent);
+        this.createPlatformMatrixSection(tabContent);
         break;
       case 'core':
         this.createQuickProcessingSection(tabContent);
@@ -1501,7 +1501,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     extraCls = '',
   ): { section: HTMLElement; titleRow: HTMLElement } {
     const section = containerEl.createDiv({
-      cls: `setting-section vs-settings-card ${extraCls}`.trim(),
+      cls: `vs-settings-card ${extraCls}`.trim(),
     });
     const titleRow = section.createDiv({ cls: 'vs-settings-card-title' });
     const iconEl = titleRow.createSpan({ cls: 'vs-settings-card-icon' });
@@ -1928,7 +1928,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
   private createWorkflowCompatibilityCard(containerEl: HTMLElement) {
     const card = containerEl.createDiv({ cls: 'workflow-compatibility-card' });
-    card.createEl('h4', { text: '推荐 workflow' });
+    card.createEl('div', { text: '推荐 workflow', cls: 'vs-subsection-title' });
     card.createEl('p', {
       text: '连接诊断会读取测试分支返回的 workflow 元数据，用来发现旧 workflow、path 不匹配或模型标签不一致。',
       cls: 'setting-item-description',
@@ -2195,8 +2195,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
           }),
       );
 
-    const aiSection = section.createEl('div', { cls: 'setting-section' });
-    aiSection.createEl('h4', { text: '自定义处理模型', cls: 'setting-item-name' });
+    const aiSection = section.createDiv({ cls: 'vs-subsection' });
+    aiSection.createEl('div', { text: '自定义处理模型', cls: 'vs-subsection-title' });
     aiSection.createEl('p', {
       text: '添加你要在 n8n 中使用的模型名称（需与 n8n Switch 节点的值完全一致）。',
       cls: 'setting-item-description',
@@ -2344,8 +2344,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { section } = this.sectionCard(containerEl, 'zap', '一键处理配置');
 
     // 一键总结配置
-    const summarySubsection = section.createEl('div', { cls: 'setting-subsection' });
-    summarySubsection.createEl('h4', { text: '一键总结配置' });
+    const summarySubsection = section.createEl('div', { cls: 'vs-subsection' });
+    summarySubsection.createEl('div', { text: '一键总结配置', cls: 'vs-subsection-title' });
 
     new Setting(summarySubsection)
       .setName('总结语言')
@@ -2377,8 +2377,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 一键提取文稿配置
-    const transcriptSubsection = section.createEl('div', { cls: 'setting-subsection' });
-    transcriptSubsection.createEl('h4', { text: '一键提取文稿配置' });
+    const transcriptSubsection = section.createEl('div', { cls: 'vs-subsection' });
+    transcriptSubsection.createEl('div', { text: '一键提取文稿配置', cls: 'vs-subsection-title' });
 
     new Setting(transcriptSubsection)
       .setName('文稿语言')
@@ -2569,8 +2569,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 缓存配置
-    const cacheSubsection = section.createEl('div', { cls: 'cache-subsection' });
-    cacheSubsection.createEl('h4', { text: '🗄️ 缓存配置' });
+    const cacheSubsection = section.createEl('div', { cls: 'vs-subsection' });
+    cacheSubsection.createEl('div', { text: '缓存配置', cls: 'vs-subsection-title' });
 
     // 缓存状态概览
     const cacheStatusSetting = new Setting(cacheSubsection)
@@ -2630,7 +2630,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     cacheSubsection.createEl('hr', { cls: 'cache-divider' });
 
     // 缓存管理操作
-    cacheSubsection.createEl('h5', { text: '🛠️ 缓存管理' });
+    cacheSubsection.createEl('div', { text: '缓存管理', cls: 'vs-subsection-title' });
 
     // 快速操作按钮组
     const quickActionsContainer = cacheSubsection.createEl('div', { cls: 'cache-quick-actions' });

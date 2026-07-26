@@ -7112,6 +7112,11 @@ async function submit(ctx, input, fields) {
     new import_obsidian7.Notice("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9");
     return;
   }
+  const looksAccidental = drafts.length === 1 && drafts[0].source === "transcript" && !transcript && raw.length > 0 && raw.length < 40 && !raw.includes("\n");
+  if (looksAccidental) {
+    new import_obsidian7.Notice(`"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`, 8e3);
+    return;
+  }
   if (drafts.length > 50) {
     new import_obsidian7.Notice("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761");
     return;
@@ -9997,12 +10002,12 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     switch (this.activeTab) {
       case "general":
         this.createSetupGuideSection(tabContent);
-        this.createPlatformMatrixSection(tabContent);
-        this.createCookiesSection(tabContent);
         this.createBasicSection(tabContent);
         break;
       case "workflow":
         this.createApiSection(tabContent);
+        this.createCookiesSection(tabContent);
+        this.createPlatformMatrixSection(tabContent);
         break;
       case "core":
         this.createQuickProcessingSection(tabContent);
@@ -10050,7 +10055,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   /** 统一的分区卡片：lucide 图标 + 标题，取代各处 emoji h3 */
   sectionCard(containerEl, icon, title, extraCls = "") {
     const section2 = containerEl.createDiv({
-      cls: `setting-section vs-settings-card ${extraCls}`.trim()
+      cls: `vs-settings-card ${extraCls}`.trim()
     });
     const titleRow = section2.createDiv({ cls: "vs-settings-card-title" });
     const iconEl = titleRow.createSpan({ cls: "vs-settings-card-icon" });
@@ -10401,7 +10406,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   }
   createWorkflowCompatibilityCard(containerEl) {
     const card = containerEl.createDiv({ cls: "workflow-compatibility-card" });
-    card.createEl("h4", { text: "\u63A8\u8350 workflow" });
+    card.createEl("div", { text: "\u63A8\u8350 workflow", cls: "vs-subsection-title" });
     card.createEl("p", {
       text: "\u8FDE\u63A5\u8BCA\u65AD\u4F1A\u8BFB\u53D6\u6D4B\u8BD5\u5206\u652F\u8FD4\u56DE\u7684 workflow \u5143\u6570\u636E\uFF0C\u7528\u6765\u53D1\u73B0\u65E7 workflow\u3001path \u4E0D\u5339\u914D\u6216\u6A21\u578B\u6807\u7B7E\u4E0D\u4E00\u81F4\u3002",
       cls: "setting-item-description"
@@ -10601,8 +10606,8 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    const aiSection = section2.createEl("div", { cls: "setting-section" });
-    aiSection.createEl("h4", { text: "\u81EA\u5B9A\u4E49\u5904\u7406\u6A21\u578B", cls: "setting-item-name" });
+    const aiSection = section2.createDiv({ cls: "vs-subsection" });
+    aiSection.createEl("div", { text: "\u81EA\u5B9A\u4E49\u5904\u7406\u6A21\u578B", cls: "vs-subsection-title" });
     aiSection.createEl("p", {
       text: "\u6DFB\u52A0\u4F60\u8981\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u6A21\u578B\u540D\u79F0\uFF08\u9700\u4E0E n8n Switch \u8282\u70B9\u7684\u503C\u5B8C\u5168\u4E00\u81F4\uFF09\u3002",
       cls: "setting-item-description"
@@ -10704,8 +10709,8 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   }
   createQuickProcessingSection(containerEl) {
     const { section: section2 } = this.sectionCard(containerEl, "zap", "\u4E00\u952E\u5904\u7406\u914D\u7F6E");
-    const summarySubsection = section2.createEl("div", { cls: "setting-subsection" });
-    summarySubsection.createEl("h4", { text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E" });
+    const summarySubsection = section2.createEl("div", { cls: "vs-subsection" });
+    summarySubsection.createEl("div", { text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", cls: "vs-subsection-title" });
     new import_obsidian14.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
@@ -10718,8 +10723,8 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    const transcriptSubsection = section2.createEl("div", { cls: "setting-subsection" });
-    transcriptSubsection.createEl("h4", { text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E" });
+    const transcriptSubsection = section2.createEl("div", { cls: "vs-subsection" });
+    transcriptSubsection.createEl("div", { text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", cls: "vs-subsection-title" });
     new import_obsidian14.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
@@ -10821,8 +10826,8 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         );
       })
     );
-    const cacheSubsection = section2.createEl("div", { cls: "cache-subsection" });
-    cacheSubsection.createEl("h4", { text: "\u{1F5C4}\uFE0F \u7F13\u5B58\u914D\u7F6E" });
+    const cacheSubsection = section2.createEl("div", { cls: "vs-subsection" });
+    cacheSubsection.createEl("div", { text: "\u7F13\u5B58\u914D\u7F6E", cls: "vs-subsection-title" });
     const cacheStatusSetting = new import_obsidian14.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
       (button) => button.setButtonText("\u{1F4CA} \u67E5\u770B\u72B6\u6001").setClass("cache-status-btn").onClick(async () => {
         try {
@@ -10855,7 +10860,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     expirySetting.controlEl.addClass("cache-setting-item");
     expirySetting.controlEl.addClass("cache-expiry-slider");
     cacheSubsection.createEl("hr", { cls: "cache-divider" });
-    cacheSubsection.createEl("h5", { text: "\u{1F6E0}\uFE0F \u7F13\u5B58\u7BA1\u7406" });
+    cacheSubsection.createEl("div", { text: "\u7F13\u5B58\u7BA1\u7406", cls: "vs-subsection-title" });
     const quickActionsContainer = cacheSubsection.createEl("div", { cls: "cache-quick-actions" });
     const testBtn = quickActionsContainer.createEl("button", {
       text: "\u{1F9EA} \u6DFB\u52A0\u6D4B\u8BD5",

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-video-summary-plugin",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "将视频链接、本地音视频和文稿整理为结构化 Obsidian 笔记",
   "main": "main.js",
   "scripts": {
