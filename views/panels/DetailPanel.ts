@@ -52,7 +52,7 @@ function renderBanner(
   options: { status: string; platform?: string; cover?: string; duration?: string },
 ) {
   const banner = container.createDiv({
-    cls: `vs-banner${options.cover ? ' has-cover' : ' is-compact'} ${platformClass(options.platform)}`,
+    cls: `vs-banner ${platformClass(options.platform)}`,
   });
   if (options.cover) {
     const img = banner.createEl('img', { cls: 'vs-banner-img', attr: { src: options.cover } });

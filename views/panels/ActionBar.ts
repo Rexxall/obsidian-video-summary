@@ -28,7 +28,6 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   renderContextStrip(root, ctx);
 
   const inputCard = root.createDiv({ cls: 'vs-input-card' });
-  inputCard.createDiv({ text: '添加视频或文稿', cls: 'vs-composer-label' });
   const inputRow = inputCard.createDiv({ cls: 'vs-input-row' });
   const inputIcon = inputRow.createDiv({ cls: 'vs-input-icon' });
   setIcon(inputIcon, 'clipboard-paste');
@@ -37,7 +36,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     cls: 'vs-input',
     attr: {
       rows: '1',
-      placeholder: '粘贴视频链接、文稿，或选择本地文件…',
+      placeholder: '粘贴视频链接，多行即批量…',
     },
   });
   input.value = state.inputDraft;
@@ -54,13 +53,8 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     'vs-input-action',
   );
 
-  inputCard.createDiv({
-    text: '支持 YouTube、B站、小红书、本地媒体与纯文稿；多行可批量提交',
-    cls: 'vs-input-hint',
-  });
-
   const chips = inputCard.createDiv({ cls: 'vs-chip-row' });
-  renderPrimaryChips(chips, ctx);
+  renderChips(chips, ctx);
 
   const advanced = root.createDiv({ cls: 'vs-advanced' });
   const advancedFields = renderAdvanced(advanced, ctx, input);
@@ -126,21 +120,16 @@ function backendStateLabel(state: string): string {
 
 function renderHeader(root: HTMLElement, ctx: ViewContext) {
   const header = root.createDiv({ cls: 'vs-header' });
-  const title = header.createDiv({ cls: 'vs-header-copy' });
-  title.createSpan({ text: '快速处理', cls: 'vs-header-title' });
-  title.createSpan({ text: '视频 → 可用笔记', cls: 'vs-header-subtitle' });
+  header.createSpan({ text: '视频总结', cls: 'vs-header-title' });
   const actions = header.createDiv({ cls: 'vs-header-actions' });
 
   const backend = ctx.plugin.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n';
   const statusPillEl = actions.createEl('button', {
-    cls: 'vs-backend-status',
-    attr: {
-      type: 'button',
-      title: `${backend} ${backendStateLabel(ctx.backendState())} · 点击测试连接`,
-      'aria-label': `${backend} ${backendStateLabel(ctx.backendState())}，点击测试连接`,
-    },
+    cls: 'vs-backend-pill',
+    attr: { type: 'button', title: `${backend}：点击测试连接` },
   });
   const dot = statusPillEl.createSpan({ cls: `vs-backend-dot ${ctx.backendState()}` });
+  statusPillEl.createSpan({ text: `${backend} ${backendStateLabel(ctx.backendState())}` });
   statusPillEl.addEventListener('click', async (event) => {
     event.preventDefault();
     dot.className = 'vs-backend-dot is-checking';
@@ -162,9 +151,6 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
     }
   });
 
-  iconButton(actions, 'library-big', '打开视频知识工作台', () => {
-    ctx.openWorkbench('library');
-  });
   iconButton(actions, 'settings', '打开插件设置', () => {
     const settingApi = (ctx.plugin.app as any).setting;
     if (settingApi?.open) {
@@ -214,7 +200,7 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   }
 }
 
-function renderPrimaryChips(chips: HTMLElement, ctx: ViewContext) {
+function renderChips(chips: HTMLElement, ctx: ViewContext) {
   const { plugin } = ctx;
   const settings = plugin.settings;
 
@@ -246,16 +232,49 @@ function renderPrimaryChips(chips: HTMLElement, ctx: ViewContext) {
     })),
   );
 
+  const models = settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel];
+  configChip(
+    chips,
+    '处理模型',
+    settings.aiModel || models[0] || '默认',
+    models.filter(Boolean).map((model) => ({
+      title: model,
+      onClick: async () => {
+        settings.aiModel = model;
+        plugin.api.setAiModel(model);
+        await plugin.saveSettings();
+        ctx.renderAll();
+      },
+    })),
+  );
+
+  const profiles = settings.webhookProfiles || [];
+  if (profiles.length > 1) {
+    const active = profiles.find((profile) => profile.id === settings.activeWebhookId);
+    configChip(
+      chips,
+      'Webhook',
+      active?.name || active?.url || '默认',
+      profiles.map((profile) => ({
+        title: profile.name || profile.url,
+        onClick: async () => {
+          await plugin.setActiveWebhook(profile.id, { silent: false });
+          ctx.renderAll();
+        },
+      })),
+    );
+  }
+
   const folderChip = chips.createEl('button', {
-    cls: 'vs-chip vs-destination-chip',
+    cls: 'vs-chip',
     attr: { type: 'button', title: `保存位置：${settings.outputFolder || '当前文件夹'}` },
   });
-  const folderIcon = folderChip.createSpan({ cls: 'vs-chip-caret' });
-  setIcon(folderIcon, 'folder');
   folderChip.createSpan({
-    text: `写入 ${shortenPath(settings.outputFolder || '当前文件夹')}`,
+    text: shortenPath(settings.outputFolder || '当前文件夹'),
     cls: 'vs-chip-value',
   });
+  const folderCaret = folderChip.createSpan({ cls: 'vs-chip-caret' });
+  setIcon(folderCaret, 'folder');
   folderChip.addEventListener('click', (event) => {
     event.preventDefault();
     const folders = plugin.app.vault
@@ -281,10 +300,7 @@ function renderPrimaryChips(chips: HTMLElement, ctx: ViewContext) {
   });
   const previewIcon = previewChip.createSpan({ cls: 'vs-chip-caret' });
   setIcon(previewIcon, settings.previewBeforeWrite ? 'eye' : 'eye-off');
-  previewChip.createSpan({
-    text: settings.previewBeforeWrite ? '先预览' : '直接写入',
-    cls: 'vs-chip-value',
-  });
+  previewChip.createSpan({ text: '写入前预览', cls: 'vs-chip-value' });
   previewChip.addEventListener('click', async (event) => {
     event.preventDefault();
     settings.previewBeforeWrite = !settings.previewBeforeWrite;
@@ -306,10 +322,6 @@ function renderAdvanced(
   ctx: ViewContext,
   mainInput: HTMLTextAreaElement,
 ): AdvancedFields {
-  container.createDiv({ text: '处理设置', cls: 'vs-advanced-title' });
-  const technical = container.createDiv({ cls: 'vs-chip-row vs-technical-chips' });
-  renderTechnicalChips(technical, ctx);
-
   const transcriptRow = container.createDiv({ cls: 'vs-field' });
   transcriptRow.createEl('label', { text: '手动文稿', cls: 'vs-field-label' });
   const transcript = transcriptRow.createEl('textarea', {
@@ -373,44 +385,6 @@ function renderAdvanced(
   });
 
   return { transcript, localFile, partsToggle, partsStart, partsEnd };
-}
-
-function renderTechnicalChips(container: HTMLElement, ctx: ViewContext) {
-  const { plugin } = ctx;
-  const settings = plugin.settings;
-  const models = settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel];
-
-  configChip(
-    container,
-    '处理模型',
-    settings.aiModel || models[0] || '默认模型',
-    models.filter(Boolean).map((model) => ({
-      title: model,
-      onClick: async () => {
-        settings.aiModel = model;
-        plugin.api.setAiModel(model);
-        await plugin.saveSettings();
-        ctx.renderAll();
-      },
-    })),
-  );
-
-  const profiles = settings.webhookProfiles || [];
-  if (profiles.length > 1) {
-    const active = profiles.find((profile) => profile.id === settings.activeWebhookId);
-    configChip(
-      container,
-      '处理后端',
-      active?.name || active?.url || '默认后端',
-      profiles.map((profile) => ({
-        title: profile.name || profile.url,
-        onClick: async () => {
-          await plugin.setActiveWebhook(profile.id, { silent: false });
-          ctx.renderAll();
-        },
-      })),
-    );
-  }
 }
 
 async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: AdvancedFields) {

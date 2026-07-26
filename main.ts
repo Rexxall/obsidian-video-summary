@@ -34,11 +34,6 @@ import {
 } from './constants';
 import { VideoSummaryAPI } from './api/VideoSummaryAPI';
 import { VideoSummaryView, VIDEO_SUMMARY_VIEW_TYPE } from './views/VideoSummaryView';
-import {
-  VideoSummaryWorkspaceView,
-  VIDEO_SUMMARY_WORKSPACE_VIEW_TYPE,
-} from './views/VideoSummaryWorkspaceView';
-import { PanelTab } from './views/context';
 import { ConfirmModal } from './modals';
 import { VideoUtils } from './utils/VideoUtils';
 import { FileProcessor } from './utils/FileProcessor';
@@ -93,10 +88,6 @@ export default class VideoSummaryPlugin extends Plugin {
     this.registerView(
       VIDEO_SUMMARY_VIEW_TYPE,
       (leaf: WorkspaceLeaf) => new VideoSummaryView(leaf, this),
-    );
-    this.registerView(
-      VIDEO_SUMMARY_WORKSPACE_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new VideoSummaryWorkspaceView(leaf, this),
     );
 
     // 注册命令
@@ -188,17 +179,9 @@ export default class VideoSummaryPlugin extends Plugin {
     // 打开视频总结管理视图
     this.addCommand({
       id: 'video-summary-view',
-      name: '打开视频总结快速处理',
+      name: '📋 视频总结管理',
       callback: () => {
         this.activateView();
-      },
-    });
-
-    this.addCommand({
-      id: 'video-summary-workbench',
-      name: '打开视频知识工作台',
-      callback: () => {
-        void this.openVideoSummaryWorkbench('library');
       },
     });
 
@@ -903,24 +886,6 @@ export default class VideoSummaryPlugin extends Plugin {
       });
     }
 
-    workspace.revealLeaf(leaf);
-  }
-
-  async openVideoSummaryWorkbench(tab: PanelTab = 'library') {
-    const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(VIDEO_SUMMARY_WORKSPACE_VIEW_TYPE)[0];
-    if (!leaf) {
-      leaf = workspace.getLeaf(true);
-      await leaf.setViewState({
-        type: VIDEO_SUMMARY_WORKSPACE_VIEW_TYPE,
-        active: true,
-      });
-    }
-
-    const view = leaf.view;
-    if (view instanceof VideoSummaryWorkspaceView) {
-      view.showTab(tab);
-    }
     workspace.revealLeaf(leaf);
   }
 

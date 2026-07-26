@@ -36,8 +36,6 @@ export type BackendState = 'is-unknown' | 'is-online' | 'is-offline' | 'is-check
 export interface ViewContext {
   plugin: VideoSummaryPlugin;
   state: ViewState;
-  /** 主区域知识工作台使用宽布局；侧栏保持快速处理模式 */
-  isWorkspace?: boolean;
   /** 后端连通状态，只影响头部那颗点，不参与处理逻辑 */
   backendState(): BackendState;
   setBackendState(state: BackendState): void;
@@ -48,6 +46,5 @@ export interface ViewContext {
   openNote(path: string): void;
   openDetail(ref: DetailRef): void;
   closeDetail(): void;
-  openWorkbench(tab?: PanelTab): void;
   submitOptions(): SubmitOptions;
 }

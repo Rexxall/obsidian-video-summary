@@ -40,7 +40,7 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
 
   const historyRows = buildHistoryRows(ctx, finished);
   if (historyRows.length > 0) {
-    const header = section(container, ctx.isWorkspace ? '任务记录' : '最近活动');
+    const header = section(container, '最近完成');
     iconButton(header, 'history', '从 webhook 历史结果里取回', (event) => {
       showWebhookHistoryMenu(ctx, event);
     });
@@ -76,16 +76,7 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
         },
       ]);
     });
-    const visibleHistory = ctx.isWorkspace ? 60 : 5;
-    historyRows.slice(0, visibleHistory).forEach((row) => renderHistoryRow(container, ctx, row));
-    if (!ctx.isWorkspace && historyRows.length > visibleHistory) {
-      textButton(
-        container,
-        `在知识工作台查看全部 ${historyRows.length} 条`,
-        () => ctx.openWorkbench('jobs'),
-        'vs-view-all-btn',
-      );
-    }
+    historyRows.slice(0, 60).forEach((row) => renderHistoryRow(container, ctx, row));
   }
 
   if (active.length === 0 && review.length === 0 && historyRows.length === 0) {
@@ -255,10 +246,12 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
     }
   });
 
+  // 状态胶囊即动作：失败行点一下就是跳过缓存重跑
   if (row.state === 'error') {
-    statusPill(item, 'error');
-    iconButton(item, 'rotate-ccw', '重试（跳过缓存）', () => {
-      void rerun(ctx, row);
+    statusPill(item, 'error', {
+      label: '重试',
+      title: '跳过缓存重新处理',
+      onClick: () => void rerun(ctx, row),
     });
   } else {
     statusPill(item, row.state, { label: row.state === 'success' ? '完成' : '已取消' });
