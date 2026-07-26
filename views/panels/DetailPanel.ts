@@ -51,17 +51,17 @@ function renderHeader(container: HTMLElement, ctx: ViewContext, title: string, s
 function renderJobDetail(container: HTMLElement, ctx: ViewContext, job: Job) {
   renderHeader(container, ctx, job.title, job.state);
 
-  const stats = container.createDiv({ cls: 'vs-stat-grid' });
-  stat(stats, '模式', modeLabel(job.mode));
-  stat(stats, '语言', languageLabel(job.language));
-  stat(
-    stats,
+  const meta = container.createDiv({ cls: 'vs-meta-line' });
+  metaItem(meta, '模式', modeLabel(job.mode));
+  metaItem(meta, '语言', languageLabel(job.language));
+  metaItem(
+    meta,
     '耗时',
     job.startedAt ? formatElapsed((job.endedAt || Date.now()) - job.startedAt) : '—',
   );
-  if (job.result?.video_duration) stat(stats, '时长', job.result.video_duration);
-  if (job.result?.video_author) stat(stats, '作者', job.result.video_author);
-  if (job.input.url) stat(stats, '链接', job.input.url, true);
+  if (job.result?.video_duration) metaItem(meta, '时长', job.result.video_duration);
+  if (job.result?.video_author) metaItem(meta, '作者', job.result.video_author);
+  if (job.input.url) meta.createDiv({ text: job.input.url, cls: 'vs-meta-link' });
 
   if (job.state === 'error' && job.error) {
     const errorBox = container.createDiv({ cls: 'vs-error-box' });
@@ -204,13 +204,13 @@ function renderPreview(body: HTMLElement, ctx: ViewContext, job: Job) {
 function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: ProcessingHistory) {
   renderHeader(container, ctx, record.file, record.result);
 
-  const stats = container.createDiv({ cls: 'vs-stat-grid' });
-  stat(stats, '模式', modeLabel(record.mode));
-  if (record.language) stat(stats, '语言', languageLabel(record.language));
+  const meta = container.createDiv({ cls: 'vs-meta-line' });
+  metaItem(meta, '模式', modeLabel(record.mode));
+  if (record.language) metaItem(meta, '语言', languageLabel(record.language));
   const time = parseLocaleTime(record.time);
-  stat(stats, '时间', time ? formatRelative(time) : record.time);
-  if (record.durationMs) stat(stats, '耗时', formatElapsed(record.durationMs));
-  if (record.url) stat(stats, '链接', record.url, true);
+  metaItem(meta, '时间', time ? formatRelative(time) : record.time);
+  if (record.durationMs) metaItem(meta, '耗时', formatElapsed(record.durationMs));
+  if (record.url) meta.createDiv({ text: record.url, cls: 'vs-meta-link' });
 
   if (record.error) {
     const errorBox = container.createDiv({ cls: 'vs-error-box' });
@@ -264,10 +264,10 @@ function renderText(container: HTMLElement, text: string | undefined, empty: str
   container.createEl('pre', { text: text.slice(0, 20000), cls: 'vs-pre' });
 }
 
-function stat(container: HTMLElement, label: string, value: string, wide = false) {
-  const cell = container.createDiv({ cls: `vs-stat${wide ? ' is-wide' : ''}` });
-  cell.createDiv({ text: label, cls: 'vs-stat-label' });
-  cell.createDiv({ text: value, cls: 'vs-stat-value' });
+function metaItem(container: HTMLElement, label: string, value: string) {
+  const item = container.createSpan({ cls: 'vs-meta-item' });
+  item.createSpan({ text: label, cls: 'vs-meta-label' });
+  item.createSpan({ text: value });
 }
 
 function isCookieError(error: string): boolean {

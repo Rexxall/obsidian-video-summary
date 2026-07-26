@@ -1319,8 +1319,12 @@
 }
 
 /* ================================================================
-   Video summary — 侧栏 v2.3.0
-   全部走 Obsidian 主题变量，不硬编码颜色；密度按 260–400px 侧栏调
+   Video summary — 侧栏 v2.3.1
+   注意：所有控件选择器都带 .video-summary-view 前缀。
+   主题普遍写 `button:not(.clickable-icon){...}`（特异性 0-1-1），
+   单类选择器压不住，会被刷成主题默认的灰色按钮 —— 这就是 2.3.0 里
+   "满屏灰盒子" 的原因。前缀把特异性提到 0-2-x，才是我们说了算。
+   视觉上：分组靠留白和发丝线，不靠一层层灰底。
    ================================================================ */
 
 .video-summary-view {
@@ -1330,124 +1334,126 @@
   padding: 0;
   background: var(--background-primary);
   font-size: var(--font-ui-small);
+  --vs-gap: 6px;
 }
 
-.vs-top {
+.video-summary-view .vs-top {
   flex: none;
-  padding: 8px 10px 6px;
+  padding: 10px 12px 8px;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.vs-panels {
+.video-summary-view .vs-panels {
   flex: 1;
   overflow-y: auto;
-  padding: 0 10px 16px;
+  padding: 0 12px 16px;
 }
 
 /* --- 顶部标题行 --- */
 
-.vs-header {
+.video-summary-view .vs-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   margin-bottom: 8px;
 }
 
-.vs-header-title {
+.video-summary-view .vs-header-title {
   flex: 1;
-  font-size: var(--font-ui-smaller);
+  font-size: 10px;
   font-weight: var(--font-medium);
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
   text-transform: uppercase;
 }
 
-.vs-header-actions {
+.video-summary-view .vs-header-actions {
   display: flex;
-  gap: 2px;
+  gap: 0;
 }
 
-/* --- 当前笔记上下文条 --- */
+/* --- 当前笔记上下文条：左侧一道竖线，不铺灰底 --- */
 
-.vs-context-strip {
+.video-summary-view .vs-context-strip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  margin-bottom: 8px;
-  border-radius: var(--radius-m);
-  background: var(--background-modifier-hover);
+  gap: 7px;
+  padding: 2px 0 2px 8px;
+  margin-bottom: 9px;
+  border-left: 2px solid var(--background-modifier-border);
+  border-radius: 0;
 }
 
-.vs-context-icon {
+.video-summary-view .vs-context-icon {
   display: flex;
-  color: var(--text-muted);
+  color: var(--text-faint);
 }
 
-.vs-context-icon svg {
-  width: 16px;
-  height: 16px;
+.video-summary-view .vs-context-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
-.vs-context-body {
+.video-summary-view .vs-context-body {
   flex: 1;
   min-width: 0;
 }
 
-.vs-context-title,
-.vs-row-title,
-.vs-job-title,
-.vs-detail-title {
+.video-summary-view .vs-context-title,
+.video-summary-view .vs-row-title,
+.video-summary-view .vs-job-title,
+.video-summary-view .vs-detail-title,
+.video-summary-view .vs-context-sub,
+.video-summary-view .vs-row-sub {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.vs-context-title {
+.video-summary-view .vs-context-title {
   font-size: var(--font-ui-small);
   color: var(--text-normal);
+  line-height: 1.35;
 }
 
-.vs-context-sub {
+.video-summary-view .vs-context-sub {
   font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--text-faint);
+  line-height: 1.35;
 }
 
 /* --- 智能输入框 --- */
 
-.vs-input-row {
+.video-summary-view .vs-input-row {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 5px 6px 5px 8px;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
-  background: var(--background-primary);
+  background-color: var(--background-primary);
   transition: border-color 0.12s ease;
 }
 
-.vs-input-row:focus-within {
+.video-summary-view .vs-input-row:focus-within {
   border-color: var(--interactive-accent);
 }
 
-.vs-input-icon {
+.video-summary-view .vs-input-icon {
   display: flex;
   padding-top: 4px;
   color: var(--text-faint);
 }
 
-.vs-input-icon svg {
-  width: 15px;
-  height: 15px;
+.video-summary-view .vs-input-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
-textarea.vs-input {
+.video-summary-view textarea.vs-input {
   flex: 1;
-  min-height: 24px;
-  padding: 2px 0;
+  min-height: 22px;
+  padding: 1px 0;
   border: none;
   background: transparent;
   box-shadow: none;
@@ -1455,153 +1461,165 @@ textarea.vs-input {
   font-size: var(--font-ui-small);
   line-height: 1.5;
   font-family: inherit;
+  color: var(--text-normal);
 }
 
-textarea.vs-input:focus {
-  box-shadow: none;
+.video-summary-view textarea.vs-input:focus,
+.video-summary-view textarea.vs-input:active {
   border: none;
+  box-shadow: none;
 }
 
-.vs-input-action {
-  margin-top: 1px;
-}
+/* --- 配置 chip：文字为主，只有 hover 才有底 --- */
 
-/* --- 配置 chip --- */
-
-.vs-chip-row {
+.video-summary-view .vs-chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
+  gap: 2px;
+  margin-top: 5px;
 }
 
-.vs-chip {
+.video-summary-view .vs-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   height: 22px;
-  padding: 0 7px;
+  padding: 0 6px;
   border: none;
   border-radius: var(--radius-s);
-  background: var(--background-modifier-hover);
+  background-color: transparent;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
+  line-height: 1;
   cursor: pointer;
   box-shadow: none;
 }
 
-.vs-chip:hover {
-  background: var(--background-modifier-active-hover);
+.video-summary-view .vs-chip:hover {
+  background-color: var(--background-modifier-hover);
   color: var(--text-normal);
+  box-shadow: none;
 }
 
-.vs-chip-value {
-  max-width: 120px;
+.video-summary-view .vs-chip-value {
+  max-width: 116px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.vs-chip-caret {
+.video-summary-view .vs-chip-caret {
   display: flex;
   align-items: center;
+  color: var(--text-faint);
 }
 
-.vs-chip-caret svg {
-  width: 12px;
-  height: 12px;
+.video-summary-view .vs-chip-caret svg {
+  width: 11px;
+  height: 11px;
 }
 
-.vs-chip-toggle.is-active {
-  background: var(--background-modifier-success);
-  color: var(--text-normal);
+.video-summary-view .vs-chip-toggle.is-active {
+  background-color: transparent;
+  color: var(--text-accent);
+}
+
+.video-summary-view .vs-chip-toggle.is-active .vs-chip-caret {
+  color: var(--text-accent);
 }
 
 /* --- 高级选项 --- */
 
-.vs-advanced {
+.video-summary-view .vs-advanced {
   display: none;
   flex-direction: column;
   gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 9px;
+  padding-top: 9px;
   border-top: 1px solid var(--background-modifier-border);
 }
 
-.vs-advanced.is-open {
+.video-summary-view .vs-advanced.is-open {
   display: flex;
 }
 
-.vs-field {
+.video-summary-view .vs-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
-.vs-field-inline {
+.video-summary-view .vs-field-inline {
   flex-direction: row;
   align-items: center;
   gap: 6px;
 }
 
-.vs-field-label {
+.video-summary-view .vs-field-label {
   font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
+  color: var(--text-faint);
 }
 
-.vs-field-input {
+.video-summary-view .vs-field-input {
   width: 100%;
   font-size: var(--font-ui-smaller);
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
 }
 
-textarea.vs-field-input {
+.video-summary-view textarea.vs-field-input {
   resize: vertical;
   font-family: inherit;
+  min-height: 56px;
 }
 
-.vs-field-hint {
+.video-summary-view .vs-field-hint {
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
   line-height: 1.4;
 }
 
-.vs-num-input {
-  width: 56px;
+.video-summary-view .vs-num-input {
+  width: 52px;
   font-size: var(--font-ui-smaller);
 }
 
 /* --- 主操作行 --- */
 
-.vs-action-row {
+.video-summary-view .vs-action-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 4px;
+  margin-top: 9px;
 }
 
-.vs-primary-btn {
+.video-summary-view button.vs-primary-btn {
   flex: 1;
   height: 30px;
+  padding: 0 12px;
   border: none;
   border-radius: var(--radius-s);
-  background: var(--interactive-accent);
+  background-color: var(--interactive-accent);
   color: var(--text-on-accent);
   font-size: var(--font-ui-small);
+  font-weight: var(--font-medium);
   cursor: pointer;
+  box-shadow: none;
 }
 
-.vs-primary-btn:hover:not(:disabled) {
-  background: var(--interactive-accent-hover);
+.video-summary-view button.vs-primary-btn:hover:not(:disabled) {
+  background-color: var(--interactive-accent-hover);
+  color: var(--text-on-accent);
 }
 
-.vs-primary-btn:disabled {
-  opacity: 0.6;
+.video-summary-view button.vs-primary-btn:disabled {
+  opacity: 0.55;
   cursor: default;
 }
 
-/* --- 通用按钮 --- */
+/* --- 图标按钮：默认透明，hover 才有底 --- */
 
-.vs-icon-btn {
+.video-summary-view button.vs-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1610,169 +1628,173 @@ textarea.vs-field-input {
   padding: 0;
   border: none;
   border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--text-muted);
+  background-color: transparent;
+  color: var(--text-faint);
   cursor: pointer;
   box-shadow: none;
 }
 
-.vs-icon-btn:hover {
-  background: var(--background-modifier-hover);
+.video-summary-view button.vs-icon-btn:hover {
+  background-color: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.vs-icon-btn.is-active {
+.video-summary-view button.vs-icon-btn.is-active {
   color: var(--text-accent);
-  background: var(--background-modifier-hover);
+  background-color: transparent;
 }
 
-.vs-icon-btn svg {
+.video-summary-view button.vs-icon-btn svg {
   width: 15px;
   height: 15px;
 }
 
-.vs-text-btn {
+/* --- 文字按钮 --- */
+
+.video-summary-view button.vs-text-btn {
   height: 24px;
-  padding: 0 9px;
-  border: 1px solid var(--background-modifier-border);
+  padding: 0 8px;
+  border: none;
   border-radius: var(--radius-s);
-  background: transparent;
+  background-color: transparent;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   cursor: pointer;
   box-shadow: none;
 }
 
-.vs-text-btn:hover {
-  background: var(--background-modifier-hover);
+.video-summary-view button.vs-text-btn:hover {
+  background-color: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.vs-text-btn.is-primary {
-  border-color: transparent;
-  background: var(--interactive-accent);
+.video-summary-view button.vs-text-btn.is-primary {
+  background-color: var(--interactive-accent);
   color: var(--text-on-accent);
 }
 
-.vs-text-btn.is-primary:hover {
-  background: var(--interactive-accent-hover);
+.video-summary-view button.vs-text-btn.is-primary:hover {
+  background-color: var(--interactive-accent-hover);
   color: var(--text-on-accent);
 }
 
-.vs-context-action {
+.video-summary-view button.vs-context-action {
   flex: none;
+  color: var(--text-accent);
 }
 
 /* --- 分页 tab --- */
 
-.vs-tab-row {
+.video-summary-view .vs-tab-row {
   display: flex;
-  gap: 12px;
-  padding: 8px 0 0;
+  gap: 14px;
+  padding: 9px 0 0;
   border-bottom: 1px solid var(--background-modifier-border);
   position: sticky;
   top: 0;
-  background: var(--background-primary);
+  background-color: var(--background-primary);
   z-index: 1;
 }
 
-.vs-tab-row.is-inner {
+.video-summary-view .vs-tab-row.is-inner {
   position: static;
-  padding-top: 4px;
-  margin-bottom: 8px;
+  padding-top: 2px;
+  margin-bottom: 9px;
 }
 
-.vs-tab {
+.video-summary-view button.vs-tab {
   padding: 0 0 6px;
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  background: transparent;
-  color: var(--text-muted);
+  background-color: transparent;
+  color: var(--text-faint);
   font-size: var(--font-ui-small);
   cursor: pointer;
   box-shadow: none;
 }
 
-.vs-tab:hover {
+.video-summary-view button.vs-tab:hover {
   color: var(--text-normal);
-  background: transparent;
+  background-color: transparent;
 }
 
-.vs-tab.is-active {
+.video-summary-view button.vs-tab.is-active {
   color: var(--text-normal);
   border-bottom-color: var(--text-normal);
 }
 
-.vs-panel-body {
-  padding-top: 8px;
+.video-summary-view .vs-panel-body {
+  padding-top: 4px;
 }
 
 /* --- 区块标题 --- */
 
-.vs-section-header {
+.video-summary-view .vs-section-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 10px 0 4px;
+  gap: 2px;
+  margin: 12px 0 2px;
 }
 
-.vs-section-title {
+.video-summary-view .vs-section-title {
   flex: 1;
-  font-size: var(--font-ui-smaller);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-faint);
 }
 
-.vs-section-actions {
+.video-summary-view .vs-section-actions {
   display: flex;
-  gap: 2px;
+  gap: 0;
 }
 
-/* --- 任务卡 --- */
+/* --- 任务卡：只有正在跑的才配拥有一个框 --- */
 
-.vs-job-card {
+.video-summary-view .vs-job-card {
   padding: 8px 9px;
   margin-bottom: 6px;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
-  background: var(--background-primary-alt);
+  background-color: transparent;
 }
 
-.vs-job-card.is-review {
+.video-summary-view .vs-job-card.is-review {
   border-color: var(--text-accent);
 }
 
-.vs-job-head {
+.video-summary-view .vs-job-head {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.vs-job-icon {
+.video-summary-view .vs-job-icon {
   display: flex;
-  color: var(--text-muted);
+  color: var(--text-faint);
 }
 
-.vs-job-icon svg {
+.video-summary-view .vs-job-icon svg {
   width: 14px;
   height: 14px;
 }
 
-.vs-job-title {
+.video-summary-view .vs-job-title {
   flex: 1;
   min-width: 0;
   font-size: var(--font-ui-small);
   color: var(--text-normal);
 }
 
-.vs-job-stage {
+.video-summary-view .vs-job-stage {
   margin: 5px 0;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
-.vs-job-meta {
+.video-summary-view .vs-job-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1781,29 +1803,29 @@ textarea.vs-field-input {
   color: var(--text-faint);
 }
 
-.vs-job-actions {
+.video-summary-view .vs-job-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   margin-top: 7px;
 }
 
 /* --- 进度条 --- */
 
-.vs-progress {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--background-modifier-border);
+.video-summary-view .vs-progress {
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--background-modifier-border);
   overflow: hidden;
 }
 
-.vs-progress-fill {
+.video-summary-view .vs-progress-fill {
   height: 100%;
-  background: var(--interactive-accent);
+  background-color: var(--interactive-accent);
   transition: width 0.3s ease;
 }
 
-.vs-progress-fill.is-indeterminate {
+.video-summary-view .vs-progress-fill.is-indeterminate {
   width: 35%;
   animation: vs-slide 1.4s ease-in-out infinite;
 }
@@ -1819,107 +1841,132 @@ textarea.vs-field-input {
 
 /* --- 列表行 --- */
 
-.vs-list {
+.video-summary-view .vs-list {
   display: flex;
   flex-direction: column;
 }
 
-.vs-row {
+.video-summary-view .vs-row {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 4px;
+  gap: 8px;
+  padding: 5px 4px;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.vs-row:hover {
-  background: var(--background-modifier-hover);
+.video-summary-view .vs-row:hover {
+  background-color: var(--background-modifier-hover);
 }
 
-.vs-row-body {
+/* 行内动作默认藏起来，hover 才出现，列表才干净 */
+.video-summary-view .vs-row button.vs-icon-btn {
+  opacity: 0;
+}
+
+.video-summary-view .vs-row:hover button.vs-icon-btn,
+.video-summary-view .vs-row button.vs-icon-btn:focus-visible {
+  opacity: 1;
+}
+
+/* 触摸设备没有 hover，行内动作必须常显 */
+@media (pointer: coarse) {
+  .video-summary-view .vs-row button.vs-icon-btn {
+    opacity: 1;
+  }
+}
+
+.video-summary-view .vs-row-body {
   flex: 1;
   min-width: 0;
   cursor: pointer;
 }
 
-.vs-row-title {
+.video-summary-view .vs-row-title {
   font-size: var(--font-ui-small);
   color: var(--text-normal);
+  line-height: 1.35;
 }
 
-.vs-row-sub {
+.video-summary-view .vs-row-sub {
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
+  line-height: 1.35;
 }
 
-.vs-row-error {
+.video-summary-view .vs-row-error {
   margin-top: 2px;
   font-size: var(--font-ui-smaller);
   color: var(--text-error);
   line-height: 1.4;
+  white-space: normal;
 }
 
-.vs-row-platform {
+.video-summary-view .vs-row-platform {
   display: flex;
   color: var(--text-faint);
 }
 
-.vs-row-platform svg {
+.video-summary-view .vs-row-platform svg {
   width: 13px;
   height: 13px;
 }
 
-.vs-dot {
+.video-summary-view .vs-dot {
   flex: none;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--text-faint);
+  background-color: var(--text-faint);
 }
 
-.vs-dot.is-success {
-  background: var(--color-green);
+.video-summary-view .vs-dot.is-success {
+  background-color: var(--color-green);
 }
 
-.vs-dot.is-error {
-  background: var(--color-red);
+.video-summary-view .vs-dot.is-error {
+  background-color: var(--color-red);
 }
 
-.vs-dot.is-running,
-.vs-dot.is-queued {
-  background: var(--color-blue);
+.video-summary-view .vs-dot.is-running,
+.video-summary-view .vs-dot.is-queued {
+  background-color: var(--color-blue);
 }
 
-.vs-dot.is-pending {
-  background: var(--color-yellow);
+.video-summary-view .vs-dot.is-pending {
+  background-color: var(--color-yellow);
 }
 
-.vs-dot.is-review {
-  background: var(--color-purple);
+.video-summary-view .vs-dot.is-review {
+  background-color: var(--color-purple);
 }
 
-.vs-more-btn {
+.video-summary-view button.vs-more-btn {
   margin: 8px auto 0;
-  padding: 4px 10px;
-  border: 1px solid var(--background-modifier-border);
+  padding: 3px 10px;
+  border: none;
   border-radius: var(--radius-s);
-  background: transparent;
+  background-color: transparent;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   cursor: pointer;
   box-shadow: none;
 }
 
-/* --- 笔记库头部 --- */
-
-.vs-library-header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
+.video-summary-view button.vs-more-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
 }
 
-.vs-search {
+/* --- 笔记库头部 --- */
+
+.video-summary-view .vs-library-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 8px 0 4px;
+}
+
+.video-summary-view .vs-search {
   display: flex;
   align-items: center;
   flex: 1;
@@ -1929,21 +1976,21 @@ textarea.vs-field-input {
   border-radius: var(--radius-s);
 }
 
-.vs-search:focus-within {
+.video-summary-view .vs-search:focus-within {
   border-color: var(--interactive-accent);
 }
 
-.vs-search-icon {
+.video-summary-view .vs-search-icon {
   display: flex;
   color: var(--text-faint);
 }
 
-.vs-search-icon svg {
+.video-summary-view .vs-search-icon svg {
   width: 13px;
   height: 13px;
 }
 
-input.vs-search-input {
+.video-summary-view input.vs-search-input {
   flex: 1;
   height: 26px;
   padding: 0;
@@ -1953,40 +2000,43 @@ input.vs-search-input {
   font-size: var(--font-ui-smaller);
 }
 
-input.vs-search-input:focus {
+.video-summary-view input.vs-search-input:focus {
   box-shadow: none;
+  border: none;
 }
 
-.vs-filter-row {
+.video-summary-view .vs-filter-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 2px;
+  margin-bottom: 4px;
 }
 
-.vs-filter-chip {
+.video-summary-view button.vs-filter-chip {
   height: 22px;
-  padding: 0 8px;
+  padding: 0 7px;
   border: none;
   border-radius: var(--radius-s);
-  background: transparent;
+  background-color: transparent;
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
   cursor: pointer;
   box-shadow: none;
 }
 
-.vs-filter-chip:hover {
-  background: var(--background-modifier-hover);
+.video-summary-view button.vs-filter-chip:hover {
+  background-color: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.vs-filter-chip.is-active {
-  background: var(--background-modifier-hover);
+.video-summary-view button.vs-filter-chip.is-active {
+  background-color: transparent;
   color: var(--text-normal);
+  box-shadow: inset 0 -2px 0 var(--text-normal);
+  border-radius: 0;
 }
 
-.vs-scan-hint {
+.video-summary-view .vs-scan-hint {
   padding: 6px 2px;
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
@@ -1994,200 +2044,208 @@ input.vs-search-input:focus {
 
 /* --- 详情层 --- */
 
-.vs-detail-header {
+.video-summary-view .vs-detail-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 8px 0;
   position: sticky;
   top: 0;
-  background: var(--background-primary);
+  background-color: var(--background-primary);
   z-index: 1;
 }
 
-.vs-detail-title {
+.video-summary-view .vs-detail-title {
   flex: 1;
   min-width: 0;
   font-size: var(--font-ui-small);
   font-weight: var(--font-medium);
 }
 
-.vs-badge {
+.video-summary-view .vs-badge {
   flex: none;
-  padding: 2px 7px;
+  padding: 1px 6px;
   border-radius: var(--radius-s);
-  background: var(--background-modifier-hover);
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-}
-
-.vs-badge.is-success {
-  background: var(--background-modifier-success);
-  color: var(--text-normal);
-}
-
-.vs-badge.is-error {
-  background: var(--background-modifier-error);
-  color: var(--text-normal);
-}
-
-.vs-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.vs-stat {
-  padding: 6px 8px;
-  border-radius: var(--radius-s);
-  background: var(--background-modifier-hover);
-}
-
-.vs-stat.is-wide {
-  grid-column: 1 / -1;
-}
-
-.vs-stat-label {
-  font-size: var(--font-ui-smaller);
+  background-color: transparent;
   color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
 }
 
-.vs-stat-value {
-  font-size: var(--font-ui-small);
-  color: var(--text-normal);
-  overflow-wrap: anywhere;
+.video-summary-view .vs-badge.is-success {
+  color: var(--color-green);
+  box-shadow: inset 0 0 0 1px var(--color-green);
 }
 
-.vs-detail-body {
-  margin-bottom: 10px;
+.video-summary-view .vs-badge.is-error {
+  color: var(--color-red);
+  box-shadow: inset 0 0 0 1px var(--color-red);
 }
 
-.vs-preview-diff {
-  padding: 6px 8px;
-  margin-bottom: 8px;
-  border-radius: var(--radius-s);
-  background: var(--background-modifier-hover);
+.video-summary-view .vs-badge.is-review {
+  color: var(--color-purple);
+  box-shadow: inset 0 0 0 1px var(--color-purple);
+}
+
+/* 元信息一行文字，不再是三个大灰卡片 */
+.video-summary-view .vs-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 9px;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   line-height: 1.5;
 }
 
-.vs-markdown {
+.video-summary-view .vs-meta-item {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.video-summary-view .vs-meta-label {
+  color: var(--text-faint);
+}
+
+.video-summary-view .vs-meta-link {
+  width: 100%;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.video-summary-view .vs-detail-body {
+  margin-bottom: 10px;
+}
+
+.video-summary-view .vs-preview-diff {
+  padding-bottom: 7px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.video-summary-view .vs-markdown {
   font-size: var(--font-ui-small);
   line-height: 1.6;
 }
 
-.vs-markdown h2 {
+.video-summary-view .vs-markdown h2 {
   font-size: var(--font-ui-medium);
   margin: 10px 0 4px;
 }
 
-.vs-pre {
+.video-summary-view .vs-pre {
   max-height: 320px;
   overflow: auto;
   padding: 8px;
   border-radius: var(--radius-s);
-  background: var(--background-modifier-hover);
+  background-color: var(--background-primary-alt);
   font-size: var(--font-ui-smaller);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.vs-detail-actions {
+.video-summary-view .vs-detail-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   padding-top: 8px;
   border-top: 1px solid var(--background-modifier-border);
 }
 
-.vs-error-box {
+/* 错误：左侧一道红线 + 极淡底，不再是整块猩红 */
+.video-summary-view .vs-error-box {
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  padding: 8px 9px;
+  padding: 7px 9px;
   margin-bottom: 10px;
-  border-radius: var(--radius-m);
-  background: var(--background-modifier-error);
+  border-left: 2px solid var(--color-red);
+  border-radius: 0;
+  background-color: var(--background-primary-alt);
 }
 
-.vs-error-icon {
+.video-summary-view .vs-error-icon {
   display: flex;
-  color: var(--text-error);
+  padding-top: 1px;
+  color: var(--color-red);
 }
 
-.vs-error-icon svg {
-  width: 15px;
-  height: 15px;
+.video-summary-view .vs-error-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
-.vs-error-text {
+.video-summary-view .vs-error-text {
   flex: 1;
   font-size: var(--font-ui-smaller);
+  color: var(--text-normal);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
-.vs-hint {
+.video-summary-view .vs-hint {
   font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
+  color: var(--text-faint);
   line-height: 1.5;
 }
 
-.vs-log-box {
+.video-summary-view .vs-log-box {
   max-height: 260px;
   overflow-y: auto;
   padding: 6px 8px;
   border-radius: var(--radius-s);
-  background: var(--background-modifier-hover);
+  background-color: var(--background-primary-alt);
 }
 
-.vs-log-line {
+.video-summary-view .vs-log-line {
   display: flex;
   gap: 8px;
   font-size: var(--font-ui-smaller);
   line-height: 1.6;
 }
 
-.vs-log-time {
+.video-summary-view .vs-log-time {
   flex: none;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 
-.vs-log-text {
+.video-summary-view .vs-log-text {
   overflow-wrap: anywhere;
 }
 
 /* --- 空状态 --- */
 
-.vs-empty {
+.video-summary-view .vs-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding: 32px 12px;
+  gap: 4px;
+  padding: 36px 12px;
   text-align: center;
 }
 
-.vs-empty-icon {
+.video-summary-view .vs-empty-icon {
   display: flex;
   color: var(--text-faint);
+  opacity: 0.6;
 }
 
-.vs-empty-icon svg {
-  width: 22px;
-  height: 22px;
+.video-summary-view .vs-empty-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
-.vs-empty-title {
+.video-summary-view .vs-empty-title {
   font-size: var(--font-ui-small);
   color: var(--text-muted);
 }
 
-.vs-empty-hint {
+.video-summary-view .vs-empty-hint {
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
   line-height: 1.5;
@@ -2195,39 +2253,35 @@ input.vs-search-input:focus {
 
 /* --- 文件夹选择弹窗 --- */
 
-.vs-folder-modal .vs-folder-search {
+.vs-folder-modal input.vs-folder-search {
   width: 100%;
   margin-bottom: 8px;
 }
 
-.vs-folder-list {
+.vs-folder-modal .vs-folder-list {
   max-height: 320px;
   overflow-y: auto;
 }
 
-.vs-folder-option {
-  padding: 6px 8px;
+.vs-folder-modal .vs-folder-option {
+  padding: 5px 8px;
   border-radius: var(--radius-s);
   font-size: var(--font-ui-small);
   cursor: pointer;
 }
 
-.vs-folder-option:hover {
-  background: var(--background-modifier-hover);
+.vs-folder-modal .vs-folder-option:hover {
+  background-color: var(--background-modifier-hover);
 }
 
-/* --- 宽屏（在主区打开时）双栏 --- */
+/* --- 在主区打开时给点呼吸 --- */
 
 @media (min-width: 720px) {
-  .vs-panels {
-    padding: 0 16px 20px;
+  .video-summary-view .vs-top {
+    padding: 14px 18px 10px;
   }
 
-  .vs-top {
-    padding: 12px 16px 10px;
-  }
-
-  .vs-stat-grid {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  .video-summary-view .vs-panels {
+    padding: 0 18px 20px;
   }
 }

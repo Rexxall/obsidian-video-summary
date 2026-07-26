@@ -7674,17 +7674,17 @@ function renderHeader2(container, ctx, title, status) {
 }
 function renderJobDetail(container, ctx, job) {
   renderHeader2(container, ctx, job.title, job.state);
-  const stats = container.createDiv({ cls: "vs-stat-grid" });
-  stat(stats, "\u6A21\u5F0F", modeLabel(job.mode));
-  stat(stats, "\u8BED\u8A00", languageLabel(job.language));
-  stat(
-    stats,
+  const meta = container.createDiv({ cls: "vs-meta-line" });
+  metaItem(meta, "\u6A21\u5F0F", modeLabel(job.mode));
+  metaItem(meta, "\u8BED\u8A00", languageLabel(job.language));
+  metaItem(
+    meta,
     "\u8017\u65F6",
     job.startedAt ? formatElapsed((job.endedAt || Date.now()) - job.startedAt) : "\u2014"
   );
-  if (job.result?.video_duration) stat(stats, "\u65F6\u957F", job.result.video_duration);
-  if (job.result?.video_author) stat(stats, "\u4F5C\u8005", job.result.video_author);
-  if (job.input.url) stat(stats, "\u94FE\u63A5", job.input.url, true);
+  if (job.result?.video_duration) metaItem(meta, "\u65F6\u957F", job.result.video_duration);
+  if (job.result?.video_author) metaItem(meta, "\u4F5C\u8005", job.result.video_author);
+  if (job.input.url) meta.createDiv({ text: job.input.url, cls: "vs-meta-link" });
   if (job.state === "error" && job.error) {
     const errorBox = container.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
@@ -7816,13 +7816,13 @@ ${result.note}` : ""
 }
 function renderRecordDetail(container, ctx, record) {
   renderHeader2(container, ctx, record.file, record.result);
-  const stats = container.createDiv({ cls: "vs-stat-grid" });
-  stat(stats, "\u6A21\u5F0F", modeLabel(record.mode));
-  if (record.language) stat(stats, "\u8BED\u8A00", languageLabel(record.language));
+  const meta = container.createDiv({ cls: "vs-meta-line" });
+  metaItem(meta, "\u6A21\u5F0F", modeLabel(record.mode));
+  if (record.language) metaItem(meta, "\u8BED\u8A00", languageLabel(record.language));
   const time = parseLocaleTime(record.time);
-  stat(stats, "\u65F6\u95F4", time ? formatRelative(time) : record.time);
-  if (record.durationMs) stat(stats, "\u8017\u65F6", formatElapsed(record.durationMs));
-  if (record.url) stat(stats, "\u94FE\u63A5", record.url, true);
+  metaItem(meta, "\u65F6\u95F4", time ? formatRelative(time) : record.time);
+  if (record.durationMs) metaItem(meta, "\u8017\u65F6", formatElapsed(record.durationMs));
+  if (record.url) meta.createDiv({ text: record.url, cls: "vs-meta-link" });
   if (record.error) {
     const errorBox = container.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
@@ -7868,10 +7868,10 @@ function renderText(container, text, empty) {
   }
   container.createEl("pre", { text: text.slice(0, 2e4), cls: "vs-pre" });
 }
-function stat(container, label, value, wide = false) {
-  const cell = container.createDiv({ cls: `vs-stat${wide ? " is-wide" : ""}` });
-  cell.createDiv({ text: label, cls: "vs-stat-label" });
-  cell.createDiv({ text: value, cls: "vs-stat-value" });
+function metaItem(container, label, value) {
+  const item = container.createSpan({ cls: "vs-meta-item" });
+  item.createSpan({ text: label, cls: "vs-meta-label" });
+  item.createSpan({ text: value });
 }
 function isCookieError(error) {
   return /cookie|登录|login|403|需要验证/i.test(error);
@@ -10149,9 +10149,9 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       let hasStale = false;
       files.forEach((name) => {
         try {
-          const stat2 = fs.statSync(pathModule.join(dir, name));
-          const ageDays = Math.floor((now - stat2.mtimeMs) / (24 * 60 * 60 * 1e3));
-          const sizeKb = Math.max(1, Math.round(stat2.size / 1024));
+          const stat = fs.statSync(pathModule.join(dir, name));
+          const ageDays = Math.floor((now - stat.mtimeMs) / (24 * 60 * 60 * 1e3));
+          const sizeKb = Math.max(1, Math.round(stat.size / 1024));
           const stale = ageDays > STALE_DAYS;
           if (stale) hasStale = true;
           list.createEl("li", {

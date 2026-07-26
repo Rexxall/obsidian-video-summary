@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## 2.3.1
+
+Fixes the reason 2.3.0 looked like a pile of gray boxes.
+
+- Every control selector is now prefixed with `.video-summary-view`. Themes commonly style
+  `button:not(.clickable-icon)` (specificity 0-1-1), which beat the plain single-class selectors in
+  2.3.0, so icon buttons, chips, and the primary button were all repainted as default theme buttons.
+- Grouping now uses whitespace and hairlines instead of stacked gray fills: the context strip is a
+  left rule, detail stats are one wrapped meta line instead of three cards, the error block is a
+  tinted panel with a red left border instead of a saturated red slab, and row actions appear on
+  hover (always visible on touch devices).
+
 ## 2.3.0
 
 Sidebar rewrite. The panel is now four layers: action bar, job stream, note library, detail.
