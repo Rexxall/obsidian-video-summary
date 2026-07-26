@@ -75,6 +75,7 @@ export class NoteIndex {
     const files = this.app.vault.getMarkdownFiles();
     for (const file of files) {
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (isExplicitlyNonVideo(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
         this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
       } else {
@@ -121,6 +122,10 @@ export class NoteIndex {
   /** metadataCache 变化后刷新单个文件 */
   async refreshFile(file: TFile) {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (isExplicitlyNonVideo(frontmatter)) {
+      if (this.entries.delete(file.path)) this.emit();
+      return;
+    }
     if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
       this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
       this.emit();
@@ -217,6 +222,25 @@ function readString(value: any): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;
+}
+
+/**
+ * 其他采集器会在正文或 source_url 里保存小红书链接；那不等于它是视频笔记。
+ * 只相信来源自己明确声明的非视频类型，未声明的旧笔记仍保留正文兜底扫描。
+ */
+function isExplicitlyNonVideo(frontmatter: any): boolean {
+  if (!frontmatter || typeof frontmatter !== 'object') return false;
+
+  const sourceType = readString(frontmatter.source_type)?.toLowerCase();
+  if (
+    sourceType &&
+    ['image', 'images', 'article', 'text', 'note', 'document'].includes(sourceType)
+  ) {
+    return true;
+  }
+
+  const transcriptStatus = readString(frontmatter.video_transcript_status)?.toLowerCase();
+  return transcriptStatus === 'not-applicable' || transcriptStatus === 'not_applicable';
 }
 
 /** 封面允许几种常见字段名，外链和库内图片都收，解析在 NoteIndex.resolveCover */

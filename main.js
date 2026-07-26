@@ -4124,6 +4124,7 @@ var NoteIndex = class {
     const files = this.app.vault.getMarkdownFiles();
     for (const file of files) {
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (isExplicitlyNonVideo(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
         this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
       } else {
@@ -4166,6 +4167,10 @@ var NoteIndex = class {
   /** metadataCache 变化后刷新单个文件 */
   async refreshFile(file) {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (isExplicitlyNonVideo(frontmatter)) {
+      if (this.entries.delete(file.path)) this.emit();
+      return;
+    }
     if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
       this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
       this.emit();
@@ -4253,6 +4258,15 @@ function readString(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return void 0;
+}
+function isExplicitlyNonVideo(frontmatter) {
+  if (!frontmatter || typeof frontmatter !== "object") return false;
+  const sourceType = readString(frontmatter.source_type)?.toLowerCase();
+  if (sourceType && ["image", "images", "article", "text", "note", "document"].includes(sourceType)) {
+    return true;
+  }
+  const transcriptStatus = readString(frontmatter.video_transcript_status)?.toLowerCase();
+  return transcriptStatus === "not-applicable" || transcriptStatus === "not_applicable";
 }
 function readCover(frontmatter) {
   return readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
