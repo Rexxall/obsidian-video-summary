@@ -70,3 +70,6 @@ video summary merge 2.json
 tsc
 obsidian-video-summary-plugin@*
 data.json.bak-*
+
+# Split-out runtime history (personal data)
+history.json
