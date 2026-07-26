@@ -2,11 +2,12 @@
 import { ItemView, TFile, WorkspaceLeaf } from 'obsidian';
 import VideoSummaryPlugin from '../main';
 import { SubmitOptions } from '../core/JobService';
-import { DetailRef, PanelTab, ViewContext, ViewState } from './context';
+import { BackendState, DetailRef, PanelTab, ViewContext, ViewState } from './context';
 import { renderActionBar } from './panels/ActionBar';
 import { renderJobsPanel } from './panels/JobsPanel';
 import { renderLibraryPanel, resetLibraryPaging } from './panels/LibraryPanel';
 import { renderDetailPanel } from './panels/DetailPanel';
+import { segmented } from './ui';
 
 export const VIDEO_SUMMARY_VIEW_TYPE = 'video-summary-view';
 
@@ -19,6 +20,7 @@ export class VideoSummaryView extends ItemView {
   private renderQueued = false;
   private tickTimer: number | null = null;
   private lastActiveFilePath = '';
+  private backend: BackendState = 'is-unknown';
 
   constructor(leaf: WorkspaceLeaf, plugin: VideoSummaryPlugin) {
     super(leaf);
@@ -105,6 +107,10 @@ export class VideoSummaryView extends ItemView {
     return {
       plugin: this.plugin,
       state: this.state,
+      backendState: () => this.backend,
+      setBackendState: (state: BackendState) => {
+        this.backend = state;
+      },
       renderPanels: () => this.renderPanels(),
       renderAll: () => this.renderAll(),
       openNote: (path: string) => this.openNote(path),
@@ -167,27 +173,24 @@ export class VideoSummaryView extends ItemView {
     const activeCount =
       this.plugin.jobs.getActive().length + this.plugin.jobs.countByState('review');
     const libraryCount = this.plugin.noteIndex.getAll().length;
-    const tabs: Array<[PanelTab, string]> = [
-      ['jobs', activeCount > 0 ? `任务 ${activeCount}` : '任务'],
-      ['library', `笔记库 ${libraryCount}`],
+    const tabs: Array<[PanelTab, string, string | undefined]> = [
+      ['jobs', '任务', activeCount > 0 ? String(activeCount) : undefined],
+      ['library', '笔记库', String(libraryCount)],
     ];
 
-    const row = panel.createDiv({ cls: 'vs-tab-row' });
-    tabs.forEach(([value, label]) => {
-      const tab = row.createEl('button', {
-        text: label,
-        cls: `vs-tab${this.state.tab === value ? ' is-active' : ''}`,
-        attr: { type: 'button' },
-      });
-      tab.addEventListener('click', async () => {
-        if (this.state.tab === value) return;
+    const wrapper = panel.createDiv({ cls: 'vs-tab-row' });
+    segmented(
+      wrapper,
+      tabs.map(([value, label, count]) => ({ value, label, count })),
+      this.state.tab,
+      async (value) => {
         this.state.tab = value;
         this.plugin.settings.activePanelTab = value;
         await this.plugin.saveSettings();
         if (value === 'library') resetLibraryPaging();
         this.renderPanels();
-      });
-    });
+      },
+    );
   }
 
   private openNote(path: string) {

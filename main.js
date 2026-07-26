@@ -6281,22 +6281,78 @@ function statusMeta(status) {
       return { label: "\u5F85\u5904\u7406", cls: "is-pending" };
   }
 }
-function platformIcon(platform) {
+function statusPill(parent, status, options = {}) {
+  const meta = statusMeta(status);
+  const cls = `vs-pill ${meta.cls}${options.onClick ? " is-clickable" : ""}`;
+  const pill = options.onClick ? parent.createEl("button", {
+    text: options.label ?? meta.label,
+    cls,
+    attr: { type: "button", title: options.title ?? options.label ?? meta.label }
+  }) : parent.createSpan({ text: options.label ?? meta.label, cls });
+  if (options.onClick) {
+    pill.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onClick?.();
+    });
+  }
+  return pill;
+}
+function segmented(parent, items, active, onSelect) {
+  const row = parent.createDiv({ cls: "vs-seg" });
+  items.forEach((item) => {
+    const seg = row.createEl("button", {
+      cls: `vs-seg-item${item.value === active ? " is-active" : ""}`,
+      attr: { type: "button" }
+    });
+    if (item.icon) {
+      const icon = seg.createSpan({ cls: "vs-seg-icon" });
+      (0, import_obsidian4.setIcon)(icon, item.icon);
+    }
+    seg.createSpan({ text: item.label });
+    if (item.count) seg.createSpan({ text: item.count, cls: "vs-seg-count" });
+    seg.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (item.value !== active) onSelect(item.value);
+    });
+  });
+  return row;
+}
+function thumbnail(parent, options = {}) {
+  const thumb = parent.createDiv({
+    cls: `vs-thumb${options.size === "lg" ? " is-lg" : ""} ${platformClass(options.platform)}`
+  });
+  if (options.cover) {
+    const img = thumb.createEl("img", { cls: "vs-thumb-img", attr: { src: options.cover } });
+    img.addEventListener("error", () => img.remove());
+  }
+  thumb.createSpan({ cls: "vs-thumb-bar" });
+  if (options.duration) {
+    thumb.createSpan({ text: options.duration, cls: "vs-thumb-time" });
+  }
+  return thumb;
+}
+function platformClass(platform) {
   switch (platform) {
     case "youtube":
-      return "youtube";
     case "bilibili":
-      return "tv";
     case "douyin":
     case "tiktok":
-      return "music";
     case "xiaohongshu":
-      return "book-open";
-    case "local":
-      return "file-video";
+      return `is-${platform}`;
     default:
-      return "link";
+      return "is-generic";
   }
+}
+function platformText(parent, platform, label) {
+  return parent.createSpan({ text: label, cls: `vs-platform ${platformClass(platform)}` });
+}
+function formatClock(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "00:00";
+  const total = Math.floor(ms / 1e3);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 function modeLabel(mode) {
   switch (mode) {
@@ -6484,6 +6540,8 @@ var NoteIndex = class {
       link,
       platform: link ? detectPlatform2(link) : void 0,
       title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
+      cover: readCover(frontmatter),
+      duration: readString(frontmatter?.video_duration),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
     };
@@ -6508,6 +6566,16 @@ var NoteIndex = class {
     return void 0;
   }
 };
+function readString(value) {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return void 0;
+}
+function readCover(frontmatter) {
+  const raw = readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
+  if (!raw) return void 0;
+  return /^https?:\/\//.test(raw) ? raw : void 0;
+}
 function detectPlatform2(url) {
   const value = url.toLowerCase();
   if (value.includes("bilibili.com") || value.includes("b23.tv")) return "bilibili";
@@ -6520,7 +6588,7 @@ function detectPlatform2(url) {
 function platformLabel(platform) {
   switch (platform) {
     case "bilibili":
-      return "bilibili";
+      return "B\u7AD9";
     case "youtube":
       return "YouTube";
     case "douyin":
@@ -6735,14 +6803,15 @@ function renderActionBar(container, ctx) {
   const root = container.createDiv({ cls: "vs-action-bar" });
   renderHeader(root, ctx);
   renderContextStrip(root, ctx);
-  const inputRow = root.createDiv({ cls: "vs-input-row" });
+  const inputCard = root.createDiv({ cls: "vs-input-card" });
+  const inputRow = inputCard.createDiv({ cls: "vs-input-row" });
   const inputIcon = inputRow.createDiv({ cls: "vs-input-icon" });
-  (0, import_obsidian7.setIcon)(inputIcon, "link");
+  (0, import_obsidian7.setIcon)(inputIcon, "clipboard-paste");
   const input = inputRow.createEl("textarea", {
     cls: "vs-input",
     attr: {
       rows: "1",
-      placeholder: "\u7C98\u8D34\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u3001\u6587\u7A3F\u6216 webhook JSON\uFF1B\u591A\u884C=\u6279\u91CF"
+      placeholder: "\u7C98\u8D34\u89C6\u9891\u94FE\u63A5\uFF0C\u591A\u884C\u5373\u6279\u91CF\u2026"
     }
   });
   input.value = state.inputDraft;
@@ -6757,7 +6826,7 @@ function renderActionBar(container, ctx) {
     () => pickLocalFiles(ctx, input),
     "vs-input-action"
   );
-  const chips = root.createDiv({ cls: "vs-chip-row" });
+  const chips = inputCard.createDiv({ cls: "vs-chip-row" });
   renderChips(chips, ctx);
   const advanced = root.createDiv({ cls: "vs-advanced" });
   const advancedFields = renderAdvanced(advanced, ctx, input);
@@ -6808,22 +6877,37 @@ function renderActionBar(container, ctx) {
     }
   });
 }
+function backendStateLabel(state) {
+  if (state === "is-online") return "\u5728\u7EBF";
+  if (state === "is-offline") return "\u79BB\u7EBF";
+  return "\u672A\u68C0\u6D4B";
+}
 function renderHeader(root, ctx) {
   const header = root.createDiv({ cls: "vs-header" });
-  header.createSpan({ text: "Video summary", cls: "vs-header-title" });
+  header.createSpan({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-header-title" });
   const actions = header.createDiv({ cls: "vs-header-actions" });
   const backend = ctx.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n";
-  iconButton(actions, "plug", `\u540E\u7AEF\uFF1A${backend}\uFF08\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5\uFF09`, async () => {
-    const notice = new import_obsidian7.Notice(`\u6B63\u5728\u6D4B\u8BD5 ${backend} \u8FDE\u63A5\u2026`, 0);
+  const statusPillEl = actions.createEl("button", {
+    cls: "vs-backend-pill",
+    attr: { type: "button", title: `${backend}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5` }
+  });
+  const dot = statusPillEl.createSpan({ cls: `vs-backend-dot ${ctx.backendState()}` });
+  statusPillEl.createSpan({ text: `${backend} ${backendStateLabel(ctx.backendState())}` });
+  statusPillEl.addEventListener("click", async (event) => {
+    event.preventDefault();
+    dot.className = "vs-backend-dot is-checking";
     try {
       const result = await ctx.plugin.api.testConnection();
-      notice.hide();
+      ctx.setBackendState(result.success ? "is-online" : "is-offline");
+      dot.className = `vs-backend-dot ${ctx.backendState()}`;
       new import_obsidian7.Notice(
         result.success ? `${backend} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}`,
         result.success ? 3e3 : 8e3
       );
+      ctx.renderAll();
     } catch (error) {
-      notice.hide();
+      ctx.setBackendState("is-offline");
+      dot.className = "vs-backend-dot is-offline";
       new import_obsidian7.Notice(`\u8FDE\u63A5\u5931\u8D25\uFF1A${ctx.plugin.formatErrorForNotice(error)}`, 8e3);
     }
   });
@@ -6849,10 +6933,13 @@ function renderContextStrip(root, ctx) {
   (0, import_obsidian7.setIcon)(icon, "file-text");
   const body = strip.createDiv({ cls: "vs-context-body" });
   body.createDiv({ text: activeFile.basename, cls: "vs-context-title" });
-  body.createDiv({
-    text: `\u5F53\u524D\u7B14\u8BB0 \xB7 ${meta.label}${entry?.link ? ` \xB7 ${entry.link}` : ""}`,
-    cls: "vs-context-sub"
-  });
+  const sub = body.createDiv({ cls: "vs-context-sub" });
+  sub.createSpan({ text: "\u5F53\u524D\u7B14\u8BB0 \xB7 " });
+  sub.createSpan({ text: meta.label, cls: `vs-state-text ${meta.cls}` });
+  if (entry?.platform) {
+    sub.createSpan({ text: " \xB7 " });
+    platformText(sub, entry.platform, platformLabel(entry.platform));
+  }
   if (status !== "running") {
     textButton(
       strip,
@@ -7127,7 +7214,7 @@ function renderJobsPanel(container, ctx) {
   }
   const historyRows = buildHistoryRows(ctx, finished);
   if (historyRows.length > 0) {
-    const header = section(container, "\u6700\u8FD1");
+    const header = section(container, "\u6700\u8FD1\u5B8C\u6210");
     iconButton(header, "history", "\u4ECE webhook \u5386\u53F2\u7ED3\u679C\u91CC\u53D6\u56DE", (event) => {
       showWebhookHistoryMenu(ctx, event);
     });
@@ -7176,58 +7263,66 @@ function section(container, title) {
 }
 function renderActiveJob(container, ctx, job) {
   const card = container.createDiv({ cls: "vs-job-card" });
-  const head = card.createDiv({ cls: "vs-job-head" });
-  const icon = head.createDiv({ cls: "vs-job-icon" });
-  (0, import_obsidian8.setIcon)(icon, platformIcon(job.platform));
-  head.createSpan({ text: job.title, cls: "vs-job-title" });
-  iconButton(head, "x", "\u53D6\u6D88", async () => {
+  const body = card.createDiv({ cls: "vs-job-body" });
+  const media = mediaOf(ctx, job);
+  thumbnail(body, { ...media, size: "lg" });
+  const info = body.createDiv({ cls: "vs-job-info" });
+  info.createDiv({ text: job.title, cls: "vs-job-title" });
+  const sub = info.createDiv({ cls: "vs-job-sub" });
+  platformText(sub, job.platform, platformLabel(job.platform));
+  if (job.startedAt) {
+    sub.createSpan({ text: `\u5DF2\u7528 ${formatClock(Date.now() - job.startedAt)}`, cls: "vs-mono" });
+  }
+  if (!job.useCache) sub.createSpan({ text: "\u8DF3\u8FC7\u7F13\u5B58" });
+  const side = body.createDiv({ cls: "vs-job-side" });
+  statusPill(side, job.state === "queued" ? "queued" : "running", {
+    label: job.state === "queued" ? "\u6392\u961F\u4E2D" : job.stageLabel || "\u5904\u7406\u4E2D",
+    title: job.stageLabel ? void 0 : "\u8BE5\u540E\u7AEF\u4E0D\u4E0A\u62A5\u5904\u7406\u9636\u6BB5\uFF0C\u4EC5\u663E\u793A\u8BA1\u65F6"
+  });
+  iconButton(side, "x", "\u53D6\u6D88", async () => {
     await ctx.plugin.jobService.cancel(job);
     ctx.renderPanels();
   });
-  const stage = card.createDiv({ cls: "vs-job-stage" });
-  if (job.state === "queued") {
-    stage.setText("\u6392\u961F\u4E2D");
-  } else if (job.stageLabel) {
-    stage.setText(job.stageLabel);
-  } else {
-    stage.setText("\u5DF2\u53D1\u9001\u5230\u540E\u7AEF\uFF0C\u7B49\u5F85\u8FD4\u56DE\uFF08\u8BE5\u540E\u7AEF\u4E0D\u4E0A\u62A5\u9636\u6BB5\uFF09");
-  }
   const bar = card.createDiv({ cls: "vs-progress" });
   const fill = bar.createDiv({
     cls: `vs-progress-fill${job.progress === void 0 ? " is-indeterminate" : ""}`
   });
-  if (job.progress !== void 0) {
-    fill.style.width = `${Math.round(job.progress * 100)}%`;
-  }
-  const meta = card.createDiv({ cls: "vs-job-meta" });
-  meta.createSpan({ text: modeLabel(job.mode) });
-  if (job.startedAt) {
-    meta.createSpan({ text: `\u5DF2\u7528 ${formatElapsed(Date.now() - job.startedAt)}` });
-  }
-  if (!job.useCache) meta.createSpan({ text: "\u8DF3\u8FC7\u7F13\u5B58" });
+  if (job.progress !== void 0) fill.style.width = `${Math.round(job.progress * 100)}%`;
 }
 function renderReviewJob(container, ctx, job) {
   const card = container.createDiv({ cls: "vs-job-card is-review" });
-  const head = card.createDiv({ cls: "vs-job-head" });
-  const icon = head.createDiv({ cls: "vs-job-icon" });
-  (0, import_obsidian8.setIcon)(icon, "eye");
-  head.createSpan({ text: job.title, cls: "vs-job-title" });
-  card.createDiv({
-    text: summarize(job),
-    cls: "vs-job-stage"
-  });
+  const body = card.createDiv({ cls: "vs-job-body" });
+  const media = mediaOf(ctx, job);
+  thumbnail(body, { ...media, size: "lg" });
+  const info = body.createDiv({ cls: "vs-job-info" });
+  info.createDiv({ text: job.title, cls: "vs-job-title" });
+  info.createDiv({ text: summarize(job), cls: "vs-job-sub" });
+  statusPill(body.createDiv({ cls: "vs-job-side" }), "review");
   const actions = card.createDiv({ cls: "vs-job-actions" });
-  textButton(actions, "\u9884\u89C8", () => ctx.openDetail({ kind: "job", id: job.id }), "is-primary");
-  textButton(actions, "\u5199\u5165\u7B14\u8BB0", async () => {
-    if (await ctx.plugin.jobService.writeResult(job)) {
-      new import_obsidian8.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
-      ctx.renderPanels();
-    }
-  });
-  textButton(actions, "\u4E22\u5F03", async () => {
+  textButton(actions, "\u9884\u89C8", () => ctx.openDetail({ kind: "job", id: job.id }), "is-primary is-fill");
+  textButton(
+    actions,
+    "\u76F4\u63A5\u5199\u5165",
+    async () => {
+      if (await ctx.plugin.jobService.writeResult(job)) {
+        new import_obsidian8.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+        ctx.renderPanels();
+      }
+    },
+    "is-fill"
+  );
+  iconButton(actions, "trash-2", "\u4E22\u5F03\u7ED3\u679C", async () => {
     await ctx.plugin.jobService.discardResult(job);
     ctx.renderPanels();
-  });
+  }, "vs-icon-btn-boxed");
+}
+function mediaOf(ctx, job) {
+  const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : void 0;
+  return {
+    cover: entry?.cover,
+    duration: entry?.duration || job.result?.video_duration,
+    platform: job.platform || entry?.platform
+  };
 }
 function buildHistoryRows(ctx, finishedJobs) {
   const rows = finishedJobs.map((job) => ({
@@ -7265,16 +7360,21 @@ function buildHistoryRows(ctx, finishedJobs) {
 }
 function renderHistoryRow(container, ctx, row) {
   const item = container.createDiv({ cls: "vs-row" });
-  const meta = statusMeta(row.state);
-  item.createDiv({ cls: `vs-dot ${meta.cls}` });
+  const entry = findEntry(ctx, row.title);
+  thumbnail(item, {
+    cover: entry?.cover,
+    duration: entry?.duration,
+    platform: row.platform || entry?.platform
+  });
   const body = item.createDiv({ cls: "vs-row-body" });
   body.createDiv({ text: row.title, cls: "vs-row-title" });
-  const parts = [modeLabel(row.mode)];
-  if (row.time) parts.push(formatRelative(row.time));
-  if (row.durationMs) parts.push(formatElapsed(row.durationMs));
-  body.createDiv({ text: parts.join(" \xB7 "), cls: "vs-row-sub" });
   if (row.state === "error" && row.error) {
-    body.createDiv({ text: row.error, cls: "vs-row-error" });
+    body.createDiv({ text: row.error, cls: "vs-row-sub is-error" });
+  } else {
+    const sub = body.createDiv({ cls: "vs-row-sub" });
+    if (row.time) sub.createSpan({ text: formatRelative(row.time) });
+    if (row.durationMs) sub.createSpan({ text: formatElapsed(row.durationMs), cls: "vs-mono" });
+    if (!row.time && !row.durationMs) sub.createSpan({ text: modeLabel(row.mode) });
   }
   body.addEventListener("click", () => {
     if (row.job) {
@@ -7283,6 +7383,15 @@ function renderHistoryRow(container, ctx, row) {
       ctx.openDetail({ kind: "history", file: row.record.file, time: row.record.time });
     }
   });
+  if (row.state === "error") {
+    statusPill(item, "error", {
+      label: "\u91CD\u8BD5",
+      title: "\u8DF3\u8FC7\u7F13\u5B58\u91CD\u65B0\u5904\u7406",
+      onClick: () => void rerun(ctx, row)
+    });
+  } else {
+    statusPill(item, row.state, { label: row.state === "success" ? "\u5B8C\u6210" : "\u5DF2\u53D6\u6D88" });
+  }
   iconButton(item, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
     showMenu(event, [
       {
@@ -7306,6 +7415,9 @@ function renderHistoryRow(container, ctx, row) {
       }
     ]);
   });
+}
+function findEntry(ctx, basename) {
+  return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
 }
 async function rerun(ctx, row) {
   if (row.job) {
@@ -7438,15 +7550,15 @@ function renderLibraryPanel(container, ctx) {
   const counts = countByStatus(entries);
   const filters = container.createDiv({ cls: "vs-filter-row" });
   [
-    ["all", `\u5168\u90E8 ${entries.length}`],
-    ["pending", `\u5F85\u5904\u7406 ${counts.pending}`],
-    ["running", `\u5904\u7406\u4E2D ${counts.running}`],
-    ["error", `\u5931\u8D25 ${counts.error}`],
-    ["success", `\u5DF2\u5B8C\u6210 ${counts.success}`]
-  ].forEach(([value, label]) => {
+    ["all", `\u5168\u90E8 ${entries.length}`, ""],
+    ["pending", `\u5F85\u5904\u7406 ${counts.pending}`, "is-pending"],
+    ["running", `\u5904\u7406\u4E2D ${counts.running}`, "is-running"],
+    ["error", `\u5931\u8D25 ${counts.error}`, "is-error"],
+    ["success", `\u5DF2\u5B8C\u6210 ${counts.success}`, "is-success"]
+  ].forEach(([value, label, tone]) => {
     const chip = filters.createEl("button", {
       text: label,
-      cls: `vs-filter-chip${state.libraryFilter === value ? " is-active" : ""}`,
+      cls: `vs-filter-chip ${tone}${state.libraryFilter === value ? " is-active" : ""}`,
       attr: { type: "button" }
     });
     chip.addEventListener("click", async () => {
@@ -7477,7 +7589,7 @@ function renderLibraryPanel(container, ctx) {
     filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry));
     if (filtered.length > visibleCount) {
       const more = listEl.createEl("button", {
-        text: `\u663E\u793A\u66F4\u591A\uFF08\u8FD8\u6709 ${filtered.length - visibleCount} \u6761\uFF09`,
+        text: `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${filtered.length - visibleCount} \u6761`,
         cls: "vs-more-btn",
         attr: { type: "button" }
       });
@@ -7517,18 +7629,27 @@ function renderLibraryPanel(container, ctx) {
 }
 function renderRow(listEl, ctx, entry) {
   const row = listEl.createDiv({ cls: "vs-row" });
-  const meta = statusMeta(entry.status);
-  row.createDiv({ cls: `vs-dot ${meta.cls}` });
+  thumbnail(row, { cover: entry.cover, duration: entry.duration, platform: entry.platform });
   const body = row.createDiv({ cls: "vs-row-body" });
   body.createDiv({ text: entry.basename, cls: "vs-row-title" });
-  const subParts = [platformLabel(entry.platform), formatRelative(entry.mtime)];
-  body.createDiv({ text: subParts.join(" \xB7 "), cls: "vs-row-sub" });
+  const sub = body.createDiv({ cls: "vs-row-sub" });
+  platformText(sub, entry.platform, platformLabel(entry.platform));
+  sub.createSpan({ text: formatRelative(entry.mtime) });
   body.addEventListener("click", () => ctx.openNote(entry.path));
-  const icon = row.createDiv({ cls: "vs-row-platform" });
-  (0, import_obsidian9.setIcon)(icon, platformIcon(entry.platform));
+  statusPill(row, entry.status, {
+    onClick: async () => {
+      ctx.state.libraryFilter = entry.status;
+      ctx.plugin.settings.statusFilterValue = entry.status;
+      await ctx.plugin.saveSettings();
+      resetLibraryPaging();
+      ctx.renderPanels();
+    },
+    title: `\u53EA\u770B${entry.status === "success" ? "\u5DF2\u5B8C\u6210" : entry.status === "error" ? "\u5931\u8D25" : entry.status === "running" ? "\u5904\u7406\u4E2D" : "\u5F85\u5904\u7406"}`
+  });
+  const actions = row.createDiv({ cls: "vs-row-actions" });
   if (entry.status !== "running") {
     iconButton(
-      row,
+      actions,
       entry.status === "success" ? "refresh-cw" : "play",
       entry.status === "success" ? "\u91CD\u8DD1" : "\u5904\u7406",
       async () => {
@@ -7537,21 +7658,28 @@ function renderRow(listEl, ctx, entry) {
         await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
         ctx.state.tab = "jobs";
         ctx.renderPanels();
-      }
+      },
+      "is-accent"
     );
   } else {
-    iconButton(row, "x", "\u53D6\u6D88", async () => {
-      const job = ctx.plugin.jobs.getActive().find((candidate) => candidate.notePath === entry.path);
-      if (job) {
-        await ctx.plugin.jobService.cancel(job);
-      } else {
-        const file = fileOf(ctx, entry);
-        if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, "pending");
-      }
-      ctx.renderPanels();
-    });
+    iconButton(
+      actions,
+      "x",
+      "\u53D6\u6D88",
+      async () => {
+        const job = ctx.plugin.jobs.getActive().find((candidate) => candidate.notePath === entry.path);
+        if (job) {
+          await ctx.plugin.jobService.cancel(job);
+        } else {
+          const file = fileOf(ctx, entry);
+          if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, "pending");
+        }
+        ctx.renderPanels();
+      },
+      "is-accent"
+    );
   }
-  iconButton(row, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
+  iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
     showMenu(event, [
       { title: "\u6253\u5F00\u7B14\u8BB0", icon: "file-text", onClick: () => ctx.openNote(entry.path) },
       {
@@ -7583,11 +7711,7 @@ function renderRow(listEl, ctx, entry) {
           ctx.renderPanels();
         }
       },
-      {
-        title: "\u5220\u9664\u7B14\u8BB0",
-        icon: "trash",
-        onClick: () => confirmDelete(ctx, entry)
-      }
+      { title: "\u5220\u9664\u7B14\u8BB0", icon: "trash-2", onClick: () => confirmDelete(ctx, entry) }
     ]);
   });
 }
@@ -7665,32 +7789,58 @@ function renderDetailPanel(container, ctx) {
   }
   renderRecordDetail(container, ctx, record);
 }
-function renderHeader2(container, ctx, title, status) {
-  const header = container.createDiv({ cls: "vs-detail-header" });
-  iconButton(header, "arrow-left", "\u8FD4\u56DE\u5217\u8868", () => ctx.closeDetail());
-  header.createSpan({ text: title, cls: "vs-detail-title" });
-  const meta = statusMeta(status);
-  header.createSpan({ text: meta.label, cls: `vs-badge ${meta.cls}` });
+function renderBanner(container, ctx, options) {
+  const banner = container.createDiv({
+    cls: `vs-banner ${platformClass(options.platform)}`
+  });
+  if (options.cover) {
+    const img = banner.createEl("img", { cls: "vs-banner-img", attr: { src: options.cover } });
+    img.addEventListener("error", () => img.remove());
+  }
+  banner.createSpan({ cls: "vs-banner-bar" });
+  iconButton(banner, "arrow-left", "\u8FD4\u56DE\u5217\u8868", () => ctx.closeDetail(), "vs-banner-back");
+  statusPill(banner, options.status, { label: statusMeta(options.status).label }).addClass(
+    "vs-banner-pill"
+  );
+  if (options.duration) {
+    banner.createSpan({ text: options.duration, cls: "vs-banner-time" });
+  }
 }
 function renderJobDetail(container, ctx, job) {
-  renderHeader2(container, ctx, job.title, job.state);
-  const meta = container.createDiv({ cls: "vs-meta-line" });
-  metaItem(meta, "\u6A21\u5F0F", modeLabel(job.mode));
-  metaItem(meta, "\u8BED\u8A00", languageLabel(job.language));
-  metaItem(
-    meta,
-    "\u8017\u65F6",
-    job.startedAt ? formatElapsed((job.endedAt || Date.now()) - job.startedAt) : "\u2014"
-  );
-  if (job.result?.video_duration) metaItem(meta, "\u65F6\u957F", job.result.video_duration);
-  if (job.result?.video_author) metaItem(meta, "\u4F5C\u8005", job.result.video_author);
-  if (job.input.url) meta.createDiv({ text: job.input.url, cls: "vs-meta-link" });
+  const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : void 0;
+  const duration = job.result?.video_duration || entry?.duration;
+  renderBanner(container, ctx, {
+    status: job.state,
+    platform: job.platform || entry?.platform,
+    cover: entry?.cover,
+    duration
+  });
+  const body = container.createDiv({ cls: "vs-detail-main" });
+  body.createDiv({ text: job.title, cls: "vs-detail-title" });
+  const meta = body.createDiv({ cls: "vs-meta-line" });
+  const platformPill = meta.createSpan({ cls: "vs-meta-pill" });
+  platformPill.createSpan({
+    text: platformLabel(job.platform || entry?.platform),
+    cls: `vs-platform ${platformClass(job.platform || entry?.platform)}`
+  });
+  if (job.result?.video_author) platformPill.createSpan({ text: ` \xB7 ${job.result.video_author}` });
+  meta.createSpan({
+    text: `${modeLabel(job.mode)} \xB7 ${languageLabel(job.language)}`,
+    cls: "vs-meta-pill"
+  });
+  if (job.startedAt) {
+    meta.createSpan({
+      text: `\u8017\u65F6 ${formatElapsed((job.endedAt || Date.now()) - job.startedAt)}`,
+      cls: "vs-meta-pill"
+    });
+  }
+  if (job.input.url) body.createDiv({ text: job.input.url, cls: "vs-meta-link" });
   if (job.state === "error" && job.error) {
-    const errorBox = container.createDiv({ cls: "vs-error-box" });
+    const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
     (0, import_obsidian10.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
-    const actions2 = container.createDiv({ cls: "vs-detail-actions" });
+    const actions2 = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
       actions2,
       "\u91CD\u8BD5\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
@@ -7698,7 +7848,7 @@ function renderJobDetail(container, ctx, job) {
         ctx.plugin.jobs.retry(job.id);
         ctx.closeDetail();
       },
-      "is-primary"
+      "is-primary is-fill"
     );
     textButton(actions2, "\u590D\u5236\u9519\u8BEF", () => {
       void navigator.clipboard.writeText(job.error || "");
@@ -7707,46 +7857,44 @@ function renderJobDetail(container, ctx, job) {
     if (isCookieError(job.error)) {
       textButton(actions2, "\u6253\u5F00 cookies \u76EE\u5F55", () => openCookiesFolder(ctx));
     }
-  }
-  if (!job.result) {
-    renderLogs(container, job);
+    renderLogs(body, job);
     return;
   }
-  const tabs = [
-    ["preview", "\u9884\u89C8"],
-    ["transcript", "\u6587\u7A3F"],
-    ["meta", "\u5143\u6570\u636E"],
-    ["logs", "\u65E5\u5FD7"]
-  ];
-  const tabRow = container.createDiv({ cls: "vs-tab-row is-inner" });
-  tabs.forEach(([value, label]) => {
-    const tab = tabRow.createEl("button", {
-      text: label,
-      cls: `vs-tab${ctx.state.detailTab === value ? " is-active" : ""}`,
-      attr: { type: "button" }
-    });
-    tab.addEventListener("click", () => {
+  if (!job.result) {
+    renderLogs(body, job);
+    return;
+  }
+  segmented(
+    body,
+    [
+      { value: "preview", label: "\u9884\u89C8" },
+      { value: "transcript", label: "\u6587\u7A3F" },
+      { value: "meta", label: "\u5143\u6570\u636E" },
+      { value: "logs", label: "\u65E5\u5FD7" }
+    ],
+    ctx.state.detailTab,
+    (value) => {
       ctx.state.detailTab = value;
       ctx.renderPanels();
-    });
-  });
-  const body = container.createDiv({ cls: "vs-detail-body" });
+    }
+  );
+  const pane = body.createDiv({ cls: "vs-detail-body" });
   switch (ctx.state.detailTab) {
     case "transcript":
-      renderText(body, job.result.video_transcript, "\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u6587\u7A3F");
+      renderText(pane, job.result.video_transcript, "\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u6587\u7A3F");
       break;
     case "meta":
-      renderText(body, JSON.stringify(job.result, null, 2).slice(0, 8e3), "\u6CA1\u6709\u5143\u6570\u636E");
+      renderText(pane, JSON.stringify(job.result, null, 2).slice(0, 8e3), "\u6CA1\u6709\u5143\u6570\u636E");
       break;
     case "logs":
-      renderLogs(body, job);
+      renderLogs(pane, job);
       break;
     default:
-      renderPreview(body, ctx, job);
+      renderPreview(pane, ctx, job);
   }
-  const actions = container.createDiv({ cls: "vs-detail-actions" });
+  const actions = body.createDiv({ cls: "vs-detail-actions" });
   if (job.state === "review") {
-    textButton(
+    const write = textButton(
       actions,
       "\u5199\u5165\u7B14\u8BB0",
       async () => {
@@ -7755,43 +7903,87 @@ function renderJobDetail(container, ctx, job) {
           ctx.closeDetail();
         }
       },
-      "is-primary"
+      "is-primary is-fill has-icon"
     );
+    prependIcon(write, "check");
   } else if (job.notePath) {
-    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(job.notePath), "is-primary");
+    const open = textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(job.notePath), "is-primary is-fill has-icon");
+    prependIcon(open, "file-text");
   }
-  textButton(actions, "\u65B0\u5EFA\u7B14\u8BB0", async () => {
-    await ctx.plugin.jobService.createNoteFromResult(job);
-    ctx.renderPanels();
+  const more = textButton(actions, "\u66F4\u591A", () => void 0, "has-caret");
+  more.addEventListener("click", (event) => {
+    showMenu(event, [
+      {
+        title: "\u65B0\u5EFA\u7B14\u8BB0",
+        icon: "file-plus",
+        onClick: async () => {
+          await ctx.plugin.jobService.createNoteFromResult(job);
+          ctx.renderPanels();
+        }
+      },
+      {
+        title: "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0",
+        icon: "save",
+        onClick: async () => {
+          if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
+        }
+      },
+      {
+        title: "\u63D2\u5165\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E",
+        icon: "text-cursor-input",
+        onClick: async () => {
+          if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
+        }
+      },
+      {
+        title: "\u590D\u5236 JSON",
+        icon: "clipboard",
+        onClick: () => {
+          void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
+          new import_obsidian10.Notice("\u5DF2\u590D\u5236 JSON");
+        }
+      }
+    ]);
   });
-  textButton(actions, "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", async () => {
-    if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
-  });
-  textButton(actions, "\u63D2\u5165\u5F53\u524D\u7B14\u8BB0", async () => {
-    if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
-  });
-  textButton(actions, "\u590D\u5236 JSON", () => {
-    void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-    new import_obsidian10.Notice("\u5DF2\u590D\u5236 JSON");
-  });
+  prependCaret(more);
   if (job.state === "review") {
-    textButton(actions, "\u4E22\u5F03", async () => {
-      await ctx.plugin.jobService.discardResult(job);
-      ctx.closeDetail();
-    });
+    iconButton(
+      actions,
+      "trash-2",
+      "\u4E22\u5F03\u7ED3\u679C",
+      async () => {
+        await ctx.plugin.jobService.discardResult(job);
+        ctx.closeDetail();
+      },
+      "vs-icon-btn-boxed is-danger"
+    );
   }
+}
+function prependIcon(button, icon) {
+  const holder = createSpan({ cls: "vs-btn-icon" });
+  (0, import_obsidian10.setIcon)(holder, icon);
+  button.prepend(holder);
+}
+function prependCaret(button) {
+  const holder = createSpan({ cls: "vs-btn-caret" });
+  (0, import_obsidian10.setIcon)(holder, "chevron-down");
+  button.append(holder);
 }
 function renderPreview(body, ctx, job) {
   const result = job.result;
   if (!result) return;
-  const changes = [];
-  if (result.video_title) changes.push("video_title");
-  if (result.video_author) changes.push("video_author");
-  if (result.video_duration) changes.push("video_duration");
-  if (result.summary) changes.push("summary");
-  body.createDiv({
-    text: `\u5C06\u5199\u5165 frontmatter\uFF1A${changes.join("\u3001") || "\u65E0"}\uFF1B\u6B63\u6587 ${(result.note || result.summary || "").length} \u5B57`,
-    cls: "vs-preview-diff"
+  const fields = [];
+  if (result.video_title) fields.push("title");
+  if (result.video_author) fields.push("author");
+  if (result.video_duration) fields.push("duration");
+  if (result.summary) fields.push("summary");
+  const diff = body.createDiv({ cls: "vs-write-card" });
+  const diffIcon = diff.createDiv({ cls: "vs-write-icon" });
+  (0, import_obsidian10.setIcon)(diffIcon, "file-diff");
+  const diffText = diff.createDiv({ cls: "vs-write-text" });
+  diffText.createDiv({ text: `\u5C06\u5199\u5165 frontmatter\uFF1A${fields.join(" \xB7 ") || "\u65E0"}` });
+  diffText.createDiv({
+    text: `\u6B63\u6587 ${(result.note || result.summary || "").length.toLocaleString()} \u5B57${result.video_transcript ? ` \xB7 \u6587\u7A3F ${result.video_transcript.length.toLocaleString()} \u5B57` : ""}`
   });
   const markdown = [
     result.summary ? `## \u603B\u7ED3
@@ -7815,35 +8007,54 @@ ${result.note}` : ""
   );
 }
 function renderRecordDetail(container, ctx, record) {
-  renderHeader2(container, ctx, record.file, record.result);
-  const meta = container.createDiv({ cls: "vs-meta-line" });
-  metaItem(meta, "\u6A21\u5F0F", modeLabel(record.mode));
-  if (record.language) metaItem(meta, "\u8BED\u8A00", languageLabel(record.language));
+  const entry = ctx.plugin.noteIndex.getAll().find((item) => item.basename === record.file);
+  renderBanner(container, ctx, {
+    status: record.result,
+    platform: record.platform || entry?.platform,
+    cover: entry?.cover,
+    duration: entry?.duration
+  });
+  const body = container.createDiv({ cls: "vs-detail-main" });
+  body.createDiv({ text: record.file, cls: "vs-detail-title" });
+  const meta = body.createDiv({ cls: "vs-meta-line" });
+  if (record.platform || entry?.platform) {
+    const pill = meta.createSpan({ cls: "vs-meta-pill" });
+    pill.createSpan({
+      text: platformLabel(record.platform || entry?.platform),
+      cls: `vs-platform ${platformClass(record.platform || entry?.platform)}`
+    });
+  }
+  meta.createSpan({
+    text: `${modeLabel(record.mode)}${record.language ? ` \xB7 ${languageLabel(record.language)}` : ""}`,
+    cls: "vs-meta-pill"
+  });
   const time = parseLocaleTime(record.time);
-  metaItem(meta, "\u65F6\u95F4", time ? formatRelative(time) : record.time);
-  if (record.durationMs) metaItem(meta, "\u8017\u65F6", formatElapsed(record.durationMs));
-  if (record.url) meta.createDiv({ text: record.url, cls: "vs-meta-link" });
+  meta.createSpan({ text: time ? formatRelative(time) : record.time, cls: "vs-meta-pill" });
+  if (record.durationMs) {
+    meta.createSpan({ text: `\u8017\u65F6 ${formatElapsed(record.durationMs)}`, cls: "vs-meta-pill" });
+  }
+  if (record.url) body.createDiv({ text: record.url, cls: "vs-meta-link" });
   if (record.error) {
-    const errorBox = container.createDiv({ cls: "vs-error-box" });
+    const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
     (0, import_obsidian10.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
   } else if (record.result === "error") {
-    container.createDiv({
+    body.createDiv({
       text: "\u8FD9\u6761\u8BB0\u5F55\u662F\u65E7\u7248\u672C\u5199\u7684\uFF0C\u6CA1\u6709\u4FDD\u5B58\u5931\u8D25\u539F\u56E0\u3002\u91CD\u8DD1\u4E00\u6B21\u5C31\u80FD\u770B\u5230\u5177\u4F53\u9519\u8BEF\u3002",
       cls: "vs-hint"
     });
   }
-  const actions = container.createDiv({ cls: "vs-detail-actions" });
+  const actions = body.createDiv({ cls: "vs-detail-actions" });
   const file = findNote2(ctx, record.file);
   if (file) {
-    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(file.path), "is-primary");
+    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(file.path), "is-primary is-fill");
     textButton(actions, "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", async () => {
       await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
       ctx.closeDetail();
     });
   } else {
-    container.createDiv({ text: `\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, cls: "vs-hint" });
+    body.createDiv({ text: `\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, cls: "vs-hint" });
   }
 }
 function renderLogs(container, job) {
@@ -7867,11 +8078,6 @@ function renderText(container, text, empty) {
     return;
   }
   container.createEl("pre", { text: text.slice(0, 2e4), cls: "vs-pre" });
-}
-function metaItem(container, label, value) {
-  const item = container.createSpan({ cls: "vs-meta-item" });
-  item.createSpan({ text: label, cls: "vs-meta-label" });
-  item.createSpan({ text: value });
 }
 function isCookieError(error) {
   return /cookie|登录|login|403|需要验证/i.test(error);
@@ -7906,6 +8112,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     this.renderQueued = false;
     this.tickTimer = null;
     this.lastActiveFilePath = "";
+    this.backend = "is-unknown";
     this.plugin = plugin;
     this.state = {
       inputDraft: "",
@@ -7972,6 +8179,10 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     return {
       plugin: this.plugin,
       state: this.state,
+      backendState: () => this.backend,
+      setBackendState: (state) => {
+        this.backend = state;
+      },
       renderPanels: () => this.renderPanels(),
       renderAll: () => this.renderAll(),
       openNote: (path) => this.openNote(path),
@@ -8028,25 +8239,22 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     const activeCount = this.plugin.jobs.getActive().length + this.plugin.jobs.countByState("review");
     const libraryCount = this.plugin.noteIndex.getAll().length;
     const tabs = [
-      ["jobs", activeCount > 0 ? `\u4EFB\u52A1 ${activeCount}` : "\u4EFB\u52A1"],
-      ["library", `\u7B14\u8BB0\u5E93 ${libraryCount}`]
+      ["jobs", "\u4EFB\u52A1", activeCount > 0 ? String(activeCount) : void 0],
+      ["library", "\u7B14\u8BB0\u5E93", String(libraryCount)]
     ];
-    const row = panel.createDiv({ cls: "vs-tab-row" });
-    tabs.forEach(([value, label]) => {
-      const tab = row.createEl("button", {
-        text: label,
-        cls: `vs-tab${this.state.tab === value ? " is-active" : ""}`,
-        attr: { type: "button" }
-      });
-      tab.addEventListener("click", async () => {
-        if (this.state.tab === value) return;
+    const wrapper = panel.createDiv({ cls: "vs-tab-row" });
+    segmented(
+      wrapper,
+      tabs.map(([value, label, count]) => ({ value, label, count })),
+      this.state.tab,
+      async (value) => {
         this.state.tab = value;
         this.plugin.settings.activePanelTab = value;
         await this.plugin.saveSettings();
         if (value === "library") resetLibraryPaging();
         this.renderPanels();
-      });
-    });
+      }
+    );
   }
   openNote(path) {
     const file = this.app.vault.getAbstractFileByPath(path);

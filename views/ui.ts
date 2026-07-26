@@ -102,6 +102,112 @@ export function statusMeta(status: string): { label: string; cls: string } {
   }
 }
 
+/** 状态胶囊：彩字 + 同色淡底。可点击时（例如失败行的"重试"）传 onClick */
+export function statusPill(
+  parent: HTMLElement,
+  status: string,
+  options: { label?: string; onClick?: () => void; title?: string } = {},
+): HTMLElement {
+  const meta = statusMeta(status);
+  const cls = `vs-pill ${meta.cls}${options.onClick ? ' is-clickable' : ''}`;
+  const pill = options.onClick
+    ? parent.createEl('button', {
+        text: options.label ?? meta.label,
+        cls,
+        attr: { type: 'button', title: options.title ?? options.label ?? meta.label },
+      })
+    : parent.createSpan({ text: options.label ?? meta.label, cls });
+  if (options.onClick) {
+    pill.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onClick?.();
+    });
+  }
+  return pill;
+}
+
+/** 分段控件（tab / 模式切换共用） */
+export function segmented<T extends string>(
+  parent: HTMLElement,
+  items: Array<{ value: T; label: string; count?: string; icon?: string }>,
+  active: T,
+  onSelect: (value: T) => void,
+): HTMLElement {
+  const row = parent.createDiv({ cls: 'vs-seg' });
+  items.forEach((item) => {
+    const seg = row.createEl('button', {
+      cls: `vs-seg-item${item.value === active ? ' is-active' : ''}`,
+      attr: { type: 'button' },
+    });
+    if (item.icon) {
+      const icon = seg.createSpan({ cls: 'vs-seg-icon' });
+      setIcon(icon, item.icon);
+    }
+    seg.createSpan({ text: item.label });
+    if (item.count) seg.createSpan({ text: item.count, cls: 'vs-seg-count' });
+    seg.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (item.value !== active) onSelect(item.value);
+    });
+  });
+  return row;
+}
+
+export interface ThumbOptions {
+  cover?: string;
+  platform?: string;
+  duration?: string;
+  /** sm = 44×26 列表行用；lg = 76×44 任务卡用 */
+  size?: 'sm' | 'lg';
+}
+
+/**
+ * 视频缩略图：有封面用封面，没有就用斜纹占位；左缘一道平台色条，右下角时长。
+ * 封面来源是笔记 frontmatter 的 cover/image，拿不到很正常，不当错误处理。
+ */
+export function thumbnail(parent: HTMLElement, options: ThumbOptions = {}): HTMLElement {
+  const thumb = parent.createDiv({
+    cls: `vs-thumb${options.size === 'lg' ? ' is-lg' : ''} ${platformClass(options.platform)}`,
+  });
+  if (options.cover) {
+    const img = thumb.createEl('img', { cls: 'vs-thumb-img', attr: { src: options.cover } });
+    img.addEventListener('error', () => img.remove());
+  }
+  thumb.createSpan({ cls: 'vs-thumb-bar' });
+  if (options.duration) {
+    thumb.createSpan({ text: options.duration, cls: 'vs-thumb-time' });
+  }
+  return thumb;
+}
+
+export function platformClass(platform?: string): string {
+  switch (platform) {
+    case 'youtube':
+    case 'bilibili':
+    case 'douyin':
+    case 'tiktok':
+    case 'xiaohongshu':
+      return `is-${platform}`;
+    default:
+      return 'is-generic';
+  }
+}
+
+/** 平台名，带平台色 */
+export function platformText(parent: HTMLElement, platform: string | undefined, label: string) {
+  return parent.createSpan({ text: label, cls: `vs-platform ${platformClass(platform)}` });
+}
+
+/** mm:ss，用于"已用 01:24" */
+export function formatClock(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '00:00';
+  const total = Math.floor(ms / 1000);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 export function platformIcon(platform?: string): string {
   switch (platform) {
     case 'youtube':

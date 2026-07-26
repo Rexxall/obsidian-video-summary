@@ -10,6 +10,10 @@ export interface VideoNoteEntry {
   link?: string;
   platform?: string;
   title?: string;
+  /** 封面图（frontmatter cover / image / thumbnail），缺失时界面用占位斜纹 */
+  cover?: string;
+  /** 视频时长文本，例如 42:17 */
+  duration?: string;
   ctime: number;
   mtime: number;
 }
@@ -163,6 +167,8 @@ export class NoteIndex {
       link,
       platform: link ? detectPlatform(link) : undefined,
       title: typeof frontmatter?.video_title === 'string' ? frontmatter.video_title : undefined,
+      cover: readCover(frontmatter),
+      duration: readString(frontmatter?.video_duration),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
     };
@@ -190,6 +196,23 @@ export class NoteIndex {
   }
 }
 
+function readString(value: any): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+/** 封面允许几种常见字段名；内部链接 ![[x.png]] 交给调用方渲染不了就退回占位 */
+function readCover(frontmatter: any): string | undefined {
+  const raw =
+    readString(frontmatter?.cover) ??
+    readString(frontmatter?.image) ??
+    readString(frontmatter?.thumbnail) ??
+    readString(frontmatter?.video_cover);
+  if (!raw) return undefined;
+  return /^https?:\/\//.test(raw) ? raw : undefined;
+}
+
 export function detectPlatform(url: string): string {
   const value = url.toLowerCase();
   if (value.includes('bilibili.com') || value.includes('b23.tv')) return 'bilibili';
@@ -203,7 +226,7 @@ export function detectPlatform(url: string): string {
 export function platformLabel(platform?: string): string {
   switch (platform) {
     case 'bilibili':
-      return 'bilibili';
+      return 'B站';
     case 'youtube':
       return 'YouTube';
     case 'douyin':

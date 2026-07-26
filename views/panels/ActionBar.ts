@@ -1,7 +1,16 @@
 // agent: claude (2026-07-26)
 import { Notice, TFile, TFolder, setIcon } from 'obsidian';
 import { ViewContext } from '../context';
-import { configChip, iconButton, languageLabel, modeLabel, statusMeta, textButton } from '../ui';
+import {
+  configChip,
+  iconButton,
+  languageLabel,
+  modeLabel,
+  platformText,
+  statusMeta,
+  textButton,
+} from '../ui';
+import { platformLabel } from '../../core/NoteIndex';
 import { expandParts, isAbsoluteLocalPath, parseInput } from '../../core/InputParser';
 import { FolderSelectModal } from '../../modals/FolderSelectModal';
 import { ProcessingMode, SupportedLanguage } from '../../types';
@@ -18,15 +27,16 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   renderHeader(root, ctx);
   renderContextStrip(root, ctx);
 
-  const inputRow = root.createDiv({ cls: 'vs-input-row' });
+  const inputCard = root.createDiv({ cls: 'vs-input-card' });
+  const inputRow = inputCard.createDiv({ cls: 'vs-input-row' });
   const inputIcon = inputRow.createDiv({ cls: 'vs-input-icon' });
-  setIcon(inputIcon, 'link');
+  setIcon(inputIcon, 'clipboard-paste');
 
   const input = inputRow.createEl('textarea', {
     cls: 'vs-input',
     attr: {
       rows: '1',
-      placeholder: '粘贴链接、本地文件名、文稿或 webhook JSON；多行=批量',
+      placeholder: '粘贴视频链接，多行即批量…',
     },
   });
   input.value = state.inputDraft;
@@ -43,7 +53,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     'vs-input-action',
   );
 
-  const chips = root.createDiv({ cls: 'vs-chip-row' });
+  const chips = inputCard.createDiv({ cls: 'vs-chip-row' });
   renderChips(chips, ctx);
 
   const advanced = root.createDiv({ cls: 'vs-advanced' });
@@ -102,25 +112,41 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   });
 }
 
+function backendStateLabel(state: string): string {
+  if (state === 'is-online') return '在线';
+  if (state === 'is-offline') return '离线';
+  return '未检测';
+}
+
 function renderHeader(root: HTMLElement, ctx: ViewContext) {
   const header = root.createDiv({ cls: 'vs-header' });
-  header.createSpan({ text: 'Video summary', cls: 'vs-header-title' });
+  header.createSpan({ text: '视频总结', cls: 'vs-header-title' });
   const actions = header.createDiv({ cls: 'vs-header-actions' });
 
   const backend = ctx.plugin.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n';
-  iconButton(actions, 'plug', `后端：${backend}（点击测试连接）`, async () => {
-    const notice = new Notice(`正在测试 ${backend} 连接…`, 0);
+  const statusPillEl = actions.createEl('button', {
+    cls: 'vs-backend-pill',
+    attr: { type: 'button', title: `${backend}：点击测试连接` },
+  });
+  const dot = statusPillEl.createSpan({ cls: `vs-backend-dot ${ctx.backendState()}` });
+  statusPillEl.createSpan({ text: `${backend} ${backendStateLabel(ctx.backendState())}` });
+  statusPillEl.addEventListener('click', async (event) => {
+    event.preventDefault();
+    dot.className = 'vs-backend-dot is-checking';
     try {
       const result = await ctx.plugin.api.testConnection();
-      notice.hide();
+      ctx.setBackendState(result.success ? 'is-online' : 'is-offline');
+      dot.className = `vs-backend-dot ${ctx.backendState()}`;
       new Notice(
         result.success
           ? `${backend} 连接正常（${result.durationMs ?? 0}ms）`
           : `${backend} 连接失败：${result.error || '未知错误'}`,
         result.success ? 3000 : 8000,
       );
+      ctx.renderAll();
     } catch (error) {
-      notice.hide();
+      ctx.setBackendState('is-offline');
+      dot.className = 'vs-backend-dot is-offline';
       new Notice(`连接失败：${ctx.plugin.formatErrorForNotice(error)}`, 8000);
     }
   });
@@ -152,10 +178,13 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
 
   const body = strip.createDiv({ cls: 'vs-context-body' });
   body.createDiv({ text: activeFile.basename, cls: 'vs-context-title' });
-  body.createDiv({
-    text: `当前笔记 · ${meta.label}${entry?.link ? ` · ${entry.link}` : ''}`,
-    cls: 'vs-context-sub',
-  });
+  const sub = body.createDiv({ cls: 'vs-context-sub' });
+  sub.createSpan({ text: '当前笔记 · ' });
+  sub.createSpan({ text: meta.label, cls: `vs-state-text ${meta.cls}` });
+  if (entry?.platform) {
+    sub.createSpan({ text: ' · ' });
+    platformText(sub, entry.platform, platformLabel(entry.platform));
+  }
 
   if (status !== 'running') {
     textButton(

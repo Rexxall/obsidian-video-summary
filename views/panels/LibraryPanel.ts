@@ -3,7 +3,15 @@ import { Notice, TFile, setIcon } from 'obsidian';
 import { ViewContext, LibraryFilter } from '../context';
 import { VideoNoteEntry, platformLabel } from '../../core/NoteIndex';
 import { ConfirmModal } from '../../modals';
-import { emptyState, formatRelative, iconButton, platformIcon, showMenu, statusMeta } from '../ui';
+import {
+  emptyState,
+  formatRelative,
+  iconButton,
+  platformText,
+  showMenu,
+  statusPill,
+  thumbnail,
+} from '../ui';
 
 const PAGE_SIZE = 80;
 
@@ -53,16 +61,16 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
   const filters = container.createDiv({ cls: 'vs-filter-row' });
   (
     [
-      ['all', `全部 ${entries.length}`],
-      ['pending', `待处理 ${counts.pending}`],
-      ['running', `处理中 ${counts.running}`],
-      ['error', `失败 ${counts.error}`],
-      ['success', `已完成 ${counts.success}`],
-    ] as Array<[LibraryFilter, string]>
-  ).forEach(([value, label]) => {
+      ['all', `全部 ${entries.length}`, ''],
+      ['pending', `待处理 ${counts.pending}`, 'is-pending'],
+      ['running', `处理中 ${counts.running}`, 'is-running'],
+      ['error', `失败 ${counts.error}`, 'is-error'],
+      ['success', `已完成 ${counts.success}`, 'is-success'],
+    ] as Array<[LibraryFilter, string, string]>
+  ).forEach(([value, label, tone]) => {
     const chip = filters.createEl('button', {
       text: label,
-      cls: `vs-filter-chip${state.libraryFilter === value ? ' is-active' : ''}`,
+      cls: `vs-filter-chip ${tone}${state.libraryFilter === value ? ' is-active' : ''}`,
       attr: { type: 'button' },
     });
     chip.addEventListener('click', async () => {
@@ -95,7 +103,7 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
     filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry));
     if (filtered.length > visibleCount) {
       const more = listEl.createEl('button', {
-        text: `显示更多（还有 ${filtered.length - visibleCount} 条）`,
+        text: `显示更多 · 还有 ${filtered.length - visibleCount} 条`,
         cls: 'vs-more-btn',
         attr: { type: 'button' },
       });
@@ -139,21 +147,31 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
 
 function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry) {
   const row = listEl.createDiv({ cls: 'vs-row' });
-  const meta = statusMeta(entry.status);
-  row.createDiv({ cls: `vs-dot ${meta.cls}` });
+  thumbnail(row, { cover: entry.cover, duration: entry.duration, platform: entry.platform });
 
   const body = row.createDiv({ cls: 'vs-row-body' });
   body.createDiv({ text: entry.basename, cls: 'vs-row-title' });
-  const subParts = [platformLabel(entry.platform), formatRelative(entry.mtime)];
-  body.createDiv({ text: subParts.join(' · '), cls: 'vs-row-sub' });
+  const sub = body.createDiv({ cls: 'vs-row-sub' });
+  platformText(sub, entry.platform, platformLabel(entry.platform));
+  sub.createSpan({ text: formatRelative(entry.mtime) });
   body.addEventListener('click', () => ctx.openNote(entry.path));
 
-  const icon = row.createDiv({ cls: 'vs-row-platform' });
-  setIcon(icon, platformIcon(entry.platform));
+  // 状态胶囊即筛选：点一下就把列表收敛到同状态
+  statusPill(row, entry.status, {
+    onClick: async () => {
+      ctx.state.libraryFilter = entry.status as typeof ctx.state.libraryFilter;
+      ctx.plugin.settings.statusFilterValue = entry.status;
+      await ctx.plugin.saveSettings();
+      resetLibraryPaging();
+      ctx.renderPanels();
+    },
+    title: `只看${entry.status === 'success' ? '已完成' : entry.status === 'error' ? '失败' : entry.status === 'running' ? '处理中' : '待处理'}`,
+  });
 
+  const actions = row.createDiv({ cls: 'vs-row-actions' });
   if (entry.status !== 'running') {
     iconButton(
-      row,
+      actions,
       entry.status === 'success' ? 'refresh-cw' : 'play',
       entry.status === 'success' ? '重跑' : '处理',
       async () => {
@@ -163,23 +181,30 @@ function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry)
         ctx.state.tab = 'jobs';
         ctx.renderPanels();
       },
+      'is-accent',
     );
   } else {
-    iconButton(row, 'x', '取消', async () => {
-      const job = ctx.plugin.jobs
-        .getActive()
-        .find((candidate) => candidate.notePath === entry.path);
-      if (job) {
-        await ctx.plugin.jobService.cancel(job);
-      } else {
-        const file = fileOf(ctx, entry);
-        if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, 'pending');
-      }
-      ctx.renderPanels();
-    });
+    iconButton(
+      actions,
+      'x',
+      '取消',
+      async () => {
+        const job = ctx.plugin.jobs
+          .getActive()
+          .find((candidate) => candidate.notePath === entry.path);
+        if (job) {
+          await ctx.plugin.jobService.cancel(job);
+        } else {
+          const file = fileOf(ctx, entry);
+          if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, 'pending');
+        }
+        ctx.renderPanels();
+      },
+      'is-accent',
+    );
   }
 
-  iconButton(row, 'more-horizontal', '更多操作', (event) => {
+  iconButton(actions, 'more-horizontal', '更多操作', (event) => {
     showMenu(event, [
       { title: '打开笔记', icon: 'file-text', onClick: () => ctx.openNote(entry.path) },
       {
@@ -211,11 +236,7 @@ function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry)
           ctx.renderPanels();
         },
       },
-      {
-        title: '删除笔记',
-        icon: 'trash',
-        onClick: () => confirmDelete(ctx, entry),
-      },
+      { title: '删除笔记', icon: 'trash-2', onClick: () => confirmDelete(ctx, entry) },
     ]);
   });
 }

@@ -31,9 +31,14 @@ export interface ViewState {
   partsEnd: number;
 }
 
+export type BackendState = 'is-unknown' | 'is-online' | 'is-offline' | 'is-checking';
+
 export interface ViewContext {
   plugin: VideoSummaryPlugin;
   state: ViewState;
+  /** 后端连通状态，只影响头部那颗点，不参与处理逻辑 */
+  backendState(): BackendState;
+  setBackendState(state: BackendState): void;
   /** 只重画下半区（任务/笔记库/详情），输入框内容与滚动位置不受影响 */
   renderPanels(): void;
   /** 重画整个视图，包括顶部行动区 */

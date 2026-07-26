@@ -1,20 +1,23 @@
 // agent: claude (2026-07-26)
-import { Notice, TFile, setIcon } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 import { ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
 import { ProcessingHistory } from '../../types';
 import {
   emptyState,
+  formatClock,
   formatElapsed,
   formatRelative,
   iconButton,
   modeLabel,
   parseLocaleTime,
-  platformIcon,
+  platformText,
   showMenu,
-  statusMeta,
+  statusPill,
   textButton,
+  thumbnail,
 } from '../ui';
+import { platformLabel } from '../../core/NoteIndex';
 
 /** 任务流：正在跑的、等确认的、最近跑完的，都在这一屏 */
 export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
@@ -37,7 +40,7 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
 
   const historyRows = buildHistoryRows(ctx, finished);
   if (historyRows.length > 0) {
-    const header = section(container, '最近');
+    const header = section(container, '最近完成');
     iconButton(header, 'history', '从 webhook 历史结果里取回', (event) => {
       showWebhookHistoryMenu(ctx, event);
     });
@@ -89,66 +92,78 @@ function section(container: HTMLElement, title: string): HTMLElement {
 
 function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   const card = container.createDiv({ cls: 'vs-job-card' });
+  const body = card.createDiv({ cls: 'vs-job-body' });
 
-  const head = card.createDiv({ cls: 'vs-job-head' });
-  const icon = head.createDiv({ cls: 'vs-job-icon' });
-  setIcon(icon, platformIcon(job.platform));
-  head.createSpan({ text: job.title, cls: 'vs-job-title' });
-  iconButton(head, 'x', '取消', async () => {
+  const media = mediaOf(ctx, job);
+  thumbnail(body, { ...media, size: 'lg' });
+
+  const info = body.createDiv({ cls: 'vs-job-info' });
+  info.createDiv({ text: job.title, cls: 'vs-job-title' });
+  const sub = info.createDiv({ cls: 'vs-job-sub' });
+  platformText(sub, job.platform, platformLabel(job.platform));
+  if (job.startedAt) {
+    sub.createSpan({ text: `已用 ${formatClock(Date.now() - job.startedAt)}`, cls: 'vs-mono' });
+  }
+  if (!job.useCache) sub.createSpan({ text: '跳过缓存' });
+
+  const side = body.createDiv({ cls: 'vs-job-side' });
+  // n8n 是一次性请求拿不到中间态，这里就只说"处理中"，不编造阶段
+  statusPill(side, job.state === 'queued' ? 'queued' : 'running', {
+    label: job.state === 'queued' ? '排队中' : job.stageLabel || '处理中',
+    title: job.stageLabel ? undefined : '该后端不上报处理阶段，仅显示计时',
+  });
+  iconButton(side, 'x', '取消', async () => {
     await ctx.plugin.jobService.cancel(job);
     ctx.renderPanels();
   });
-
-  const stage = card.createDiv({ cls: 'vs-job-stage' });
-  if (job.state === 'queued') {
-    stage.setText('排队中');
-  } else if (job.stageLabel) {
-    stage.setText(job.stageLabel);
-  } else {
-    // n8n 是一次性请求，后端不上报中间状态，这里如实说明而不是假造阶段
-    stage.setText('已发送到后端，等待返回（该后端不上报阶段）');
-  }
 
   const bar = card.createDiv({ cls: 'vs-progress' });
   const fill = bar.createDiv({
     cls: `vs-progress-fill${job.progress === undefined ? ' is-indeterminate' : ''}`,
   });
-  if (job.progress !== undefined) {
-    fill.style.width = `${Math.round(job.progress * 100)}%`;
-  }
-
-  const meta = card.createDiv({ cls: 'vs-job-meta' });
-  meta.createSpan({ text: modeLabel(job.mode) });
-  if (job.startedAt) {
-    meta.createSpan({ text: `已用 ${formatElapsed(Date.now() - job.startedAt)}` });
-  }
-  if (!job.useCache) meta.createSpan({ text: '跳过缓存' });
+  if (job.progress !== undefined) fill.style.width = `${Math.round(job.progress * 100)}%`;
 }
 
 function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   const card = container.createDiv({ cls: 'vs-job-card is-review' });
-  const head = card.createDiv({ cls: 'vs-job-head' });
-  const icon = head.createDiv({ cls: 'vs-job-icon' });
-  setIcon(icon, 'eye');
-  head.createSpan({ text: job.title, cls: 'vs-job-title' });
+  const body = card.createDiv({ cls: 'vs-job-body' });
 
-  card.createDiv({
-    text: summarize(job),
-    cls: 'vs-job-stage',
-  });
+  const media = mediaOf(ctx, job);
+  thumbnail(body, { ...media, size: 'lg' });
+
+  const info = body.createDiv({ cls: 'vs-job-info' });
+  info.createDiv({ text: job.title, cls: 'vs-job-title' });
+  info.createDiv({ text: summarize(job), cls: 'vs-job-sub' });
+
+  statusPill(body.createDiv({ cls: 'vs-job-side' }), 'review');
 
   const actions = card.createDiv({ cls: 'vs-job-actions' });
-  textButton(actions, '预览', () => ctx.openDetail({ kind: 'job', id: job.id }), 'is-primary');
-  textButton(actions, '写入笔记', async () => {
-    if (await ctx.plugin.jobService.writeResult(job)) {
-      new Notice('已写入笔记');
-      ctx.renderPanels();
-    }
-  });
-  textButton(actions, '丢弃', async () => {
+  textButton(actions, '预览', () => ctx.openDetail({ kind: 'job', id: job.id }), 'is-primary is-fill');
+  textButton(
+    actions,
+    '直接写入',
+    async () => {
+      if (await ctx.plugin.jobService.writeResult(job)) {
+        new Notice('已写入笔记');
+        ctx.renderPanels();
+      }
+    },
+    'is-fill',
+  );
+  iconButton(actions, 'trash-2', '丢弃结果', async () => {
     await ctx.plugin.jobService.discardResult(job);
     ctx.renderPanels();
-  });
+  }, 'vs-icon-btn-boxed');
+}
+
+/** 任务对应笔记的封面/时长（拿不到就用占位斜纹） */
+function mediaOf(ctx: ViewContext, job: Job): { cover?: string; duration?: string; platform?: string } {
+  const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : undefined;
+  return {
+    cover: entry?.cover,
+    duration: entry?.duration || job.result?.video_duration,
+    platform: job.platform || entry?.platform,
+  };
 }
 
 interface HistoryRow {
@@ -203,17 +218,24 @@ function buildHistoryRows(ctx: ViewContext, finishedJobs: Job[]): HistoryRow[] {
 
 function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: HistoryRow) {
   const item = container.createDiv({ cls: 'vs-row' });
-  const meta = statusMeta(row.state);
-  item.createDiv({ cls: `vs-dot ${meta.cls}` });
+  const entry = findEntry(ctx, row.title);
+  thumbnail(item, {
+    cover: entry?.cover,
+    duration: entry?.duration,
+    platform: row.platform || entry?.platform,
+  });
 
   const body = item.createDiv({ cls: 'vs-row-body' });
   body.createDiv({ text: row.title, cls: 'vs-row-title' });
-  const parts = [modeLabel(row.mode)];
-  if (row.time) parts.push(formatRelative(row.time));
-  if (row.durationMs) parts.push(formatElapsed(row.durationMs));
-  body.createDiv({ text: parts.join(' · '), cls: 'vs-row-sub' });
+
   if (row.state === 'error' && row.error) {
-    body.createDiv({ text: row.error, cls: 'vs-row-error' });
+    // 失败行直接把原因摆在副行，不用点进详情
+    body.createDiv({ text: row.error, cls: 'vs-row-sub is-error' });
+  } else {
+    const sub = body.createDiv({ cls: 'vs-row-sub' });
+    if (row.time) sub.createSpan({ text: formatRelative(row.time) });
+    if (row.durationMs) sub.createSpan({ text: formatElapsed(row.durationMs), cls: 'vs-mono' });
+    if (!row.time && !row.durationMs) sub.createSpan({ text: modeLabel(row.mode) });
   }
 
   body.addEventListener('click', () => {
@@ -223,6 +245,17 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
       ctx.openDetail({ kind: 'history', file: row.record.file, time: row.record.time });
     }
   });
+
+  // 状态胶囊即动作：失败行点一下就是跳过缓存重跑
+  if (row.state === 'error') {
+    statusPill(item, 'error', {
+      label: '重试',
+      title: '跳过缓存重新处理',
+      onClick: () => void rerun(ctx, row),
+    });
+  } else {
+    statusPill(item, row.state, { label: row.state === 'success' ? '完成' : '已取消' });
+  }
 
   iconButton(item, 'more-horizontal', '更多操作', (event) => {
     showMenu(event, [
@@ -247,6 +280,10 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
       },
     ]);
   });
+}
+
+function findEntry(ctx: ViewContext, basename: string) {
+  return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
 }
 
 async function rerun(ctx: ViewContext, row: HistoryRow) {
