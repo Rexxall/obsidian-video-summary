@@ -11,6 +11,7 @@ import {
   TFile,
   WorkspaceLeaf,
   DropdownComponent,
+  setIcon,
 } from 'obsidian';
 import { VideoSummaryModal } from './modals';
 import { BatchProcessingModal } from './BatchProcessingModal';
@@ -1424,9 +1425,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass('video-summary-settings-tabs-container');
+    containerEl.addClass('vs-settings');
 
-    // 主标题
-    containerEl.createEl('h2', { text: '📺 视频总结插件设置' });
+    this.renderSettingsHeader(containerEl);
 
     // 渲染标签页切换按钮
     this.renderTabs(containerEl);
@@ -1455,6 +1456,60 @@ class VideoSummarySettingTab extends PluginSettingTab {
     }
   }
 
+  /** 页头：渐变图标 + 标题 + 版本副行 + 后端状态胶囊（替代原来的 emoji h2） */
+  private renderSettingsHeader(containerEl: HTMLElement) {
+    const header = containerEl.createDiv({ cls: 'vs-settings-header' });
+    const badge = header.createDiv({ cls: 'vs-settings-badge' });
+    setIcon(badge, 'clapperboard');
+
+    const text = header.createDiv({ cls: 'vs-settings-heading' });
+    text.createDiv({ text: '视频总结', cls: 'vs-settings-title' });
+    const backendLabel =
+      this.plugin.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n webhook';
+    text.createDiv({
+      text: `v${this.plugin.manifest.version} · 连接 ${backendLabel} 处理视频、文稿与笔记`,
+      cls: 'vs-settings-sub',
+    });
+
+    const pill = header.createEl('button', {
+      cls: 'vs-settings-pill',
+      attr: { type: 'button', title: '点击测试后端连接' },
+    });
+    const dot = pill.createSpan({ cls: 'vs-backend-dot' });
+    const label = pill.createSpan({ text: '未检测' });
+    pill.addEventListener('click', async () => {
+      dot.className = 'vs-backend-dot is-checking';
+      label.setText('检测中…');
+      try {
+        const result = await this.plugin.api.testConnection();
+        dot.className = `vs-backend-dot ${result.success ? 'is-online' : 'is-offline'}`;
+        label.setText(
+          result.success ? `后端在线 · ${result.durationMs ?? 0}ms` : '后端离线',
+        );
+      } catch {
+        dot.className = 'vs-backend-dot is-offline';
+        label.setText('后端离线');
+      }
+    });
+  }
+
+  /** 统一的分区卡片：lucide 图标 + 标题，取代各处 emoji h3 */
+  private sectionCard(
+    containerEl: HTMLElement,
+    icon: string,
+    title: string,
+    extraCls = '',
+  ): { section: HTMLElement; titleRow: HTMLElement } {
+    const section = containerEl.createDiv({
+      cls: `setting-section vs-settings-card ${extraCls}`.trim(),
+    });
+    const titleRow = section.createDiv({ cls: 'vs-settings-card-title' });
+    const iconEl = titleRow.createSpan({ cls: 'vs-settings-card-icon' });
+    setIcon(iconEl, icon);
+    titleRow.createSpan({ text: title, cls: 'vs-settings-card-text' });
+    return { section, titleRow };
+  }
+
   private renderTabs(containerEl: HTMLElement) {
     const tabsContainer = containerEl.createDiv({ cls: 'settings-tabs-bar' });
 
@@ -1465,14 +1520,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
       { id: 'advanced', label: '高级', icon: 'wrench' },
     ];
 
+    const seg = tabsContainer.createDiv({ cls: 'vs-seg' });
     tabs.forEach((tab) => {
-      const tabBtn = tabsContainer.createDiv({
-        cls: `settings-tab-btn ${this.activeTab === tab.id ? 'is-active' : ''}`,
+      const tabBtn = seg.createEl('button', {
+        cls: `vs-seg-item${this.activeTab === tab.id ? ' is-active' : ''}`,
+        attr: { type: 'button' },
       });
-      // 可以选择添加图标，根据 Obsidian 的 setIcon API
-      // setIcon(tabBtn, tab.icon);
+      const iconEl = tabBtn.createSpan({ cls: 'vs-seg-icon' });
+      setIcon(iconEl, tab.icon);
       tabBtn.createSpan({ text: tab.label });
-
       tabBtn.onclick = () => {
         this.activeTab = tab.id;
         this.display();
@@ -1481,10 +1537,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createSetupGuideSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section setup-guide-section' });
-
-    const titleRow = section.createDiv({ cls: 'setup-guide-title-row' });
-    titleRow.createEl('h3', { text: '安装检查' });
+    const { section, titleRow } = this.sectionCard(
+      containerEl,
+      'shield-check',
+      '安装检查',
+      'setup-guide-section',
+    );
+    titleRow.addClass('setup-guide-title-row');
 
     if (this.plugin.settings.setupGuideDismissed) {
       new Setting(section)
@@ -1692,8 +1751,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createPlatformMatrixSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section platform-matrix-section' });
-    section.createEl('h3', { text: '平台能力矩阵' });
+    const { section } = this.sectionCard(containerEl, 'layout-grid', '平台能力矩阵', 'platform-matrix-section');
     section.createEl('p', {
       text: '不同平台的可用性不一样。优先用本地文件、公开 YouTube/Bilibili 或已粘贴文稿；短视频平台通常需要 cookies。',
       cls: 'setting-item-description',
@@ -1732,8 +1790,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   private createCookiesSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '🍪 Cookies 管理' });
+    const { section } = this.sectionCard(containerEl, 'cookie', 'Cookies 管理');
     section.createEl('p', {
       text: '受限平台（Bilibili / 抖音 / 小红书 / TikTok）经常需要浏览器导出的 cookies。目录一般是 n8n docker 项目里的 docker/cookies；文件名如 bilibili_cookies.txt。',
       cls: 'setting-item-description',
@@ -1903,8 +1960,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createApiSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '🔗 主入口与 API 配置' });
+    const { section } = this.sectionCard(containerEl, 'link', '主入口与 API 配置');
 
     this.createWorkflowCompatibilityCard(section);
 
@@ -2121,8 +2177,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createBasicSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '⚙️ 基础配置' });
+    const { section } = this.sectionCard(containerEl, 'sliders-horizontal', '基础配置');
 
     // 默认语言设置
     new Setting(section)
@@ -2286,8 +2341,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createQuickProcessingSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '⚡ 一键处理配置' });
+    const { section } = this.sectionCard(containerEl, 'zap', '一键处理配置');
 
     // 一键总结配置
     const summarySubsection = section.createEl('div', { cls: 'setting-subsection' });
@@ -2357,8 +2411,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createFileProcessingSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '📁 文件处理配置' });
+    const { section } = this.sectionCard(containerEl, 'files', '文件处理配置');
 
     // 自动重命名开关
     new Setting(section)
@@ -2418,8 +2471,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createPayloadKeysSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '📡 Webhook Payload 键配置' });
+    const { section } = this.sectionCard(containerEl, 'radio', 'Webhook Payload 键配置');
     section.createEl('p', {
       text: '自定义发送到 n8n webhook 的 JSON 对象中的键名。这允许您适应不同的 n8n 工作流配置。',
       cls: 'setting-item-description',
@@ -2453,8 +2505,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createAdvancedSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '🔧 高级配置' });
+    const { section } = this.sectionCard(containerEl, 'wrench', '高级配置');
 
     // 调试模式
     new Setting(section)

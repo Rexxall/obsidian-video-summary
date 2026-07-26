@@ -1,10 +1,11 @@
-import { App, Modal, Notice, Setting, TFile } from 'obsidian';
+import { App, Modal, Notice, Setting, TFile, setIcon } from 'obsidian';
 import VideoSummaryPlugin from './main';
 import { ProcessingMode, SupportedLanguage, BatchProgress, PlaylistItem } from './types';
 import { LANGUAGE_OPTIONS, PROCESSING_MODES } from './constants';
 import { NoteProcessor } from './utils/NoteProcessor';
-import { VideoUtils } from './utils/VideoUtils';
 import { PlaylistProcessor } from './utils/PlaylistProcessor';
+import { MenuItemSpec, configChip, segmented, showMenu, statusPill } from './views/ui';
+import { platformLabel } from './core/NoteIndex';
 
 export class BatchProcessingModal extends Modal {
   private plugin: VideoSummaryPlugin;
@@ -28,6 +29,9 @@ export class BatchProcessingModal extends Modal {
   private progressEl: HTMLElement | null = null;
   private fileListEl: HTMLElement | null = null;
   private filterEl: HTMLElement | null = null;
+  private countEl: HTMLElement | null = null;
+  private startButtonEl: HTMLButtonElement | null = null;
+  private startLabelEl: HTMLElement | null = null;
   private playlistEl: HTMLElement | null = null;
 
   // 筛选条件
@@ -47,252 +51,164 @@ export class BatchProcessingModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    contentEl.addClass('batch-processing-modal');
+    contentEl.addClass('vs-modal');
 
-    contentEl.createEl('h2', { text: '📺 批量视频总结处理' });
-
-    // 处理模式选择
-    const modeSelectionEl = contentEl.createEl('div', { cls: 'batch-mode-selection' });
-    modeSelectionEl.createEl('h3', { text: '选择处理模式' });
-
-    // 文件处理模式
-    const fileModeButton = modeSelectionEl.createEl('button', {
-      text: '📁 处理本地笔记文件',
-      cls: this.processingMode === 'files' ? 'mod-cta' : 'mod-secondary',
+    const header = contentEl.createDiv({ cls: 'vs-modal-header' });
+    header.createSpan({ text: '批量处理', cls: 'vs-modal-title' });
+    const closeBtn = header.createEl('button', {
+      cls: 'vs-icon-btn',
+      attr: { type: 'button', 'aria-label': '关闭' },
     });
-    fileModeButton.addEventListener('click', () => {
-      this.processingMode = 'files';
-      this.updateModeDisplay();
+    setIcon(closeBtn, 'x');
+    closeBtn.onclick = () => this.close();
+
+    const bodyEl = contentEl.createDiv({ cls: 'vs-modal-body' });
+
+    segmented(
+      bodyEl,
+      [
+        { value: 'files' as const, label: '本地笔记文件', icon: 'files' },
+        { value: 'playlist' as const, label: '播放列表 / 收藏夹', icon: 'list-video' },
+      ],
+      this.processingMode,
+      (value: 'files' | 'playlist') => {
+        this.processingMode = value;
+        this.updateModeDisplay();
+      },
+    );
+
+    const chipRow = bodyEl.createDiv({ cls: 'vs-chip-row' });
+    configChip(
+      chipRow,
+      '处理模式',
+      PROCESSING_MODES.find((item) => item.value === this.mode)?.label || '完整总结',
+      PROCESSING_MODES.map((item) => ({
+        title: item.label,
+        onClick: () => {
+          this.mode = item.value as ProcessingMode;
+          this.onOpen();
+        },
+      })),
+    );
+    configChip(
+      chipRow,
+      '输出语言',
+      LANGUAGE_OPTIONS.find((item) => item.value === this.language)?.label || '中文',
+      LANGUAGE_OPTIONS.map((item) => ({
+        title: item.label,
+        onClick: () => {
+          this.language = item.value as SupportedLanguage;
+          this.onOpen();
+        },
+      })),
+    );
+
+    // ---------- 本地笔记文件 ----------
+    const fileSelectionEl = bodyEl.createDiv({ cls: 'batch-file-selection' });
+
+    this.filterEl = fileSelectionEl.createDiv({ cls: 'vs-modal-filters' });
+    const search = this.filterEl.createDiv({ cls: 'vs-search' });
+    const searchIcon = search.createSpan({ cls: 'vs-search-icon' });
+    setIcon(searchIcon, 'search');
+    const searchInput = search.createEl('input', {
+      cls: 'vs-search-input',
+      attr: { type: 'text', placeholder: '搜索文件名…', value: this.searchFilter },
+    });
+    searchInput.addEventListener('input', async () => {
+      this.searchFilter = searchInput.value.toLowerCase();
+      await this.applyFilters();
     });
 
-    // 播放列表处理模式
-    const playlistModeButton = modeSelectionEl.createEl('button', {
-      text: '📺 处理播放列表/收藏夹',
-      cls: this.processingMode === 'playlist' ? 'mod-cta' : 'mod-secondary',
-    });
-    playlistModeButton.addEventListener('click', () => {
-      this.processingMode = 'playlist';
-      this.updateModeDisplay();
-    });
+    const statusLabels: Record<string, string> = {
+      all: '全部状态',
+      pending: '待处理',
+      error: '处理失败',
+      processed: '已处理',
+    };
+    this.filterPill(this.filterEl, statusLabels[this.statusFilter] || '全部状态', () =>
+      Object.entries(statusLabels).map(([value, label]) => ({
+        title: label,
+        onClick: async () => {
+          this.statusFilter = value;
+          await this.applyFilters();
+          this.refreshFilterPills();
+        },
+      })),
+    );
 
-    // 处理模式选择
-    new Setting(contentEl)
-      .setName('处理模式')
-      .setDesc('选择批量处理方式')
-      .addDropdown((dropdown) => {
-        PROCESSING_MODES.forEach((mode) => {
-          dropdown.addOption(mode.value, mode.label);
-        });
-        dropdown.setValue(this.mode);
-        dropdown.onChange((value) => {
-          this.mode = value as ProcessingMode;
-          this.updateLanguageVisibility();
-        });
+    this.filterPill(
+      this.filterEl,
+      this.folderFilter === 'all' ? '全部文件夹' : this.folderFilter,
+      () => [
+        {
+          title: '全部文件夹',
+          onClick: async () => {
+            this.folderFilter = 'all';
+            await this.applyFilters();
+            this.refreshFilterPills();
+          },
+        },
+        ...this.collectFolders().map((folder) => ({
+          title: folder,
+          onClick: async () => {
+            this.folderFilter = folder;
+            await this.applyFilters();
+            this.refreshFilterPills();
+          },
+        })),
+      ],
+    );
+
+    const dateLabels: Record<string, string> = {
+      all: '全部时间',
+      today: '今天',
+      week: '本周',
+      month: '本月',
+    };
+    this.filterPill(this.filterEl, dateLabels[this.dateFilter] || '全部时间', () =>
+      Object.entries(dateLabels).map(([value, label]) => ({
+        title: label,
+        onClick: async () => {
+          this.dateFilter = value;
+          await this.applyFilters();
+          this.refreshFilterPills();
+        },
+      })),
+    );
+
+    const quickRow = fileSelectionEl.createDiv({ cls: 'vs-modal-quick' });
+    const quickChip = (label: string, active: boolean, onClick: () => void) => {
+      const chip = quickRow.createEl('button', {
+        text: label,
+        cls: `vs-quick-chip${active ? ' is-active' : ''}`,
+        attr: { type: 'button' },
       });
-
-    // 语言选择
-    new Setting(contentEl)
-      .setName('输出语言')
-      .setDesc('生成总结的语言')
-      .addDropdown((dropdown) => {
-        LANGUAGE_OPTIONS.forEach((lang) => {
-          dropdown.addOption(lang.value, lang.label);
-        });
-        dropdown.setValue(this.language);
-        dropdown.onChange((value) => {
-          this.language = value as SupportedLanguage;
-        });
+      chip.addEventListener('click', (event) => {
+        event.preventDefault();
+        onClick();
       });
-
-    // 并发数设置
-    new Setting(contentEl)
-      .setName('并发处理数')
-      .setDesc('同时处理的最大文件数量')
-      .addSlider((slider) =>
-        slider
-          .setLimits(1, 10, 1)
-          .setValue(this.plugin.settings.batchConcurrency)
-          .setDynamicTooltip()
-          .onChange((value) => {
-            this.plugin.settings.batchConcurrency = value;
-            this.plugin.saveSettings();
-          }),
-      );
-
-    // 文件选择区域
-    const fileSelectionEl = contentEl.createEl('div', { cls: 'batch-file-selection' });
-    fileSelectionEl.createEl('h3', { text: '选择要处理的文件' });
-
-    // 扫描按钮
-    const scanButton = fileSelectionEl.createEl('button', {
-      text: '扫描视频笔记',
-      cls: 'mod-cta',
-    });
-    scanButton.addEventListener('click', () => {
-      this.scanVideoFiles();
-    });
-
-    // 筛选条件区域
-    this.filterEl = fileSelectionEl.createEl('div', { cls: 'batch-filter-section' });
-    this.filterEl.style.display = 'none';
-
-    // 搜索框
-    const searchContainer = this.filterEl.createEl('div', { cls: 'filter-row' });
-    searchContainer.createEl('label', { text: '搜索文件名:', cls: 'filter-label' });
-    const searchInput = searchContainer.createEl('input', {
-      type: 'text',
-      cls: 'filter-input',
-    });
-    searchInput.setAttribute('placeholder', '输入文件名关键词...');
-    searchInput.addEventListener('input', async (e) => {
-      this.searchFilter = (e.target as HTMLInputElement).value.toLowerCase();
+    };
+    quickChip('全选', false, () => void this.selectAllVisible());
+    quickChip('清空', false, () => void this.selectNone());
+    quickChip('选择待处理', false, () => void this.selectByStatus('pending'));
+    quickChip('选择失败', false, () => void this.selectByStatus('error'));
+    quickChip('缺少视频信息', this.infoFilter === 'no-info', async () => {
+      this.infoFilter = this.infoFilter === 'no-info' ? 'all' : 'no-info';
       await this.applyFilters();
+      this.onOpen();
     });
+    quickRow.createSpan({ cls: 'vs-quick-spacer' });
+    this.countEl = quickRow.createSpan({ cls: 'vs-quick-count' });
 
-    // 状态筛选
-    const statusContainer = this.filterEl.createEl('div', { cls: 'filter-row' });
-    statusContainer.createEl('label', { text: '处理状态:', cls: 'filter-label' });
-    const statusSelect = statusContainer.createEl('select', { cls: 'filter-select' });
-    statusSelect.createEl('option', { text: '全部状态', value: 'all' });
-    statusSelect.createEl('option', { text: '待处理', value: 'pending' });
-    statusSelect.createEl('option', { text: '处理失败', value: 'error' });
-    statusSelect.createEl('option', { text: '已处理', value: 'processed' });
-    statusSelect.value = this.statusFilter;
-    statusSelect.addEventListener('change', async (e) => {
-      this.statusFilter = (e.target as HTMLSelectElement).value;
-      await this.applyFilters();
-    });
+    this.fileListEl = fileSelectionEl.createDiv({ cls: 'vs-modal-list' });
+    this.renderLastBatch(fileSelectionEl);
 
-    // 文件夹筛选
-    const folderContainer = this.filterEl.createEl('div', { cls: 'filter-row' });
-    folderContainer.createEl('label', { text: '文件夹:', cls: 'filter-label' });
-
-    // 创建可搜索的下拉框容器
-    const folderSelectContainer = folderContainer.createEl('div', {
-      cls: 'searchable-select-container',
-    });
-
-    // 输入框
-    const folderInput = folderSelectContainer.createEl('input', {
-      type: 'text',
-      cls: 'filter-input searchable-select-input',
-      attr: { placeholder: '输入关键词筛选文件夹...' },
-    });
-
-    // 下拉框
-    const folderSelect = folderSelectContainer.createEl('select', {
-      cls: 'filter-select searchable-select-dropdown',
-      attr: { size: '6' },
-    });
-    folderSelect.style.display = 'none';
-
-    // 添加默认选项
-    folderSelect.createEl('option', { text: '全部文件夹', value: 'all' });
-
-    // 输入框事件
-    folderInput.addEventListener('input', (e) => {
-      const searchValue = (e.target as HTMLInputElement).value.toLowerCase();
-
-      // 显示/隐藏下拉框
-      if (searchValue.length > 0) {
-        folderSelect.style.display = 'block';
-        this.filterFolderOptions(folderSelect, searchValue);
-      } else {
-        folderSelect.style.display = 'none';
-        this.resetFolderOptions(folderSelect);
-      }
-    });
-
-    // 下拉框选择事件
-    folderSelect.addEventListener('change', async (e) => {
-      const selectedValue = (e.target as HTMLSelectElement).value;
-      this.folderFilter = selectedValue;
-      folderInput.value = selectedValue === 'all' ? '' : selectedValue;
-      folderSelect.style.display = 'none';
-      await this.applyFilters();
-    });
-
-    // 点击输入框时显示所有选项
-    folderInput.addEventListener('click', () => {
-      folderSelect.style.display = 'block';
-      this.resetFolderOptions(folderSelect);
-      // 确保所有选项都可见
-      for (let i = 0; i < folderSelect.options.length; i++) {
-        folderSelect.options[i].style.display = 'block';
-      }
-    });
-
-    // 点击外部时隐藏下拉框
-    document.addEventListener('click', (e) => {
-      if (!folderSelectContainer.contains(e.target as Node)) {
-        folderSelect.style.display = 'none';
-      }
-    });
-
-    // 日期筛选
-    const dateContainer = this.filterEl.createEl('div', { cls: 'filter-row' });
-    dateContainer.createEl('label', { text: '修改时间:', cls: 'filter-label' });
-    const dateSelect = dateContainer.createEl('select', { cls: 'filter-select' });
-    dateSelect.createEl('option', { text: '全部时间', value: 'all' });
-    dateSelect.createEl('option', { text: '今天', value: 'today' });
-    dateSelect.createEl('option', { text: '本周', value: 'week' });
-    dateSelect.createEl('option', { text: '本月', value: 'month' });
-    dateSelect.value = this.dateFilter;
-    dateSelect.addEventListener('change', async (e) => {
-      this.dateFilter = (e.target as HTMLSelectElement).value;
-      await this.applyFilters();
-    });
-
-    // 信息字段筛选（是否已有基础视频信息）
-    const infoContainer = this.filterEl.createEl('div', { cls: 'filter-row' });
-    infoContainer.createEl('label', { text: '视频信息:', cls: 'filter-label' });
-    const infoSelect = infoContainer.createEl('select', { cls: 'filter-select' });
-    infoSelect.createEl('option', { text: '全部', value: 'all' });
-    infoSelect.createEl('option', { text: '缺少视频信息（适合批量补 info）', value: 'no-info' });
-    infoSelect.createEl('option', { text: '已有视频信息', value: 'has-info' });
-    infoSelect.value = this.infoFilter;
-    infoSelect.addEventListener('change', async (e) => {
-      this.infoFilter = (e.target as HTMLSelectElement).value as 'all' | 'no-info' | 'has-info';
-      await this.applyFilters();
-    });
-
-    // 快速选择按钮
-    const quickSelectContainer = this.filterEl.createEl('div', { cls: 'quick-select-buttons' });
-
-    const selectAllBtn = quickSelectContainer.createEl('button', {
-      text: '全选',
-      cls: 'quick-select-btn',
-    });
-    selectAllBtn.addEventListener('click', async () => await this.selectAllVisible());
-
-    const selectNoneBtn = quickSelectContainer.createEl('button', {
-      text: '取消全选',
-      cls: 'quick-select-btn',
-    });
-    selectNoneBtn.addEventListener('click', async () => await this.selectNone());
-
-    const selectPendingBtn = quickSelectContainer.createEl('button', {
-      text: '选择待处理',
-      cls: 'quick-select-btn',
-    });
-    selectPendingBtn.addEventListener('click', async () => await this.selectByStatus('pending'));
-
-    const selectErrorBtn = quickSelectContainer.createEl('button', {
-      text: '选择失败',
-      cls: 'quick-select-btn',
-    });
-    selectErrorBtn.addEventListener('click', async () => await this.selectByStatus('error'));
-
-    // 文件列表
-    this.fileListEl = fileSelectionEl.createEl('div', { cls: 'batch-file-list' });
-
-    // 播放列表处理区域
-    const playlistSelectionEl = contentEl.createEl('div', { cls: 'batch-playlist-selection' });
-    playlistSelectionEl.createEl('h3', { text: '播放列表/收藏夹处理' });
-
-    // 播放列表URL输入
+    // ---------- 播放列表 ----------
+    const playlistSelectionEl = bodyEl.createDiv({ cls: 'batch-playlist-selection' });
     new Setting(playlistSelectionEl)
       .setName('播放列表链接')
-      .setDesc('输入B站播放列表或收藏夹链接')
+      .setDesc('B站播放列表或收藏夹链接')
       .addText((text) =>
         text
           .setPlaceholder('https://space.bilibili.com/xxx/favlist?fid=xxx')
@@ -301,91 +217,152 @@ export class BatchProcessingModal extends Modal {
             this.playlistUrl = value;
           }),
       );
-
-    // 解析播放列表按钮
     const parseButton = playlistSelectionEl.createEl('button', {
       text: '解析播放列表',
-      cls: 'mod-cta',
+      cls: 'vs-text-btn is-primary',
+      attr: { type: 'button' },
     });
     parseButton.addEventListener('click', () => {
-      this.parsePlaylist();
+      void this.parsePlaylist();
     });
+    this.playlistEl = playlistSelectionEl.createDiv({ cls: 'batch-playlist-list' });
 
-    // 播放列表内容显示
-    this.playlistEl = playlistSelectionEl.createEl('div', { cls: 'batch-playlist-list' });
-
-    // 进度显示区域
-    this.progressEl = contentEl.createEl('div', { cls: 'batch-progress' });
+    this.progressEl = bodyEl.createDiv({ cls: 'batch-progress' });
     this.progressEl.style.display = 'none';
 
-    // 操作按钮
-    const buttonContainer = contentEl.createEl('div', { cls: 'batch-buttons' });
-
-    // 开始批量处理按钮
-    const startButton = buttonContainer.createEl('button', {
-      text: '开始批量处理',
-      cls: 'mod-cta',
+    // ---------- 底部 ----------
+    const footer = contentEl.createDiv({ cls: 'vs-modal-footer' });
+    const concurrency = footer.createEl('button', {
+      cls: 'vs-quick-chip',
+      attr: { type: 'button', title: '同时处理的最大数量' },
     });
-    startButton.addEventListener('click', () => {
-      this.startBatchProcessing();
+    concurrency.setText(`并发 ${this.plugin.settings.batchConcurrency}`);
+    concurrency.addEventListener('click', (event) => {
+      event.preventDefault();
+      showMenu(
+        event,
+        [1, 2, 3, 4, 6, 8].map((value) => ({
+          title: String(value),
+          onClick: async () => {
+            this.plugin.settings.batchConcurrency = value;
+            this.plugin.jobs.setConcurrency(value);
+            await this.plugin.saveSettings();
+            concurrency.setText(`并发 ${value}`);
+          },
+        })),
+      );
     });
-
-    // 取消按钮
-    const cancelButton = buttonContainer.createEl('button', {
+    footer.createSpan({ cls: 'vs-quick-spacer' });
+    const cancelButton = footer.createEl('button', {
       text: '取消',
-      cls: 'mod-warning',
+      cls: 'vs-text-btn',
+      attr: { type: 'button' },
     });
-    cancelButton.addEventListener('click', () => {
-      this.close();
+    cancelButton.addEventListener('click', () => this.close());
+    this.startButtonEl = footer.createEl('button', {
+      cls: 'vs-primary-btn',
+      attr: { type: 'button' },
+    });
+    const startIcon = this.startButtonEl.createSpan({ cls: 'vs-btn-icon' });
+    setIcon(startIcon, 'play');
+    this.startLabelEl = this.startButtonEl.createSpan({ text: '开始处理' });
+    this.startButtonEl.addEventListener('click', () => {
+      void this.startBatchProcessing();
     });
 
-    // 初始化语言选择可见性
-    this.updateLanguageVisibility();
-
-    // 初始化模式显示
     this.updateModeDisplay();
-
-    // 添加样式
-    contentEl.addClass('batch-processing-modal');
+    void this.scanVideoFiles();
   }
 
-  private updateLanguageVisibility() {
-    const languageSetting = this.contentEl.querySelector(
-      '.setting-item:nth-child(2)',
-    ) as HTMLElement;
-    if (languageSetting) {
-      if (this.mode === 'summary') {
-        languageSetting.style.display = 'block';
-      } else {
-        languageSetting.style.display = 'none';
-      }
+  /** 一行筛选里的下拉胶囊：点开是 Obsidian Menu */
+  private filterPill(parent: HTMLElement, label: string, items: () => MenuItemSpec[]) {
+    const pill = parent.createEl('button', {
+      cls: 'vs-filter-pill',
+      attr: { type: 'button' },
+    });
+    pill.createSpan({ text: label });
+    const caret = pill.createSpan({ cls: 'vs-chip-caret' });
+    setIcon(caret, 'chevron-down');
+    pill.addEventListener('click', (event) => {
+      event.preventDefault();
+      showMenu(event, items());
+    });
+    return pill;
+  }
+
+  private refreshFilterPills() {
+    // 标签变了就重画一次弹窗内容（状态都在实例上，重画无副作用）
+    this.onOpen();
+  }
+
+  private collectFolders(): string[] {
+    const folders = new Set<string>();
+    this.allVideoFiles.forEach((file) => {
+      const folder = file.parent?.path;
+      if (folder && folder !== '/') folders.add(folder);
+    });
+    return Array.from(folders).sort().slice(0, 60);
+  }
+
+  /** 上次批量的成败比例，数据来自 settings.history */
+  private renderLastBatch(container: HTMLElement) {
+    const history = this.plugin.settings.history || [];
+    if (history.length === 0) return;
+
+    // 把结尾连续、时间相邻的记录当作同一批
+    const recent = history.slice(-40).reverse();
+    const batch: typeof recent = [];
+    let previous: number | null = null;
+    for (const record of recent) {
+      const time = Date.parse(record.time) || 0;
+      if (previous !== null && previous - time > 30 * 60 * 1000) break;
+      batch.push(record);
+      previous = time;
+    }
+    if (batch.length < 2) return;
+
+    const success = batch.filter((record) => record.result === 'success').length;
+    const failed = batch.length - success;
+
+    const card = container.createDiv({ cls: 'vs-last-batch' });
+    const row = card.createDiv({ cls: 'vs-last-batch-row' });
+    row.createSpan({ text: `上次批量 · ${batch.length} 个文件`, cls: 'vs-last-batch-title' });
+    row.createSpan({ text: `${success} 成功`, cls: 'vs-mono vs-last-ok' });
+    if (failed > 0) row.createSpan({ text: `${failed} 失败`, cls: 'vs-mono vs-last-fail' });
+
+    const bar = card.createDiv({ cls: 'vs-last-batch-bar' });
+    bar.createSpan({ cls: 'is-ok' }).style.width = `${Math.round((success / batch.length) * 100)}%`;
+    if (failed > 0) {
+      bar.createSpan({ cls: 'is-fail' }).style.width =
+        `${Math.round((failed / batch.length) * 100)}%`;
     }
   }
 
   private updateModeDisplay() {
-    // 更新按钮样式
-    const fileModeButton = this.contentEl.querySelector(
-      '.batch-mode-selection button:first-child',
-    ) as HTMLButtonElement;
-    const playlistModeButton = this.contentEl.querySelector(
-      '.batch-mode-selection button:last-child',
-    ) as HTMLButtonElement;
-
-    if (fileModeButton && playlistModeButton) {
-      fileModeButton.className = this.processingMode === 'files' ? 'mod-cta' : 'mod-secondary';
-      playlistModeButton.className =
-        this.processingMode === 'playlist' ? 'mod-cta' : 'mod-secondary';
-    }
-
-    // 显示/隐藏相应的区域
     const fileSelectionEl = this.contentEl.querySelector('.batch-file-selection') as HTMLElement;
     const playlistSelectionEl = this.contentEl.querySelector(
       '.batch-playlist-selection',
     ) as HTMLElement;
-
-    if (fileSelectionEl && playlistSelectionEl) {
+    if (fileSelectionEl) {
       fileSelectionEl.style.display = this.processingMode === 'files' ? 'block' : 'none';
+    }
+    if (playlistSelectionEl) {
       playlistSelectionEl.style.display = this.processingMode === 'playlist' ? 'block' : 'none';
+    }
+    this.contentEl.querySelectorAll('.vs-seg-item').forEach((item, index) => {
+      const isActive = (index === 0) === (this.processingMode === 'files');
+      item.toggleClass('is-active', isActive);
+    });
+    this.updateStartButton();
+  }
+
+  private updateStartButton() {
+    if (this.startLabelEl) {
+      const count = this.processingMode === 'files' ? this.selectedFiles.length : 0;
+      this.startLabelEl.setText(count > 0 ? `开始处理 ${count} 个` : '开始处理');
+    }
+    if (this.countEl) {
+      this.countEl.setText(`已选 ${this.selectedFiles.length} / ${this.allVideoFiles.length}`);
     }
   }
 
@@ -461,247 +438,114 @@ export class BatchProcessingModal extends Modal {
     }
   }
 
+  /** 扫描视频笔记：直接用插件已有的索引，不再全库读正文 */
   private async scanVideoFiles() {
-    if (!this.fileListEl || !this.filterEl) return;
+    if (!this.fileListEl) return;
 
-    this.fileListEl.empty();
-    this.selectedFiles = [];
-    this.allVideoFiles = [];
-
-    const files = this.app.vault.getMarkdownFiles();
-    const videoFiles: TFile[] = [];
-
-    // 优先基于 frontmatter 过滤，必要时读取正文
-    for (const file of files) {
-      try {
-        const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-        if (VideoUtils.isVideoNoteFromFrontmatter(fm)) {
-          videoFiles.push(file);
-          continue;
-        }
-        const content = await this.app.vault.read(file);
-        if (this.noteProcessor.hasVideoContent(content)) {
-          videoFiles.push(file);
-        }
-      } catch (error) {
-        console.error(`读取文件失败: ${file.basename}`, error);
-      }
+    const entries = this.plugin.noteIndex.getAll();
+    const files: TFile[] = [];
+    for (const entry of entries) {
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (file instanceof TFile) files.push(file);
     }
+    this.allVideoFiles = files;
+    this.selectedFiles = this.selectedFiles.filter((selected) =>
+      files.some((file) => file.path === selected.path),
+    );
 
-    if (videoFiles.length === 0) {
-      this.fileListEl.createEl('p', {
-        text: '未找到包含视频内容的笔记',
-        cls: 'mod-muted',
-      });
-      return;
-    }
-
-    this.allVideoFiles = videoFiles;
-
-    // 显示筛选区域
-    this.filterEl.style.display = 'block';
-
-    // 更新文件夹选项
-    this.updateFolderOptions();
-
-    // 显示文件列表
-    this.renderFileList();
-  }
-
-  private filterFolderOptions(select: HTMLSelectElement, searchValue: string) {
-    // 隐藏所有选项
-    for (let i = 0; i < select.options.length; i++) {
-      const option = select.options[i];
-      if (option.value === 'all') {
-        option.style.display = 'block'; // 始终显示"全部文件夹"
-      } else {
-        option.style.display = option.text.toLowerCase().includes(searchValue) ? 'block' : 'none';
-      }
-    }
-  }
-
-  private resetFolderOptions(select: HTMLSelectElement) {
-    // 显示所有选项
-    for (let i = 0; i < select.options.length; i++) {
-      select.options[i].style.display = 'block';
-    }
-    // 重置选择
-    select.selectedIndex = 0;
-  }
-
-  private updateFolderOptions() {
-    if (!this.filterEl) return;
-
-    const folderSelect = this.filterEl.querySelector(
-      '.searchable-select-dropdown',
-    ) as HTMLSelectElement;
-    if (!folderSelect) return;
-
-    // 清除现有选项（保留"全部文件夹"）
-    while (folderSelect.children.length > 1) {
-      folderSelect.removeChild(folderSelect.lastChild!);
-    }
-
-    // 获取所有文件夹
-    const folders = new Set<string>();
-    this.allVideoFiles.forEach((file) => {
-      const folder = file.parent?.path || '';
-      if (folder) folders.add(folder);
-    });
-
-    // 添加文件夹选项
-    Array.from(folders)
-      .sort()
-      .forEach((folder) => {
-        folderSelect.createEl('option', { text: folder, value: folder });
-      });
-
-    // 调试信息
-    console.log(`找到 ${folders.size} 个文件夹选项:`, Array.from(folders).sort());
+    await this.renderFileList();
   }
 
   private async renderFileList() {
     if (!this.fileListEl) return;
-
     this.fileListEl.empty();
 
-    // 应用筛选
     const filteredFiles = await this.getFilteredFiles();
 
-    this.fileListEl.createEl('h4', {
-      text: `显示 ${filteredFiles.length} 个文件（共 ${this.allVideoFiles.length} 个）:`,
-    });
+    if (filteredFiles.length === 0) {
+      this.fileListEl.createDiv({
+        text: this.allVideoFiles.length === 0 ? '库里还没有视频笔记' : '没有符合筛选条件的笔记',
+        cls: 'vs-modal-empty',
+      });
+      this.updateStartButton();
+      return;
+    }
 
     for (const file of filteredFiles) {
-      const fileItem = this.fileListEl.createEl('div', { cls: 'batch-file-item' });
+      const entry = this.plugin.noteIndex.get(file.path);
+      const row = this.fileListEl.createDiv({ cls: 'vs-modal-row' });
+      const checked = this.selectedFiles.some((selected) => selected.path === file.path);
 
-      // 复选框
-      const checkbox = fileItem.createEl('input', {
-        type: 'checkbox',
-        attr: { id: `file-${file.path}` },
-      });
-      checkbox.checked = this.selectedFiles.some((f) => f.path === file.path);
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) {
-          if (!this.selectedFiles.some((f) => f.path === file.path)) {
-            this.selectedFiles.push(file);
-          }
-        } else {
-          this.selectedFiles = this.selectedFiles.filter((f) => f.path !== file.path);
-        }
-      });
+      const box = row.createDiv({ cls: `vs-checkbox${checked ? ' is-checked' : ''}` });
+      if (checked) setIcon(box, 'check');
 
-      // 文件标签
-      fileItem.createEl('label', {
+      const body = row.createDiv({ cls: 'vs-modal-row-body' });
+      body.createDiv({
         text: file.basename,
-        attr: { for: `file-${file.path}` },
+        cls: `vs-modal-row-title${checked ? ' is-checked' : ''}`,
       });
+      const sub = body.createDiv({ cls: 'vs-modal-row-sub' });
+      if (entry?.platform) {
+        sub.createSpan({
+          text: platformLabel(entry.platform),
+          cls: `vs-platform is-${entry.platform}`,
+        });
+      }
+      sub.createSpan({ text: file.parent?.path && file.parent.path !== '/' ? file.parent.path : '根目录' });
+      sub.createSpan({ text: new Date(file.stat.mtime).toLocaleDateString('zh-CN') });
 
-      // 状态指示
-      this.app.vault.read(file).then((content) => {
-        const status = this.noteProcessor.getProcessingStatus(content);
-        if (status) {
-          fileItem.createEl('span', {
-            text: `(${status})`,
-            cls: 'file-status',
-          });
+      statusPill(row, entry?.status || 'pending');
+
+      row.addEventListener('click', () => {
+        if (checked) {
+          this.selectedFiles = this.selectedFiles.filter(
+            (selected) => selected.path !== file.path,
+          );
+        } else {
+          this.selectedFiles.push(file);
         }
+        void this.renderFileList();
       });
     }
+
+    this.updateStartButton();
   }
 
   private async getFilteredFiles(): Promise<TFile[]> {
-    const filteredFiles: TFile[] = [];
+    const now = Date.now();
+    const dateFloor =
+      this.dateFilter === 'today'
+        ? now - 24 * 60 * 60 * 1000
+        : this.dateFilter === 'week'
+          ? now - 7 * 24 * 60 * 60 * 1000
+          : this.dateFilter === 'month'
+            ? now - 30 * 24 * 60 * 60 * 1000
+            : 0;
 
+    const result: TFile[] = [];
     for (const file of this.allVideoFiles) {
-      // 搜索筛选
-      if (this.searchFilter && !file.basename.toLowerCase().includes(this.searchFilter)) {
-        continue;
-      }
+      const entry = this.plugin.noteIndex.get(file.path);
+      const status = entry?.status || 'pending';
 
-      // 文件夹筛选
-      if (this.folderFilter !== 'all') {
-        const fileFolder = file.parent?.path || '';
-        if (fileFolder !== this.folderFilter) {
-          continue;
-        }
-      }
-
-      // 日期筛选
-      if (this.dateFilter !== 'all') {
-        const fileTime = file.stat.mtime;
-        const now = Date.now();
-        const dayMs = 24 * 60 * 60 * 1000;
-
-        switch (this.dateFilter) {
-          case 'today':
-            if (now - fileTime > dayMs) continue;
-            break;
-          case 'week':
-            if (now - fileTime > 7 * dayMs) continue;
-            break;
-          case 'month':
-            if (now - fileTime > 30 * dayMs) continue;
-            break;
-        }
-      }
-
-      // 状态筛选
+      if (this.searchFilter && !file.basename.toLowerCase().includes(this.searchFilter)) continue;
       if (this.statusFilter !== 'all') {
-        try {
-          const content = await this.app.vault.read(file);
-          const status = this.noteProcessor.getProcessingStatus(content);
-
-          switch (this.statusFilter) {
-            case 'pending':
-              // 待处理：只有 pending 或者没有 status
-              if (status && status !== 'pending') continue;
-              break;
-            case 'error':
-              // 处理失败：只有 status 为 'error' 才是真正的失败
-              if (status !== 'error') continue;
-              break;
-            case 'processed':
-              // 已处理：除了 pending、error 和空状态之外的所有状态
-              if (!status || status === 'pending' || status === 'error') {
-                continue;
-              }
-              break;
-          }
-        } catch (error) {
-          console.error(`读取文件状态失败: ${file.basename}`, error);
-          continue;
-        }
+        const wanted = this.statusFilter === 'processed' ? 'success' : this.statusFilter;
+        if (status !== wanted) continue;
       }
+      if (this.folderFilter !== 'all' && (file.parent?.path || '') !== this.folderFilter) continue;
+      if (dateFloor && file.stat.mtime < dateFloor) continue;
 
-      // 视频信息筛选（是否已有基础视频 info）
       if (this.infoFilter !== 'all') {
-        try {
-          const content = await this.app.vault.read(file);
-          const hasInfo = this.noteProcessor.hasBasicVideoInfo(content);
-          const hasLink = !!this.noteProcessor.extractVideoUrl(content);
-
-          // no-info: 只保留「没有基础 info 且 有视频链接」的笔记
-          if (this.infoFilter === 'no-info') {
-            if (hasInfo || !hasLink) {
-              continue;
-            }
-          }
-
-          // has-info: 只保留已有基础 info 的笔记（是否有链接不限制）
-          if (this.infoFilter === 'has-info' && !hasInfo) {
-            continue;
-          }
-        } catch (error) {
-          console.error(`读取文件视频信息失败: ${file.basename}`, error);
-          continue;
-        }
+        // 只有这个筛选需要看正文，其余都走索引
+        const content = await this.app.vault.cachedRead(file);
+        const hasInfo = this.noteProcessor.hasBasicVideoInfo(content);
+        if (this.infoFilter === 'no-info' && hasInfo) continue;
+        if (this.infoFilter === 'has-info' && !hasInfo) continue;
       }
 
-      filteredFiles.push(file);
+      result.push(file);
     }
-
-    return filteredFiles;
+    return result;
   }
 
   private async applyFilters() {
@@ -724,16 +568,10 @@ export class BatchProcessingModal extends Modal {
   }
 
   private async selectByStatus(status: string) {
-    // 根据状态筛选并选择文件
     const filteredFiles = await this.getFilteredFiles();
-    this.selectedFiles = [];
-    for (const file of filteredFiles) {
-      const content = await this.app.vault.read(file);
-      const fileStatus = this.noteProcessor.getProcessingStatus(content) || 'pending';
-      if (fileStatus === status) {
-        this.selectedFiles.push(file);
-      }
-    }
+    this.selectedFiles = filteredFiles.filter(
+      (file) => (this.plugin.noteIndex.get(file.path)?.status || 'pending') === status,
+    );
     await this.renderFileList();
   }
 

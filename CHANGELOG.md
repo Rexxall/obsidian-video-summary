@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## 2.4.0
+
+Implements the「媒体库」design handoff (design_handoff_video_summary_ui, TURN 2/3).
+
+- Sidebar: video thumbnails (76×44 job cards, 44×26 rows) with a platform colour bar and duration
+  badge, placeholder stripes when no cover is available. `NoteIndex` now reads `cover` / `image` /
+  `thumbnail` / `video_cover` and `video_duration` from frontmatter.
+- Status dots became status pills, and the pills are actions: a failed row's pill re-runs the job
+  without cache, a library row's pill filters the list to that status.
+- Job cards are cards with the progress bar welded to the bottom edge; review cards carry
+  preview / write / discard inline.
+- Header shows a backend status pill (click to test), the input became a card with pill config
+  chips, and the primary button is a 36px gradient.
+- Panel tabs and the detail sub-tabs are segmented controls. Detail gained a 110px cover banner,
+  a meta pill row, a green write-summary card, and collapsed six flat buttons into
+  primary + more menu + discard.
+- Settings page: gradient app badge header with backend pill, segmented tabs, one card per section
+  with lucide icons instead of emoji headings, and the install check is a three-up status grid.
+- Batch modal: segmented mode switch, five filter rows compressed to one, quick-select chips with a
+  live selected counter, custom checkboxes, a "last batch" success/failure bar derived from
+  history, and a footer with concurrency control plus a counted primary button. It now reads the
+  note index instead of re-scanning the vault.
+- Stylesheet gained a token layer (`--vs-card`, `--vs-chip`, `--vs-accent-*`, status tints, platform
+  colours) derived entirely from Obsidian theme variables, so light and dark both work.
+
 ## 2.3.1
 
 Fixes the reason 2.3.0 looked like a pile of gray boxes.

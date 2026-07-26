@@ -2755,3 +2755,555 @@
     margin: 0 -18px;
   }
 }
+
+/* ================================================================
+   设置页（3a）与批量处理弹窗（3b）
+   ================================================================ */
+
+.vs-settings .vs-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.vs-settings .vs-settings-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--vs-accent-grad);
+  color: var(--text-on-accent);
+}
+
+.vs-settings .vs-settings-badge svg {
+  width: 17px;
+  height: 17px;
+}
+
+.vs-settings .vs-settings-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.vs-settings .vs-settings-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.vs-settings .vs-settings-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.vs-settings button.vs-settings-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 999px;
+  background-color: var(--vs-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.vs-settings .vs-backend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-faint);
+}
+
+.vs-settings .vs-backend-dot.is-online {
+  background-color: var(--color-green);
+}
+
+.vs-settings .vs-backend-dot.is-offline {
+  background-color: var(--color-red);
+}
+
+.vs-settings .vs-backend-dot.is-checking {
+  background-color: var(--color-yellow);
+}
+
+.vs-settings .video-summary-settings-tabs,
+.vs-settings .settings-tabs-container {
+  margin-bottom: 18px;
+}
+
+.vs-settings .vs-seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 10px;
+  background-color: var(--vs-card);
+}
+
+.vs-settings button.vs-seg-item {
+  flex: none;
+  padding: 6px 16px;
+}
+
+.vs-settings .vs-settings-card {
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 12px;
+  background-color: var(--vs-card);
+}
+
+.vs-settings .vs-settings-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.vs-settings .vs-settings-card-icon {
+  display: flex;
+  color: var(--text-accent);
+}
+
+.vs-settings .vs-settings-card-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.vs-settings .vs-settings-card-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.vs-settings .vs-settings-card .setting-item {
+  padding: 10px 0;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.vs-settings .vs-settings-card .setting-item:first-of-type {
+  border-top: none;
+}
+
+.vs-settings .vs-settings-card .setting-item-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vs-settings .vs-settings-card .setting-item-description {
+  font-size: 10px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+/* 安装检查：三格状态卡 */
+.vs-settings .setup-check-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vs-settings .setup-check-item {
+  display: flex;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 9px;
+  background-color: var(--background-primary-alt);
+}
+
+.vs-settings .setup-check-item.is-warning {
+  border-color: rgba(var(--color-yellow-rgb), 0.35);
+}
+
+.vs-settings .setup-check-item.is-missing {
+  border-color: rgba(var(--color-red-rgb), 0.35);
+}
+
+.vs-settings .setup-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 5px;
+  background-color: var(--vs-tint-success);
+  color: var(--color-green);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.vs-settings .setup-check-item.is-warning .setup-check-icon {
+  background-color: var(--vs-tint-warning);
+  color: var(--color-yellow);
+}
+
+.vs-settings .setup-check-item.is-missing .setup-check-icon {
+  background-color: var(--vs-tint-danger);
+  color: var(--color-red);
+}
+
+.vs-settings .setup-check-text strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.vs-settings .setup-check-text span {
+  font-size: 10px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+/* --- 批量处理弹窗 --- */
+
+.vs-modal.batch-processing-modal {
+  padding: 0;
+}
+
+.vs-modal .vs-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px 0;
+}
+
+.vs-modal .vs-modal-title {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.vs-modal .vs-modal-body {
+  padding: 12px 18px 0;
+}
+
+.vs-modal .vs-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.vs-modal button.vs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background-color: var(--vs-chip);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.vs-modal .vs-chip-caret {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.vs-modal .vs-chip-caret svg {
+  width: 11px;
+  height: 11px;
+}
+
+.vs-modal .vs-modal-filters {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 8px;
+}
+
+.vs-modal .vs-search {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 7px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 10px;
+  background-color: var(--vs-card);
+}
+
+.vs-modal .vs-search-icon {
+  display: flex;
+  color: var(--text-faint);
+}
+
+.vs-modal .vs-search-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.vs-modal input.vs-search-input {
+  flex: 1;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11px;
+}
+
+.vs-modal input.vs-search-input:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.vs-modal button.vs-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 10px;
+  background-color: var(--vs-card);
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.vs-modal button.vs-filter-pill:hover {
+  color: var(--text-normal);
+}
+
+.vs-modal .vs-modal-quick {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.vs-modal button.vs-quick-chip {
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background-color: var(--vs-chip);
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.vs-modal button.vs-quick-chip:hover {
+  color: var(--text-normal);
+}
+
+.vs-modal button.vs-quick-chip.is-active {
+  background-color: var(--vs-accent-strong);
+  color: var(--text-accent);
+}
+
+.vs-modal .vs-quick-spacer {
+  flex: 1;
+}
+
+.vs-modal .vs-quick-count {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.vs-modal .vs-modal-list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 12px;
+  background-color: var(--vs-card);
+}
+
+.vs-modal .vs-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+}
+
+.vs-modal .vs-modal-row:last-child {
+  border-bottom: none;
+}
+
+.vs-modal .vs-modal-row:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.vs-modal .vs-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1px solid var(--background-modifier-border-hover, var(--vs-card-border));
+  border-radius: 5px;
+  color: var(--text-on-accent);
+}
+
+.vs-modal .vs-checkbox.is-checked {
+  border-color: transparent;
+  background-color: var(--interactive-accent);
+}
+
+.vs-modal .vs-checkbox svg {
+  width: 11px;
+  height: 11px;
+}
+
+.vs-modal .vs-modal-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.vs-modal .vs-modal-row-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vs-modal .vs-modal-row-title.is-checked {
+  color: var(--text-normal);
+}
+
+.vs-modal .vs-modal-row-sub {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.vs-modal .vs-modal-empty {
+  padding: 28px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.vs-modal .vs-last-batch {
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--vs-card-border);
+  border-radius: 12px;
+  background-color: var(--vs-card);
+}
+
+.vs-modal .vs-last-batch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.vs-modal .vs-last-batch-title {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.vs-modal .vs-last-ok {
+  color: var(--color-green);
+  font-size: 10px;
+}
+
+.vs-modal .vs-last-fail {
+  color: var(--color-red);
+  font-size: 10px;
+}
+
+.vs-modal .vs-last-batch-bar {
+  display: flex;
+  height: 4px;
+  margin-top: 7px;
+  border-radius: 2px;
+  overflow: hidden;
+  background-color: var(--vs-chip);
+}
+
+.vs-modal .vs-last-batch-bar .is-ok {
+  background-color: var(--color-green);
+}
+
+.vs-modal .vs-last-batch-bar .is-fail {
+  background-color: var(--color-red);
+}
+
+.vs-modal .vs-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px 18px;
+}
+
+.vs-modal button.vs-text-btn {
+  height: 34px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 10px;
+  background-color: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.vs-modal button.vs-text-btn:hover {
+  color: var(--text-normal);
+  background-color: var(--vs-chip);
+}
+
+.vs-modal button.vs-text-btn.is-primary {
+  background: var(--vs-accent-grad);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.vs-modal button.vs-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 10px;
+  background: var(--vs-accent-grad);
+  color: var(--text-on-accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--vs-accent-shadow);
+}
+
+.vs-modal .vs-btn-icon {
+  display: inline-flex;
+}
+
+.vs-modal .vs-btn-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.vs-modal .batch-progress {
+  margin-top: 12px;
+}

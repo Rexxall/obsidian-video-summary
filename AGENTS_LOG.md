@@ -3,6 +3,12 @@ agent: claude
 agent_updated: 2026-07-03
 ---
 
+- 2026-07-26 claude - v2.4.0 按设计稿 design_handoff_video_summary_ui（1b「媒体库」方向）落地：
+  缩略图/状态胶囊/分段控件/封面横幅/渐变主按钮，设置页与批量弹窗一并改造。
+  实现要点：(1) styles.css 增加 token 层，accent 透明度用 --accent-h/s/l，状态 tint 用 --color-*-rgb，
+  平台色按设计稿硬编码（浅色下 text 变体压暗）；(2) 批量弹窗改用 noteIndex，不再全库读正文，
+  五行筛选压成一行 Menu 胶囊；(3) 设置页 emoji 标题全部换 lucide 图标卡片。
+  未验证项：仍未在真实 Obsidian 跑过，靠本地静态页对照设计稿逐屏比对 + tsc/eslint/esbuild。
 - 2026-07-26 claude - v2.3.0 侧栏重构。新增 `core/`（JobStore / JobService / NoteIndex / NoteFactory /
   InputParser）与 `views/panels/`（ActionBar / JobsPanel / LibraryPanel / DetailPanel），旧的 3482 行
   `views/VideoSummaryView.ts` 缩到约 190 行只做外壳。要点：(1) 任务挂在插件上，关掉侧栏不丢；

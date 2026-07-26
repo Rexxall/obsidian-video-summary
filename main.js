@@ -3368,7 +3368,421 @@ var ConfirmModal = class extends import_obsidian2.Modal {
 };
 
 // BatchProcessingModal.ts
+var import_obsidian5 = require("obsidian");
+
+// utils/PlaylistProcessor.ts
+var PlaylistProcessor = class {
+  /**
+   * 统一的带 CORS 回退的 JSON 获取
+   */
+  static async fetchJsonWithCors(url) {
+    try {
+      const res = await fetch(url, { headers: { Referer: "https://www.bilibili.com/" } });
+      if (res.ok) {
+        const ct = res.headers.get("content-type") || "";
+        if (ct.includes("application/json")) return await res.json();
+        const txt = await res.text();
+        return JSON.parse(txt);
+      }
+    } catch (error) {
+      void error;
+    }
+    const proxyUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//, "")}`;
+    const proxied = await fetch(proxyUrl, { headers: { Referer: "https://www.bilibili.com/" } });
+    if (!proxied.ok) throw new Error(`\u4EE3\u7406\u8BF7\u6C42\u5931\u8D25: HTTP ${proxied.status}`);
+    const body = await proxied.text();
+    return JSON.parse(body);
+  }
+  /**
+   * 解析B站链接，判断是否为播放列表或收藏夹
+   */
+  static isPlaylistUrl(url) {
+    const patterns = [
+      /playlist\?sid=\d+/,
+      /medialist\/play\/\d+/,
+      /space\.bilibili\.com\/\d+\/channel\/collectiondetail\?sid=\d+/,
+      /favlist\?fid=\d+/,
+      /space\.bilibili\.com\/\d+\/favlist\?fid=\d+/,
+      /bilibili\.com\/.*[?&](sid|fid|media_id)=\d+/
+    ];
+    return patterns.some((pattern) => pattern.test(url));
+  }
+  /**
+   * 从播放列表或收藏夹URL中提取所有BV号
+   */
+  static async extractBvIds(url) {
+    try {
+      const urlInfo = this.parseUrl(url);
+      if (urlInfo.type === "favlist") {
+        return await this.extractFavlist(
+          urlInfo.id,
+          urlInfo.idParam === "fid" ? "fid" : "media_id"
+        );
+      }
+      if (urlInfo.type === "playlist") {
+        return await this.extractPlaylist(
+          urlInfo.id,
+          urlInfo.idParam === "sid" ? "sid" : "media_id"
+        );
+      }
+      throw new Error("\u4E0D\u652F\u6301\u7684URL\u7C7B\u578B");
+    } catch (error) {
+      throw new Error(`\u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${error.message}`);
+    }
+  }
+  /**
+   * 解析URL类型和ID
+   */
+  static parseUrl(url) {
+    const favlistMatch = url.match(/favlist\?fid=(\d+)/);
+    if (favlistMatch) {
+      return { type: "favlist", id: favlistMatch[1], idParam: "fid" };
+    }
+    const playlistMatch = url.match(/playlist\?sid=(\d+)/);
+    if (playlistMatch) {
+      return { type: "playlist", id: playlistMatch[1], idParam: "sid" };
+    }
+    const spaceFavlistMatch = url.match(/space\.bilibili\.com\/\d+\/favlist\?fid=(\d+)/);
+    if (spaceFavlistMatch) {
+      return { type: "favlist", id: spaceFavlistMatch[1], idParam: "fid" };
+    }
+    const spacePlaylistMatch = url.match(
+      /space\.bilibili\.com\/\d+\/channel\/collectiondetail\?sid=(\d+)/
+    );
+    if (spacePlaylistMatch) {
+      return { type: "playlist", id: spacePlaylistMatch[1], idParam: "sid" };
+    }
+    const medialistMatch = url.match(/medialist\/play\/(\d+)/);
+    if (medialistMatch) {
+      return { type: "playlist", id: medialistMatch[1], idParam: "sid" };
+    }
+    const mediaIdMatch = url.match(/[?&]media_id=(\d+)/);
+    if (mediaIdMatch) {
+      const looksLikeFav = /fav/i.test(url);
+      return {
+        type: looksLikeFav ? "favlist" : "playlist",
+        id: mediaIdMatch[1],
+        idParam: "media_id"
+      };
+    }
+    throw new Error("\u65E0\u6CD5\u89E3\u6790URL\u7C7B\u578B\uFF0C\u8BF7\u68C0\u67E5\u94FE\u63A5\u683C\u5F0F");
+  }
+  /**
+   * 提取收藏夹内容
+   */
+  static async extractFavlist(id, idParam = "media_id") {
+    try {
+      const infoParam = idParam === "fid" ? `fid=${id}` : `media_id=${id}`;
+      const infoApiUrl = `https://api.bilibili.com/x/v3/fav/folder/info?${infoParam}`;
+      const infoData = await this.fetchJsonWithCors(infoApiUrl);
+      if (infoData.code !== 0) {
+        throw new Error(`\u83B7\u53D6\u6536\u85CF\u5939\u4FE1\u606FAPI\u9519\u8BEF: ${infoData.message}`);
+      }
+      const collectionName = infoData.data.title;
+      const listParam = idParam === "fid" ? `fid=${id}` : `media_id=${id}`;
+      const listApiUrl = `https://api.bilibili.com/x/v3/fav/resource/list?${listParam}&pn=1&ps=1000&order=mtime&type=0&tid=0`;
+      const listData = await this.fetchJsonWithCors(listApiUrl);
+      if (listData.code !== 0) {
+        throw new Error(`\u83B7\u53D6\u89C6\u9891\u5217\u8868API\u9519\u8BEF: ${listData.message}`);
+      }
+      const medias = listData.data.medias || [];
+      const items = medias.map((media) => ({
+        bvid: media.bvid,
+        title: media.title,
+        author: media.author.name,
+        duration: this.formatDuration(media.duration),
+        url: `https://www.bilibili.com/video/${media.bvid}`
+      }));
+      return {
+        title: collectionName,
+        description: infoData.data.intro || "",
+        itemCount: medias.length,
+        items
+      };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error("\u6536\u85CF\u5939API\u8BF7\u6C42\u5931\u8D25:", reason);
+      throw new Error(`\u89E3\u6790\u6536\u85CF\u5939\u5931\u8D25: ${reason}`);
+    }
+  }
+  /**
+   * 提取播放列表内容
+   */
+  static async extractPlaylist(id, idParam = "sid") {
+    try {
+      const infoParam = idParam === "sid" ? `sid=${id}` : `media_id=${id}`;
+      const infoApiUrl = `https://api.bilibili.com/x/v1/medialist/info?${infoParam}`;
+      const infoData = await this.fetchJsonWithCors(infoApiUrl);
+      if (infoData.code !== 0) {
+        throw new Error(`\u83B7\u53D6\u64AD\u653E\u5217\u8868\u4FE1\u606FAPI\u9519\u8BEF: ${infoData.message}`);
+      }
+      const collectionName = infoData.data.title;
+      const listApiUrl = `https://api.bilibili.com/x/v1/medialist/resource/list?type=3&biz_id=${id}&offset_index=0&from=web&first_page=true&ps=1000`;
+      const listData = await this.fetchJsonWithCors(listApiUrl);
+      if (listData.code !== 0) {
+        throw new Error(`\u83B7\u53D6\u89C6\u9891\u5217\u8868API\u9519\u8BEF: ${listData.message}`);
+      }
+      const videoList = listData.data.mediaList || [];
+      const items = videoList.map((video) => ({
+        bvid: video.bvid,
+        title: video.title,
+        author: video.owner.name,
+        duration: this.formatDuration(video.duration),
+        url: video.short_link || `https://www.bilibili.com/video/${video.bvid}`
+      }));
+      return {
+        title: collectionName,
+        description: infoData.data.intro || "",
+        itemCount: videoList.length,
+        items
+      };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error("\u64AD\u653E\u5217\u8868API\u8BF7\u6C42\u5931\u8D25:", reason);
+      throw new Error(`\u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${reason}`);
+    }
+  }
+  /**
+   * 格式化时长
+   */
+  static formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor(seconds % 3600 / 60);
+    const secs = seconds % 60;
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    } else {
+      return `${minutes}:${secs.toString().padStart(2, "0")}`;
+    }
+  }
+  /**
+   * 验证BV号格式
+   */
+  static isValidBvid(bvid) {
+    return /^BV[a-zA-Z0-9]{10}$/.test(bvid);
+  }
+  /**
+   * 从文本中提取BV号
+   */
+  static extractBvIdsFromText(text) {
+    const bvidPattern = /BV[a-zA-Z0-9]{10}/g;
+    const matches = text.match(bvidPattern);
+    return matches ? [...new Set(matches)] : [];
+  }
+  /**
+   * 生成视频URL
+   */
+  static generateVideoUrl(bvid) {
+    return `https://www.bilibili.com/video/${bvid}`;
+  }
+};
+
+// views/ui.ts
 var import_obsidian3 = require("obsidian");
+function iconButton(parent, icon, label, onClick, extraCls) {
+  const button = parent.createEl("button", {
+    cls: `vs-icon-btn${extraCls ? ` ${extraCls}` : ""}`,
+    attr: { type: "button", "aria-label": label, title: label }
+  });
+  (0, import_obsidian3.setIcon)(button, icon);
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick(event);
+  });
+  return button;
+}
+function textButton(parent, label, onClick, extraCls) {
+  const button = parent.createEl("button", {
+    text: label,
+    cls: `vs-text-btn${extraCls ? ` ${extraCls}` : ""}`,
+    attr: { type: "button" }
+  });
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    onClick();
+  });
+  return button;
+}
+function configChip(parent, label, value, items) {
+  const chip = parent.createEl("button", {
+    cls: "vs-chip",
+    attr: { type: "button", "aria-label": label, title: `${label}\uFF1A${value}` }
+  });
+  chip.createSpan({ text: value, cls: "vs-chip-value" });
+  const caret = chip.createSpan({ cls: "vs-chip-caret" });
+  (0, import_obsidian3.setIcon)(caret, "chevron-down");
+  chip.addEventListener("click", (event) => {
+    event.preventDefault();
+    showMenu(event, items);
+  });
+  return chip;
+}
+function showMenu(event, items) {
+  const menu = new import_obsidian3.Menu();
+  items.forEach((spec) => {
+    menu.addItem((item) => {
+      item.setTitle(spec.title);
+      if (spec.icon) item.setIcon(spec.icon);
+      if (spec.disabled) item.setDisabled(true);
+      item.onClick(() => spec.onClick());
+    });
+  });
+  menu.showAtMouseEvent(event);
+}
+function statusMeta(status) {
+  switch (status) {
+    case "success":
+      return { label: "\u5DF2\u5B8C\u6210", cls: "is-success" };
+    case "running":
+      return { label: "\u5904\u7406\u4E2D", cls: "is-running" };
+    case "error":
+      return { label: "\u5931\u8D25", cls: "is-error" };
+    case "review":
+      return { label: "\u5F85\u786E\u8BA4", cls: "is-review" };
+    case "cancelled":
+      return { label: "\u5DF2\u53D6\u6D88", cls: "is-muted" };
+    case "queued":
+      return { label: "\u6392\u961F\u4E2D", cls: "is-queued" };
+    default:
+      return { label: "\u5F85\u5904\u7406", cls: "is-pending" };
+  }
+}
+function statusPill(parent, status, options = {}) {
+  const meta = statusMeta(status);
+  const cls = `vs-pill ${meta.cls}${options.onClick ? " is-clickable" : ""}`;
+  const pill = options.onClick ? parent.createEl("button", {
+    text: options.label ?? meta.label,
+    cls,
+    attr: { type: "button", title: options.title ?? options.label ?? meta.label }
+  }) : parent.createSpan({ text: options.label ?? meta.label, cls });
+  if (options.onClick) {
+    pill.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onClick?.();
+    });
+  }
+  return pill;
+}
+function segmented(parent, items, active, onSelect) {
+  const row = parent.createDiv({ cls: "vs-seg" });
+  items.forEach((item) => {
+    const seg = row.createEl("button", {
+      cls: `vs-seg-item${item.value === active ? " is-active" : ""}`,
+      attr: { type: "button" }
+    });
+    if (item.icon) {
+      const icon = seg.createSpan({ cls: "vs-seg-icon" });
+      (0, import_obsidian3.setIcon)(icon, item.icon);
+    }
+    seg.createSpan({ text: item.label });
+    if (item.count) seg.createSpan({ text: item.count, cls: "vs-seg-count" });
+    seg.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (item.value !== active) onSelect(item.value);
+    });
+  });
+  return row;
+}
+function thumbnail(parent, options = {}) {
+  const thumb = parent.createDiv({
+    cls: `vs-thumb${options.size === "lg" ? " is-lg" : ""} ${platformClass(options.platform)}`
+  });
+  if (options.cover) {
+    const img = thumb.createEl("img", { cls: "vs-thumb-img", attr: { src: options.cover } });
+    img.addEventListener("error", () => img.remove());
+  }
+  thumb.createSpan({ cls: "vs-thumb-bar" });
+  if (options.duration) {
+    thumb.createSpan({ text: options.duration, cls: "vs-thumb-time" });
+  }
+  return thumb;
+}
+function platformClass(platform) {
+  switch (platform) {
+    case "youtube":
+    case "bilibili":
+    case "douyin":
+    case "tiktok":
+    case "xiaohongshu":
+      return `is-${platform}`;
+    default:
+      return "is-generic";
+  }
+}
+function platformText(parent, platform, label) {
+  return parent.createSpan({ text: label, cls: `vs-platform ${platformClass(platform)}` });
+}
+function formatClock(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "00:00";
+  const total = Math.floor(ms / 1e3);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+function modeLabel(mode) {
+  switch (mode) {
+    case "transcript-only":
+      return "\u4EC5\u6587\u7A3F";
+    case "info-only":
+      return "\u4EC5\u4FE1\u606F";
+    default:
+      return "\u5B8C\u6574\u603B\u7ED3";
+  }
+}
+function languageLabel(language) {
+  switch (language) {
+    case "en":
+      return "English";
+    case "ja":
+      return "\u65E5\u672C\u8A9E";
+    default:
+      return "\u4E2D\u6587";
+  }
+}
+function formatElapsed(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "0s";
+  const totalSeconds = Math.floor(ms / 1e3);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+function formatRelative(timestamp) {
+  const diff = Date.now() - timestamp;
+  if (diff < 6e4) return "\u521A\u521A";
+  if (diff < 36e5) return `${Math.floor(diff / 6e4)} \u5206\u949F\u524D`;
+  if (diff < 864e5) return `${Math.floor(diff / 36e5)} \u5C0F\u65F6\u524D`;
+  const days = Math.floor(diff / 864e5);
+  if (days < 30) return `${days} \u5929\u524D`;
+  return new Date(timestamp).toLocaleDateString("zh-CN");
+}
+function parseLocaleTime(value) {
+  const parsed = Date.parse(value);
+  if (!Number.isNaN(parsed)) return parsed;
+  const match = value.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D+(\d{1,2}):(\d{2}):?(\d{2})?/);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second] = match;
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second || "0")
+  ).getTime();
+}
+function emptyState(parent, icon, title, hint) {
+  const wrapper = parent.createDiv({ cls: "vs-empty" });
+  const iconEl = wrapper.createDiv({ cls: "vs-empty-icon" });
+  (0, import_obsidian3.setIcon)(iconEl, icon);
+  wrapper.createDiv({ text: title, cls: "vs-empty-title" });
+  if (hint) wrapper.createDiv({ text: hint, cls: "vs-empty-hint" });
+}
+
+// core/NoteIndex.ts
+var import_obsidian4 = require("obsidian");
 
 // utils/VideoUtils.ts
 var VideoUtils = class {
@@ -3669,215 +4083,195 @@ var VideoUtils = class {
   }
 };
 
-// utils/PlaylistProcessor.ts
-var PlaylistProcessor = class {
-  /**
-   * 统一的带 CORS 回退的 JSON 获取
-   */
-  static async fetchJsonWithCors(url) {
+// core/NoteIndex.ts
+var BODY_SCAN_CHUNK = 60;
+var NoteIndex = class {
+  constructor(app) {
+    this.entries = /* @__PURE__ */ new Map();
+    this.listeners = /* @__PURE__ */ new Set();
+    this.bodyScanQueue = [];
+    this.bodyScanTimer = null;
+    this.bodyScanDone = false;
+    this.app = app;
+  }
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  emit() {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        console.error("[NoteIndex] listener failed", error);
+      }
+    });
+  }
+  /** 正文兜底扫描是否还在跑（界面据此显示"仍在建索引"） */
+  isScanning() {
+    return !this.bodyScanDone;
+  }
+  getAll() {
+    return Array.from(this.entries.values());
+  }
+  get(path) {
+    return this.entries.get(path);
+  }
+  build() {
+    this.entries.clear();
+    this.bodyScanQueue = [];
+    this.bodyScanDone = false;
+    const files = this.app.vault.getMarkdownFiles();
+    for (const file of files) {
+      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
+        this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
+      } else {
+        this.bodyScanQueue.push(file);
+      }
+    }
+    this.emit();
+    this.scheduleBodyScan();
+  }
+  scheduleBodyScan() {
+    if (this.bodyScanTimer !== null) return;
+    if (this.bodyScanQueue.length === 0) {
+      this.bodyScanDone = true;
+      this.emit();
+      return;
+    }
+    this.bodyScanTimer = window.setTimeout(() => {
+      this.bodyScanTimer = null;
+      void this.runBodyScanChunk();
+    }, 50);
+  }
+  async runBodyScanChunk() {
+    const chunk = this.bodyScanQueue.splice(0, BODY_SCAN_CHUNK);
+    let changed = false;
+    for (const file of chunk) {
+      if (this.entries.has(file.path)) continue;
+      try {
+        const content = await this.app.vault.cachedRead(file);
+        if (VideoUtils.isVideoNote(content)) {
+          this.entries.set(file.path, this.entryFromContent(file, content));
+          changed = true;
+        }
+      } catch (error) {
+        console.error(`[NoteIndex] \u8BFB\u53D6\u5931\u8D25: ${file.path}`, error);
+      }
+    }
+    if (changed) this.emit();
+    this.scheduleBodyScan();
+  }
+  /** metadataCache 变化后刷新单个文件 */
+  async refreshFile(file) {
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
+      this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
+      this.emit();
+      return;
+    }
     try {
-      const res = await fetch(url, { headers: { Referer: "https://www.bilibili.com/" } });
-      if (res.ok) {
-        const ct = res.headers.get("content-type") || "";
-        if (ct.includes("application/json")) return await res.json();
-        const txt = await res.text();
-        return JSON.parse(txt);
+      const content = await this.app.vault.cachedRead(file);
+      if (VideoUtils.isVideoNote(content)) {
+        this.entries.set(file.path, this.entryFromContent(file, content));
+      } else if (this.entries.delete(file.path)) {
       }
-    } catch (error) {
-      void error;
+    } catch {
+      this.entries.delete(file.path);
     }
-    const proxyUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//, "")}`;
-    const proxied = await fetch(proxyUrl, { headers: { Referer: "https://www.bilibili.com/" } });
-    if (!proxied.ok) throw new Error(`\u4EE3\u7406\u8BF7\u6C42\u5931\u8D25: HTTP ${proxied.status}`);
-    const body = await proxied.text();
-    return JSON.parse(body);
+    this.emit();
   }
-  /**
-   * 解析B站链接，判断是否为播放列表或收藏夹
-   */
-  static isPlaylistUrl(url) {
-    const patterns = [
-      /playlist\?sid=\d+/,
-      /medialist\/play\/\d+/,
-      /space\.bilibili\.com\/\d+\/channel\/collectiondetail\?sid=\d+/,
-      /favlist\?fid=\d+/,
-      /space\.bilibili\.com\/\d+\/favlist\?fid=\d+/,
-      /bilibili\.com\/.*[?&](sid|fid|media_id)=\d+/
-    ];
-    return patterns.some((pattern) => pattern.test(url));
+  handleDelete(file) {
+    if (this.entries.delete(file.path)) this.emit();
   }
-  /**
-   * 从播放列表或收藏夹URL中提取所有BV号
-   */
-  static async extractBvIds(url) {
-    try {
-      const urlInfo = this.parseUrl(url);
-      if (urlInfo.type === "favlist") {
-        return await this.extractFavlist(
-          urlInfo.id,
-          urlInfo.idParam === "fid" ? "fid" : "media_id"
-        );
-      }
-      if (urlInfo.type === "playlist") {
-        return await this.extractPlaylist(
-          urlInfo.id,
-          urlInfo.idParam === "sid" ? "sid" : "media_id"
-        );
-      }
-      throw new Error("\u4E0D\u652F\u6301\u7684URL\u7C7B\u578B");
-    } catch (error) {
-      throw new Error(`\u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${error.message}`);
+  handleRename(file, oldPath) {
+    const existing = this.entries.get(oldPath);
+    this.entries.delete(oldPath);
+    if (existing && file instanceof import_obsidian4.TFile) {
+      this.entries.set(file.path, {
+        ...existing,
+        path: file.path,
+        basename: file.basename,
+        mtime: file.stat.mtime
+      });
     }
+    this.emit();
   }
-  /**
-   * 解析URL类型和ID
-   */
-  static parseUrl(url) {
-    const favlistMatch = url.match(/favlist\?fid=(\d+)/);
-    if (favlistMatch) {
-      return { type: "favlist", id: favlistMatch[1], idParam: "fid" };
-    }
-    const playlistMatch = url.match(/playlist\?sid=(\d+)/);
-    if (playlistMatch) {
-      return { type: "playlist", id: playlistMatch[1], idParam: "sid" };
-    }
-    const spaceFavlistMatch = url.match(/space\.bilibili\.com\/\d+\/favlist\?fid=(\d+)/);
-    if (spaceFavlistMatch) {
-      return { type: "favlist", id: spaceFavlistMatch[1], idParam: "fid" };
-    }
-    const spacePlaylistMatch = url.match(
-      /space\.bilibili\.com\/\d+\/channel\/collectiondetail\?sid=(\d+)/
-    );
-    if (spacePlaylistMatch) {
-      return { type: "playlist", id: spacePlaylistMatch[1], idParam: "sid" };
-    }
-    const medialistMatch = url.match(/medialist\/play\/(\d+)/);
-    if (medialistMatch) {
-      return { type: "playlist", id: medialistMatch[1], idParam: "sid" };
-    }
-    const mediaIdMatch = url.match(/[?&]media_id=(\d+)/);
-    if (mediaIdMatch) {
-      const looksLikeFav = /fav/i.test(url);
-      return {
-        type: looksLikeFav ? "favlist" : "playlist",
-        id: mediaIdMatch[1],
-        idParam: "media_id"
-      };
-    }
-    throw new Error("\u65E0\u6CD5\u89E3\u6790URL\u7C7B\u578B\uFF0C\u8BF7\u68C0\u67E5\u94FE\u63A5\u683C\u5F0F");
+  entryFromFrontmatter(file, frontmatter) {
+    const rawStatus = VideoUtils.getProcessingStatusFromFrontmatter(frontmatter) || "pending";
+    const link = this.readLink(frontmatter);
+    return {
+      path: file.path,
+      basename: file.basename,
+      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
+      link,
+      platform: link ? detectPlatform2(link) : void 0,
+      title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
+      cover: readCover(frontmatter),
+      duration: readString(frontmatter?.video_duration),
+      ctime: file.stat.ctime,
+      mtime: file.stat.mtime
+    };
   }
-  /**
-   * 提取收藏夹内容
-   */
-  static async extractFavlist(id, idParam = "media_id") {
-    try {
-      const infoParam = idParam === "fid" ? `fid=${id}` : `media_id=${id}`;
-      const infoApiUrl = `https://api.bilibili.com/x/v3/fav/folder/info?${infoParam}`;
-      const infoData = await this.fetchJsonWithCors(infoApiUrl);
-      if (infoData.code !== 0) {
-        throw new Error(`\u83B7\u53D6\u6536\u85CF\u5939\u4FE1\u606FAPI\u9519\u8BEF: ${infoData.message}`);
-      }
-      const collectionName = infoData.data.title;
-      const listParam = idParam === "fid" ? `fid=${id}` : `media_id=${id}`;
-      const listApiUrl = `https://api.bilibili.com/x/v3/fav/resource/list?${listParam}&pn=1&ps=1000&order=mtime&type=0&tid=0`;
-      const listData = await this.fetchJsonWithCors(listApiUrl);
-      if (listData.code !== 0) {
-        throw new Error(`\u83B7\u53D6\u89C6\u9891\u5217\u8868API\u9519\u8BEF: ${listData.message}`);
-      }
-      const medias = listData.data.medias || [];
-      const items = medias.map((media) => ({
-        bvid: media.bvid,
-        title: media.title,
-        author: media.author.name,
-        duration: this.formatDuration(media.duration),
-        url: `https://www.bilibili.com/video/${media.bvid}`
-      }));
-      return {
-        title: collectionName,
-        description: infoData.data.intro || "",
-        itemCount: medias.length,
-        items
-      };
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      console.error("\u6536\u85CF\u5939API\u8BF7\u6C42\u5931\u8D25:", reason);
-      throw new Error(`\u89E3\u6790\u6536\u85CF\u5939\u5931\u8D25: ${reason}`);
-    }
+  entryFromContent(file, content) {
+    const rawStatus = VideoUtils.getProcessingStatus(content) || "pending";
+    const link = VideoUtils.extractVideoUrl(content) || void 0;
+    return {
+      path: file.path,
+      basename: file.basename,
+      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
+      link,
+      platform: link ? detectPlatform2(link) : void 0,
+      ctime: file.stat.ctime,
+      mtime: file.stat.mtime
+    };
   }
-  /**
-   * 提取播放列表内容
-   */
-  static async extractPlaylist(id, idParam = "sid") {
-    try {
-      const infoParam = idParam === "sid" ? `sid=${id}` : `media_id=${id}`;
-      const infoApiUrl = `https://api.bilibili.com/x/v1/medialist/info?${infoParam}`;
-      const infoData = await this.fetchJsonWithCors(infoApiUrl);
-      if (infoData.code !== 0) {
-        throw new Error(`\u83B7\u53D6\u64AD\u653E\u5217\u8868\u4FE1\u606FAPI\u9519\u8BEF: ${infoData.message}`);
-      }
-      const collectionName = infoData.data.title;
-      const listApiUrl = `https://api.bilibili.com/x/v1/medialist/resource/list?type=3&biz_id=${id}&offset_index=0&from=web&first_page=true&ps=1000`;
-      const listData = await this.fetchJsonWithCors(listApiUrl);
-      if (listData.code !== 0) {
-        throw new Error(`\u83B7\u53D6\u89C6\u9891\u5217\u8868API\u9519\u8BEF: ${listData.message}`);
-      }
-      const videoList = listData.data.mediaList || [];
-      const items = videoList.map((video) => ({
-        bvid: video.bvid,
-        title: video.title,
-        author: video.owner.name,
-        duration: this.formatDuration(video.duration),
-        url: video.short_link || `https://www.bilibili.com/video/${video.bvid}`
-      }));
-      return {
-        title: collectionName,
-        description: infoData.data.intro || "",
-        itemCount: videoList.length,
-        items
-      };
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      console.error("\u64AD\u653E\u5217\u8868API\u8BF7\u6C42\u5931\u8D25:", reason);
-      throw new Error(`\u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${reason}`);
-    }
-  }
-  /**
-   * 格式化时长
-   */
-  static formatDuration(seconds) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor(seconds % 3600 / 60);
-    const secs = seconds % 60;
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-    } else {
-      return `${minutes}:${secs.toString().padStart(2, "0")}`;
-    }
-  }
-  /**
-   * 验证BV号格式
-   */
-  static isValidBvid(bvid) {
-    return /^BV[a-zA-Z0-9]{10}$/.test(bvid);
-  }
-  /**
-   * 从文本中提取BV号
-   */
-  static extractBvIdsFromText(text) {
-    const bvidPattern = /BV[a-zA-Z0-9]{10}/g;
-    const matches = text.match(bvidPattern);
-    return matches ? [...new Set(matches)] : [];
-  }
-  /**
-   * 生成视频URL
-   */
-  static generateVideoUrl(bvid) {
-    return `https://www.bilibili.com/video/${bvid}`;
+  readLink(frontmatter) {
+    const raw = frontmatter?.link;
+    if (typeof raw === "string" && raw.trim()) return raw.trim();
+    if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
+    return void 0;
   }
 };
+function readString(value) {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return void 0;
+}
+function readCover(frontmatter) {
+  const raw = readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
+  if (!raw) return void 0;
+  return /^https?:\/\//.test(raw) ? raw : void 0;
+}
+function detectPlatform2(url) {
+  const value = url.toLowerCase();
+  if (value.includes("bilibili.com") || value.includes("b23.tv")) return "bilibili";
+  if (value.includes("youtube.com") || value.includes("youtu.be")) return "youtube";
+  if (value.includes("douyin.com")) return "douyin";
+  if (value.includes("tiktok.com")) return "tiktok";
+  if (value.includes("xiaohongshu.com") || value.includes("xhslink")) return "xiaohongshu";
+  return "other";
+}
+function platformLabel(platform) {
+  switch (platform) {
+    case "bilibili":
+      return "B\u7AD9";
+    case "youtube":
+      return "YouTube";
+    case "douyin":
+      return "\u6296\u97F3";
+    case "tiktok":
+      return "TikTok";
+    case "xiaohongshu":
+      return "\u5C0F\u7EA2\u4E66";
+    default:
+      return "\u94FE\u63A5";
+  }
+}
 
 // BatchProcessingModal.ts
-var BatchProcessingModal = class extends import_obsidian3.Modal {
+var BatchProcessingModal = class extends import_obsidian5.Modal {
   constructor(app, plugin) {
     super(app);
     this.mode = "summary";
@@ -3897,6 +4291,9 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
     this.progressEl = null;
     this.fileListEl = null;
     this.filterEl = null;
+    this.countEl = null;
+    this.startButtonEl = null;
+    this.startLabelEl = null;
     this.playlistEl = null;
     // 筛选条件
     this.statusFilter = "all";
@@ -3913,249 +4310,294 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "\u{1F4FA} \u6279\u91CF\u89C6\u9891\u603B\u7ED3\u5904\u7406" });
-    const modeSelectionEl = contentEl.createEl("div", { cls: "batch-mode-selection" });
-    modeSelectionEl.createEl("h3", { text: "\u9009\u62E9\u5904\u7406\u6A21\u5F0F" });
-    const fileModeButton = modeSelectionEl.createEl("button", {
-      text: "\u{1F4C1} \u5904\u7406\u672C\u5730\u7B14\u8BB0\u6587\u4EF6",
-      cls: this.processingMode === "files" ? "mod-cta" : "mod-secondary"
+    contentEl.addClass("batch-processing-modal");
+    contentEl.addClass("vs-modal");
+    const header = contentEl.createDiv({ cls: "vs-modal-header" });
+    header.createSpan({ text: "\u6279\u91CF\u5904\u7406", cls: "vs-modal-title" });
+    const closeBtn = header.createEl("button", {
+      cls: "vs-icon-btn",
+      attr: { type: "button", "aria-label": "\u5173\u95ED" }
     });
-    fileModeButton.addEventListener("click", () => {
-      this.processingMode = "files";
-      this.updateModeDisplay();
-    });
-    const playlistModeButton = modeSelectionEl.createEl("button", {
-      text: "\u{1F4FA} \u5904\u7406\u64AD\u653E\u5217\u8868/\u6536\u85CF\u5939",
-      cls: this.processingMode === "playlist" ? "mod-cta" : "mod-secondary"
-    });
-    playlistModeButton.addEventListener("click", () => {
-      this.processingMode = "playlist";
-      this.updateModeDisplay();
-    });
-    new import_obsidian3.Setting(contentEl).setName("\u5904\u7406\u6A21\u5F0F").setDesc("\u9009\u62E9\u6279\u91CF\u5904\u7406\u65B9\u5F0F").addDropdown((dropdown) => {
-      PROCESSING_MODES.forEach((mode) => {
-        dropdown.addOption(mode.value, mode.label);
-      });
-      dropdown.setValue(this.mode);
-      dropdown.onChange((value) => {
-        this.mode = value;
-        this.updateLanguageVisibility();
-      });
-    });
-    new import_obsidian3.Setting(contentEl).setName("\u8F93\u51FA\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u8BED\u8A00").addDropdown((dropdown) => {
-      LANGUAGE_OPTIONS.forEach((lang) => {
-        dropdown.addOption(lang.value, lang.label);
-      });
-      dropdown.setValue(this.language);
-      dropdown.onChange((value) => {
-        this.language = value;
-      });
-    });
-    new import_obsidian3.Setting(contentEl).setName("\u5E76\u53D1\u5904\u7406\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
-      (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange((value) => {
-        this.plugin.settings.batchConcurrency = value;
-        this.plugin.saveSettings();
-      })
+    (0, import_obsidian5.setIcon)(closeBtn, "x");
+    closeBtn.onclick = () => this.close();
+    const bodyEl = contentEl.createDiv({ cls: "vs-modal-body" });
+    segmented(
+      bodyEl,
+      [
+        { value: "files", label: "\u672C\u5730\u7B14\u8BB0\u6587\u4EF6", icon: "files" },
+        { value: "playlist", label: "\u64AD\u653E\u5217\u8868 / \u6536\u85CF\u5939", icon: "list-video" }
+      ],
+      this.processingMode,
+      (value) => {
+        this.processingMode = value;
+        this.updateModeDisplay();
+      }
     );
-    const fileSelectionEl = contentEl.createEl("div", { cls: "batch-file-selection" });
-    fileSelectionEl.createEl("h3", { text: "\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6" });
-    const scanButton = fileSelectionEl.createEl("button", {
-      text: "\u626B\u63CF\u89C6\u9891\u7B14\u8BB0",
-      cls: "mod-cta"
+    const chipRow = bodyEl.createDiv({ cls: "vs-chip-row" });
+    configChip(
+      chipRow,
+      "\u5904\u7406\u6A21\u5F0F",
+      PROCESSING_MODES.find((item) => item.value === this.mode)?.label || "\u5B8C\u6574\u603B\u7ED3",
+      PROCESSING_MODES.map((item) => ({
+        title: item.label,
+        onClick: () => {
+          this.mode = item.value;
+          this.onOpen();
+        }
+      }))
+    );
+    configChip(
+      chipRow,
+      "\u8F93\u51FA\u8BED\u8A00",
+      LANGUAGE_OPTIONS.find((item) => item.value === this.language)?.label || "\u4E2D\u6587",
+      LANGUAGE_OPTIONS.map((item) => ({
+        title: item.label,
+        onClick: () => {
+          this.language = item.value;
+          this.onOpen();
+        }
+      }))
+    );
+    const fileSelectionEl = bodyEl.createDiv({ cls: "batch-file-selection" });
+    this.filterEl = fileSelectionEl.createDiv({ cls: "vs-modal-filters" });
+    const search = this.filterEl.createDiv({ cls: "vs-search" });
+    const searchIcon = search.createSpan({ cls: "vs-search-icon" });
+    (0, import_obsidian5.setIcon)(searchIcon, "search");
+    const searchInput = search.createEl("input", {
+      cls: "vs-search-input",
+      attr: { type: "text", placeholder: "\u641C\u7D22\u6587\u4EF6\u540D\u2026", value: this.searchFilter }
     });
-    scanButton.addEventListener("click", () => {
-      this.scanVideoFiles();
-    });
-    this.filterEl = fileSelectionEl.createEl("div", { cls: "batch-filter-section" });
-    this.filterEl.style.display = "none";
-    const searchContainer = this.filterEl.createEl("div", { cls: "filter-row" });
-    searchContainer.createEl("label", { text: "\u641C\u7D22\u6587\u4EF6\u540D:", cls: "filter-label" });
-    const searchInput = searchContainer.createEl("input", {
-      type: "text",
-      cls: "filter-input"
-    });
-    searchInput.setAttribute("placeholder", "\u8F93\u5165\u6587\u4EF6\u540D\u5173\u952E\u8BCD...");
-    searchInput.addEventListener("input", async (e) => {
-      this.searchFilter = e.target.value.toLowerCase();
+    searchInput.addEventListener("input", async () => {
+      this.searchFilter = searchInput.value.toLowerCase();
       await this.applyFilters();
     });
-    const statusContainer = this.filterEl.createEl("div", { cls: "filter-row" });
-    statusContainer.createEl("label", { text: "\u5904\u7406\u72B6\u6001:", cls: "filter-label" });
-    const statusSelect = statusContainer.createEl("select", { cls: "filter-select" });
-    statusSelect.createEl("option", { text: "\u5168\u90E8\u72B6\u6001", value: "all" });
-    statusSelect.createEl("option", { text: "\u5F85\u5904\u7406", value: "pending" });
-    statusSelect.createEl("option", { text: "\u5904\u7406\u5931\u8D25", value: "error" });
-    statusSelect.createEl("option", { text: "\u5DF2\u5904\u7406", value: "processed" });
-    statusSelect.value = this.statusFilter;
-    statusSelect.addEventListener("change", async (e) => {
-      this.statusFilter = e.target.value;
+    const statusLabels = {
+      all: "\u5168\u90E8\u72B6\u6001",
+      pending: "\u5F85\u5904\u7406",
+      error: "\u5904\u7406\u5931\u8D25",
+      processed: "\u5DF2\u5904\u7406"
+    };
+    this.filterPill(
+      this.filterEl,
+      statusLabels[this.statusFilter] || "\u5168\u90E8\u72B6\u6001",
+      () => Object.entries(statusLabels).map(([value, label]) => ({
+        title: label,
+        onClick: async () => {
+          this.statusFilter = value;
+          await this.applyFilters();
+          this.refreshFilterPills();
+        }
+      }))
+    );
+    this.filterPill(
+      this.filterEl,
+      this.folderFilter === "all" ? "\u5168\u90E8\u6587\u4EF6\u5939" : this.folderFilter,
+      () => [
+        {
+          title: "\u5168\u90E8\u6587\u4EF6\u5939",
+          onClick: async () => {
+            this.folderFilter = "all";
+            await this.applyFilters();
+            this.refreshFilterPills();
+          }
+        },
+        ...this.collectFolders().map((folder) => ({
+          title: folder,
+          onClick: async () => {
+            this.folderFilter = folder;
+            await this.applyFilters();
+            this.refreshFilterPills();
+          }
+        }))
+      ]
+    );
+    const dateLabels = {
+      all: "\u5168\u90E8\u65F6\u95F4",
+      today: "\u4ECA\u5929",
+      week: "\u672C\u5468",
+      month: "\u672C\u6708"
+    };
+    this.filterPill(
+      this.filterEl,
+      dateLabels[this.dateFilter] || "\u5168\u90E8\u65F6\u95F4",
+      () => Object.entries(dateLabels).map(([value, label]) => ({
+        title: label,
+        onClick: async () => {
+          this.dateFilter = value;
+          await this.applyFilters();
+          this.refreshFilterPills();
+        }
+      }))
+    );
+    const quickRow = fileSelectionEl.createDiv({ cls: "vs-modal-quick" });
+    const quickChip = (label, active, onClick) => {
+      const chip = quickRow.createEl("button", {
+        text: label,
+        cls: `vs-quick-chip${active ? " is-active" : ""}`,
+        attr: { type: "button" }
+      });
+      chip.addEventListener("click", (event) => {
+        event.preventDefault();
+        onClick();
+      });
+    };
+    quickChip("\u5168\u9009", false, () => void this.selectAllVisible());
+    quickChip("\u6E05\u7A7A", false, () => void this.selectNone());
+    quickChip("\u9009\u62E9\u5F85\u5904\u7406", false, () => void this.selectByStatus("pending"));
+    quickChip("\u9009\u62E9\u5931\u8D25", false, () => void this.selectByStatus("error"));
+    quickChip("\u7F3A\u5C11\u89C6\u9891\u4FE1\u606F", this.infoFilter === "no-info", async () => {
+      this.infoFilter = this.infoFilter === "no-info" ? "all" : "no-info";
       await this.applyFilters();
+      this.onOpen();
     });
-    const folderContainer = this.filterEl.createEl("div", { cls: "filter-row" });
-    folderContainer.createEl("label", { text: "\u6587\u4EF6\u5939:", cls: "filter-label" });
-    const folderSelectContainer = folderContainer.createEl("div", {
-      cls: "searchable-select-container"
-    });
-    const folderInput = folderSelectContainer.createEl("input", {
-      type: "text",
-      cls: "filter-input searchable-select-input",
-      attr: { placeholder: "\u8F93\u5165\u5173\u952E\u8BCD\u7B5B\u9009\u6587\u4EF6\u5939..." }
-    });
-    const folderSelect = folderSelectContainer.createEl("select", {
-      cls: "filter-select searchable-select-dropdown",
-      attr: { size: "6" }
-    });
-    folderSelect.style.display = "none";
-    folderSelect.createEl("option", { text: "\u5168\u90E8\u6587\u4EF6\u5939", value: "all" });
-    folderInput.addEventListener("input", (e) => {
-      const searchValue = e.target.value.toLowerCase();
-      if (searchValue.length > 0) {
-        folderSelect.style.display = "block";
-        this.filterFolderOptions(folderSelect, searchValue);
-      } else {
-        folderSelect.style.display = "none";
-        this.resetFolderOptions(folderSelect);
-      }
-    });
-    folderSelect.addEventListener("change", async (e) => {
-      const selectedValue = e.target.value;
-      this.folderFilter = selectedValue;
-      folderInput.value = selectedValue === "all" ? "" : selectedValue;
-      folderSelect.style.display = "none";
-      await this.applyFilters();
-    });
-    folderInput.addEventListener("click", () => {
-      folderSelect.style.display = "block";
-      this.resetFolderOptions(folderSelect);
-      for (let i = 0; i < folderSelect.options.length; i++) {
-        folderSelect.options[i].style.display = "block";
-      }
-    });
-    document.addEventListener("click", (e) => {
-      if (!folderSelectContainer.contains(e.target)) {
-        folderSelect.style.display = "none";
-      }
-    });
-    const dateContainer = this.filterEl.createEl("div", { cls: "filter-row" });
-    dateContainer.createEl("label", { text: "\u4FEE\u6539\u65F6\u95F4:", cls: "filter-label" });
-    const dateSelect = dateContainer.createEl("select", { cls: "filter-select" });
-    dateSelect.createEl("option", { text: "\u5168\u90E8\u65F6\u95F4", value: "all" });
-    dateSelect.createEl("option", { text: "\u4ECA\u5929", value: "today" });
-    dateSelect.createEl("option", { text: "\u672C\u5468", value: "week" });
-    dateSelect.createEl("option", { text: "\u672C\u6708", value: "month" });
-    dateSelect.value = this.dateFilter;
-    dateSelect.addEventListener("change", async (e) => {
-      this.dateFilter = e.target.value;
-      await this.applyFilters();
-    });
-    const infoContainer = this.filterEl.createEl("div", { cls: "filter-row" });
-    infoContainer.createEl("label", { text: "\u89C6\u9891\u4FE1\u606F:", cls: "filter-label" });
-    const infoSelect = infoContainer.createEl("select", { cls: "filter-select" });
-    infoSelect.createEl("option", { text: "\u5168\u90E8", value: "all" });
-    infoSelect.createEl("option", { text: "\u7F3A\u5C11\u89C6\u9891\u4FE1\u606F\uFF08\u9002\u5408\u6279\u91CF\u8865 info\uFF09", value: "no-info" });
-    infoSelect.createEl("option", { text: "\u5DF2\u6709\u89C6\u9891\u4FE1\u606F", value: "has-info" });
-    infoSelect.value = this.infoFilter;
-    infoSelect.addEventListener("change", async (e) => {
-      this.infoFilter = e.target.value;
-      await this.applyFilters();
-    });
-    const quickSelectContainer = this.filterEl.createEl("div", { cls: "quick-select-buttons" });
-    const selectAllBtn = quickSelectContainer.createEl("button", {
-      text: "\u5168\u9009",
-      cls: "quick-select-btn"
-    });
-    selectAllBtn.addEventListener("click", async () => await this.selectAllVisible());
-    const selectNoneBtn = quickSelectContainer.createEl("button", {
-      text: "\u53D6\u6D88\u5168\u9009",
-      cls: "quick-select-btn"
-    });
-    selectNoneBtn.addEventListener("click", async () => await this.selectNone());
-    const selectPendingBtn = quickSelectContainer.createEl("button", {
-      text: "\u9009\u62E9\u5F85\u5904\u7406",
-      cls: "quick-select-btn"
-    });
-    selectPendingBtn.addEventListener("click", async () => await this.selectByStatus("pending"));
-    const selectErrorBtn = quickSelectContainer.createEl("button", {
-      text: "\u9009\u62E9\u5931\u8D25",
-      cls: "quick-select-btn"
-    });
-    selectErrorBtn.addEventListener("click", async () => await this.selectByStatus("error"));
-    this.fileListEl = fileSelectionEl.createEl("div", { cls: "batch-file-list" });
-    const playlistSelectionEl = contentEl.createEl("div", { cls: "batch-playlist-selection" });
-    playlistSelectionEl.createEl("h3", { text: "\u64AD\u653E\u5217\u8868/\u6536\u85CF\u5939\u5904\u7406" });
-    new import_obsidian3.Setting(playlistSelectionEl).setName("\u64AD\u653E\u5217\u8868\u94FE\u63A5").setDesc("\u8F93\u5165B\u7AD9\u64AD\u653E\u5217\u8868\u6216\u6536\u85CF\u5939\u94FE\u63A5").addText(
+    quickRow.createSpan({ cls: "vs-quick-spacer" });
+    this.countEl = quickRow.createSpan({ cls: "vs-quick-count" });
+    this.fileListEl = fileSelectionEl.createDiv({ cls: "vs-modal-list" });
+    this.renderLastBatch(fileSelectionEl);
+    const playlistSelectionEl = bodyEl.createDiv({ cls: "batch-playlist-selection" });
+    new import_obsidian5.Setting(playlistSelectionEl).setName("\u64AD\u653E\u5217\u8868\u94FE\u63A5").setDesc("B\u7AD9\u64AD\u653E\u5217\u8868\u6216\u6536\u85CF\u5939\u94FE\u63A5").addText(
       (text) => text.setPlaceholder("https://space.bilibili.com/xxx/favlist?fid=xxx").setValue(this.playlistUrl).onChange((value) => {
         this.playlistUrl = value;
       })
     );
     const parseButton = playlistSelectionEl.createEl("button", {
       text: "\u89E3\u6790\u64AD\u653E\u5217\u8868",
-      cls: "mod-cta"
+      cls: "vs-text-btn is-primary",
+      attr: { type: "button" }
     });
     parseButton.addEventListener("click", () => {
-      this.parsePlaylist();
+      void this.parsePlaylist();
     });
-    this.playlistEl = playlistSelectionEl.createEl("div", { cls: "batch-playlist-list" });
-    this.progressEl = contentEl.createEl("div", { cls: "batch-progress" });
+    this.playlistEl = playlistSelectionEl.createDiv({ cls: "batch-playlist-list" });
+    this.progressEl = bodyEl.createDiv({ cls: "batch-progress" });
     this.progressEl.style.display = "none";
-    const buttonContainer = contentEl.createEl("div", { cls: "batch-buttons" });
-    const startButton = buttonContainer.createEl("button", {
-      text: "\u5F00\u59CB\u6279\u91CF\u5904\u7406",
-      cls: "mod-cta"
+    const footer = contentEl.createDiv({ cls: "vs-modal-footer" });
+    const concurrency = footer.createEl("button", {
+      cls: "vs-quick-chip",
+      attr: { type: "button", title: "\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6570\u91CF" }
     });
-    startButton.addEventListener("click", () => {
-      this.startBatchProcessing();
+    concurrency.setText(`\u5E76\u53D1 ${this.plugin.settings.batchConcurrency}`);
+    concurrency.addEventListener("click", (event) => {
+      event.preventDefault();
+      showMenu(
+        event,
+        [1, 2, 3, 4, 6, 8].map((value) => ({
+          title: String(value),
+          onClick: async () => {
+            this.plugin.settings.batchConcurrency = value;
+            this.plugin.jobs.setConcurrency(value);
+            await this.plugin.saveSettings();
+            concurrency.setText(`\u5E76\u53D1 ${value}`);
+          }
+        }))
+      );
     });
-    const cancelButton = buttonContainer.createEl("button", {
+    footer.createSpan({ cls: "vs-quick-spacer" });
+    const cancelButton = footer.createEl("button", {
       text: "\u53D6\u6D88",
-      cls: "mod-warning"
+      cls: "vs-text-btn",
+      attr: { type: "button" }
     });
-    cancelButton.addEventListener("click", () => {
-      this.close();
+    cancelButton.addEventListener("click", () => this.close());
+    this.startButtonEl = footer.createEl("button", {
+      cls: "vs-primary-btn",
+      attr: { type: "button" }
     });
-    this.updateLanguageVisibility();
+    const startIcon = this.startButtonEl.createSpan({ cls: "vs-btn-icon" });
+    (0, import_obsidian5.setIcon)(startIcon, "play");
+    this.startLabelEl = this.startButtonEl.createSpan({ text: "\u5F00\u59CB\u5904\u7406" });
+    this.startButtonEl.addEventListener("click", () => {
+      void this.startBatchProcessing();
+    });
     this.updateModeDisplay();
-    contentEl.addClass("batch-processing-modal");
+    void this.scanVideoFiles();
   }
-  updateLanguageVisibility() {
-    const languageSetting = this.contentEl.querySelector(
-      ".setting-item:nth-child(2)"
-    );
-    if (languageSetting) {
-      if (this.mode === "summary") {
-        languageSetting.style.display = "block";
-      } else {
-        languageSetting.style.display = "none";
-      }
+  /** 一行筛选里的下拉胶囊：点开是 Obsidian Menu */
+  filterPill(parent, label, items) {
+    const pill = parent.createEl("button", {
+      cls: "vs-filter-pill",
+      attr: { type: "button" }
+    });
+    pill.createSpan({ text: label });
+    const caret = pill.createSpan({ cls: "vs-chip-caret" });
+    (0, import_obsidian5.setIcon)(caret, "chevron-down");
+    pill.addEventListener("click", (event) => {
+      event.preventDefault();
+      showMenu(event, items());
+    });
+    return pill;
+  }
+  refreshFilterPills() {
+    this.onOpen();
+  }
+  collectFolders() {
+    const folders = /* @__PURE__ */ new Set();
+    this.allVideoFiles.forEach((file) => {
+      const folder = file.parent?.path;
+      if (folder && folder !== "/") folders.add(folder);
+    });
+    return Array.from(folders).sort().slice(0, 60);
+  }
+  /** 上次批量的成败比例，数据来自 settings.history */
+  renderLastBatch(container) {
+    const history = this.plugin.settings.history || [];
+    if (history.length === 0) return;
+    const recent = history.slice(-40).reverse();
+    const batch = [];
+    let previous = null;
+    for (const record of recent) {
+      const time = Date.parse(record.time) || 0;
+      if (previous !== null && previous - time > 30 * 60 * 1e3) break;
+      batch.push(record);
+      previous = time;
+    }
+    if (batch.length < 2) return;
+    const success = batch.filter((record) => record.result === "success").length;
+    const failed = batch.length - success;
+    const card = container.createDiv({ cls: "vs-last-batch" });
+    const row = card.createDiv({ cls: "vs-last-batch-row" });
+    row.createSpan({ text: `\u4E0A\u6B21\u6279\u91CF \xB7 ${batch.length} \u4E2A\u6587\u4EF6`, cls: "vs-last-batch-title" });
+    row.createSpan({ text: `${success} \u6210\u529F`, cls: "vs-mono vs-last-ok" });
+    if (failed > 0) row.createSpan({ text: `${failed} \u5931\u8D25`, cls: "vs-mono vs-last-fail" });
+    const bar = card.createDiv({ cls: "vs-last-batch-bar" });
+    bar.createSpan({ cls: "is-ok" }).style.width = `${Math.round(success / batch.length * 100)}%`;
+    if (failed > 0) {
+      bar.createSpan({ cls: "is-fail" }).style.width = `${Math.round(failed / batch.length * 100)}%`;
     }
   }
   updateModeDisplay() {
-    const fileModeButton = this.contentEl.querySelector(
-      ".batch-mode-selection button:first-child"
-    );
-    const playlistModeButton = this.contentEl.querySelector(
-      ".batch-mode-selection button:last-child"
-    );
-    if (fileModeButton && playlistModeButton) {
-      fileModeButton.className = this.processingMode === "files" ? "mod-cta" : "mod-secondary";
-      playlistModeButton.className = this.processingMode === "playlist" ? "mod-cta" : "mod-secondary";
-    }
     const fileSelectionEl = this.contentEl.querySelector(".batch-file-selection");
     const playlistSelectionEl = this.contentEl.querySelector(
       ".batch-playlist-selection"
     );
-    if (fileSelectionEl && playlistSelectionEl) {
+    if (fileSelectionEl) {
       fileSelectionEl.style.display = this.processingMode === "files" ? "block" : "none";
+    }
+    if (playlistSelectionEl) {
       playlistSelectionEl.style.display = this.processingMode === "playlist" ? "block" : "none";
+    }
+    this.contentEl.querySelectorAll(".vs-seg-item").forEach((item, index) => {
+      const isActive = index === 0 === (this.processingMode === "files");
+      item.toggleClass("is-active", isActive);
+    });
+    this.updateStartButton();
+  }
+  updateStartButton() {
+    if (this.startLabelEl) {
+      const count = this.processingMode === "files" ? this.selectedFiles.length : 0;
+      this.startLabelEl.setText(count > 0 ? `\u5F00\u59CB\u5904\u7406 ${count} \u4E2A` : "\u5F00\u59CB\u5904\u7406");
+    }
+    if (this.countEl) {
+      this.countEl.setText(`\u5DF2\u9009 ${this.selectedFiles.length} / ${this.allVideoFiles.length}`);
     }
   }
   async parsePlaylist() {
     if (!this.playlistUrl.trim()) {
-      new import_obsidian3.Notice("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5");
+      new import_obsidian5.Notice("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5");
       return;
     }
     if (!PlaylistProcessor.isPlaylistUrl(this.playlistUrl)) {
-      new import_obsidian3.Notice("\u8BF7\u8F93\u5165\u6709\u6548\u7684B\u7AD9\u64AD\u653E\u5217\u8868\u6216\u6536\u85CF\u5939\u94FE\u63A5");
+      new import_obsidian5.Notice("\u8BF7\u8F93\u5165\u6709\u6548\u7684B\u7AD9\u64AD\u653E\u5217\u8868\u6216\u6536\u85CF\u5939\u94FE\u63A5");
       return;
     }
     if (!this.playlistEl) return;
@@ -4197,7 +4639,7 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
           cls: "playlist-item-bvid"
         });
       }
-      new import_obsidian3.Notice(`\u2705 \u6210\u529F\u89E3\u6790\u64AD\u653E\u5217\u8868\uFF0C\u5171 ${playlistInfo.itemCount} \u4E2A\u89C6\u9891`);
+      new import_obsidian5.Notice(`\u2705 \u6210\u529F\u89E3\u6790\u64AD\u653E\u5217\u8868\uFF0C\u5171 ${playlistInfo.itemCount} \u4E2A\u89C6\u9891`);
     } catch (error) {
       console.error("\u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25:", error);
       this.playlistEl.empty();
@@ -4205,187 +4647,93 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
         text: `\u274C \u89E3\u6790\u5931\u8D25: ${error.message}`,
         cls: "mod-warning"
       });
-      new import_obsidian3.Notice(`\u274C \u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${error.message}`);
+      new import_obsidian5.Notice(`\u274C \u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${error.message}`);
     }
   }
+  /** 扫描视频笔记：直接用插件已有的索引，不再全库读正文 */
   async scanVideoFiles() {
-    if (!this.fileListEl || !this.filterEl) return;
-    this.fileListEl.empty();
-    this.selectedFiles = [];
-    this.allVideoFiles = [];
-    const files = this.app.vault.getMarkdownFiles();
-    const videoFiles = [];
-    for (const file of files) {
-      try {
-        const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-        if (VideoUtils.isVideoNoteFromFrontmatter(fm)) {
-          videoFiles.push(file);
-          continue;
-        }
-        const content = await this.app.vault.read(file);
-        if (this.noteProcessor.hasVideoContent(content)) {
-          videoFiles.push(file);
-        }
-      } catch (error) {
-        console.error(`\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.basename}`, error);
-      }
+    if (!this.fileListEl) return;
+    const entries = this.plugin.noteIndex.getAll();
+    const files = [];
+    for (const entry of entries) {
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (file instanceof import_obsidian5.TFile) files.push(file);
     }
-    if (videoFiles.length === 0) {
-      this.fileListEl.createEl("p", {
-        text: "\u672A\u627E\u5230\u5305\u542B\u89C6\u9891\u5185\u5BB9\u7684\u7B14\u8BB0",
-        cls: "mod-muted"
-      });
-      return;
-    }
-    this.allVideoFiles = videoFiles;
-    this.filterEl.style.display = "block";
-    this.updateFolderOptions();
-    this.renderFileList();
-  }
-  filterFolderOptions(select, searchValue) {
-    for (let i = 0; i < select.options.length; i++) {
-      const option = select.options[i];
-      if (option.value === "all") {
-        option.style.display = "block";
-      } else {
-        option.style.display = option.text.toLowerCase().includes(searchValue) ? "block" : "none";
-      }
-    }
-  }
-  resetFolderOptions(select) {
-    for (let i = 0; i < select.options.length; i++) {
-      select.options[i].style.display = "block";
-    }
-    select.selectedIndex = 0;
-  }
-  updateFolderOptions() {
-    if (!this.filterEl) return;
-    const folderSelect = this.filterEl.querySelector(
-      ".searchable-select-dropdown"
+    this.allVideoFiles = files;
+    this.selectedFiles = this.selectedFiles.filter(
+      (selected) => files.some((file) => file.path === selected.path)
     );
-    if (!folderSelect) return;
-    while (folderSelect.children.length > 1) {
-      folderSelect.removeChild(folderSelect.lastChild);
-    }
-    const folders = /* @__PURE__ */ new Set();
-    this.allVideoFiles.forEach((file) => {
-      const folder = file.parent?.path || "";
-      if (folder) folders.add(folder);
-    });
-    Array.from(folders).sort().forEach((folder) => {
-      folderSelect.createEl("option", { text: folder, value: folder });
-    });
-    console.log(`\u627E\u5230 ${folders.size} \u4E2A\u6587\u4EF6\u5939\u9009\u9879:`, Array.from(folders).sort());
+    await this.renderFileList();
   }
   async renderFileList() {
     if (!this.fileListEl) return;
     this.fileListEl.empty();
     const filteredFiles = await this.getFilteredFiles();
-    this.fileListEl.createEl("h4", {
-      text: `\u663E\u793A ${filteredFiles.length} \u4E2A\u6587\u4EF6\uFF08\u5171 ${this.allVideoFiles.length} \u4E2A\uFF09:`
-    });
+    if (filteredFiles.length === 0) {
+      this.fileListEl.createDiv({
+        text: this.allVideoFiles.length === 0 ? "\u5E93\u91CC\u8FD8\u6CA1\u6709\u89C6\u9891\u7B14\u8BB0" : "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u7B14\u8BB0",
+        cls: "vs-modal-empty"
+      });
+      this.updateStartButton();
+      return;
+    }
     for (const file of filteredFiles) {
-      const fileItem = this.fileListEl.createEl("div", { cls: "batch-file-item" });
-      const checkbox = fileItem.createEl("input", {
-        type: "checkbox",
-        attr: { id: `file-${file.path}` }
-      });
-      checkbox.checked = this.selectedFiles.some((f) => f.path === file.path);
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          if (!this.selectedFiles.some((f) => f.path === file.path)) {
-            this.selectedFiles.push(file);
-          }
-        } else {
-          this.selectedFiles = this.selectedFiles.filter((f) => f.path !== file.path);
-        }
-      });
-      fileItem.createEl("label", {
+      const entry = this.plugin.noteIndex.get(file.path);
+      const row = this.fileListEl.createDiv({ cls: "vs-modal-row" });
+      const checked = this.selectedFiles.some((selected) => selected.path === file.path);
+      const box = row.createDiv({ cls: `vs-checkbox${checked ? " is-checked" : ""}` });
+      if (checked) (0, import_obsidian5.setIcon)(box, "check");
+      const body = row.createDiv({ cls: "vs-modal-row-body" });
+      body.createDiv({
         text: file.basename,
-        attr: { for: `file-${file.path}` }
+        cls: `vs-modal-row-title${checked ? " is-checked" : ""}`
       });
-      this.app.vault.read(file).then((content) => {
-        const status = this.noteProcessor.getProcessingStatus(content);
-        if (status) {
-          fileItem.createEl("span", {
-            text: `(${status})`,
-            cls: "file-status"
-          });
+      const sub = body.createDiv({ cls: "vs-modal-row-sub" });
+      if (entry?.platform) {
+        sub.createSpan({
+          text: platformLabel(entry.platform),
+          cls: `vs-platform is-${entry.platform}`
+        });
+      }
+      sub.createSpan({ text: file.parent?.path && file.parent.path !== "/" ? file.parent.path : "\u6839\u76EE\u5F55" });
+      sub.createSpan({ text: new Date(file.stat.mtime).toLocaleDateString("zh-CN") });
+      statusPill(row, entry?.status || "pending");
+      row.addEventListener("click", () => {
+        if (checked) {
+          this.selectedFiles = this.selectedFiles.filter(
+            (selected) => selected.path !== file.path
+          );
+        } else {
+          this.selectedFiles.push(file);
         }
+        void this.renderFileList();
       });
     }
+    this.updateStartButton();
   }
   async getFilteredFiles() {
-    const filteredFiles = [];
+    const now = Date.now();
+    const dateFloor = this.dateFilter === "today" ? now - 24 * 60 * 60 * 1e3 : this.dateFilter === "week" ? now - 7 * 24 * 60 * 60 * 1e3 : this.dateFilter === "month" ? now - 30 * 24 * 60 * 60 * 1e3 : 0;
+    const result = [];
     for (const file of this.allVideoFiles) {
-      if (this.searchFilter && !file.basename.toLowerCase().includes(this.searchFilter)) {
-        continue;
-      }
-      if (this.folderFilter !== "all") {
-        const fileFolder = file.parent?.path || "";
-        if (fileFolder !== this.folderFilter) {
-          continue;
-        }
-      }
-      if (this.dateFilter !== "all") {
-        const fileTime = file.stat.mtime;
-        const now = Date.now();
-        const dayMs = 24 * 60 * 60 * 1e3;
-        switch (this.dateFilter) {
-          case "today":
-            if (now - fileTime > dayMs) continue;
-            break;
-          case "week":
-            if (now - fileTime > 7 * dayMs) continue;
-            break;
-          case "month":
-            if (now - fileTime > 30 * dayMs) continue;
-            break;
-        }
-      }
+      const entry = this.plugin.noteIndex.get(file.path);
+      const status = entry?.status || "pending";
+      if (this.searchFilter && !file.basename.toLowerCase().includes(this.searchFilter)) continue;
       if (this.statusFilter !== "all") {
-        try {
-          const content = await this.app.vault.read(file);
-          const status = this.noteProcessor.getProcessingStatus(content);
-          switch (this.statusFilter) {
-            case "pending":
-              if (status && status !== "pending") continue;
-              break;
-            case "error":
-              if (status !== "error") continue;
-              break;
-            case "processed":
-              if (!status || status === "pending" || status === "error") {
-                continue;
-              }
-              break;
-          }
-        } catch (error) {
-          console.error(`\u8BFB\u53D6\u6587\u4EF6\u72B6\u6001\u5931\u8D25: ${file.basename}`, error);
-          continue;
-        }
+        const wanted = this.statusFilter === "processed" ? "success" : this.statusFilter;
+        if (status !== wanted) continue;
       }
+      if (this.folderFilter !== "all" && (file.parent?.path || "") !== this.folderFilter) continue;
+      if (dateFloor && file.stat.mtime < dateFloor) continue;
       if (this.infoFilter !== "all") {
-        try {
-          const content = await this.app.vault.read(file);
-          const hasInfo = this.noteProcessor.hasBasicVideoInfo(content);
-          const hasLink = !!this.noteProcessor.extractVideoUrl(content);
-          if (this.infoFilter === "no-info") {
-            if (hasInfo || !hasLink) {
-              continue;
-            }
-          }
-          if (this.infoFilter === "has-info" && !hasInfo) {
-            continue;
-          }
-        } catch (error) {
-          console.error(`\u8BFB\u53D6\u6587\u4EF6\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${file.basename}`, error);
-          continue;
-        }
+        const content = await this.app.vault.cachedRead(file);
+        const hasInfo = this.noteProcessor.hasBasicVideoInfo(content);
+        if (this.infoFilter === "no-info" && hasInfo) continue;
+        if (this.infoFilter === "has-info" && !hasInfo) continue;
       }
-      filteredFiles.push(file);
+      result.push(file);
     }
-    return filteredFiles;
+    return result;
   }
   async applyFilters() {
     await this.renderFileList();
@@ -4405,14 +4753,9 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
   }
   async selectByStatus(status) {
     const filteredFiles = await this.getFilteredFiles();
-    this.selectedFiles = [];
-    for (const file of filteredFiles) {
-      const content = await this.app.vault.read(file);
-      const fileStatus = this.noteProcessor.getProcessingStatus(content) || "pending";
-      if (fileStatus === status) {
-        this.selectedFiles.push(file);
-      }
-    }
+    this.selectedFiles = filteredFiles.filter(
+      (file) => (this.plugin.noteIndex.get(file.path)?.status || "pending") === status
+    );
     await this.renderFileList();
   }
   async startBatchProcessing() {
@@ -4424,7 +4767,7 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
   }
   async processFiles() {
     if (this.selectedFiles.length === 0) {
-      new import_obsidian3.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6");
+      new import_obsidian5.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6");
       return;
     }
     if (this.progressEl) {
@@ -4458,17 +4801,17 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
               conflictStrategy: this.plugin.settings.renameConflictStrategy
             });
             this.progress.completed++;
-            new import_obsidian3.Notice(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, 3e3);
+            new import_obsidian5.Notice(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, 3e3);
           } catch (updateError) {
             console.error(`\u66F4\u65B0\u7B14\u8BB0\u5931\u8D25: ${file.basename}`, updateError);
             this.progress.failed++;
-            new import_obsidian3.Notice(`\u274C ${file.basename} \u66F4\u65B0\u5931\u8D25: ${updateError.message}`, 5e3);
+            new import_obsidian5.Notice(`\u274C ${file.basename} \u66F4\u65B0\u5931\u8D25: ${updateError.message}`, 5e3);
           }
         } else {
           try {
             await this.noteProcessor.setProcessingStatus(file, "error");
             this.progress.failed++;
-            new import_obsidian3.Notice(`\u274C ${file.basename} \u5904\u7406\u5931\u8D25: ${result.error}`, 5e3);
+            new import_obsidian5.Notice(`\u274C ${file.basename} \u5904\u7406\u5931\u8D25: ${result.error}`, 5e3);
           } catch (statusError) {
             console.error(`\u8BBE\u7F6E\u72B6\u6001\u5931\u8D25: ${file.basename}`, statusError);
           }
@@ -4484,18 +4827,18 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
       this.progress.current = "";
       this.updateProgressDisplay();
       const successText = `\u6279\u91CF\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`;
-      new import_obsidian3.Notice(successText, 5e3);
+      new import_obsidian5.Notice(successText, 5e3);
     } catch (error) {
       console.error("\u6279\u91CF\u5904\u7406\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian3.Notice(`\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${error.message}`, 0);
+      new import_obsidian5.Notice(`\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${error.message}`, 0);
     }
   }
   async processPlaylist() {
     const selectedItems = this.getSelectedPlaylistItems();
     if (selectedItems.length === 0) {
-      new import_obsidian3.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u89C6\u9891");
+      new import_obsidian5.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u89C6\u9891");
       return;
     }
     if (this.progressEl) {
@@ -4540,15 +4883,15 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
               });
             }
             this.progress.completed++;
-            new import_obsidian3.Notice(`\u2705 ${request.noteName} \u5904\u7406\u5B8C\u6210`, 3e3);
+            new import_obsidian5.Notice(`\u2705 ${request.noteName} \u5904\u7406\u5B8C\u6210`, 3e3);
           } catch (updateError) {
             console.error(`\u66F4\u65B0\u7B14\u8BB0\u5931\u8D25: ${request.noteName}`, updateError);
             this.progress.failed++;
-            new import_obsidian3.Notice(`\u274C ${request.noteName} \u66F4\u65B0\u5931\u8D25: ${updateError.message}`, 5e3);
+            new import_obsidian5.Notice(`\u274C ${request.noteName} \u66F4\u65B0\u5931\u8D25: ${updateError.message}`, 5e3);
           }
         } else {
           this.progress.failed++;
-          new import_obsidian3.Notice(`\u274C ${request.noteName} \u5904\u7406\u5931\u8D25: ${result.error}`, 5e3);
+          new import_obsidian5.Notice(`\u274C ${request.noteName} \u5904\u7406\u5931\u8D25: ${result.error}`, 5e3);
         }
         this.updateProgressDisplay();
       };
@@ -4566,12 +4909,12 @@ var BatchProcessingModal = class extends import_obsidian3.Modal {
       this.progress.current = "";
       this.updateProgressDisplay();
       const successText = `\u64AD\u653E\u5217\u8868\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`;
-      new import_obsidian3.Notice(successText, 5e3);
+      new import_obsidian5.Notice(successText, 5e3);
     } catch (error) {
       console.error("\u64AD\u653E\u5217\u8868\u5904\u7406\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian3.Notice(`\u274C \u64AD\u653E\u5217\u8868\u5904\u7406\u5931\u8D25: ${error.message}`, 0);
+      new import_obsidian5.Notice(`\u274C \u64AD\u653E\u5217\u8868\u5904\u7406\u5931\u8D25: ${error.message}`, 0);
     }
   }
   getSelectedPlaylistItems() {
@@ -6209,398 +6552,6 @@ var import_obsidian11 = require("obsidian");
 
 // views/panels/ActionBar.ts
 var import_obsidian7 = require("obsidian");
-
-// views/ui.ts
-var import_obsidian4 = require("obsidian");
-function iconButton(parent, icon, label, onClick, extraCls) {
-  const button = parent.createEl("button", {
-    cls: `vs-icon-btn${extraCls ? ` ${extraCls}` : ""}`,
-    attr: { type: "button", "aria-label": label, title: label }
-  });
-  (0, import_obsidian4.setIcon)(button, icon);
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    onClick(event);
-  });
-  return button;
-}
-function textButton(parent, label, onClick, extraCls) {
-  const button = parent.createEl("button", {
-    text: label,
-    cls: `vs-text-btn${extraCls ? ` ${extraCls}` : ""}`,
-    attr: { type: "button" }
-  });
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    onClick();
-  });
-  return button;
-}
-function configChip(parent, label, value, items) {
-  const chip = parent.createEl("button", {
-    cls: "vs-chip",
-    attr: { type: "button", "aria-label": label, title: `${label}\uFF1A${value}` }
-  });
-  chip.createSpan({ text: value, cls: "vs-chip-value" });
-  const caret = chip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian4.setIcon)(caret, "chevron-down");
-  chip.addEventListener("click", (event) => {
-    event.preventDefault();
-    showMenu(event, items);
-  });
-  return chip;
-}
-function showMenu(event, items) {
-  const menu = new import_obsidian4.Menu();
-  items.forEach((spec) => {
-    menu.addItem((item) => {
-      item.setTitle(spec.title);
-      if (spec.icon) item.setIcon(spec.icon);
-      if (spec.disabled) item.setDisabled(true);
-      item.onClick(() => spec.onClick());
-    });
-  });
-  menu.showAtMouseEvent(event);
-}
-function statusMeta(status) {
-  switch (status) {
-    case "success":
-      return { label: "\u5DF2\u5B8C\u6210", cls: "is-success" };
-    case "running":
-      return { label: "\u5904\u7406\u4E2D", cls: "is-running" };
-    case "error":
-      return { label: "\u5931\u8D25", cls: "is-error" };
-    case "review":
-      return { label: "\u5F85\u786E\u8BA4", cls: "is-review" };
-    case "cancelled":
-      return { label: "\u5DF2\u53D6\u6D88", cls: "is-muted" };
-    case "queued":
-      return { label: "\u6392\u961F\u4E2D", cls: "is-queued" };
-    default:
-      return { label: "\u5F85\u5904\u7406", cls: "is-pending" };
-  }
-}
-function statusPill(parent, status, options = {}) {
-  const meta = statusMeta(status);
-  const cls = `vs-pill ${meta.cls}${options.onClick ? " is-clickable" : ""}`;
-  const pill = options.onClick ? parent.createEl("button", {
-    text: options.label ?? meta.label,
-    cls,
-    attr: { type: "button", title: options.title ?? options.label ?? meta.label }
-  }) : parent.createSpan({ text: options.label ?? meta.label, cls });
-  if (options.onClick) {
-    pill.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      options.onClick?.();
-    });
-  }
-  return pill;
-}
-function segmented(parent, items, active, onSelect) {
-  const row = parent.createDiv({ cls: "vs-seg" });
-  items.forEach((item) => {
-    const seg = row.createEl("button", {
-      cls: `vs-seg-item${item.value === active ? " is-active" : ""}`,
-      attr: { type: "button" }
-    });
-    if (item.icon) {
-      const icon = seg.createSpan({ cls: "vs-seg-icon" });
-      (0, import_obsidian4.setIcon)(icon, item.icon);
-    }
-    seg.createSpan({ text: item.label });
-    if (item.count) seg.createSpan({ text: item.count, cls: "vs-seg-count" });
-    seg.addEventListener("click", (event) => {
-      event.preventDefault();
-      if (item.value !== active) onSelect(item.value);
-    });
-  });
-  return row;
-}
-function thumbnail(parent, options = {}) {
-  const thumb = parent.createDiv({
-    cls: `vs-thumb${options.size === "lg" ? " is-lg" : ""} ${platformClass(options.platform)}`
-  });
-  if (options.cover) {
-    const img = thumb.createEl("img", { cls: "vs-thumb-img", attr: { src: options.cover } });
-    img.addEventListener("error", () => img.remove());
-  }
-  thumb.createSpan({ cls: "vs-thumb-bar" });
-  if (options.duration) {
-    thumb.createSpan({ text: options.duration, cls: "vs-thumb-time" });
-  }
-  return thumb;
-}
-function platformClass(platform) {
-  switch (platform) {
-    case "youtube":
-    case "bilibili":
-    case "douyin":
-    case "tiktok":
-    case "xiaohongshu":
-      return `is-${platform}`;
-    default:
-      return "is-generic";
-  }
-}
-function platformText(parent, platform, label) {
-  return parent.createSpan({ text: label, cls: `vs-platform ${platformClass(platform)}` });
-}
-function formatClock(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return "00:00";
-  const total = Math.floor(ms / 1e3);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-function modeLabel(mode) {
-  switch (mode) {
-    case "transcript-only":
-      return "\u4EC5\u6587\u7A3F";
-    case "info-only":
-      return "\u4EC5\u4FE1\u606F";
-    default:
-      return "\u5B8C\u6574\u603B\u7ED3";
-  }
-}
-function languageLabel(language) {
-  switch (language) {
-    case "en":
-      return "English";
-    case "ja":
-      return "\u65E5\u672C\u8A9E";
-    default:
-      return "\u4E2D\u6587";
-  }
-}
-function formatElapsed(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return "0s";
-  const totalSeconds = Math.floor(ms / 1e3);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes === 0) return `${seconds}s`;
-  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-}
-function formatRelative(timestamp) {
-  const diff = Date.now() - timestamp;
-  if (diff < 6e4) return "\u521A\u521A";
-  if (diff < 36e5) return `${Math.floor(diff / 6e4)} \u5206\u949F\u524D`;
-  if (diff < 864e5) return `${Math.floor(diff / 36e5)} \u5C0F\u65F6\u524D`;
-  const days = Math.floor(diff / 864e5);
-  if (days < 30) return `${days} \u5929\u524D`;
-  return new Date(timestamp).toLocaleDateString("zh-CN");
-}
-function parseLocaleTime(value) {
-  const parsed = Date.parse(value);
-  if (!Number.isNaN(parsed)) return parsed;
-  const match = value.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D+(\d{1,2}):(\d{2}):?(\d{2})?/);
-  if (!match) return null;
-  const [, year, month, day, hour, minute, second] = match;
-  return new Date(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
-    Number(hour),
-    Number(minute),
-    Number(second || "0")
-  ).getTime();
-}
-function emptyState(parent, icon, title, hint) {
-  const wrapper = parent.createDiv({ cls: "vs-empty" });
-  const iconEl = wrapper.createDiv({ cls: "vs-empty-icon" });
-  (0, import_obsidian4.setIcon)(iconEl, icon);
-  wrapper.createDiv({ text: title, cls: "vs-empty-title" });
-  if (hint) wrapper.createDiv({ text: hint, cls: "vs-empty-hint" });
-}
-
-// core/NoteIndex.ts
-var import_obsidian5 = require("obsidian");
-var BODY_SCAN_CHUNK = 60;
-var NoteIndex = class {
-  constructor(app) {
-    this.entries = /* @__PURE__ */ new Map();
-    this.listeners = /* @__PURE__ */ new Set();
-    this.bodyScanQueue = [];
-    this.bodyScanTimer = null;
-    this.bodyScanDone = false;
-    this.app = app;
-  }
-  subscribe(listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-  emit() {
-    this.listeners.forEach((listener) => {
-      try {
-        listener();
-      } catch (error) {
-        console.error("[NoteIndex] listener failed", error);
-      }
-    });
-  }
-  /** 正文兜底扫描是否还在跑（界面据此显示"仍在建索引"） */
-  isScanning() {
-    return !this.bodyScanDone;
-  }
-  getAll() {
-    return Array.from(this.entries.values());
-  }
-  get(path) {
-    return this.entries.get(path);
-  }
-  build() {
-    this.entries.clear();
-    this.bodyScanQueue = [];
-    this.bodyScanDone = false;
-    const files = this.app.vault.getMarkdownFiles();
-    for (const file of files) {
-      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-      if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
-        this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
-      } else {
-        this.bodyScanQueue.push(file);
-      }
-    }
-    this.emit();
-    this.scheduleBodyScan();
-  }
-  scheduleBodyScan() {
-    if (this.bodyScanTimer !== null) return;
-    if (this.bodyScanQueue.length === 0) {
-      this.bodyScanDone = true;
-      this.emit();
-      return;
-    }
-    this.bodyScanTimer = window.setTimeout(() => {
-      this.bodyScanTimer = null;
-      void this.runBodyScanChunk();
-    }, 50);
-  }
-  async runBodyScanChunk() {
-    const chunk = this.bodyScanQueue.splice(0, BODY_SCAN_CHUNK);
-    let changed = false;
-    for (const file of chunk) {
-      if (this.entries.has(file.path)) continue;
-      try {
-        const content = await this.app.vault.cachedRead(file);
-        if (VideoUtils.isVideoNote(content)) {
-          this.entries.set(file.path, this.entryFromContent(file, content));
-          changed = true;
-        }
-      } catch (error) {
-        console.error(`[NoteIndex] \u8BFB\u53D6\u5931\u8D25: ${file.path}`, error);
-      }
-    }
-    if (changed) this.emit();
-    this.scheduleBodyScan();
-  }
-  /** metadataCache 变化后刷新单个文件 */
-  async refreshFile(file) {
-    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
-      this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
-      this.emit();
-      return;
-    }
-    try {
-      const content = await this.app.vault.cachedRead(file);
-      if (VideoUtils.isVideoNote(content)) {
-        this.entries.set(file.path, this.entryFromContent(file, content));
-      } else if (this.entries.delete(file.path)) {
-      }
-    } catch {
-      this.entries.delete(file.path);
-    }
-    this.emit();
-  }
-  handleDelete(file) {
-    if (this.entries.delete(file.path)) this.emit();
-  }
-  handleRename(file, oldPath) {
-    const existing = this.entries.get(oldPath);
-    this.entries.delete(oldPath);
-    if (existing && file instanceof import_obsidian5.TFile) {
-      this.entries.set(file.path, {
-        ...existing,
-        path: file.path,
-        basename: file.basename,
-        mtime: file.stat.mtime
-      });
-    }
-    this.emit();
-  }
-  entryFromFrontmatter(file, frontmatter) {
-    const rawStatus = VideoUtils.getProcessingStatusFromFrontmatter(frontmatter) || "pending";
-    const link = this.readLink(frontmatter);
-    return {
-      path: file.path,
-      basename: file.basename,
-      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
-      link,
-      platform: link ? detectPlatform2(link) : void 0,
-      title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
-      cover: readCover(frontmatter),
-      duration: readString(frontmatter?.video_duration),
-      ctime: file.stat.ctime,
-      mtime: file.stat.mtime
-    };
-  }
-  entryFromContent(file, content) {
-    const rawStatus = VideoUtils.getProcessingStatus(content) || "pending";
-    const link = VideoUtils.extractVideoUrl(content) || void 0;
-    return {
-      path: file.path,
-      basename: file.basename,
-      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
-      link,
-      platform: link ? detectPlatform2(link) : void 0,
-      ctime: file.stat.ctime,
-      mtime: file.stat.mtime
-    };
-  }
-  readLink(frontmatter) {
-    const raw = frontmatter?.link;
-    if (typeof raw === "string" && raw.trim()) return raw.trim();
-    if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
-    return void 0;
-  }
-};
-function readString(value) {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return void 0;
-}
-function readCover(frontmatter) {
-  const raw = readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
-  if (!raw) return void 0;
-  return /^https?:\/\//.test(raw) ? raw : void 0;
-}
-function detectPlatform2(url) {
-  const value = url.toLowerCase();
-  if (value.includes("bilibili.com") || value.includes("b23.tv")) return "bilibili";
-  if (value.includes("youtube.com") || value.includes("youtu.be")) return "youtube";
-  if (value.includes("douyin.com")) return "douyin";
-  if (value.includes("tiktok.com")) return "tiktok";
-  if (value.includes("xiaohongshu.com") || value.includes("xhslink")) return "xiaohongshu";
-  return "other";
-}
-function platformLabel(platform) {
-  switch (platform) {
-    case "bilibili":
-      return "B\u7AD9";
-    case "youtube":
-      return "YouTube";
-    case "douyin":
-      return "\u6296\u97F3";
-    case "tiktok":
-      return "TikTok";
-    case "xiaohongshu":
-      return "\u5C0F\u7EA2\u4E66";
-    default:
-      return "\u94FE\u63A5";
-  }
-}
 
 // core/InputParser.ts
 var MEDIA_EXTENSIONS = /\.(mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i;
@@ -10026,7 +9977,8 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("video-summary-settings-tabs-container");
-    containerEl.createEl("h2", { text: "\u{1F4FA} \u89C6\u9891\u603B\u7ED3\u63D2\u4EF6\u8BBE\u7F6E" });
+    containerEl.addClass("vs-settings");
+    this.renderSettingsHeader(containerEl);
     this.renderTabs(containerEl);
     const tabContent = containerEl.createDiv({ cls: "tab-content-container" });
     switch (this.activeTab) {
@@ -10049,6 +10001,50 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         break;
     }
   }
+  /** 页头：渐变图标 + 标题 + 版本副行 + 后端状态胶囊（替代原来的 emoji h2） */
+  renderSettingsHeader(containerEl) {
+    const header = containerEl.createDiv({ cls: "vs-settings-header" });
+    const badge = header.createDiv({ cls: "vs-settings-badge" });
+    (0, import_obsidian14.setIcon)(badge, "clapperboard");
+    const text = header.createDiv({ cls: "vs-settings-heading" });
+    text.createDiv({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-settings-title" });
+    const backendLabel = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n webhook";
+    text.createDiv({
+      text: `v${this.plugin.manifest.version} \xB7 \u8FDE\u63A5 ${backendLabel} \u5904\u7406\u89C6\u9891\u3001\u6587\u7A3F\u4E0E\u7B14\u8BB0`,
+      cls: "vs-settings-sub"
+    });
+    const pill = header.createEl("button", {
+      cls: "vs-settings-pill",
+      attr: { type: "button", title: "\u70B9\u51FB\u6D4B\u8BD5\u540E\u7AEF\u8FDE\u63A5" }
+    });
+    const dot = pill.createSpan({ cls: "vs-backend-dot" });
+    const label = pill.createSpan({ text: "\u672A\u68C0\u6D4B" });
+    pill.addEventListener("click", async () => {
+      dot.className = "vs-backend-dot is-checking";
+      label.setText("\u68C0\u6D4B\u4E2D\u2026");
+      try {
+        const result = await this.plugin.api.testConnection();
+        dot.className = `vs-backend-dot ${result.success ? "is-online" : "is-offline"}`;
+        label.setText(
+          result.success ? `\u540E\u7AEF\u5728\u7EBF \xB7 ${result.durationMs ?? 0}ms` : "\u540E\u7AEF\u79BB\u7EBF"
+        );
+      } catch {
+        dot.className = "vs-backend-dot is-offline";
+        label.setText("\u540E\u7AEF\u79BB\u7EBF");
+      }
+    });
+  }
+  /** 统一的分区卡片：lucide 图标 + 标题，取代各处 emoji h3 */
+  sectionCard(containerEl, icon, title, extraCls = "") {
+    const section2 = containerEl.createDiv({
+      cls: `setting-section vs-settings-card ${extraCls}`.trim()
+    });
+    const titleRow = section2.createDiv({ cls: "vs-settings-card-title" });
+    const iconEl = titleRow.createSpan({ cls: "vs-settings-card-icon" });
+    (0, import_obsidian14.setIcon)(iconEl, icon);
+    titleRow.createSpan({ text: title, cls: "vs-settings-card-text" });
+    return { section: section2, titleRow };
+  }
   renderTabs(containerEl) {
     const tabsContainer = containerEl.createDiv({ cls: "settings-tabs-bar" });
     const tabs = [
@@ -10057,10 +10053,14 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       { id: "core", label: "\u6838\u5FC3\u529F\u80FD", icon: "zap" },
       { id: "advanced", label: "\u9AD8\u7EA7", icon: "wrench" }
     ];
+    const seg = tabsContainer.createDiv({ cls: "vs-seg" });
     tabs.forEach((tab) => {
-      const tabBtn = tabsContainer.createDiv({
-        cls: `settings-tab-btn ${this.activeTab === tab.id ? "is-active" : ""}`
+      const tabBtn = seg.createEl("button", {
+        cls: `vs-seg-item${this.activeTab === tab.id ? " is-active" : ""}`,
+        attr: { type: "button" }
       });
+      const iconEl = tabBtn.createSpan({ cls: "vs-seg-icon" });
+      (0, import_obsidian14.setIcon)(iconEl, tab.icon);
       tabBtn.createSpan({ text: tab.label });
       tabBtn.onclick = () => {
         this.activeTab = tab.id;
@@ -10069,9 +10069,13 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     });
   }
   createSetupGuideSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section setup-guide-section" });
-    const titleRow = section2.createDiv({ cls: "setup-guide-title-row" });
-    titleRow.createEl("h3", { text: "\u5B89\u88C5\u68C0\u67E5" });
+    const { section: section2, titleRow } = this.sectionCard(
+      containerEl,
+      "shield-check",
+      "\u5B89\u88C5\u68C0\u67E5",
+      "setup-guide-section"
+    );
+    titleRow.addClass("setup-guide-title-row");
     if (this.plugin.settings.setupGuideDismissed) {
       new import_obsidian14.Setting(section2).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
         (button) => button.setButtonText("\u663E\u793A\u68C0\u67E5\u6E05\u5355").onClick(async () => {
@@ -10236,8 +10240,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     }
   }
   createPlatformMatrixSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section platform-matrix-section" });
-    section2.createEl("h3", { text: "\u5E73\u53F0\u80FD\u529B\u77E9\u9635" });
+    const { section: section2 } = this.sectionCard(containerEl, "layout-grid", "\u5E73\u53F0\u80FD\u529B\u77E9\u9635", "platform-matrix-section");
     section2.createEl("p", {
       text: "\u4E0D\u540C\u5E73\u53F0\u7684\u53EF\u7528\u6027\u4E0D\u4E00\u6837\u3002\u4F18\u5148\u7528\u672C\u5730\u6587\u4EF6\u3001\u516C\u5F00 YouTube/Bilibili \u6216\u5DF2\u7C98\u8D34\u6587\u7A3F\uFF1B\u77ED\u89C6\u9891\u5E73\u53F0\u901A\u5E38\u9700\u8981 cookies\u3002",
       cls: "setting-item-description"
@@ -10273,8 +10276,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   createCookiesSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section" });
-    section2.createEl("h3", { text: "\u{1F36A} Cookies \u7BA1\u7406" });
+    const { section: section2 } = this.sectionCard(containerEl, "cookie", "Cookies \u7BA1\u7406");
     section2.createEl("p", {
       text: "\u53D7\u9650\u5E73\u53F0\uFF08Bilibili / \u6296\u97F3 / \u5C0F\u7EA2\u4E66 / TikTok\uFF09\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002\u76EE\u5F55\u4E00\u822C\u662F n8n docker \u9879\u76EE\u91CC\u7684 docker/cookies\uFF1B\u6587\u4EF6\u540D\u5982 bilibili_cookies.txt\u3002",
       cls: "setting-item-description"
@@ -10411,8 +10413,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     });
   }
   createApiSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section" });
-    section2.createEl("h3", { text: "\u{1F517} \u4E3B\u5165\u53E3\u4E0E API \u914D\u7F6E" });
+    const { section: section2 } = this.sectionCard(containerEl, "link", "\u4E3B\u5165\u53E3\u4E0E API \u914D\u7F6E");
     this.createWorkflowCompatibilityCard(section2);
     new import_obsidian14.Setting(section2).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
       "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u5F53\u524D\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8981\u8C03\u7528 n8n \u8FD8\u662F\u672C\u5730 Codex worker\u3002"
@@ -10580,8 +10581,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
   }
   createBasicSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section" });
-    section2.createEl("h3", { text: "\u2699\uFE0F \u57FA\u7840\u914D\u7F6E" });
+    const { section: section2 } = this.sectionCard(containerEl, "sliders-horizontal", "\u57FA\u7840\u914D\u7F6E");
     new import_obsidian14.Setting(section2).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
@@ -10690,8 +10690,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
   }
   createQuickProcessingSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section" });
-    section2.createEl("h3", { text: "\u26A1 \u4E00\u952E\u5904\u7406\u914D\u7F6E" });
+    const { section: section2 } = this.sectionCard(containerEl, "zap", "\u4E00\u952E\u5904\u7406\u914D\u7F6E");
     const summarySubsection = section2.createEl("div", { cls: "setting-subsection" });
     summarySubsection.createEl("h4", { text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E" });
     new import_obsidian14.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
@@ -10722,8 +10721,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
   }
   createFileProcessingSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section" });
-    section2.createEl("h3", { text: "\u{1F4C1} \u6587\u4EF6\u5904\u7406\u914D\u7F6E" });
+    const { section: section2 } = this.sectionCard(containerEl, "files", "\u6587\u4EF6\u5904\u7406\u914D\u7F6E");
     new import_obsidian14.Setting(section2).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
@@ -10750,8 +10748,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
   }
   createPayloadKeysSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section" });
-    section2.createEl("h3", { text: "\u{1F4E1} Webhook Payload \u952E\u914D\u7F6E" });
+    const { section: section2 } = this.sectionCard(containerEl, "radio", "Webhook Payload \u952E\u914D\u7F6E");
     section2.createEl("p", {
       text: "\u81EA\u5B9A\u4E49\u53D1\u9001\u5230 n8n webhook \u7684 JSON \u5BF9\u8C61\u4E2D\u7684\u952E\u540D\u3002\u8FD9\u5141\u8BB8\u60A8\u9002\u5E94\u4E0D\u540C\u7684 n8n \u5DE5\u4F5C\u6D41\u914D\u7F6E\u3002",
       cls: "setting-item-description"
@@ -10775,8 +10772,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     createKeySetting("\u672C\u5730\u6587\u4EF6\u952E", "\u53D1\u9001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u7684\u952E\u540D", "local_file");
   }
   createAdvancedSection(containerEl) {
-    const section2 = containerEl.createEl("div", { cls: "setting-section" });
-    section2.createEl("h3", { text: "\u{1F527} \u9AD8\u7EA7\u914D\u7F6E" });
+    const { section: section2 } = this.sectionCard(containerEl, "wrench", "\u9AD8\u7EA7\u914D\u7F6E");
     new import_obsidian14.Setting(section2).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
