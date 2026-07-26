@@ -167,15 +167,27 @@ export interface ThumbOptions {
  * 封面来源是笔记 frontmatter 的 cover/image，拿不到很正常，不当错误处理。
  */
 export function thumbnail(parent: HTMLElement, options: ThumbOptions = {}): HTMLElement {
+  const hasCover = Boolean(options.cover);
   const thumb = parent.createDiv({
-    cls: `vs-thumb${options.size === 'lg' ? ' is-lg' : ''} ${platformClass(options.platform)}`,
+    cls: `vs-thumb${options.size === 'lg' ? ' is-lg' : ''} ${
+      hasCover ? 'has-cover' : 'is-placeholder'
+    } ${platformClass(options.platform)}`,
   });
   if (options.cover) {
     const img = thumb.createEl('img', { cls: 'vs-thumb-img', attr: { src: options.cover } });
-    img.addEventListener('error', () => img.remove());
+    img.addEventListener('error', () => {
+      img.remove();
+      thumb.removeClass('has-cover');
+      thumb.addClass('is-placeholder');
+      const fallback = thumb.createSpan({ cls: 'vs-thumb-placeholder-icon' });
+      setIcon(fallback, platformIcon(options.platform));
+    });
+  } else {
+    const fallback = thumb.createSpan({ cls: 'vs-thumb-placeholder-icon' });
+    setIcon(fallback, platformIcon(options.platform));
   }
   thumb.createSpan({ cls: 'vs-thumb-bar' });
-  if (options.duration) {
+  if (options.duration && hasCover) {
     thumb.createSpan({ text: options.duration, cls: 'vs-thumb-time' });
   }
   return thumb;

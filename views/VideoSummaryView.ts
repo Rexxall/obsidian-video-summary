@@ -1,13 +1,11 @@
 // agent: claude (2026-07-26) — v2.3.0 侧栏重构：行动区 / 任务流 / 笔记库 / 详情四层
-import { ItemView, TFile, WorkspaceLeaf } from 'obsidian';
+import { ItemView, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import VideoSummaryPlugin from '../main';
 import { SubmitOptions } from '../core/JobService';
 import { BackendState, DetailRef, PanelTab, ViewContext, ViewState } from './context';
 import { renderActionBar } from './panels/ActionBar';
 import { renderJobsPanel } from './panels/JobsPanel';
-import { renderLibraryPanel, resetLibraryPaging } from './panels/LibraryPanel';
 import { renderDetailPanel } from './panels/DetailPanel';
-import { segmented } from './ui';
 
 export const VIDEO_SUMMARY_VIEW_TYPE = 'video-summary-view';
 
@@ -29,7 +27,7 @@ export class VideoSummaryView extends ItemView {
       inputDraft: '',
       transcriptDraft: '',
       localFileDraft: '',
-      tab: plugin.settings.activePanelTab || 'jobs',
+      tab: 'jobs',
       detail: null,
       detailTab: 'preview',
       librarySearch: '',
@@ -123,6 +121,9 @@ export class VideoSummaryView extends ItemView {
         this.state.detail = null;
         this.renderPanels();
       },
+      openWorkbench: (tab: PanelTab = 'library') => {
+        void this.plugin.openVideoSummaryWorkbench(tab);
+      },
       submitOptions: (): SubmitOptions => ({
         mode: this.plugin.settings.defaultMode,
         language: this.plugin.settings.defaultLanguage,
@@ -159,38 +160,36 @@ export class VideoSummaryView extends ItemView {
       return;
     }
 
-    this.renderTabs(panel);
+    this.renderSidebarNavigation(panel);
     const body = panel.createDiv({ cls: 'vs-panel-body' });
-    if (this.state.tab === 'library') {
-      renderLibraryPanel(body, this.context());
-    } else {
-      renderJobsPanel(body, this.context());
-    }
+    renderJobsPanel(body, this.context());
     panel.scrollTop = scrollTop;
   }
 
-  private renderTabs(panel: HTMLElement) {
+  private renderSidebarNavigation(panel: HTMLElement) {
     const activeCount =
       this.plugin.jobs.getActive().length + this.plugin.jobs.countByState('review');
     const libraryCount = this.plugin.noteIndex.getAll().length;
-    const tabs: Array<[PanelTab, string, string | undefined]> = [
-      ['jobs', '任务', activeCount > 0 ? String(activeCount) : undefined],
-      ['library', '笔记库', String(libraryCount)],
-    ];
+    const wrapper = panel.createDiv({ cls: 'vs-sidebar-nav' });
+    const label = wrapper.createDiv({ cls: 'vs-sidebar-nav-label' });
+    label.createSpan({ text: activeCount > 0 ? `当前任务 ${activeCount}` : '最近活动' });
+    if (activeCount === 0) {
+      label.createSpan({ text: ' · 队列空闲', cls: 'vs-sidebar-nav-muted' });
+    }
 
-    const wrapper = panel.createDiv({ cls: 'vs-tab-row' });
-    segmented(
-      wrapper,
-      tabs.map(([value, label, count]) => ({ value, label, count })),
-      this.state.tab,
-      async (value) => {
-        this.state.tab = value;
-        this.plugin.settings.activePanelTab = value;
-        await this.plugin.saveSettings();
-        if (value === 'library') resetLibraryPaging();
-        this.renderPanels();
+    const library = wrapper.createEl('button', {
+      cls: 'vs-open-workbench',
+      attr: {
+        type: 'button',
+        title: `在主区域打开视频知识工作台（${libraryCount} 篇）`,
       },
-    );
+    });
+    library.createSpan({ text: `知识库 ${libraryCount}` });
+    const openIcon = library.createSpan({ cls: 'vs-open-workbench-icon' });
+    setIcon(openIcon, 'arrow-up-right');
+    library.addEventListener('click', () => {
+      void this.plugin.openVideoSummaryWorkbench('library');
+    });
   }
 
   private openNote(path: string) {

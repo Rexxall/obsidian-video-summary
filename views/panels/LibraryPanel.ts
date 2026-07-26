@@ -156,17 +156,8 @@ function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry)
   sub.createSpan({ text: formatRelative(entry.mtime) });
   body.addEventListener('click', () => ctx.openNote(entry.path));
 
-  // 状态胶囊即筛选：点一下就把列表收敛到同状态
-  statusPill(row, entry.status, {
-    onClick: async () => {
-      ctx.state.libraryFilter = entry.status as typeof ctx.state.libraryFilter;
-      ctx.plugin.settings.statusFilterValue = entry.status;
-      await ctx.plugin.saveSettings();
-      resetLibraryPaging();
-      ctx.renderPanels();
-    },
-    title: `只看${entry.status === 'success' ? '已完成' : entry.status === 'error' ? '失败' : entry.status === 'running' ? '处理中' : '待处理'}`,
-  });
+  // 状态只表达状态；筛选动作集中放在列表顶部，避免同一胶囊既像标签又像按钮。
+  statusPill(row, entry.status);
 
   const actions = row.createDiv({ cls: 'vs-row-actions' });
   if (entry.status !== 'running') {
