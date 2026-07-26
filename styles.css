@@ -3140,6 +3140,9 @@
 
 /* Full workspace */
 .video-summary-workspace {
+  width: 100%;
+  max-width: none;
+  margin: 0;
   overflow-y: auto;
   background-color: var(--background-primary);
 }
