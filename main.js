@@ -7905,6 +7905,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     this.unsubscribe = [];
     this.renderQueued = false;
     this.tickTimer = null;
+    this.lastActiveFilePath = "";
     this.plugin = plugin;
     this.state = {
       inputDraft: "",
@@ -7940,7 +7941,14 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     this.panelEl = container.createDiv({ cls: "vs-panels" });
     this.unsubscribe.push(this.plugin.jobs.subscribe(() => this.schedulePanelRender()));
     this.unsubscribe.push(this.plugin.noteIndex.subscribe(() => this.schedulePanelRender()));
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.renderAll()));
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        const path = this.app.workspace.getActiveFile()?.path ?? "";
+        if (path === this.lastActiveFilePath) return;
+        this.lastActiveFilePath = path;
+        this.renderAll();
+      })
+    );
     this.tickTimer = window.setInterval(() => {
       if (this.plugin.jobs.getActive().length > 0 && this.state.tab === "jobs" && !this.state.detail) {
         this.schedulePanelRender();

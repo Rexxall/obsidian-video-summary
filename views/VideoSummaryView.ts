@@ -18,6 +18,7 @@ export class VideoSummaryView extends ItemView {
   private unsubscribe: Array<() => void> = [];
   private renderQueued = false;
   private tickTimer: number | null = null;
+  private lastActiveFilePath = '';
 
   constructor(leaf: WorkspaceLeaf, plugin: VideoSummaryPlugin) {
     super(leaf);
@@ -62,7 +63,15 @@ export class VideoSummaryView extends ItemView {
 
     this.unsubscribe.push(this.plugin.jobs.subscribe(() => this.schedulePanelRender()));
     this.unsubscribe.push(this.plugin.noteIndex.subscribe(() => this.schedulePanelRender()));
-    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.renderAll()));
+    // 只在真的换了笔记时重画顶部，点侧栏内部不触发重建
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', () => {
+        const path = this.app.workspace.getActiveFile()?.path ?? '';
+        if (path === this.lastActiveFilePath) return;
+        this.lastActiveFilePath = path;
+        this.renderAll();
+      }),
+    );
 
     // 只在有任务在跑时开计时器刷新"已用 xx"，空闲时不空转
     this.tickTimer = window.setInterval(() => {
