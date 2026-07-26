@@ -134,11 +134,15 @@ export function segmented<T extends string>(
   active: T,
   onSelect: (value: T) => void,
 ): HTMLElement {
-  const row = parent.createDiv({ cls: 'vs-seg' });
+  const row = parent.createDiv({ cls: 'vs-seg', attr: { role: 'tablist' } });
   items.forEach((item) => {
     const seg = row.createEl('button', {
       cls: `vs-seg-item${item.value === active ? ' is-active' : ''}`,
-      attr: { type: 'button' },
+      attr: {
+        type: 'button',
+        role: 'tab',
+        'aria-selected': item.value === active ? 'true' : 'false',
+      },
     });
     if (item.icon) {
       const icon = seg.createSpan({ cls: 'vs-seg-icon' });
@@ -170,8 +174,26 @@ export function thumbnail(parent: HTMLElement, options: ThumbOptions = {}): HTML
   const thumb = parent.createDiv({
     cls: `vs-thumb${options.size === 'lg' ? ' is-lg' : ''} ${platformClass(options.platform)}`,
   });
+
+  // 封面缺失或加载失败时，保留一个低对比的平台占位。它完全在本地生成，
+  // 不会为了填满列表而额外请求第三方元数据，也不会伪装成真实视频截图。
+  const placeholder = thumb.createSpan({
+    cls: 'vs-thumb-placeholder',
+    attr: { 'aria-hidden': 'true' },
+  });
+  setIcon(placeholder, platformIcon(options.platform));
+
   if (options.cover) {
-    const img = thumb.createEl('img', { cls: 'vs-thumb-img', attr: { src: options.cover } });
+    const img = thumb.createEl('img', {
+      cls: 'vs-thumb-img',
+      attr: {
+        src: options.cover,
+        alt: '',
+        loading: 'lazy',
+        decoding: 'async',
+        referrerpolicy: 'no-referrer',
+      },
+    });
     img.addEventListener('error', () => img.remove());
   }
   thumb.createSpan({ cls: 'vs-thumb-bar' });

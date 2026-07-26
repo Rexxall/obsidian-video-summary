@@ -28,6 +28,9 @@ export class NoteFactory {
     const dateString = formatDateTime(now);
     const lines: string[] = ['---'];
     if (draft.input.url) lines.push(`link: ${yamlEscape(draft.input.url)}`);
+    lines.push('video_summary: true');
+    lines.push('source_type: video');
+    lines.push('video_summary_status: pending');
     lines.push('status: pending');
     lines.push(`video_title: ${yamlEscape(draft.title)}`);
     lines.push(`date: ${dateString}`);
@@ -85,13 +88,17 @@ export class NoteFactory {
     const filePath = await this.uniquePath(folder, fileName);
 
     const fm: string[] = ['---'];
-    fm.push(`status: ${options.successStatusValue || 'success'}`);
+    fm.push('video_summary: true');
+    fm.push('source_type: video');
+    fm.push('video_summary_status: success');
+    fm.push(`status: ${yamlEscape(options.successStatusValue || 'success')}`);
     if (entry.input.url) fm.push(`link: ${yamlEscape(entry.input.url)}`);
     if (entry.result.video_title) fm.push(`video_title: ${yamlEscape(entry.result.video_title)}`);
     if (entry.result.video_author)
       fm.push(`video_author: ${yamlEscape(entry.result.video_author)}`);
     if (entry.result.video_duration)
       fm.push(`video_duration: ${yamlEscape(entry.result.video_duration)}`);
+    if (entry.result.video_cover) fm.push(`video_cover: ${yamlEscape(entry.result.video_cover)}`);
     fm.push(`date: ${new Date(entry.timestamp).toISOString()}`);
     if (entry.result.summary) {
       fm.push('summary: |');

@@ -1381,6 +1381,9 @@ export default class VideoSummaryPlugin extends Plugin {
       const content = [
         '---',
         `link: ${url}`,
+        'video_summary: true',
+        'source_type: video',
+        'video_summary_status: pending',
         'status: pending',
         'source: protocol',
         `captured_at: ${new Date().toISOString()}`,

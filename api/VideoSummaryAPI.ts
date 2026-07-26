@@ -795,6 +795,17 @@ export class VideoSummaryAPI {
       payload.video_duration = normalizedDuration;
     }
 
+    const normalizedCover = pickField([
+      'video_cover',
+      'cover',
+      'thumbnail',
+      'thumbnail_url',
+      'thumbnailUrl',
+    ]);
+    if (normalizedCover) {
+      payload.video_cover = normalizedCover;
+    }
+
     // 解析成功响应
     const result: ProcessingResult = {};
 
@@ -816,6 +827,9 @@ export class VideoSummaryAPI {
     }
     if (payload.video_duration && typeof payload.video_duration === 'string') {
       result.video_duration = payload.video_duration;
+    }
+    if (payload.video_cover && typeof payload.video_cover === 'string') {
+      result.video_cover = payload.video_cover;
     }
 
     // 检查是否有任何有效数据
@@ -842,6 +856,9 @@ export class VideoSummaryAPI {
           'video_title',
           'video_author',
           'video_duration',
+          'video_cover',
+          'cover',
+          'thumbnail',
           'metadata',
           'info',
         ].some((field) => candidate[field] !== undefined);

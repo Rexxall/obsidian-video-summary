@@ -156,7 +156,12 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   statusPill(body.createDiv({ cls: 'vs-job-side' }), 'review');
 
   const actions = card.createDiv({ cls: 'vs-job-actions' });
-  textButton(actions, '预览', () => ctx.openDetail({ kind: 'job', id: job.id }), 'is-primary is-fill');
+  textButton(
+    actions,
+    '预览',
+    () => ctx.openDetail({ kind: 'job', id: job.id }),
+    'is-primary is-fill',
+  );
   textButton(
     actions,
     '直接写入',
@@ -168,17 +173,26 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
     },
     'is-fill',
   );
-  iconButton(actions, 'trash-2', '丢弃结果', async () => {
-    await ctx.plugin.jobService.discardResult(job);
-    ctx.renderPanels();
-  }, 'vs-icon-btn-boxed');
+  iconButton(
+    actions,
+    'trash-2',
+    '丢弃结果',
+    async () => {
+      await ctx.plugin.jobService.discardResult(job);
+      ctx.renderPanels();
+    },
+    'vs-icon-btn-boxed',
+  );
 }
 
 /** 任务对应笔记的封面/时长（拿不到就用占位斜纹） */
-function mediaOf(ctx: ViewContext, job: Job): { cover?: string; duration?: string; platform?: string } {
+function mediaOf(
+  ctx: ViewContext,
+  job: Job,
+): { cover?: string; duration?: string; platform?: string } {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : undefined;
   return {
-    cover: entry?.cover,
+    cover: entry?.cover || safeCoverUrl(job.result?.video_cover),
     duration: entry?.duration || job.result?.video_duration,
     platform: job.platform || entry?.platform,
   };
@@ -247,8 +261,13 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   body.createDiv({ text: row.title, cls: 'vs-row-title' });
 
   if (row.state === 'error' && row.error) {
-    // 失败行直接把原因摆在副行，不用点进详情
-    body.createDiv({ text: row.error, cls: 'vs-row-sub is-error' });
+    // 列表只给可行动的一句摘要，避免 URL、本机路径或后端响应直接铺在侧栏。
+    // 原始错误仍保留在任务详情、日志和“复制失败原因”操作里。
+    body.createDiv({
+      text: summarizeError(row.error),
+      cls: 'vs-row-sub is-error',
+      attr: { title: '点击任务查看完整失败详情' },
+    });
   } else {
     const sub = body.createDiv({ cls: 'vs-row-sub' });
     if (row.time) sub.createSpan({ text: formatRelative(row.time) });
@@ -262,6 +281,14 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
     } else if (row.record) {
       ctx.openDetail({ kind: 'history', file: row.record.file, time: row.record.time });
     }
+  });
+  body.tabIndex = 0;
+  body.setAttribute('role', 'button');
+  body.setAttribute('aria-label', `查看任务详情：${row.title}`);
+  body.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    body.click();
   });
 
   // 状态胶囊即动作：失败行点一下就是跳过缓存重跑
@@ -305,6 +332,58 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
 
 function findEntry(ctx: ViewContext, basename: string) {
   return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
+}
+
+/** 后端封面必须是可显示的图片 URL；拒绝任意协议和本机绝对路径。 */
+function safeCoverUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const cover = value.trim();
+  if (!cover) return undefined;
+  if (/^(https?:|app:|data:image\/)/i.test(cover)) return cover;
+  return undefined;
+}
+
+/** 把可能包含 URL、路径和服务端原文的错误压成稳定、安全的一句话。 */
+function summarizeError(raw: string): string {
+  const error = raw.toLowerCase();
+
+  if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) {
+    return '登录状态已失效 · 更新凭证后重试';
+  }
+  if (/429|rate.?limit|too many requests|请求过于频繁|限流|quota/.test(error)) {
+    return '请求过于频繁 · 稍后重试';
+  }
+  if (/401|unauthorized|api.?key|鉴权|授权失败|invalid.?key/.test(error)) {
+    return '服务授权失败 · 检查密钥配置';
+  }
+  if (/403|forbidden|拒绝访问|access denied/.test(error)) {
+    return '访问被拒绝 · 检查账号权限';
+  }
+  if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
+    return '处理流程未启用 · 检查 Webhook';
+  }
+  if (/空响应|empty response|no response body/.test(error)) {
+    return '服务端未返回内容 · 检查处理流程';
+  }
+  if (/json|返回格式|unexpected token|parse response/.test(error)) {
+    return '服务返回格式异常 · 查看详情';
+  }
+  if (/timeout|timed out|etimedout|超时|aborterror/.test(error)) {
+    return '连接超时 · 检查服务或网络';
+  }
+  if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
+    return '无法连接处理服务 · 检查后端';
+  }
+  if (/cookie|download|下载|video unavailable|视频不可用|解析视频|提取视频/.test(error)) {
+    return '视频读取失败 · 查看详情';
+  }
+  if (/enoent|eacces|permission denied|本地文件|local file|文件不存在/.test(error)) {
+    return '本机文件无法读取 · 检查路径权限';
+  }
+  if (/model|模型|gemini|openai|anthropic/.test(error)) {
+    return '模型处理失败 · 查看详情';
+  }
+  return '处理失败 · 点击查看详情';
 }
 
 async function rerun(ctx: ViewContext, row: HistoryRow) {

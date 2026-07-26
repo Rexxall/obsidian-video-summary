@@ -2750,10 +2750,12 @@ ${body}`;
     };
     [
       "status",
+      "video_summary_status",
       "link",
       "video_title",
       "video_author",
       "video_duration",
+      "video_cover",
       "summary",
       "video_transcript",
       "date",
@@ -2775,9 +2777,12 @@ ${body}`;
   async updateNote(file, result, mode, options) {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = "video";
     if (result.video_title) fm.video_title = result.video_title;
     if (result.video_author) fm.video_author = result.video_author;
     if (result.video_duration) fm.video_duration = result.video_duration;
+    if (result.video_cover) fm.video_cover = result.video_cover;
     if (result.summary) fm.summary = result.summary;
     if (result.video_transcript) fm.video_transcript = result.video_transcript;
     delete fm.processing_error;
@@ -2804,7 +2809,11 @@ ${body}`;
   async setProcessingStatus(file, status) {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
-    fm.status = status;
+    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = "video";
+    fm.video_summary_status = canonicalPluginStatus(status);
+    if (mirrorLegacyStatus) fm.status = status;
     const newContent = this.buildContent(fm, body);
     await this.vault.modify(file, newContent);
   }
@@ -2812,7 +2821,11 @@ ${body}`;
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
     const errorMessage = this.normalizeErrorMessage(error);
-    fm.status = "error";
+    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = "video";
+    fm.video_summary_status = "error";
+    if (mirrorLegacyStatus) fm.status = "error";
     fm.processing_error = errorMessage;
     fm.processing_error_at = (/* @__PURE__ */ new Date()).toISOString();
     const newBody = `${this.removeProcessingErrorBlock(body).trim()}
@@ -2923,7 +2936,7 @@ ${fieldLine}`;
    */
   getProcessingStatus(content) {
     const metadata = this.extractMetadata(content);
-    return metadata.status || null;
+    return metadata.video_summary_status || metadata.status || null;
   }
   /**
    * 检查笔记是否需要处理
@@ -3029,6 +3042,37 @@ ${fieldLine}`;
     }
   }
 };
+function shouldMirrorLegacyStatus(value) {
+  if (value === void 0 || value === null || String(value).trim() === "") return true;
+  const status = String(value).trim().toLowerCase();
+  return (/* @__PURE__ */ new Set([
+    "pending",
+    "running",
+    "success",
+    "error",
+    "excluded",
+    "\u{1F4FA}",
+    "\u23F3",
+    "\u2705",
+    "\u25B6\uFE0F",
+    "\u274C",
+    "\u26D4\uFE0F",
+    "\u26D4",
+    "\u5F85\u5904\u7406",
+    "\u5904\u7406\u4E2D",
+    "\u5DF2\u5904\u7406",
+    "\u5904\u7406\u5931\u8D25",
+    "\u975E\u89C6\u9891\u7B14\u8BB0"
+  ])).has(status);
+}
+function canonicalPluginStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (status === "pending" || status === "\u{1F4FA}" || status === "\u5F85\u5904\u7406") return "pending";
+  if (status === "running" || status === "\u23F3" || status === "\u5904\u7406\u4E2D") return "running";
+  if (status === "error" || status === "\u274C" || status === "\u5904\u7406\u5931\u8D25") return "error";
+  if (status === "excluded" || status.includes("\u26D4") || status === "\u975E\u89C6\u9891\u7B14\u8BB0") return "excluded";
+  return "success";
+}
 
 // utils/RetryUtils.ts
 var RetryUtils = class {
@@ -3666,11 +3710,15 @@ function statusPill(parent, status, options = {}) {
   return pill;
 }
 function segmented(parent, items, active, onSelect) {
-  const row = parent.createDiv({ cls: "vs-seg" });
+  const row = parent.createDiv({ cls: "vs-seg", attr: { role: "tablist" } });
   items.forEach((item) => {
     const seg = row.createEl("button", {
       cls: `vs-seg-item${item.value === active ? " is-active" : ""}`,
-      attr: { type: "button" }
+      attr: {
+        type: "button",
+        role: "tab",
+        "aria-selected": item.value === active ? "true" : "false"
+      }
     });
     if (item.icon) {
       const icon = seg.createSpan({ cls: "vs-seg-icon" });
@@ -3689,8 +3737,22 @@ function thumbnail(parent, options = {}) {
   const thumb = parent.createDiv({
     cls: `vs-thumb${options.size === "lg" ? " is-lg" : ""} ${platformClass(options.platform)}`
   });
+  const placeholder = thumb.createSpan({
+    cls: "vs-thumb-placeholder",
+    attr: { "aria-hidden": "true" }
+  });
+  (0, import_obsidian3.setIcon)(placeholder, platformIcon(options.platform));
   if (options.cover) {
-    const img = thumb.createEl("img", { cls: "vs-thumb-img", attr: { src: options.cover } });
+    const img = thumb.createEl("img", {
+      cls: "vs-thumb-img",
+      attr: {
+        src: options.cover,
+        alt: "",
+        loading: "lazy",
+        decoding: "async",
+        referrerpolicy: "no-referrer"
+      }
+    });
     img.addEventListener("error", () => img.remove());
   }
   thumb.createSpan({ cls: "vs-thumb-bar" });
@@ -3720,6 +3782,23 @@ function formatClock(ms) {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+function platformIcon(platform) {
+  switch (platform) {
+    case "youtube":
+      return "youtube";
+    case "bilibili":
+      return "tv";
+    case "douyin":
+    case "tiktok":
+      return "music";
+    case "xiaohongshu":
+      return "book-open";
+    case "local":
+      return "file-video";
+    default:
+      return "link";
+  }
 }
 function modeLabel(mode) {
   switch (mode) {
@@ -3785,6 +3864,22 @@ function emptyState(parent, icon, title, hint) {
 var import_obsidian4 = require("obsidian");
 
 // utils/VideoUtils.ts
+var VIDEO_STATUS_FIELDS = [
+  "video_summary_status",
+  "video_processing_status",
+  "video_status"
+];
+var YAML_BLOCK_MARKERS = /* @__PURE__ */ new Set(["|", "|-", "|+", ">", ">-", ">+"]);
+var EMPTY_OUTPUT_VALUES = /* @__PURE__ */ new Set([
+  "",
+  "null",
+  "undefined",
+  "n/a",
+  "none",
+  "\uFF08\u65E0\uFF09",
+  "\u6682\u65E0",
+  "\u5F85\u751F\u6210"
+]);
 var VideoUtils = class {
   /**
    * 验证是否为有效的视频URL
@@ -3798,7 +3893,7 @@ var VideoUtils = class {
    * 从内容中提取视频URL
    */
   static extractVideoUrl(content) {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (fmMatch) {
       const fmText = fmMatch[1];
       const arrayLinkMatch = fmText.match(/^link:\s*\n((?:\s*-\s*https?:\/\/[^\n]+\n?)+)/m);
@@ -3806,7 +3901,8 @@ var VideoUtils = class {
         const arrayContent = arrayLinkMatch[1];
         const urlMatches = arrayContent.match(/https?:\/\/[^\s\n]+/g);
         if (urlMatches) {
-          for (const url of urlMatches) {
+          for (const rawUrl of urlMatches) {
+            const url = this.trimExtractedUrl(rawUrl);
             if (this.isValidVideoUrl(url)) {
               return url;
             }
@@ -3824,13 +3920,33 @@ var VideoUtils = class {
     const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
     const urls = content.match(urlRegex);
     if (urls) {
-      for (const url of urls) {
+      for (const rawUrl of urls) {
+        const url = this.trimExtractedUrl(rawUrl);
         if (this.isValidVideoUrl(url)) {
           return url;
         }
       }
     }
     return null;
+  }
+  /**
+   * 提取正文中的所有视频链接，供旧笔记兜底索引判断是否是多链接聚合页。
+   * 同一视频的时间戳链接会折叠，但 B 站分 P 会保留为不同链接。
+   */
+  static extractVideoUrls(content) {
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+    const urls = content.match(urlRegex) ?? [];
+    const unique = /* @__PURE__ */ new Map();
+    for (const rawUrl of urls) {
+      const url = this.trimExtractedUrl(rawUrl);
+      if (!this.isValidVideoUrl(url)) continue;
+      const canonical = this.cleanVideoUrlKeepP(url);
+      if (!unique.has(canonical)) unique.set(canonical, url);
+    }
+    return Array.from(unique.values());
+  }
+  static trimExtractedUrl(value) {
+    return value.replace(/[),.;:!?，。；：！？）】》]+$/g, "");
   }
   /**
    * 剥掉 YAML 标量外层的成对引号（link: "https://..." / link: 'https://...'）
@@ -3845,38 +3961,25 @@ var VideoUtils = class {
    * 从内容中提取处理状态
    */
   static getProcessingStatus(content) {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      const fmText = fmMatch[1];
-      const lines = fmText.split("\n");
-      for (const line of lines) {
-        if (line.startsWith("status:")) {
-          const status = line.substring(7).trim();
-          if (!status || status === "") {
-            return "pending";
-          }
-          return status;
-        }
-      }
-    }
-    return "pending";
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return "pending";
+    const fmText = fmMatch[1];
+    const hasGeneratedOutput = this.hasMeaningfulYamlField(fmText, "summary") || this.hasMeaningfulYamlField(fmText, "video_transcript");
+    return this.resolveProcessingStatus(
+      (field) => this.readYamlScalar(fmText, field),
+      hasGeneratedOutput
+    );
   }
   /**
    * 检查是否为视频笔记
    * 如果status中有 '⛔️' 标志，则排除
    */
   static isVideoNote(content) {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (fmMatch) {
       const fmText = fmMatch[1];
-      const statusMatch = fmText.match(/^status:\s*(.+)$/m);
-      if (statusMatch) {
-        const status = statusMatch[1].trim();
-        const normalized = this.normalizeStatus(status);
-        if (normalized === "excluded") {
-          return false;
-        }
-      }
+      if (this.isExplicitlyNonVideoFromRawFrontmatter(fmText)) return false;
+      if (this.hasExplicitVideoMarkerFromRawFrontmatter(fmText)) return true;
       const videoUrl2 = this.extractVideoUrl(content);
       const hasVideoUrl = !!videoUrl2;
       const hasVideoMetadata = this.hasVideoMetadata(content);
@@ -3945,13 +4048,17 @@ var VideoUtils = class {
    */
   static isVideoNoteFromFrontmatter(frontmatter) {
     if (!frontmatter || typeof frontmatter !== "object") return false;
-    const status = String(frontmatter.status ?? "").trim();
-    if (this.normalizeStatus(status) === "excluded") return false;
+    if (this.isExplicitlyNonVideoFromFrontmatter(frontmatter)) return false;
+    if (this.hasExplicitVideoMarker(frontmatter)) return true;
     const linkField = frontmatter.link;
     if (Array.isArray(linkField)) {
+      const videoLinks = /* @__PURE__ */ new Set();
       for (const l of linkField) {
-        if (typeof l === "string" && this.isValidVideoUrl(l)) return true;
+        if (typeof l === "string" && this.isValidVideoUrl(l)) {
+          videoLinks.add(this.cleanVideoUrlKeepP(l));
+        }
       }
+      if (videoLinks.size === 1) return true;
     } else if (typeof linkField === "string") {
       if (this.isValidVideoUrl(linkField)) return true;
     }
@@ -3959,17 +4066,47 @@ var VideoUtils = class {
       return true;
     if (typeof (frontmatter.local_file ?? frontmatter.localFileName ?? frontmatter.localFile) === "string" && (frontmatter.local_file ?? frontmatter.localFileName ?? frontmatter.localFile).trim())
       return true;
-    if (typeof frontmatter.video_transcript === "string" && frontmatter.video_transcript.trim())
+    if (typeof frontmatter.video_transcript === "string" && this.isMeaningfulOutputValue(frontmatter.video_transcript))
+      return true;
+    if (typeof frontmatter.video_title === "string" && frontmatter.video_title.trim() && this.isMeaningfulOutputValue(frontmatter.summary))
       return true;
     return false;
+  }
+  /**
+   * 明确声明为非视频的来源优先于链接/正文兜底，避免图片和文章采集笔记混入媒体库。
+   */
+  static isExplicitlyNonVideoFromFrontmatter(frontmatter) {
+    if (!frontmatter || typeof frontmatter !== "object") return false;
+    const pluginStatus = this.readPluginStatusFromFrontmatter(frontmatter);
+    if (pluginStatus.present && pluginStatus.normalized === "excluded") return true;
+    if (!pluginStatus.present) {
+      const genericStatus = this.normalizeStatus(String(frontmatter.status ?? "").trim());
+      if (genericStatus === "excluded") return true;
+    }
+    const marker = frontmatter.video_summary;
+    if (marker === false || String(marker ?? "").trim().toLowerCase() === "false")
+      return true;
+    const sourceType = String(frontmatter.source_type ?? "").trim().toLowerCase();
+    if (["image", "images", "article", "text", "note", "document", "pdf", "webpage"].includes(
+      sourceType
+    )) {
+      return true;
+    }
+    const transcriptStatus = String(frontmatter.video_transcript_status ?? "").trim().toLowerCase();
+    return transcriptStatus === "not-applicable" || transcriptStatus === "not_applicable";
   }
   /**
    * 基于 frontmatter 获取处理状态
    */
   static getProcessingStatusFromFrontmatter(frontmatter) {
     if (!frontmatter || typeof frontmatter !== "object") return "pending";
-    const status = String(frontmatter.status ?? "").trim();
-    return status || "pending";
+    const hasGeneratedOutput = this.isMeaningfulOutputValue(frontmatter.summary) || this.isMeaningfulOutputValue(frontmatter.video_transcript);
+    return this.resolveProcessingStatus((field) => {
+      if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) {
+        return { present: false, value: "" };
+      }
+      return { present: true, value: String(frontmatter[field] ?? "").trim() };
+    }, hasGeneratedOutput);
   }
   /**
    * 检查内容是否包含视频元数据
@@ -3984,14 +4121,130 @@ var VideoUtils = class {
     if (this.extractLocalFileName(content)) {
       return true;
     }
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (fmMatch) {
       const fmText = fmMatch[1];
-      if (fmText.match(/^video_transcript:/m)) {
+      if (this.hasMeaningfulYamlField(fmText, "video_transcript")) {
         return true;
       }
     }
     return false;
+  }
+  static resolveProcessingStatus(readField, hasGeneratedOutput) {
+    for (const field of VIDEO_STATUS_FIELDS) {
+      const dedicated = readField(field);
+      if (!dedicated.present) continue;
+      const normalized = this.normalizeStatus(dedicated.value);
+      if (normalized !== "other") return normalized;
+      return hasGeneratedOutput ? "success" : "pending";
+    }
+    const generic = readField("status");
+    if (generic.present) {
+      const normalized = this.normalizeStatus(generic.value);
+      if (normalized !== "other") return normalized;
+    }
+    return hasGeneratedOutput ? "success" : "pending";
+  }
+  static readPluginStatusFromFrontmatter(frontmatter) {
+    for (const field of VIDEO_STATUS_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) continue;
+      return {
+        present: true,
+        normalized: this.normalizeStatus(String(frontmatter[field] ?? "").trim())
+      };
+    }
+    return { present: false, normalized: "other" };
+  }
+  static hasExplicitVideoMarker(frontmatter) {
+    const pluginStatus = this.readPluginStatusFromFrontmatter(frontmatter);
+    if (pluginStatus.present) return true;
+    const markerValues = [
+      frontmatter.video_summary,
+      frontmatter.video_summary_plugin,
+      frontmatter.video_summary_managed
+    ];
+    if (markerValues.some(
+      (value) => value === true || ["true", "yes", "managed", "video"].includes(
+        String(value ?? "").trim().toLowerCase()
+      )
+    )) {
+      return true;
+    }
+    const source = String(frontmatter.source ?? "").trim().toLowerCase();
+    const sourceType = String(frontmatter.source_type ?? "").trim().toLowerCase();
+    return ["video-summary", "video_summary", "obsidian-video-summary"].includes(source) || ["video", "audio", "media"].includes(sourceType);
+  }
+  static hasExplicitVideoMarkerFromRawFrontmatter(fmText) {
+    if (VIDEO_STATUS_FIELDS.some((field) => {
+      return this.readYamlScalar(fmText, field).present;
+    })) {
+      return true;
+    }
+    for (const field of ["video_summary", "video_summary_plugin", "video_summary_managed"]) {
+      const marker = this.readYamlScalar(fmText, field);
+      if (marker.present && ["true", "yes", "managed", "video"].includes(marker.value.toLowerCase())) {
+        return true;
+      }
+    }
+    const source = this.readYamlScalar(fmText, "source");
+    const sourceType = this.readYamlScalar(fmText, "source_type");
+    return source.present && ["video-summary", "video_summary", "obsidian-video-summary"].includes(
+      source.value.toLowerCase()
+    ) || sourceType.present && ["video", "audio", "media"].includes(sourceType.value.toLowerCase());
+  }
+  static isExplicitlyNonVideoFromRawFrontmatter(fmText) {
+    const pluginStatus = VIDEO_STATUS_FIELDS.map(
+      (field) => this.readYamlScalar(fmText, field)
+    ).find((value) => value.present);
+    if (pluginStatus && this.normalizeStatus(pluginStatus.value) === "excluded") return true;
+    if (!pluginStatus) {
+      const status = this.readYamlScalar(fmText, "status");
+      if (status.present && this.normalizeStatus(status.value) === "excluded") return true;
+    }
+    const marker = this.readYamlScalar(fmText, "video_summary");
+    if (marker.present && marker.value.toLowerCase() === "false") return true;
+    const sourceType = this.readYamlScalar(fmText, "source_type");
+    if (sourceType.present && ["image", "images", "article", "text", "note", "document", "pdf", "webpage"].includes(
+      sourceType.value.toLowerCase()
+    )) {
+      return true;
+    }
+    const transcriptStatus = this.readYamlScalar(fmText, "video_transcript_status");
+    if (!transcriptStatus.present) return false;
+    const normalized = transcriptStatus.value.toLowerCase();
+    return normalized === "not-applicable" || normalized === "not_applicable";
+  }
+  static readYamlScalar(fmText, field) {
+    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = fmText.match(new RegExp(`^${escapedField}:\\s*(.*)$`, "m"));
+    if (!match) return { present: false, value: "" };
+    return { present: true, value: this.stripYamlQuotes(match[1].trim()) };
+  }
+  static hasMeaningfulYamlField(fmText, field) {
+    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = fmText.match(new RegExp(`^${escapedField}:\\s*(.*)$`, "m"));
+    if (!match) return false;
+    const inlineValue = this.stripYamlQuotes(match[1].trim());
+    if (!YAML_BLOCK_MARKERS.has(inlineValue)) {
+      return this.isMeaningfulOutputValue(inlineValue);
+    }
+    const fieldLineEnd = (match.index ?? 0) + match[0].length;
+    const followingLines = fmText.slice(fieldLineEnd).replace(/^\r?\n/, "").split(/\r?\n/);
+    const blockLines = [];
+    for (const line of followingLines) {
+      if (!line.trim() || /^[ \t]+/.test(line)) {
+        blockLines.push(line);
+        continue;
+      }
+      break;
+    }
+    return this.isMeaningfulOutputValue(blockLines.join("\n"));
+  }
+  static isMeaningfulOutputValue(value) {
+    if (typeof value !== "string") return false;
+    const normalized = value.trim();
+    if (EMPTY_OUTPUT_VALUES.has(normalized.toLowerCase())) return false;
+    return !/^<!--[\s\S]*-->$/.test(normalized);
   }
   /**
    * 清理视频URL，去除多余参数
@@ -4124,7 +4377,7 @@ var NoteIndex = class {
     const files = this.app.vault.getMarkdownFiles();
     for (const file of files) {
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-      if (isExplicitlyNonVideo(frontmatter)) continue;
+      if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
         this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
       } else {
@@ -4153,7 +4406,7 @@ var NoteIndex = class {
       if (this.entries.has(file.path)) continue;
       try {
         const content = await this.app.vault.cachedRead(file);
-        if (VideoUtils.isVideoNote(content)) {
+        if (this.isLegacyVideoNote(file, content)) {
           this.entries.set(file.path, this.entryFromContent(file, content));
           changed = true;
         }
@@ -4167,7 +4420,7 @@ var NoteIndex = class {
   /** metadataCache 变化后刷新单个文件 */
   async refreshFile(file) {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (isExplicitlyNonVideo(frontmatter)) {
+    if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) {
       if (this.entries.delete(file.path)) this.emit();
       return;
     }
@@ -4178,7 +4431,7 @@ var NoteIndex = class {
     }
     try {
       const content = await this.app.vault.cachedRead(file);
-      if (VideoUtils.isVideoNote(content)) {
+      if (this.isLegacyVideoNote(file, content)) {
         this.entries.set(file.path, this.entryFromContent(file, content));
       } else if (this.entries.delete(file.path)) {
       }
@@ -4186,6 +4439,16 @@ var NoteIndex = class {
       this.entries.delete(file.path);
     }
     this.emit();
+  }
+  /**
+   * 旧笔记仍允许靠正文中的单个视频链接进入索引，但 README / MOC / 索引页以及
+   * 含多个不同视频的聚合页不再混入。已有视频 frontmatter/插件标记者走上面的快速路径。
+   */
+  isLegacyVideoNote(file, content) {
+    if (!VideoUtils.isVideoNote(content)) return false;
+    if (isIndexLikeFile(file)) return false;
+    const videoUrls = VideoUtils.extractVideoUrls(content);
+    return videoUrls.length <= 1;
   }
   handleDelete(file) {
     if (this.entries.delete(file.path)) this.emit();
@@ -4209,7 +4472,7 @@ var NoteIndex = class {
     return {
       path: file.path,
       basename: file.basename,
-      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
+      status: normalizeEntryStatus(rawStatus),
       link,
       platform: link ? detectPlatform2(link) : void 0,
       title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
@@ -4225,7 +4488,7 @@ var NoteIndex = class {
     return {
       path: file.path,
       basename: file.basename,
-      status: VideoUtils.normalizeStatus(rawStatus) || "pending",
+      status: normalizeEntryStatus(rawStatus),
       link,
       platform: link ? detectPlatform2(link) : void 0,
       ctime: file.stat.ctime,
@@ -4259,14 +4522,14 @@ function readString(value) {
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return void 0;
 }
-function isExplicitlyNonVideo(frontmatter) {
-  if (!frontmatter || typeof frontmatter !== "object") return false;
-  const sourceType = readString(frontmatter.source_type)?.toLowerCase();
-  if (sourceType && ["image", "images", "article", "text", "note", "document"].includes(sourceType)) {
-    return true;
-  }
-  const transcriptStatus = readString(frontmatter.video_transcript_status)?.toLowerCase();
-  return transcriptStatus === "not-applicable" || transcriptStatus === "not_applicable";
+function normalizeEntryStatus(status) {
+  const normalized = VideoUtils.normalizeStatus(status);
+  return normalized === "other" ? "pending" : normalized;
+}
+function isIndexLikeFile(file) {
+  const name = file.basename.trim().toLowerCase();
+  if (/^(?:readme|index|moc|map of contents?|目录|索引|导航)$/.test(name)) return true;
+  return /(?:^|[\s_.-])(?:readme|index|moc|目录|索引|导航)(?:$|[\s_.-])/.test(name);
 }
 function readCover(frontmatter) {
   return readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
@@ -6111,6 +6374,16 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     if (normalizedDuration) {
       payload.video_duration = normalizedDuration;
     }
+    const normalizedCover = pickField([
+      "video_cover",
+      "cover",
+      "thumbnail",
+      "thumbnail_url",
+      "thumbnailUrl"
+    ]);
+    if (normalizedCover) {
+      payload.video_cover = normalizedCover;
+    }
     const result = {};
     if (payload.summary && typeof payload.summary === "string") {
       result.summary = payload.summary;
@@ -6129,6 +6402,9 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     }
     if (payload.video_duration && typeof payload.video_duration === "string") {
       result.video_duration = payload.video_duration;
+    }
+    if (payload.video_cover && typeof payload.video_cover === "string") {
+      result.video_cover = payload.video_cover;
     }
     if (Object.keys(result).length === 0) {
       throw new Error("\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u6570\u636E\u4E2D\u6CA1\u6709\u6709\u6548\u5185\u5BB9");
@@ -6150,6 +6426,9 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
           "video_title",
           "video_author",
           "video_duration",
+          "video_cover",
+          "cover",
+          "thumbnail",
           "metadata",
           "info"
         ].some((field) => candidate[field] !== void 0);
@@ -6776,6 +7055,10 @@ var FolderSelectModal = class extends import_obsidian6.Modal {
 };
 
 // views/panels/ActionBar.ts
+var BACKEND_PROBE_TIMEOUT_MS = 8e3;
+var BACKEND_ONLINE_TTL_MS = 5 * 6e4;
+var BACKEND_OFFLINE_TTL_MS = 6e4;
+var backendProbeCaches = /* @__PURE__ */ new WeakMap();
 function renderActionBar(container, ctx) {
   const { state } = ctx;
   const root = container.createDiv({ cls: "vs-action-bar" });
@@ -6855,40 +7138,43 @@ function renderActionBar(container, ctx) {
     }
   });
 }
-function backendStateLabel(state) {
-  if (state === "is-online") return "\u5728\u7EBF";
-  if (state === "is-offline") return "\u79BB\u7EBF";
-  return "\u672A\u68C0\u6D4B";
-}
 function renderHeader(root, ctx) {
   const header = root.createDiv({ cls: "vs-header" });
   header.createSpan({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-header-title" });
   const actions = header.createDiv({ cls: "vs-header-actions" });
-  const backend = ctx.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n";
+  const backend = activeBackendInfo(ctx);
+  const cachedResult = freshProbeResult(ctx, backend);
+  const cachedEntry = backendProbeCaches.get(ctx.plugin);
+  const initialState = cachedEntry?.key === backend.key && cachedEntry.pending ? "is-checking" : cachedResult?.state || "is-unknown";
+  ctx.setBackendState(initialState);
   const statusPillEl = actions.createEl("button", {
     cls: "vs-backend-pill",
-    attr: { type: "button", title: `${backend}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5` }
+    attr: { type: "button" }
   });
-  const dot = statusPillEl.createSpan({ cls: `vs-backend-dot ${ctx.backendState()}` });
-  statusPillEl.createSpan({ text: `${backend} ${backendStateLabel(ctx.backendState())}` });
+  const dot = statusPillEl.createSpan({ cls: "vs-backend-dot" });
+  const label = statusPillEl.createSpan();
+  updateBackendPill(statusPillEl, dot, label, backend, initialState, cachedResult);
   statusPillEl.addEventListener("click", async (event) => {
     event.preventDefault();
-    dot.className = "vs-backend-dot is-checking";
-    try {
-      const result = await ctx.plugin.api.testConnection();
-      ctx.setBackendState(result.success ? "is-online" : "is-offline");
-      dot.className = `vs-backend-dot ${ctx.backendState()}`;
-      new import_obsidian7.Notice(
-        result.success ? `${backend} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}`,
-        result.success ? 3e3 : 8e3
-      );
-      ctx.renderAll();
-    } catch (error) {
-      ctx.setBackendState("is-offline");
-      dot.className = "vs-backend-dot is-offline";
-      new import_obsidian7.Notice(`\u8FDE\u63A5\u5931\u8D25\uFF1A${ctx.plugin.formatErrorForNotice(error)}`, 8e3);
-    }
+    if (ctx.backendState() === "is-checking") return;
+    ctx.setBackendState("is-checking");
+    updateBackendPill(statusPillEl, dot, label, backend, "is-checking");
+    const result = await probeBackend(ctx, backend, true);
+    updateBackendPill(statusPillEl, dot, label, backend, result.state, result);
+    new import_obsidian7.Notice(
+      result.state === "is-online" ? `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend.label} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.reason || "\u672A\u77E5\u539F\u56E0"}`,
+      result.state === "is-online" ? 3e3 : 6e3
+    );
+    ctx.renderAll();
   });
+  if (initialState === "is-unknown" || initialState === "is-checking") {
+    ctx.setBackendState("is-checking");
+    updateBackendPill(statusPillEl, dot, label, backend, "is-checking");
+    void probeBackend(ctx, backend).then((result) => {
+      ctx.setBackendState(result.state);
+      ctx.renderAll();
+    });
+  }
   iconButton(actions, "settings", "\u6253\u5F00\u63D2\u4EF6\u8BBE\u7F6E", () => {
     const settingApi = ctx.plugin.app.setting;
     if (settingApi?.open) {
@@ -6896,6 +7182,138 @@ function renderHeader(root, ctx) {
       settingApi.openTabById?.(ctx.plugin.manifest.id);
     }
   });
+}
+function activeBackendInfo(ctx) {
+  const isWorker = ctx.plugin.settings.activeBackend === "codex-worker";
+  const endpoint = ((isWorker ? ctx.plugin.settings.codexWorkerUrl : ctx.plugin.settings.n8nWebhookUrl) || "").trim();
+  return {
+    key: `${isWorker ? "codex-worker" : "n8n"}:${endpoint}`,
+    label: isWorker ? "Codex Worker" : "n8n",
+    endpoint
+  };
+}
+function freshProbeResult(ctx, backend) {
+  const cached = backendProbeCaches.get(ctx.plugin);
+  if (!cached || cached.key !== backend.key || !cached.result) return void 0;
+  const ttl = cached.result.state === "is-online" ? BACKEND_ONLINE_TTL_MS : BACKEND_OFFLINE_TTL_MS;
+  return Date.now() - cached.result.checkedAt < ttl ? cached.result : void 0;
+}
+async function probeBackend(ctx, backend, force = false) {
+  let cached = backendProbeCaches.get(ctx.plugin);
+  if (!cached || cached.key !== backend.key) {
+    cached = { key: backend.key };
+    backendProbeCaches.set(ctx.plugin, cached);
+  }
+  if (cached.pending) return cached.pending;
+  if (!force) {
+    const fresh = freshProbeResult(ctx, backend);
+    if (fresh) return fresh;
+  }
+  const pending = (async () => {
+    const checkedAt = Date.now();
+    if (!backend.endpoint) {
+      return { state: "is-offline", checkedAt, reason: "\u672A\u914D\u7F6E\u670D\u52A1\u5730\u5740" };
+    }
+    try {
+      if (force) {
+        const test = await withTimeout(ctx.plugin.api.testConnection(), BACKEND_PROBE_TIMEOUT_MS);
+        return test.success ? {
+          state: "is-online",
+          checkedAt: Date.now(),
+          verified: true,
+          durationMs: test.durationMs
+        } : {
+          state: "is-offline",
+          checkedAt: Date.now(),
+          verified: true,
+          durationMs: test.durationMs,
+          reason: summarizeBackendFailure(test.error || test.hint || "")
+        };
+      }
+      const health = await ctx.plugin.api.quickHealthCheck();
+      return health.ok ? { state: "is-online", checkedAt: Date.now(), verified: false } : {
+        state: "is-offline",
+        checkedAt: Date.now(),
+        verified: false,
+        reason: summarizeBackendFailure(health.error || "")
+      };
+    } catch (error) {
+      return {
+        state: "is-offline",
+        checkedAt: Date.now(),
+        reason: summarizeBackendFailure(error instanceof Error ? error.message : String(error))
+      };
+    }
+  })();
+  cached.pending = pending;
+  ctx.setBackendState("is-checking");
+  const result = await pending;
+  cached.result = result;
+  cached.pending = void 0;
+  ctx.setBackendState(result.state);
+  return result;
+}
+async function withTimeout(promise, timeoutMs) {
+  let timer = 0;
+  try {
+    const timeout = new Promise((_, reject) => {
+      timer = window.setTimeout(() => reject(new Error("\u8FDE\u63A5\u8D85\u65F6")), timeoutMs);
+    });
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+}
+function updateBackendPill(pill, dot, label, backend, state, result) {
+  dot.className = `vs-backend-dot ${state}`;
+  if (state === "is-checking") {
+    label.setText(`${backend.label} \u68C0\u6D4B\u4E2D\u2026`);
+    pill.setAttr("title", `${backend.label}\uFF1A\u6B63\u5728\u68C0\u6D4B\u8FDE\u63A5`);
+    return;
+  }
+  if (state === "is-online") {
+    const reachabilityOnly = result?.verified === false;
+    label.setText(`${backend.label} ${reachabilityOnly ? "\u53EF\u8FBE" : "\u5728\u7EBF"}`);
+    pill.setAttr(
+      "title",
+      `${backend.label} ${reachabilityOnly ? "\u7AEF\u70B9\u53EF\u8FBE\uFF0C\u5C1A\u672A\u9A8C\u8BC1\u5B8C\u6574\u54CD\u5E94" : "\u5728\u7EBF"}${result?.durationMs !== void 0 ? ` \xB7 ${result.durationMs}ms` : ""}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u8FD0\u884C\u5B8C\u6574\u68C0\u6D4B`
+    );
+    return;
+  }
+  if (state === "is-offline") {
+    const reason = result?.reason || "\u65E0\u6CD5\u8FDE\u63A5";
+    label.setText(`${backend.label} \u79BB\u7EBF \xB7 ${reason}`);
+    pill.setAttr(
+      "title",
+      `${backend.label} \u79BB\u7EBF\uFF1A${reason}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u91CD\u65B0\u68C0\u6D4B`
+    );
+    return;
+  }
+  label.setText(`${backend.label} \u672A\u68C0\u6D4B`);
+  pill.setAttr("title", `${backend.label}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5`);
+}
+function formatProbeTime(timestamp) {
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+function summarizeBackendFailure(raw) {
+  const error = raw.toLowerCase();
+  if (!error) return "\u672A\u77E5\u539F\u56E0";
+  if (/空响应|empty response|no response body/.test(error)) return "\u7A7A\u54CD\u5E94";
+  if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
+    return "\u6D41\u7A0B\u672A\u542F\u7528";
+  }
+  if (/401|unauthorized|api.?key|鉴权|授权失败/.test(error)) return "\u6388\u6743\u5931\u8D25";
+  if (/403|forbidden|拒绝访问/.test(error)) return "\u8BBF\u95EE\u88AB\u62D2\u7EDD";
+  if (/429|rate.?limit|too many requests|限流/.test(error)) return "\u8BF7\u6C42\u8FC7\u9891";
+  if (/json|返回格式|unexpected token/.test(error)) return "\u683C\u5F0F\u5F02\u5E38";
+  if (/timeout|timed out|etimedout|超时|abort/.test(error)) return "\u8FDE\u63A5\u8D85\u65F6";
+  if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
+    return "\u65E0\u6CD5\u8FDE\u63A5";
+  }
+  return "\u68C0\u6D4B\u5931\u8D25";
 }
 function renderContextStrip(root, ctx) {
   const activeFile = ctx.plugin.app.workspace.getActiveFile();
@@ -7130,7 +7548,10 @@ async function submit(ctx, input, fields) {
   }
   const looksAccidental = drafts.length === 1 && drafts[0].source === "transcript" && !transcript && raw.length > 0 && raw.length < 40 && !raw.includes("\n");
   if (looksAccidental) {
-    new import_obsidian7.Notice(`"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`, 8e3);
+    new import_obsidian7.Notice(
+      `"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`,
+      8e3
+    );
     return;
   }
   if (drafts.length > 50) {
@@ -7296,7 +7717,12 @@ function renderReviewJob(container, ctx, job) {
   info.createDiv({ text: summarize(job), cls: "vs-job-sub" });
   statusPill(body.createDiv({ cls: "vs-job-side" }), "review");
   const actions = card.createDiv({ cls: "vs-job-actions" });
-  textButton(actions, "\u9884\u89C8", () => ctx.openDetail({ kind: "job", id: job.id }), "is-primary is-fill");
+  textButton(
+    actions,
+    "\u9884\u89C8",
+    () => ctx.openDetail({ kind: "job", id: job.id }),
+    "is-primary is-fill"
+  );
   textButton(
     actions,
     "\u76F4\u63A5\u5199\u5165",
@@ -7308,15 +7734,21 @@ function renderReviewJob(container, ctx, job) {
     },
     "is-fill"
   );
-  iconButton(actions, "trash-2", "\u4E22\u5F03\u7ED3\u679C", async () => {
-    await ctx.plugin.jobService.discardResult(job);
-    ctx.renderPanels();
-  }, "vs-icon-btn-boxed");
+  iconButton(
+    actions,
+    "trash-2",
+    "\u4E22\u5F03\u7ED3\u679C",
+    async () => {
+      await ctx.plugin.jobService.discardResult(job);
+      ctx.renderPanels();
+    },
+    "vs-icon-btn-boxed"
+  );
 }
 function mediaOf(ctx, job) {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : void 0;
   return {
-    cover: entry?.cover,
+    cover: entry?.cover || safeCoverUrl(job.result?.video_cover),
     duration: entry?.duration || job.result?.video_duration,
     platform: job.platform || entry?.platform
   };
@@ -7366,7 +7798,11 @@ function renderHistoryRow(container, ctx, row) {
   const body = item.createDiv({ cls: "vs-row-body" });
   body.createDiv({ text: row.title, cls: "vs-row-title" });
   if (row.state === "error" && row.error) {
-    body.createDiv({ text: row.error, cls: "vs-row-sub is-error" });
+    body.createDiv({
+      text: summarizeError(row.error),
+      cls: "vs-row-sub is-error",
+      attr: { title: "\u70B9\u51FB\u4EFB\u52A1\u67E5\u770B\u5B8C\u6574\u5931\u8D25\u8BE6\u60C5" }
+    });
   } else {
     const sub = body.createDiv({ cls: "vs-row-sub" });
     if (row.time) sub.createSpan({ text: formatRelative(row.time) });
@@ -7379,6 +7815,14 @@ function renderHistoryRow(container, ctx, row) {
     } else if (row.record) {
       ctx.openDetail({ kind: "history", file: row.record.file, time: row.record.time });
     }
+  });
+  body.tabIndex = 0;
+  body.setAttribute("role", "button");
+  body.setAttribute("aria-label", `\u67E5\u770B\u4EFB\u52A1\u8BE6\u60C5\uFF1A${row.title}`);
+  body.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    body.click();
   });
   const statePill = row.state === "error" ? statusPill(item, "error", {
     label: "\u91CD\u8BD5",
@@ -7415,6 +7859,53 @@ function renderHistoryRow(container, ctx, row) {
 }
 function findEntry(ctx, basename) {
   return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
+}
+function safeCoverUrl(value) {
+  if (typeof value !== "string") return void 0;
+  const cover = value.trim();
+  if (!cover) return void 0;
+  if (/^(https?:|app:|data:image\/)/i.test(cover)) return cover;
+  return void 0;
+}
+function summarizeError(raw) {
+  const error = raw.toLowerCase();
+  if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) {
+    return "\u767B\u5F55\u72B6\u6001\u5DF2\u5931\u6548 \xB7 \u66F4\u65B0\u51ED\u8BC1\u540E\u91CD\u8BD5";
+  }
+  if (/429|rate.?limit|too many requests|请求过于频繁|限流|quota/.test(error)) {
+    return "\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41 \xB7 \u7A0D\u540E\u91CD\u8BD5";
+  }
+  if (/401|unauthorized|api.?key|鉴权|授权失败|invalid.?key/.test(error)) {
+    return "\u670D\u52A1\u6388\u6743\u5931\u8D25 \xB7 \u68C0\u67E5\u5BC6\u94A5\u914D\u7F6E";
+  }
+  if (/403|forbidden|拒绝访问|access denied/.test(error)) {
+    return "\u8BBF\u95EE\u88AB\u62D2\u7EDD \xB7 \u68C0\u67E5\u8D26\u53F7\u6743\u9650";
+  }
+  if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
+    return "\u5904\u7406\u6D41\u7A0B\u672A\u542F\u7528 \xB7 \u68C0\u67E5 Webhook";
+  }
+  if (/空响应|empty response|no response body/.test(error)) {
+    return "\u670D\u52A1\u7AEF\u672A\u8FD4\u56DE\u5185\u5BB9 \xB7 \u68C0\u67E5\u5904\u7406\u6D41\u7A0B";
+  }
+  if (/json|返回格式|unexpected token|parse response/.test(error)) {
+    return "\u670D\u52A1\u8FD4\u56DE\u683C\u5F0F\u5F02\u5E38 \xB7 \u67E5\u770B\u8BE6\u60C5";
+  }
+  if (/timeout|timed out|etimedout|超时|aborterror/.test(error)) {
+    return "\u8FDE\u63A5\u8D85\u65F6 \xB7 \u68C0\u67E5\u670D\u52A1\u6216\u7F51\u7EDC";
+  }
+  if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
+    return "\u65E0\u6CD5\u8FDE\u63A5\u5904\u7406\u670D\u52A1 \xB7 \u68C0\u67E5\u540E\u7AEF";
+  }
+  if (/cookie|download|下载|video unavailable|视频不可用|解析视频|提取视频/.test(error)) {
+    return "\u89C6\u9891\u8BFB\u53D6\u5931\u8D25 \xB7 \u67E5\u770B\u8BE6\u60C5";
+  }
+  if (/enoent|eacces|permission denied|本地文件|local file|文件不存在/.test(error)) {
+    return "\u672C\u673A\u6587\u4EF6\u65E0\u6CD5\u8BFB\u53D6 \xB7 \u68C0\u67E5\u8DEF\u5F84\u6743\u9650";
+  }
+  if (/model|模型|gemini|openai|anthropic/.test(error)) {
+    return "\u6A21\u578B\u5904\u7406\u5931\u8D25 \xB7 \u67E5\u770B\u8BE6\u60C5";
+  }
+  return "\u5904\u7406\u5931\u8D25 \xB7 \u70B9\u51FB\u67E5\u770B\u8BE6\u60C5";
 }
 async function rerun(ctx, row) {
   if (row.job) {
@@ -7633,6 +8124,14 @@ function renderRow(listEl, ctx, entry) {
   platformText(sub, entry.platform, platformLabel(entry.platform));
   sub.createSpan({ text: formatRelative(entry.mtime) });
   body.addEventListener("click", () => ctx.openNote(entry.path));
+  body.tabIndex = 0;
+  body.setAttribute("role", "button");
+  body.setAttribute("aria-label", `\u6253\u5F00\u7B14\u8BB0\uFF1A${entry.basename}`);
+  body.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    body.click();
+  });
   const statePill = statusPill(row, entry.status, {
     onClick: async () => {
       ctx.state.libraryFilter = entry.status;
@@ -8600,6 +9099,9 @@ var NoteFactory = class {
     const dateString = formatDateTime(now);
     const lines = ["---"];
     if (draft.input.url) lines.push(`link: ${yamlEscape(draft.input.url)}`);
+    lines.push("video_summary: true");
+    lines.push("source_type: video");
+    lines.push("video_summary_status: pending");
     lines.push("status: pending");
     lines.push(`video_title: ${yamlEscape(draft.title)}`);
     lines.push(`date: ${dateString}`);
@@ -8643,13 +9145,17 @@ var NoteFactory = class {
     const fileName = `${sanitizeFileName(baseTitle)}_${entry.timestamp}`;
     const filePath = await this.uniquePath(folder, fileName);
     const fm = ["---"];
-    fm.push(`status: ${options.successStatusValue || "success"}`);
+    fm.push("video_summary: true");
+    fm.push("source_type: video");
+    fm.push("video_summary_status: success");
+    fm.push(`status: ${yamlEscape(options.successStatusValue || "success")}`);
     if (entry.input.url) fm.push(`link: ${yamlEscape(entry.input.url)}`);
     if (entry.result.video_title) fm.push(`video_title: ${yamlEscape(entry.result.video_title)}`);
     if (entry.result.video_author)
       fm.push(`video_author: ${yamlEscape(entry.result.video_author)}`);
     if (entry.result.video_duration)
       fm.push(`video_duration: ${yamlEscape(entry.result.video_duration)}`);
+    if (entry.result.video_cover) fm.push(`video_cover: ${yamlEscape(entry.result.video_cover)}`);
     fm.push(`date: ${new Date(entry.timestamp).toISOString()}`);
     if (entry.result.summary) {
       fm.push("summary: |");
@@ -9996,6 +10502,9 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       const content = [
         "---",
         `link: ${url}`,
+        "video_summary: true",
+        "source_type: video",
+        "video_summary_status: pending",
         "status: pending",
         "source: protocol",
         `captured_at: ${(/* @__PURE__ */ new Date()).toISOString()}`,

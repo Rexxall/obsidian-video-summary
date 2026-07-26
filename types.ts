@@ -172,6 +172,8 @@ export interface ProcessingResult {
   video_title?: string;
   video_author?: string;
   video_duration?: string;
+  /** 后端返回的视频封面；只作为展示元数据，不主动联网补抓 */
+  video_cover?: string;
   error?: string;
 }
 
@@ -199,9 +201,16 @@ export interface VideoMetadata {
 
 export interface NoteMetadata {
   status?: string;
+  video_summary_status?: string;
+  video_summary?: boolean;
+  source_type?: string;
   link?: string;
   video_title?: string;
   video_author?: string;
+  video_duration?: string;
+  video_cover?: string;
+  summary?: string;
+  video_transcript?: string;
   date?: string;
 }
 

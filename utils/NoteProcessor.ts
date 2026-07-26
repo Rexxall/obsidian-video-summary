@@ -119,10 +119,12 @@ export class NoteProcessor {
     };
     [
       'status',
+      'video_summary_status',
       'link',
       'video_title',
       'video_author',
       'video_duration',
+      'video_cover',
       'summary',
       'video_transcript',
       'date',
@@ -152,12 +154,15 @@ export class NoteProcessor {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
 
-    // 不在此处修改 status，交由调用方根据设置写入
+    // 插件状态与用户自己的通用 status 分离；旧插件笔记仍由 setProcessingStatus 兼容。
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = 'video';
 
     // 更新处理结果
     if (result.video_title) fm.video_title = result.video_title;
     if (result.video_author) fm.video_author = result.video_author;
     if (result.video_duration) fm.video_duration = result.video_duration;
+    if (result.video_cover) fm.video_cover = result.video_cover;
     if (result.summary) fm.summary = result.summary;
     if (result.video_transcript) fm.video_transcript = result.video_transcript;
     delete fm.processing_error;
@@ -192,7 +197,11 @@ export class NoteProcessor {
   async setProcessingStatus(file: TFile, status: string): Promise<void> {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
-    fm.status = status;
+    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = 'video';
+    fm.video_summary_status = canonicalPluginStatus(status);
+    if (mirrorLegacyStatus) fm.status = status;
     const newContent = this.buildContent(fm, body);
     await this.vault.modify(file, newContent);
   }
@@ -201,7 +210,11 @@ export class NoteProcessor {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
     const errorMessage = this.normalizeErrorMessage(error);
-    fm.status = 'error';
+    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = 'video';
+    fm.video_summary_status = 'error';
+    if (mirrorLegacyStatus) fm.status = 'error';
     fm.processing_error = errorMessage;
     fm.processing_error_at = new Date().toISOString();
     const newBody = `${this.removeProcessingErrorBlock(body).trim()}\n\n${this.buildProcessingErrorBlock(errorMessage)}\n`;
@@ -337,7 +350,7 @@ export class NoteProcessor {
    */
   getProcessingStatus(content: string): string | null {
     const metadata = this.extractMetadata(content);
-    return metadata.status || null;
+    return metadata.video_summary_status || metadata.status || null;
   }
 
   /**
@@ -477,4 +490,46 @@ export class NoteProcessor {
       console.error(`重命名文件失败: ${error.message}`);
     }
   }
+}
+
+/**
+ * 只兼容插件历来写入通用 `status` 的那些值。
+ * 诸如 `status: 🔍` 的用户工作流状态必须原样保留，插件状态写入独立字段。
+ */
+function shouldMirrorLegacyStatus(value: unknown): boolean {
+  if (value === undefined || value === null || String(value).trim() === '') return true;
+  const status = String(value).trim().toLowerCase();
+  return new Set([
+    'pending',
+    'running',
+    'success',
+    'error',
+    'excluded',
+    '📺',
+    '⏳',
+    '✅',
+    '▶️',
+    '❌',
+    '⛔️',
+    '⛔',
+    '待处理',
+    '处理中',
+    '已处理',
+    '处理失败',
+    '非视频笔记',
+  ]).has(status);
+}
+
+function canonicalPluginStatus(
+  value: string,
+): 'pending' | 'running' | 'success' | 'error' | 'excluded' {
+  const status = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (status === 'pending' || status === '📺' || status === '待处理') return 'pending';
+  if (status === 'running' || status === '⏳' || status === '处理中') return 'running';
+  if (status === 'error' || status === '❌' || status === '处理失败') return 'error';
+  if (status === 'excluded' || status.includes('⛔') || status === '非视频笔记') return 'excluded';
+  // 这个入口的其他值来自“成功状态文本”设置；插件自己的真值仍保持 canonical。
+  return 'success';
 }

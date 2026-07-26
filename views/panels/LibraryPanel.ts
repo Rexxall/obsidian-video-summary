@@ -155,6 +155,14 @@ function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry)
   platformText(sub, entry.platform, platformLabel(entry.platform));
   sub.createSpan({ text: formatRelative(entry.mtime) });
   body.addEventListener('click', () => ctx.openNote(entry.path));
+  body.tabIndex = 0;
+  body.setAttribute('role', 'button');
+  body.setAttribute('aria-label', `打开笔记：${entry.basename}`);
+  body.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    body.click();
+  });
 
   // 状态胶囊即筛选：点一下就把列表收敛到同状态
   const statePill = statusPill(row, entry.status, {

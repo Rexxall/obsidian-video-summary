@@ -75,7 +75,7 @@ export class NoteIndex {
     const files = this.app.vault.getMarkdownFiles();
     for (const file of files) {
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-      if (isExplicitlyNonVideo(frontmatter)) continue;
+      if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
         this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
       } else {
@@ -107,7 +107,7 @@ export class NoteIndex {
       if (this.entries.has(file.path)) continue;
       try {
         const content = await this.app.vault.cachedRead(file);
-        if (VideoUtils.isVideoNote(content)) {
+        if (this.isLegacyVideoNote(file, content)) {
           this.entries.set(file.path, this.entryFromContent(file, content));
           changed = true;
         }
@@ -122,7 +122,7 @@ export class NoteIndex {
   /** metadataCache 变化后刷新单个文件 */
   async refreshFile(file: TFile) {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (isExplicitlyNonVideo(frontmatter)) {
+    if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) {
       if (this.entries.delete(file.path)) this.emit();
       return;
     }
@@ -133,7 +133,7 @@ export class NoteIndex {
     }
     try {
       const content = await this.app.vault.cachedRead(file);
-      if (VideoUtils.isVideoNote(content)) {
+      if (this.isLegacyVideoNote(file, content)) {
         this.entries.set(file.path, this.entryFromContent(file, content));
       } else if (this.entries.delete(file.path)) {
         // 笔记不再是视频笔记，移出索引
@@ -142,6 +142,18 @@ export class NoteIndex {
       this.entries.delete(file.path);
     }
     this.emit();
+  }
+
+  /**
+   * 旧笔记仍允许靠正文中的单个视频链接进入索引，但 README / MOC / 索引页以及
+   * 含多个不同视频的聚合页不再混入。已有视频 frontmatter/插件标记者走上面的快速路径。
+   */
+  private isLegacyVideoNote(file: TFile, content: string): boolean {
+    if (!VideoUtils.isVideoNote(content)) return false;
+    if (isIndexLikeFile(file)) return false;
+
+    const videoUrls = VideoUtils.extractVideoUrls(content);
+    return videoUrls.length <= 1;
   }
 
   handleDelete(file: TAbstractFile) {
@@ -168,7 +180,7 @@ export class NoteIndex {
     return {
       path: file.path,
       basename: file.basename,
-      status: VideoUtils.normalizeStatus(rawStatus) || 'pending',
+      status: normalizeEntryStatus(rawStatus),
       link,
       platform: link ? detectPlatform(link) : undefined,
       title: typeof frontmatter?.video_title === 'string' ? frontmatter.video_title : undefined,
@@ -185,7 +197,7 @@ export class NoteIndex {
     return {
       path: file.path,
       basename: file.basename,
-      status: VideoUtils.normalizeStatus(rawStatus) || 'pending',
+      status: normalizeEntryStatus(rawStatus),
       link,
       platform: link ? detectPlatform(link) : undefined,
       ctime: file.stat.ctime,
@@ -199,7 +211,11 @@ export class NoteIndex {
     if (!raw) return undefined;
     if (/^https?:\/\//.test(raw)) return raw;
 
-    const linkpath = raw.replace(/^!?\[\[/, '').replace(/\]\]$/, '').split('|')[0].trim();
+    const linkpath = raw
+      .replace(/^!?\[\[/, '')
+      .replace(/\]\]$/, '')
+      .split('|')[0]
+      .trim();
     if (!linkpath) return undefined;
     const target = this.app.metadataCache.getFirstLinkpathDest(linkpath, file.path);
     if (!target) return undefined;
@@ -224,23 +240,15 @@ function readString(value: any): string | undefined {
   return undefined;
 }
 
-/**
- * 其他采集器会在正文或 source_url 里保存小红书链接；那不等于它是视频笔记。
- * 只相信来源自己明确声明的非视频类型，未声明的旧笔记仍保留正文兜底扫描。
- */
-function isExplicitlyNonVideo(frontmatter: any): boolean {
-  if (!frontmatter || typeof frontmatter !== 'object') return false;
+function normalizeEntryStatus(status: string): string {
+  const normalized = VideoUtils.normalizeStatus(status);
+  return normalized === 'other' ? 'pending' : normalized;
+}
 
-  const sourceType = readString(frontmatter.source_type)?.toLowerCase();
-  if (
-    sourceType &&
-    ['image', 'images', 'article', 'text', 'note', 'document'].includes(sourceType)
-  ) {
-    return true;
-  }
-
-  const transcriptStatus = readString(frontmatter.video_transcript_status)?.toLowerCase();
-  return transcriptStatus === 'not-applicable' || transcriptStatus === 'not_applicable';
+function isIndexLikeFile(file: TFile): boolean {
+  const name = file.basename.trim().toLowerCase();
+  if (/^(?:readme|index|moc|map of contents?|目录|索引|导航)$/.test(name)) return true;
+  return /(?:^|[\s_.-])(?:readme|index|moc|目录|索引|导航)(?:$|[\s_.-])/.test(name);
 }
 
 /** 封面允许几种常见字段名，外链和库内图片都收，解析在 NoteIndex.resolveCover */
