@@ -167,7 +167,7 @@ export class NoteIndex {
       link,
       platform: link ? detectPlatform(link) : undefined,
       title: typeof frontmatter?.video_title === 'string' ? frontmatter.video_title : undefined,
-      cover: readCover(frontmatter),
+      cover: this.resolveCover(frontmatter, file),
       duration: readString(frontmatter?.video_duration),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
@@ -188,6 +188,23 @@ export class NoteIndex {
     };
   }
 
+  /** 封面：外链直接用；库内图片（cover: xx.png 或 ![[xx.png]]）转成 app:// 资源地址 */
+  private resolveCover(frontmatter: any, file: TFile): string | undefined {
+    const raw = readCover(frontmatter);
+    if (!raw) return undefined;
+    if (/^https?:\/\//.test(raw)) return raw;
+
+    const linkpath = raw.replace(/^!?\[\[/, '').replace(/\]\]$/, '').split('|')[0].trim();
+    if (!linkpath) return undefined;
+    const target = this.app.metadataCache.getFirstLinkpathDest(linkpath, file.path);
+    if (!target) return undefined;
+    try {
+      return this.app.vault.getResourcePath(target);
+    } catch {
+      return undefined;
+    }
+  }
+
   private readLink(frontmatter: any): string | undefined {
     const raw = frontmatter?.link;
     if (typeof raw === 'string' && raw.trim()) return raw.trim();
@@ -202,15 +219,14 @@ function readString(value: any): string | undefined {
   return undefined;
 }
 
-/** 封面允许几种常见字段名；内部链接 ![[x.png]] 交给调用方渲染不了就退回占位 */
+/** 封面允许几种常见字段名，外链和库内图片都收，解析在 NoteIndex.resolveCover */
 function readCover(frontmatter: any): string | undefined {
-  const raw =
+  return (
     readString(frontmatter?.cover) ??
     readString(frontmatter?.image) ??
     readString(frontmatter?.thumbnail) ??
-    readString(frontmatter?.video_cover);
-  if (!raw) return undefined;
-  return /^https?:\/\//.test(raw) ? raw : undefined;
+    readString(frontmatter?.video_cover)
+  );
 }
 
 export function detectPlatform(url: string): string {

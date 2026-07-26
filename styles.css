@@ -3307,3 +3307,12 @@
 .vs-modal .batch-progress {
   margin-top: 12px;
 }
+
+/* 浅色主题下 Obsidian 的 --color-yellow 打在 13% 淡底上偏浅，压暗一档保证可读 */
+.theme-light .video-summary-view .vs-pill.is-pending,
+.theme-light .vs-modal .vs-pill.is-pending,
+.theme-light .video-summary-view button.vs-filter-chip.is-pending,
+.theme-light .video-summary-view .vs-state-text.is-pending,
+.theme-light .vs-settings .setup-check-item.is-warning .setup-check-icon {
+  color: color-mix(in srgb, var(--color-yellow) 78%, black);
+}

@@ -4208,7 +4208,7 @@ var NoteIndex = class {
       link,
       platform: link ? detectPlatform2(link) : void 0,
       title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
-      cover: readCover(frontmatter),
+      cover: this.resolveCover(frontmatter, file),
       duration: readString(frontmatter?.video_duration),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
@@ -4227,6 +4227,21 @@ var NoteIndex = class {
       mtime: file.stat.mtime
     };
   }
+  /** 封面：外链直接用；库内图片（cover: xx.png 或 ![[xx.png]]）转成 app:// 资源地址 */
+  resolveCover(frontmatter, file) {
+    const raw = readCover(frontmatter);
+    if (!raw) return void 0;
+    if (/^https?:\/\//.test(raw)) return raw;
+    const linkpath = raw.replace(/^!?\[\[/, "").replace(/\]\]$/, "").split("|")[0].trim();
+    if (!linkpath) return void 0;
+    const target = this.app.metadataCache.getFirstLinkpathDest(linkpath, file.path);
+    if (!target) return void 0;
+    try {
+      return this.app.vault.getResourcePath(target);
+    } catch {
+      return void 0;
+    }
+  }
   readLink(frontmatter) {
     const raw = frontmatter?.link;
     if (typeof raw === "string" && raw.trim()) return raw.trim();
@@ -4240,9 +4255,7 @@ function readString(value) {
   return void 0;
 }
 function readCover(frontmatter) {
-  const raw = readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
-  if (!raw) return void 0;
-  return /^https?:\/\//.test(raw) ? raw : void 0;
+  return readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
 }
 function detectPlatform2(url) {
   const value = url.toLowerCase();
