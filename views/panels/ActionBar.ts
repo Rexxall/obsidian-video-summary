@@ -15,6 +15,7 @@ import { expandParts, isAbsoluteLocalPath, parseInput } from '../../core/InputPa
 import { FolderSelectModal } from '../../modals/FolderSelectModal';
 import { ProcessingMode, SupportedLanguage } from '../../types';
 import { VideoUtils } from '../../utils/VideoUtils';
+import { liveJobForNote, noteDisplayStatus } from '../noteStatus';
 
 const BACKEND_PROBE_TIMEOUT_MS = 8_000;
 const BACKEND_ONLINE_TTL_MS = 5 * 60_000;
@@ -256,7 +257,7 @@ async function probeBackend(
               checkedAt: Date.now(),
               verified: true,
               durationMs: test.durationMs,
-              reason: summarizeBackendFailure(test.error || test.hint || ''),
+              reason: summarizeBackendFailure(test.error || test.hint || '', backend.endpoint),
             };
       }
 
@@ -268,13 +269,16 @@ async function probeBackend(
             state: 'is-offline',
             checkedAt: Date.now(),
             verified: false,
-            reason: summarizeBackendFailure(health.error || ''),
+            reason: summarizeBackendFailure(health.error || '', backend.endpoint),
           };
     } catch (error) {
       return {
         state: 'is-offline',
         checkedAt: Date.now(),
-        reason: summarizeBackendFailure(error instanceof Error ? error.message : String(error)),
+        reason: summarizeBackendFailure(
+          error instanceof Error ? error.message : String(error),
+          backend.endpoint,
+        ),
       };
     }
   })();
@@ -350,7 +354,7 @@ function formatProbeTime(timestamp: number): string {
 }
 
 /** 连接状态同样只显示分类后的安全原因，避免把 webhook URL 或本机路径带到页头。 */
-function summarizeBackendFailure(raw: string): string {
+function summarizeBackendFailure(raw: string, endpoint = ''): string {
   const error = raw.toLowerCase();
   if (!error) return '未知原因';
   if (/空响应|empty response|no response body/.test(error)) return '空响应';
@@ -363,6 +367,9 @@ function summarizeBackendFailure(raw: string): string {
   if (/json|返回格式|unexpected token/.test(error)) return '格式异常';
   if (/timeout|timed out|etimedout|超时|abort/.test(error)) return '连接超时';
   if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
+    if (/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(endpoint)) {
+      return '本机服务未启动';
+    }
     return '无法连接';
   }
   return '检测失败';
@@ -378,7 +385,7 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   const isVideoNote = entry !== undefined || VideoUtils.isVideoNoteFromFrontmatter(frontmatter);
   if (!isVideoNote) return;
 
-  const status = entry?.status || 'pending';
+  const status = entry ? noteDisplayStatus(entry, ctx.plugin.jobs) : 'pending';
   const meta = statusMeta(status);
   const strip = root.createDiv({ cls: 'vs-context-strip' });
   const icon = strip.createDiv({ cls: 'vs-context-icon' });
@@ -394,10 +401,18 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
     platformText(sub, entry.platform, platformLabel(entry.platform));
   }
 
-  if (status !== 'running') {
+  const liveJob = entry ? liveJobForNote(ctx.plugin.jobs, entry.path) : undefined;
+  if (status === 'review' && liveJob) {
     textButton(
       strip,
-      status === 'success' ? '重跑' : '处理',
+      '确认',
+      () => ctx.openDetail({ kind: 'job', id: liveJob.id }),
+      'vs-context-action',
+    );
+  } else if (status !== 'running' && status !== 'queued') {
+    textButton(
+      strip,
+      status === 'success' || status === 'interrupted' ? '重跑' : '处理',
       async () => {
         await ctx.plugin.jobService.submitFile(activeFile, ctx.submitOptions());
         ctx.state.tab = 'jobs';

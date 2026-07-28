@@ -3680,6 +3680,8 @@ function statusMeta(status) {
       return { label: "\u5DF2\u5B8C\u6210", cls: "is-success" };
     case "running":
       return { label: "\u5904\u7406\u4E2D", cls: "is-running" };
+    case "interrupted":
+      return { label: "\u5DF2\u4E2D\u65AD", cls: "is-interrupted" };
     case "error":
       return { label: "\u5931\u8D25", cls: "is-error" };
     case "review":
@@ -3880,6 +3882,18 @@ var EMPTY_OUTPUT_VALUES = /* @__PURE__ */ new Set([
   "\u6682\u65E0",
   "\u5F85\u751F\u6210"
 ]);
+var NON_VIDEO_CONTENT_TYPES = /* @__PURE__ */ new Set([
+  "image",
+  "images",
+  "article",
+  "text",
+  "note",
+  "document",
+  "pdf",
+  "webpage",
+  "supplemental_handoff",
+  "system-design"
+]);
 var VideoUtils = class {
   /**
    * 验证是否为有效的视频URL
@@ -4064,8 +4078,7 @@ var VideoUtils = class {
     }
     if (typeof frontmatter.provided_transcript === "string" && frontmatter.provided_transcript.trim())
       return true;
-    if (typeof (frontmatter.local_file ?? frontmatter.localFileName ?? frontmatter.localFile) === "string" && (frontmatter.local_file ?? frontmatter.localFileName ?? frontmatter.localFile).trim())
-      return true;
+    if (this.hasLegacyMediaInputFromFrontmatter(frontmatter)) return true;
     if (typeof frontmatter.video_transcript === "string" && this.isMeaningfulOutputValue(frontmatter.video_transcript))
       return true;
     if (typeof frontmatter.video_title === "string" && frontmatter.video_title.trim() && this.isMeaningfulOutputValue(frontmatter.summary))
@@ -4086,11 +4099,9 @@ var VideoUtils = class {
     const marker = frontmatter.video_summary;
     if (marker === false || String(marker ?? "").trim().toLowerCase() === "false")
       return true;
-    const sourceType = String(frontmatter.source_type ?? "").trim().toLowerCase();
-    if (["image", "images", "article", "text", "note", "document", "pdf", "webpage"].includes(
-      sourceType
-    )) {
-      return true;
+    for (const field of ["source_type", "content_type", "type"]) {
+      const value = String(frontmatter[field] ?? "").trim().toLowerCase();
+      if (NON_VIDEO_CONTENT_TYPES.has(value)) return true;
     }
     const transcriptStatus = String(frontmatter.video_transcript_status ?? "").trim().toLowerCase();
     return transcriptStatus === "not-applicable" || transcriptStatus === "not_applicable";
@@ -4100,13 +4111,44 @@ var VideoUtils = class {
    */
   static getProcessingStatusFromFrontmatter(frontmatter) {
     if (!frontmatter || typeof frontmatter !== "object") return "pending";
-    const hasGeneratedOutput = this.isMeaningfulOutputValue(frontmatter.summary) || this.isMeaningfulOutputValue(frontmatter.video_transcript);
+    const hasGeneratedOutput = this.hasGeneratedOutputFromFrontmatter(frontmatter);
     return this.resolveProcessingStatus((field) => {
       if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) {
         return { present: false, value: "" };
       }
       return { present: true, value: String(frontmatter[field] ?? "").trim() };
     }, hasGeneratedOutput);
+  }
+  static hasGeneratedOutputFromFrontmatter(frontmatter) {
+    if (!frontmatter || typeof frontmatter !== "object") return false;
+    return this.isMeaningfulOutputValue(frontmatter.summary) || this.isMeaningfulOutputValue(frontmatter.video_transcript);
+  }
+  static hasGeneratedOutput(content) {
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return false;
+    const fmText = fmMatch[1];
+    return this.hasMeaningfulYamlField(fmText, "summary") || this.hasMeaningfulYamlField(fmText, "video_transcript");
+  }
+  /**
+   * 小红书详情 URL 本身不能区分图文与视频；旧笔记必须有真实媒体证据才进入视频库。
+   */
+  static hasDirectVideoEvidence(content) {
+    return /<video\b/i.test(content) || /(?:https?:\/\/|!?\[\[)[^\s\]<>"']+\.(?:mp4|m4v|mov|webm)(?:[?#][^\s\]<>"']*)?/i.test(content);
+  }
+  static isSupportedLocalMediaPath(value) {
+    return /\.(?:mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i.test(value.trim());
+  }
+  static hasLegacyMediaInputFromFrontmatter(frontmatter) {
+    if (!frontmatter || typeof frontmatter !== "object") return false;
+    return [
+      frontmatter.local_file,
+      frontmatter.localFileName,
+      frontmatter.localFile,
+      frontmatter.source_file,
+      frontmatter.audio_source,
+      frontmatter.video_file,
+      frontmatter.media_file
+    ].some((value) => typeof value === "string" && this.isSupportedLocalMediaPath(value));
   }
   /**
    * 检查内容是否包含视频元数据
@@ -4118,7 +4160,8 @@ var VideoUtils = class {
     if (this.extractProvidedTranscript(content)) {
       return true;
     }
-    if (this.extractLocalFileName(content)) {
+    const localFile = this.extractLocalFileName(content);
+    if (localFile && this.isSupportedLocalMediaPath(localFile)) {
       return true;
     }
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -4141,6 +4184,12 @@ var VideoUtils = class {
     const generic = readField("status");
     if (generic.present) {
       const normalized = this.normalizeStatus(generic.value);
+      if (normalized === "error" && hasGeneratedOutput) {
+        const processingError = readField("processing_error");
+        if (!processingError.present || !this.isMeaningfulOutputValue(processingError.value)) {
+          return "success";
+        }
+      }
       if (normalized !== "other") return normalized;
     }
     return hasGeneratedOutput ? "success" : "pending";
@@ -4203,11 +4252,9 @@ var VideoUtils = class {
     }
     const marker = this.readYamlScalar(fmText, "video_summary");
     if (marker.present && marker.value.toLowerCase() === "false") return true;
-    const sourceType = this.readYamlScalar(fmText, "source_type");
-    if (sourceType.present && ["image", "images", "article", "text", "note", "document", "pdf", "webpage"].includes(
-      sourceType.value.toLowerCase()
-    )) {
-      return true;
+    for (const field of ["source_type", "content_type", "type"]) {
+      const value = this.readYamlScalar(fmText, field);
+      if (value.present && NON_VIDEO_CONTENT_TYPES.has(value.value.toLowerCase())) return true;
     }
     const transcriptStatus = this.readYamlScalar(fmText, "video_transcript_status");
     if (!transcriptStatus.present) return false;
@@ -4376,6 +4423,7 @@ var NoteIndex = class {
     this.bodyScanDone = false;
     const files = this.app.vault.getMarkdownFiles();
     for (const file of files) {
+      if (isIgnoredPath(file.path)) continue;
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
       if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
@@ -4406,7 +4454,8 @@ var NoteIndex = class {
       if (this.entries.has(file.path)) continue;
       try {
         const content = await this.app.vault.cachedRead(file);
-        if (this.isLegacyVideoNote(file, content)) {
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        if (this.isLegacyVideoNote(file, content, frontmatter)) {
           this.entries.set(file.path, this.entryFromContent(file, content));
           changed = true;
         }
@@ -4419,6 +4468,10 @@ var NoteIndex = class {
   }
   /** metadataCache 变化后刷新单个文件 */
   async refreshFile(file) {
+    if (isIgnoredPath(file.path)) {
+      if (this.entries.delete(file.path)) this.emit();
+      return;
+    }
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) {
       if (this.entries.delete(file.path)) this.emit();
@@ -4431,7 +4484,7 @@ var NoteIndex = class {
     }
     try {
       const content = await this.app.vault.cachedRead(file);
-      if (this.isLegacyVideoNote(file, content)) {
+      if (this.isLegacyVideoNote(file, content, frontmatter)) {
         this.entries.set(file.path, this.entryFromContent(file, content));
       } else if (this.entries.delete(file.path)) {
       }
@@ -4444,11 +4497,15 @@ var NoteIndex = class {
    * 旧笔记仍允许靠正文中的单个视频链接进入索引，但 README / MOC / 索引页以及
    * 含多个不同视频的聚合页不再混入。已有视频 frontmatter/插件标记者走上面的快速路径。
    */
-  isLegacyVideoNote(file, content) {
+  isLegacyVideoNote(file, content, frontmatter) {
     if (!VideoUtils.isVideoNote(content)) return false;
     if (isIndexLikeFile(file)) return false;
     const videoUrls = VideoUtils.extractVideoUrls(content);
-    return videoUrls.length <= 1;
+    if (videoUrls.length > 1) return false;
+    if (videoUrls.length === 1 && detectPlatform2(videoUrls[0]) === "xiaohongshu" && !VideoUtils.hasDirectVideoEvidence(content)) {
+      return false;
+    }
+    return VideoUtils.hasDirectVideoEvidence(content) || VideoUtils.hasLegacyMediaInputFromFrontmatter(frontmatter) || isVideoCentricFile(file);
   }
   handleDelete(file) {
     if (this.entries.delete(file.path)) this.emit();
@@ -4473,6 +4530,7 @@ var NoteIndex = class {
       path: file.path,
       basename: file.basename,
       status: normalizeEntryStatus(rawStatus),
+      hasGeneratedOutput: VideoUtils.hasGeneratedOutputFromFrontmatter(frontmatter),
       link,
       platform: link ? detectPlatform2(link) : void 0,
       title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
@@ -4489,8 +4547,10 @@ var NoteIndex = class {
       path: file.path,
       basename: file.basename,
       status: normalizeEntryStatus(rawStatus),
+      hasGeneratedOutput: VideoUtils.hasGeneratedOutput(content),
       link,
       platform: link ? detectPlatform2(link) : void 0,
+      cover: this.resolveCover({ cover: readCoverFromContent(content) }, file),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
     };
@@ -4531,8 +4591,22 @@ function isIndexLikeFile(file) {
   if (/^(?:readme|index|moc|map of contents?|目录|索引|导航)$/.test(name)) return true;
   return /(?:^|[\s_.-])(?:readme|index|moc|目录|索引|导航)(?:$|[\s_.-])/.test(name);
 }
+function isIgnoredPath(path) {
+  return /(?:^|\/)(?:node_modules|vendor)(?:\/|$)/i.test(path);
+}
+function isVideoCentricFile(file) {
+  return /video|youtube|b站|视频|影片|录像|录屏|时间轴/i.test(file.basename);
+}
 function readCover(frontmatter) {
   return readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
+}
+function readCoverFromContent(content) {
+  const wikiEmbed = content.match(/!\[\[([^\]|]+\.(?:png|jpe?g|webp|gif|avif))(?:\|[^\]]*)?\]\]/i);
+  if (wikiEmbed?.[1]) return wikiEmbed[1].trim();
+  const markdownImage = content.match(
+    /!\[[^\]]*\]\((https?:\/\/[^)\s]+|[^)\s]+\.(?:png|jpe?g|webp|gif|avif))\)/i
+  );
+  return markdownImage?.[1]?.trim();
 }
 function detectPlatform2(url) {
   const value = url.toLowerCase();
@@ -7054,6 +7128,26 @@ var FolderSelectModal = class extends import_obsidian6.Modal {
   }
 };
 
+// views/noteStatus.ts
+function noteDisplayStatus(entry, jobs) {
+  if (entry.status !== "running") {
+    if (entry.status === "success" || entry.status === "error" || entry.status === "pending") {
+      return entry.status;
+    }
+    return "pending";
+  }
+  const job = liveJobForNote(jobs, entry.path);
+  if (!job) return entry.hasGeneratedOutput ? "success" : "interrupted";
+  if (job.state === "review") return "review";
+  if (job.state === "queued") return "queued";
+  return "running";
+}
+function liveJobForNote(jobs, notePath) {
+  return jobs.getAll().find(
+    (job) => job.notePath === notePath && (job.state === "queued" || job.state === "running" || job.state === "review")
+  );
+}
+
 // views/panels/ActionBar.ts
 var BACKEND_PROBE_TIMEOUT_MS = 8e3;
 var BACKEND_ONLINE_TTL_MS = 5 * 6e4;
@@ -7227,7 +7321,7 @@ async function probeBackend(ctx, backend, force = false) {
           checkedAt: Date.now(),
           verified: true,
           durationMs: test.durationMs,
-          reason: summarizeBackendFailure(test.error || test.hint || "")
+          reason: summarizeBackendFailure(test.error || test.hint || "", backend.endpoint)
         };
       }
       const health = await ctx.plugin.api.quickHealthCheck();
@@ -7235,13 +7329,16 @@ async function probeBackend(ctx, backend, force = false) {
         state: "is-offline",
         checkedAt: Date.now(),
         verified: false,
-        reason: summarizeBackendFailure(health.error || "")
+        reason: summarizeBackendFailure(health.error || "", backend.endpoint)
       };
     } catch (error) {
       return {
         state: "is-offline",
         checkedAt: Date.now(),
-        reason: summarizeBackendFailure(error instanceof Error ? error.message : String(error))
+        reason: summarizeBackendFailure(
+          error instanceof Error ? error.message : String(error),
+          backend.endpoint
+        )
       };
     }
   })();
@@ -7298,7 +7395,7 @@ function formatProbeTime(timestamp) {
     minute: "2-digit"
   });
 }
-function summarizeBackendFailure(raw) {
+function summarizeBackendFailure(raw, endpoint = "") {
   const error = raw.toLowerCase();
   if (!error) return "\u672A\u77E5\u539F\u56E0";
   if (/空响应|empty response|no response body/.test(error)) return "\u7A7A\u54CD\u5E94";
@@ -7311,6 +7408,9 @@ function summarizeBackendFailure(raw) {
   if (/json|返回格式|unexpected token/.test(error)) return "\u683C\u5F0F\u5F02\u5E38";
   if (/timeout|timed out|etimedout|超时|abort/.test(error)) return "\u8FDE\u63A5\u8D85\u65F6";
   if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
+    if (/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(endpoint)) {
+      return "\u672C\u673A\u670D\u52A1\u672A\u542F\u52A8";
+    }
     return "\u65E0\u6CD5\u8FDE\u63A5";
   }
   return "\u68C0\u6D4B\u5931\u8D25";
@@ -7322,7 +7422,7 @@ function renderContextStrip(root, ctx) {
   const frontmatter = ctx.plugin.app.metadataCache.getFileCache(activeFile)?.frontmatter;
   const isVideoNote = entry !== void 0 || VideoUtils.isVideoNoteFromFrontmatter(frontmatter);
   if (!isVideoNote) return;
-  const status = entry?.status || "pending";
+  const status = entry ? noteDisplayStatus(entry, ctx.plugin.jobs) : "pending";
   const meta = statusMeta(status);
   const strip = root.createDiv({ cls: "vs-context-strip" });
   const icon = strip.createDiv({ cls: "vs-context-icon" });
@@ -7336,10 +7436,18 @@ function renderContextStrip(root, ctx) {
     sub.createSpan({ text: " \xB7 " });
     platformText(sub, entry.platform, platformLabel(entry.platform));
   }
-  if (status !== "running") {
+  const liveJob = entry ? liveJobForNote(ctx.plugin.jobs, entry.path) : void 0;
+  if (status === "review" && liveJob) {
     textButton(
       strip,
-      status === "success" ? "\u91CD\u8DD1" : "\u5904\u7406",
+      "\u786E\u8BA4",
+      () => ctx.openDetail({ kind: "job", id: liveJob.id }),
+      "vs-context-action"
+    );
+  } else if (status !== "running" && status !== "queued") {
+    textButton(
+      strip,
+      status === "success" || status === "interrupted" ? "\u91CD\u8DD1" : "\u5904\u7406",
       async () => {
         await ctx.plugin.jobService.submitFile(activeFile, ctx.submitOptions());
         ctx.state.tab = "jobs";
@@ -7685,7 +7793,11 @@ function renderActiveJob(container, ctx, job) {
   const media = mediaOf(ctx, job);
   thumbnail(body, { ...media, size: "lg" });
   const info = body.createDiv({ cls: "vs-job-info" });
-  info.createDiv({ text: job.title, cls: "vs-job-title" });
+  info.createDiv({
+    text: displayTaskTitle(job.title),
+    cls: "vs-job-title",
+    attr: { title: job.title }
+  });
   const sub = info.createDiv({ cls: "vs-job-sub" });
   platformText(sub, job.platform, platformLabel(job.platform));
   if (job.startedAt) {
@@ -7713,7 +7825,11 @@ function renderReviewJob(container, ctx, job) {
   const media = mediaOf(ctx, job);
   thumbnail(body, { ...media, size: "lg" });
   const info = body.createDiv({ cls: "vs-job-info" });
-  info.createDiv({ text: job.title, cls: "vs-job-title" });
+  info.createDiv({
+    text: displayTaskTitle(job.title),
+    cls: "vs-job-title",
+    attr: { title: job.title }
+  });
   info.createDiv({ text: summarize(job), cls: "vs-job-sub" });
   statusPill(body.createDiv({ cls: "vs-job-side" }), "review");
   const actions = card.createDiv({ cls: "vs-job-actions" });
@@ -7796,7 +7912,12 @@ function renderHistoryRow(container, ctx, row) {
     platform: row.platform || entry?.platform
   });
   const body = item.createDiv({ cls: "vs-row-body" });
-  body.createDiv({ text: row.title, cls: "vs-row-title" });
+  const displayTitle = displayTaskTitle(row.title);
+  body.createDiv({
+    text: displayTitle,
+    cls: "vs-row-title",
+    attr: { title: displayTitle === row.title ? "" : row.title }
+  });
   if (row.state === "error" && row.error) {
     body.createDiv({
       text: summarizeError(row.error),
@@ -7818,7 +7939,7 @@ function renderHistoryRow(container, ctx, row) {
   });
   body.tabIndex = 0;
   body.setAttribute("role", "button");
-  body.setAttribute("aria-label", `\u67E5\u770B\u4EFB\u52A1\u8BE6\u60C5\uFF1A${row.title}`);
+  body.setAttribute("aria-label", `\u67E5\u770B\u4EFB\u52A1\u8BE6\u60C5\uFF1A${displayTitle}`);
   body.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
@@ -7856,6 +7977,19 @@ function renderHistoryRow(container, ctx, row) {
       }
     ]);
   });
+}
+function displayTaskTitle(raw) {
+  const match = raw.match(/^(文稿(?:处理)?|本地文件|YouTube视频|B站视频)_(?:\d{8}_\d{6}_)?(.+)$/);
+  if (!match) return raw;
+  const sourceLabel = {
+    \u6587\u7A3F: "\u6587\u7A3F",
+    \u6587\u7A3F\u5904\u7406: "\u6587\u7A3F",
+    \u672C\u5730\u6587\u4EF6: "\u672C\u5730",
+    YouTube\u89C6\u9891: "YouTube",
+    B\u7AD9\u89C6\u9891: "B\u7AD9"
+  };
+  const title = match[2].replace(/_\d{13}$/, "").replace(/_/g, " ").trim();
+  return title ? `${sourceLabel[match[1]]} \xB7 ${title}` : raw;
 }
 function findEntry(ctx, basename) {
   return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
@@ -8035,19 +8169,27 @@ function renderLibraryPanel(container, ctx) {
       }))
     );
   });
-  const counts = countByStatus(entries);
+  const counts = countByStatus(entries, ctx);
+  const runningLabel = counts.active > 0 && counts.interrupted > 0 ? `\u8FDB\u884C ${counts.active} \xB7 \u4E2D\u65AD ${counts.interrupted}` : counts.active > 0 ? `\u5904\u7406\u4E2D ${counts.active}` : counts.interrupted > 0 ? `\u5DF2\u4E2D\u65AD ${counts.interrupted}` : "\u5904\u7406\u4E2D 0";
   const filters = container.createDiv({ cls: "vs-filter-row" });
   [
     ["all", `\u5168\u90E8 ${entries.length}`, ""],
     ["pending", `\u5F85\u5904\u7406 ${counts.pending}`, "is-pending"],
-    ["running", `\u5904\u7406\u4E2D ${counts.running}`, "is-running"],
+    [
+      "running",
+      runningLabel,
+      counts.active === 0 && counts.interrupted > 0 ? "is-interrupted" : "is-running"
+    ],
     ["error", `\u5931\u8D25 ${counts.error}`, "is-error"],
     ["success", `\u5DF2\u5B8C\u6210 ${counts.success}`, "is-success"]
   ].forEach(([value, label, tone]) => {
     const chip = filters.createEl("button", {
       text: label,
       cls: `vs-filter-chip ${tone}${state.libraryFilter === value ? " is-active" : ""}`,
-      attr: { type: "button" }
+      attr: {
+        type: "button",
+        title: value === "running" ? "\u67E5\u770B\u672C\u6B21\u4F1A\u8BDD\u4E2D\u8FDB\u884C\u7684\u4EFB\u52A1\u548C\u4E0A\u6B21\u4E2D\u65AD\u7684\u7B14\u8BB0" : label
+      }
     });
     chip.addEventListener("click", async () => {
       state.libraryFilter = value;
@@ -8062,7 +8204,8 @@ function renderLibraryPanel(container, ctx) {
     entries,
     state.librarySearch,
     state.libraryFilter,
-    state.librarySort
+    state.librarySort,
+    ctx
   );
   const renderList = () => {
     listEl.empty();
@@ -8095,7 +8238,8 @@ function renderLibraryPanel(container, ctx) {
       entries,
       state.librarySearch,
       state.libraryFilter,
-      state.librarySort
+      state.librarySort,
+      ctx
     );
     filtered.length = 0;
     filtered.push(...next);
@@ -8117,6 +8261,8 @@ function renderLibraryPanel(container, ctx) {
 }
 function renderRow(listEl, ctx, entry) {
   const row = listEl.createDiv({ cls: "vs-row" });
+  const displayStatus = noteDisplayStatus(entry, ctx.plugin.jobs);
+  const filterStatus = filterForDisplayStatus(displayStatus);
   thumbnail(row, { cover: entry.cover, duration: entry.duration, platform: entry.platform });
   const body = row.createDiv({ cls: "vs-row-body" });
   body.createDiv({ text: entry.basename, cls: "vs-row-title" });
@@ -8132,45 +8278,48 @@ function renderRow(listEl, ctx, entry) {
     event.preventDefault();
     body.click();
   });
-  const statePill = statusPill(row, entry.status, {
+  const statePill = statusPill(row, displayStatus, {
     onClick: async () => {
-      ctx.state.libraryFilter = entry.status;
-      ctx.plugin.settings.statusFilterValue = entry.status;
+      ctx.state.libraryFilter = filterStatus;
+      ctx.plugin.settings.statusFilterValue = filterStatus;
       await ctx.plugin.saveSettings();
       resetLibraryPaging();
       ctx.renderPanels();
     },
-    title: `\u53EA\u770B${entry.status === "success" ? "\u5DF2\u5B8C\u6210" : entry.status === "error" ? "\u5931\u8D25" : entry.status === "running" ? "\u5904\u7406\u4E2D" : "\u5F85\u5904\u7406"}`
+    title: entry.status === "running" ? "\u53EA\u770B\u8FDB\u884C\u4E2D\u6216\u5DF2\u4E2D\u65AD" : `\u53EA\u770B${displayStatus === "success" ? "\u5DF2\u5B8C\u6210" : displayStatus === "error" ? "\u5931\u8D25" : "\u5F85\u5904\u7406"}`
   });
   statePill.addClass("vs-row-status");
   const actions = row.createDiv({ cls: "vs-row-actions" });
-  if (entry.status !== "running") {
-    iconButton(
-      actions,
-      "play",
-      entry.status === "success" ? "\u91CD\u8DD1" : "\u5904\u7406",
-      async () => {
-        const file = fileOf(ctx, entry);
-        if (!file) return;
-        await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
-        ctx.state.tab = "jobs";
-        ctx.renderPanels();
-      },
-      "is-accent"
-    );
-  } else {
+  const liveJob = liveJobForNote(ctx.plugin.jobs, entry.path);
+  if (displayStatus === "queued" || displayStatus === "running") {
     iconButton(
       actions,
       "x",
       "\u53D6\u6D88",
       async () => {
-        const job = ctx.plugin.jobs.getActive().find((candidate) => candidate.notePath === entry.path);
-        if (job) {
-          await ctx.plugin.jobService.cancel(job);
-        } else {
-          const file = fileOf(ctx, entry);
-          if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, "pending");
-        }
+        if (liveJob) await ctx.plugin.jobService.cancel(liveJob);
+        ctx.renderPanels();
+      },
+      "is-accent"
+    );
+  } else if (displayStatus === "review" && liveJob) {
+    iconButton(
+      actions,
+      "eye",
+      "\u786E\u8BA4\u7ED3\u679C",
+      () => ctx.openDetail({ kind: "job", id: liveJob.id }),
+      "is-accent"
+    );
+  } else {
+    iconButton(
+      actions,
+      displayStatus === "interrupted" ? "refresh-cw" : "play",
+      displayStatus === "success" || displayStatus === "interrupted" ? "\u91CD\u8DD1" : "\u5904\u7406",
+      async () => {
+        const file = fileOf(ctx, entry);
+        if (!file) return;
+        await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
+        ctx.state.tab = "jobs";
         ctx.renderPanels();
       },
       "is-accent"
@@ -8231,24 +8380,40 @@ function fileOf(ctx, entry) {
   const file = ctx.plugin.app.vault.getAbstractFileByPath(entry.path);
   return file instanceof import_obsidian9.TFile ? file : null;
 }
-function countByStatus(entries) {
-  const counts = { pending: 0, running: 0, success: 0, error: 0 };
+function countByStatus(entries, ctx) {
+  const counts = { pending: 0, active: 0, interrupted: 0, success: 0, error: 0 };
   entries.forEach((entry) => {
-    if (entry.status === "running") counts.running += 1;
-    else if (entry.status === "success") counts.success += 1;
-    else if (entry.status === "error") counts.error += 1;
-    else counts.pending += 1;
+    const displayStatus = noteDisplayStatus(entry, ctx.plugin.jobs);
+    if (displayStatus === "queued" || displayStatus === "running" || displayStatus === "review") {
+      counts.active += 1;
+    } else if (displayStatus === "interrupted") {
+      counts.interrupted += 1;
+    } else if (displayStatus === "success") {
+      counts.success += 1;
+    } else if (displayStatus === "error") {
+      counts.error += 1;
+    } else {
+      counts.pending += 1;
+    }
   });
   return counts;
 }
-function filterAndSort(entries, keyword, filter, sort) {
+function filterAndSort(entries, keyword, filter, sort, ctx) {
   const lowered = keyword.trim().toLowerCase();
   const filtered = entries.filter((entry) => {
     const nameMatch = !lowered || entry.basename.toLowerCase().includes(lowered);
-    const statusMatch = filter === "all" || entry.status === filter;
+    const statusMatch = filter === "all" || filterForDisplayStatus(noteDisplayStatus(entry, ctx.plugin.jobs)) === filter;
     return nameMatch && statusMatch;
   });
-  const statusOrder = { error: 0, pending: 1, running: 2, success: 3 };
+  const statusOrder = {
+    error: 0,
+    interrupted: 1,
+    pending: 2,
+    queued: 3,
+    running: 3,
+    review: 3,
+    success: 4
+  };
   switch (sort) {
     case "name-asc":
       return filtered.sort((a, b) => a.basename.localeCompare(b.basename));
@@ -8256,11 +8421,17 @@ function filterAndSort(entries, keyword, filter, sort) {
       return filtered.sort((a, b) => b.ctime - a.ctime);
     case "status":
       return filtered.sort(
-        (a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4) || b.mtime - a.mtime
+        (a, b) => statusOrder[noteDisplayStatus(a, ctx.plugin.jobs)] - statusOrder[noteDisplayStatus(b, ctx.plugin.jobs)] || b.mtime - a.mtime
       );
     default:
       return filtered.sort((a, b) => b.mtime - a.mtime);
   }
+}
+function filterForDisplayStatus(status) {
+  if (status === "queued" || status === "running" || status === "review" || status === "interrupted") {
+    return "running";
+  }
+  return status;
 }
 
 // views/panels/DetailPanel.ts
@@ -8608,6 +8779,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     this.unsubscribe = [];
     this.renderQueued = false;
     this.tickTimer = null;
+    this.resizeObserver = null;
     this.lastActiveFilePath = "";
     this.backend = "is-unknown";
     this.plugin = plugin;
@@ -8641,6 +8813,15 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("video-summary-view");
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? container.clientWidth;
+      container.toggleClass("is-narrow", width <= 400);
+      container.toggleClass("is-tiny", width <= 260);
+    });
+    this.resizeObserver.observe(container);
+    container.toggleClass("is-narrow", container.clientWidth <= 400);
+    container.toggleClass("is-tiny", container.clientWidth <= 260);
     this.headerEl = container.createDiv({ cls: "vs-top" });
     this.panelEl = container.createDiv({ cls: "vs-panels" });
     this.unsubscribe.push(this.plugin.jobs.subscribe(() => this.schedulePanelRender()));
@@ -8667,6 +8848,8 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
       window.clearInterval(this.tickTimer);
       this.tickTimer = null;
     }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
   /** 兼容旧调用方（main.ts 里的 refreshVideoSummaryView） */
   async refreshView() {

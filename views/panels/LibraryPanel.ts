@@ -3,6 +3,7 @@ import { Notice, TFile, setIcon } from 'obsidian';
 import { ViewContext, LibraryFilter } from '../context';
 import { VideoNoteEntry, platformLabel } from '../../core/NoteIndex';
 import { ConfirmModal } from '../../modals';
+import { liveJobForNote, noteDisplayStatus, NoteDisplayStatus } from '../noteStatus';
 import {
   emptyState,
   formatRelative,
@@ -57,13 +58,25 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
     );
   });
 
-  const counts = countByStatus(entries);
+  const counts = countByStatus(entries, ctx);
+  const runningLabel =
+    counts.active > 0 && counts.interrupted > 0
+      ? `进行 ${counts.active} · 中断 ${counts.interrupted}`
+      : counts.active > 0
+        ? `处理中 ${counts.active}`
+        : counts.interrupted > 0
+          ? `已中断 ${counts.interrupted}`
+          : '处理中 0';
   const filters = container.createDiv({ cls: 'vs-filter-row' });
   (
     [
       ['all', `全部 ${entries.length}`, ''],
       ['pending', `待处理 ${counts.pending}`, 'is-pending'],
-      ['running', `处理中 ${counts.running}`, 'is-running'],
+      [
+        'running',
+        runningLabel,
+        counts.active === 0 && counts.interrupted > 0 ? 'is-interrupted' : 'is-running',
+      ],
       ['error', `失败 ${counts.error}`, 'is-error'],
       ['success', `已完成 ${counts.success}`, 'is-success'],
     ] as Array<[LibraryFilter, string, string]>
@@ -71,7 +84,10 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
     const chip = filters.createEl('button', {
       text: label,
       cls: `vs-filter-chip ${tone}${state.libraryFilter === value ? ' is-active' : ''}`,
-      attr: { type: 'button' },
+      attr: {
+        type: 'button',
+        title: value === 'running' ? '查看本次会话中进行的任务和上次中断的笔记' : label,
+      },
     });
     chip.addEventListener('click', async () => {
       state.libraryFilter = value;
@@ -88,6 +104,7 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
     state.librarySearch,
     state.libraryFilter,
     state.librarySort,
+    ctx,
   );
 
   const renderList = () => {
@@ -124,6 +141,7 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
       state.librarySearch,
       state.libraryFilter,
       state.librarySort,
+      ctx,
     );
     filtered.length = 0;
     filtered.push(...next);
@@ -147,6 +165,8 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
 
 function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry) {
   const row = listEl.createDiv({ cls: 'vs-row' });
+  const displayStatus = noteDisplayStatus(entry, ctx.plugin.jobs);
+  const filterStatus = filterForDisplayStatus(displayStatus);
   thumbnail(row, { cover: entry.cover, duration: entry.duration, platform: entry.platform });
 
   const body = row.createDiv({ cls: 'vs-row-body' });
@@ -165,48 +185,52 @@ function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry)
   });
 
   // 状态胶囊即筛选：点一下就把列表收敛到同状态
-  const statePill = statusPill(row, entry.status, {
+  const statePill = statusPill(row, displayStatus, {
     onClick: async () => {
-      ctx.state.libraryFilter = entry.status as typeof ctx.state.libraryFilter;
-      ctx.plugin.settings.statusFilterValue = entry.status;
+      ctx.state.libraryFilter = filterStatus;
+      ctx.plugin.settings.statusFilterValue = filterStatus;
       await ctx.plugin.saveSettings();
       resetLibraryPaging();
       ctx.renderPanels();
     },
-    title: `只看${entry.status === 'success' ? '已完成' : entry.status === 'error' ? '失败' : entry.status === 'running' ? '处理中' : '待处理'}`,
+    title:
+      entry.status === 'running'
+        ? '只看进行中或已中断'
+        : `只看${displayStatus === 'success' ? '已完成' : displayStatus === 'error' ? '失败' : '待处理'}`,
   });
   statePill.addClass('vs-row-status');
 
   const actions = row.createDiv({ cls: 'vs-row-actions' });
-  if (entry.status !== 'running') {
-    iconButton(
-      actions,
-      'play',
-      entry.status === 'success' ? '重跑' : '处理',
-      async () => {
-        const file = fileOf(ctx, entry);
-        if (!file) return;
-        await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
-        ctx.state.tab = 'jobs';
-        ctx.renderPanels();
-      },
-      'is-accent',
-    );
-  } else {
+  const liveJob = liveJobForNote(ctx.plugin.jobs, entry.path);
+  if (displayStatus === 'queued' || displayStatus === 'running') {
     iconButton(
       actions,
       'x',
       '取消',
       async () => {
-        const job = ctx.plugin.jobs
-          .getActive()
-          .find((candidate) => candidate.notePath === entry.path);
-        if (job) {
-          await ctx.plugin.jobService.cancel(job);
-        } else {
-          const file = fileOf(ctx, entry);
-          if (file) await ctx.plugin.noteProcessor.setProcessingStatus(file, 'pending');
-        }
+        if (liveJob) await ctx.plugin.jobService.cancel(liveJob);
+        ctx.renderPanels();
+      },
+      'is-accent',
+    );
+  } else if (displayStatus === 'review' && liveJob) {
+    iconButton(
+      actions,
+      'eye',
+      '确认结果',
+      () => ctx.openDetail({ kind: 'job', id: liveJob.id }),
+      'is-accent',
+    );
+  } else {
+    iconButton(
+      actions,
+      displayStatus === 'interrupted' ? 'refresh-cw' : 'play',
+      displayStatus === 'success' || displayStatus === 'interrupted' ? '重跑' : '处理',
+      async () => {
+        const file = fileOf(ctx, entry);
+        if (!file) return;
+        await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
+        ctx.state.tab = 'jobs';
         ctx.renderPanels();
       },
       'is-accent',
@@ -271,13 +295,21 @@ function fileOf(ctx: ViewContext, entry: VideoNoteEntry): TFile | null {
   return file instanceof TFile ? file : null;
 }
 
-function countByStatus(entries: VideoNoteEntry[]) {
-  const counts = { pending: 0, running: 0, success: 0, error: 0 };
+function countByStatus(entries: VideoNoteEntry[], ctx: ViewContext) {
+  const counts = { pending: 0, active: 0, interrupted: 0, success: 0, error: 0 };
   entries.forEach((entry) => {
-    if (entry.status === 'running') counts.running += 1;
-    else if (entry.status === 'success') counts.success += 1;
-    else if (entry.status === 'error') counts.error += 1;
-    else counts.pending += 1;
+    const displayStatus = noteDisplayStatus(entry, ctx.plugin.jobs);
+    if (displayStatus === 'queued' || displayStatus === 'running' || displayStatus === 'review') {
+      counts.active += 1;
+    } else if (displayStatus === 'interrupted') {
+      counts.interrupted += 1;
+    } else if (displayStatus === 'success') {
+      counts.success += 1;
+    } else if (displayStatus === 'error') {
+      counts.error += 1;
+    } else {
+      counts.pending += 1;
+    }
   });
   return counts;
 }
@@ -287,15 +319,26 @@ function filterAndSort(
   keyword: string,
   filter: LibraryFilter,
   sort: string,
+  ctx: ViewContext,
 ): VideoNoteEntry[] {
   const lowered = keyword.trim().toLowerCase();
   const filtered = entries.filter((entry) => {
     const nameMatch = !lowered || entry.basename.toLowerCase().includes(lowered);
-    const statusMatch = filter === 'all' || entry.status === filter;
+    const statusMatch =
+      filter === 'all' ||
+      filterForDisplayStatus(noteDisplayStatus(entry, ctx.plugin.jobs)) === filter;
     return nameMatch && statusMatch;
   });
 
-  const statusOrder: Record<string, number> = { error: 0, pending: 1, running: 2, success: 3 };
+  const statusOrder: Record<NoteDisplayStatus, number> = {
+    error: 0,
+    interrupted: 1,
+    pending: 2,
+    queued: 3,
+    running: 3,
+    review: 3,
+    success: 4,
+  };
   switch (sort) {
     case 'name-asc':
       return filtered.sort((a, b) => a.basename.localeCompare(b.basename));
@@ -303,9 +346,23 @@ function filterAndSort(
       return filtered.sort((a, b) => b.ctime - a.ctime);
     case 'status':
       return filtered.sort(
-        (a, b) => (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4) || b.mtime - a.mtime,
+        (a, b) =>
+          statusOrder[noteDisplayStatus(a, ctx.plugin.jobs)] -
+            statusOrder[noteDisplayStatus(b, ctx.plugin.jobs)] || b.mtime - a.mtime,
       );
     default:
       return filtered.sort((a, b) => b.mtime - a.mtime);
   }
+}
+
+function filterForDisplayStatus(status: NoteDisplayStatus): LibraryFilter {
+  if (
+    status === 'queued' ||
+    status === 'running' ||
+    status === 'review' ||
+    status === 'interrupted'
+  ) {
+    return 'running';
+  }
+  return status;
 }

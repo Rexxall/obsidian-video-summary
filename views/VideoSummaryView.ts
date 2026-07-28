@@ -19,6 +19,7 @@ export class VideoSummaryView extends ItemView {
   private unsubscribe: Array<() => void> = [];
   private renderQueued = false;
   private tickTimer: number | null = null;
+  private resizeObserver: ResizeObserver | null = null;
   private lastActiveFilePath = '';
   private backend: BackendState = 'is-unknown';
 
@@ -59,6 +60,15 @@ export class VideoSummaryView extends ItemView {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass('video-summary-view');
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? container.clientWidth;
+      container.toggleClass('is-narrow', width <= 400);
+      container.toggleClass('is-tiny', width <= 260);
+    });
+    this.resizeObserver.observe(container);
+    container.toggleClass('is-narrow', container.clientWidth <= 400);
+    container.toggleClass('is-tiny', container.clientWidth <= 260);
 
     this.headerEl = container.createDiv({ cls: 'vs-top' });
     this.panelEl = container.createDiv({ cls: 'vs-panels' });
@@ -96,6 +106,8 @@ export class VideoSummaryView extends ItemView {
       window.clearInterval(this.tickTimer);
       this.tickTimer = null;
     }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 
   /** 兼容旧调用方（main.ts 里的 refreshVideoSummaryView） */

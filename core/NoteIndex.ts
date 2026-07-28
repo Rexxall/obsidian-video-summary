@@ -7,6 +7,8 @@ export interface VideoNoteEntry {
   basename: string;
   /** 归一化后的状态：pending / running / success / error */
   status: string;
+  /** 是否已有真实摘要/转录产物；用于识别重启后残留的 running。 */
+  hasGeneratedOutput?: boolean;
   link?: string;
   platform?: string;
   title?: string;
@@ -74,6 +76,7 @@ export class NoteIndex {
 
     const files = this.app.vault.getMarkdownFiles();
     for (const file of files) {
+      if (isIgnoredPath(file.path)) continue;
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
       if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
@@ -107,7 +110,8 @@ export class NoteIndex {
       if (this.entries.has(file.path)) continue;
       try {
         const content = await this.app.vault.cachedRead(file);
-        if (this.isLegacyVideoNote(file, content)) {
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        if (this.isLegacyVideoNote(file, content, frontmatter)) {
           this.entries.set(file.path, this.entryFromContent(file, content));
           changed = true;
         }
@@ -121,6 +125,10 @@ export class NoteIndex {
 
   /** metadataCache 变化后刷新单个文件 */
   async refreshFile(file: TFile) {
+    if (isIgnoredPath(file.path)) {
+      if (this.entries.delete(file.path)) this.emit();
+      return;
+    }
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) {
       if (this.entries.delete(file.path)) this.emit();
@@ -133,7 +141,7 @@ export class NoteIndex {
     }
     try {
       const content = await this.app.vault.cachedRead(file);
-      if (this.isLegacyVideoNote(file, content)) {
+      if (this.isLegacyVideoNote(file, content, frontmatter)) {
         this.entries.set(file.path, this.entryFromContent(file, content));
       } else if (this.entries.delete(file.path)) {
         // 笔记不再是视频笔记，移出索引
@@ -148,12 +156,24 @@ export class NoteIndex {
    * 旧笔记仍允许靠正文中的单个视频链接进入索引，但 README / MOC / 索引页以及
    * 含多个不同视频的聚合页不再混入。已有视频 frontmatter/插件标记者走上面的快速路径。
    */
-  private isLegacyVideoNote(file: TFile, content: string): boolean {
+  private isLegacyVideoNote(file: TFile, content: string, frontmatter?: any): boolean {
     if (!VideoUtils.isVideoNote(content)) return false;
     if (isIndexLikeFile(file)) return false;
 
     const videoUrls = VideoUtils.extractVideoUrls(content);
-    return videoUrls.length <= 1;
+    if (videoUrls.length > 1) return false;
+    if (
+      videoUrls.length === 1 &&
+      detectPlatform(videoUrls[0]) === 'xiaohongshu' &&
+      !VideoUtils.hasDirectVideoEvidence(content)
+    ) {
+      return false;
+    }
+    return (
+      VideoUtils.hasDirectVideoEvidence(content) ||
+      VideoUtils.hasLegacyMediaInputFromFrontmatter(frontmatter) ||
+      isVideoCentricFile(file)
+    );
   }
 
   handleDelete(file: TAbstractFile) {
@@ -181,6 +201,7 @@ export class NoteIndex {
       path: file.path,
       basename: file.basename,
       status: normalizeEntryStatus(rawStatus),
+      hasGeneratedOutput: VideoUtils.hasGeneratedOutputFromFrontmatter(frontmatter),
       link,
       platform: link ? detectPlatform(link) : undefined,
       title: typeof frontmatter?.video_title === 'string' ? frontmatter.video_title : undefined,
@@ -198,8 +219,10 @@ export class NoteIndex {
       path: file.path,
       basename: file.basename,
       status: normalizeEntryStatus(rawStatus),
+      hasGeneratedOutput: VideoUtils.hasGeneratedOutput(content),
       link,
       platform: link ? detectPlatform(link) : undefined,
+      cover: this.resolveCover({ cover: readCoverFromContent(content) }, file),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
     };
@@ -251,6 +274,14 @@ function isIndexLikeFile(file: TFile): boolean {
   return /(?:^|[\s_.-])(?:readme|index|moc|目录|索引|导航)(?:$|[\s_.-])/.test(name);
 }
 
+function isIgnoredPath(path: string): boolean {
+  return /(?:^|\/)(?:node_modules|vendor)(?:\/|$)/i.test(path);
+}
+
+function isVideoCentricFile(file: TFile): boolean {
+  return /video|youtube|b站|视频|影片|录像|录屏|时间轴/i.test(file.basename);
+}
+
 /** 封面允许几种常见字段名，外链和库内图片都收，解析在 NoteIndex.resolveCover */
 function readCover(frontmatter: any): string | undefined {
   return (
@@ -259,6 +290,16 @@ function readCover(frontmatter: any): string | undefined {
     readString(frontmatter?.thumbnail) ??
     readString(frontmatter?.video_cover)
   );
+}
+
+function readCoverFromContent(content: string): string | undefined {
+  const wikiEmbed = content.match(/!\[\[([^\]|]+\.(?:png|jpe?g|webp|gif|avif))(?:\|[^\]]*)?\]\]/i);
+  if (wikiEmbed?.[1]) return wikiEmbed[1].trim();
+
+  const markdownImage = content.match(
+    /!\[[^\]]*\]\((https?:\/\/[^)\s]+|[^)\s]+\.(?:png|jpe?g|webp|gif|avif))\)/i,
+  );
+  return markdownImage?.[1]?.trim();
 }
 
 export function detectPlatform(url: string): string {

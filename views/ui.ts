@@ -89,6 +89,8 @@ export function statusMeta(status: string): { label: string; cls: string } {
       return { label: '已完成', cls: 'is-success' };
     case 'running':
       return { label: '处理中', cls: 'is-running' };
+    case 'interrupted':
+      return { label: '已中断', cls: 'is-interrupted' };
     case 'error':
       return { label: '失败', cls: 'is-error' };
     case 'review':

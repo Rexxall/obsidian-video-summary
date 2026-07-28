@@ -725,6 +725,10 @@
   color: var(--color-blue);
 }
 
+.video-summary-view .vs-state-text.is-interrupted {
+  color: var(--color-orange, var(--color-yellow));
+}
+
 .video-summary-view button.vs-context-action {
   flex: none;
   height: 24px;
@@ -1330,6 +1334,11 @@
   color: var(--color-blue);
 }
 
+.video-summary-view .vs-pill.is-interrupted {
+  background-color: var(--vs-tint-warning);
+  color: var(--color-orange, var(--color-yellow));
+}
+
 .video-summary-view .vs-pill.is-review {
   background-color: var(--vs-accent-strong);
   color: var(--text-accent);
@@ -1624,6 +1633,10 @@
   color: var(--color-blue);
 }
 
+.video-summary-view button.vs-filter-chip.is-interrupted {
+  color: var(--color-orange, var(--color-yellow));
+}
+
 .video-summary-view button.vs-filter-chip.is-error {
   color: var(--color-red);
 }
@@ -1889,6 +1902,32 @@
   }
 }
 
+/*
+ * 某些 Obsidian 布局下命名容器没有参与查询；视图的 ResizeObserver 同步 is-narrow，
+ * 让真实 284px 侧栏仍稳定保持 3 + 2 的配置排布。
+ */
+.video-summary-view.is-narrow .vs-chip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
+.video-summary-view.is-narrow button.vs-chip {
+  width: 100%;
+  min-width: 0;
+  padding-right: 7px;
+  padding-left: 7px;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.video-summary-view.is-narrow .vs-chip-row > button.vs-chip:nth-child(4) {
+  grid-column: 1 / span 2;
+}
+
+.video-summary-view.is-narrow .vs-chip-row > button.vs-chip:nth-child(5) {
+  grid-column: 3;
+}
+
 @container vs-view (max-width: 320px) {
   .video-summary-view .vs-top {
     padding-right: 10px;
@@ -2035,6 +2074,19 @@
   .video-summary-view .vs-action-row button.vs-icon-btn {
     width: 32px;
   }
+}
+
+.video-summary-view.is-tiny .vs-chip-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.video-summary-view.is-tiny .vs-chip-row > button.vs-chip:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.video-summary-view.is-tiny .vs-chip-row > button.vs-chip:nth-child(4),
+.video-summary-view.is-tiny .vs-chip-row > button.vs-chip:nth-child(5) {
+  grid-column: auto;
 }
 
 /* 短侧栏让整个页面滚动：输入区会自然离开视口，任务列表不再被永久挤压。 */

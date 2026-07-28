@@ -116,7 +116,11 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   thumbnail(body, { ...media, size: 'lg' });
 
   const info = body.createDiv({ cls: 'vs-job-info' });
-  info.createDiv({ text: job.title, cls: 'vs-job-title' });
+  info.createDiv({
+    text: displayTaskTitle(job.title),
+    cls: 'vs-job-title',
+    attr: { title: job.title },
+  });
   const sub = info.createDiv({ cls: 'vs-job-sub' });
   platformText(sub, job.platform, platformLabel(job.platform));
   if (job.startedAt) {
@@ -150,7 +154,11 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   thumbnail(body, { ...media, size: 'lg' });
 
   const info = body.createDiv({ cls: 'vs-job-info' });
-  info.createDiv({ text: job.title, cls: 'vs-job-title' });
+  info.createDiv({
+    text: displayTaskTitle(job.title),
+    cls: 'vs-job-title',
+    attr: { title: job.title },
+  });
   info.createDiv({ text: summarize(job), cls: 'vs-job-sub' });
 
   statusPill(body.createDiv({ cls: 'vs-job-side' }), 'review');
@@ -258,7 +266,12 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   });
 
   const body = item.createDiv({ cls: 'vs-row-body' });
-  body.createDiv({ text: row.title, cls: 'vs-row-title' });
+  const displayTitle = displayTaskTitle(row.title);
+  body.createDiv({
+    text: displayTitle,
+    cls: 'vs-row-title',
+    attr: { title: displayTitle === row.title ? '' : row.title },
+  });
 
   if (row.state === 'error' && row.error) {
     // 列表只给可行动的一句摘要，避免 URL、本机路径或后端响应直接铺在侧栏。
@@ -284,7 +297,7 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   });
   body.tabIndex = 0;
   body.setAttribute('role', 'button');
-  body.setAttribute('aria-label', `查看任务详情：${row.title}`);
+  body.setAttribute('aria-label', `查看任务详情：${displayTitle}`);
   body.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -328,6 +341,25 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
       },
     ]);
   });
+}
+
+/** 历史里保留原始文件名用于重跑；列表只隐藏时间戳和机器式前缀。 */
+function displayTaskTitle(raw: string): string {
+  const match = raw.match(/^(文稿(?:处理)?|本地文件|YouTube视频|B站视频)_(?:\d{8}_\d{6}_)?(.+)$/);
+  if (!match) return raw;
+
+  const sourceLabel: Record<string, string> = {
+    文稿: '文稿',
+    文稿处理: '文稿',
+    本地文件: '本地',
+    YouTube视频: 'YouTube',
+    B站视频: 'B站',
+  };
+  const title = match[2]
+    .replace(/_\d{13}$/, '')
+    .replace(/_/g, ' ')
+    .trim();
+  return title ? `${sourceLabel[match[1]]} · ${title}` : raw;
 }
 
 function findEntry(ctx: ViewContext, basename: string) {

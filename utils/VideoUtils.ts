@@ -17,6 +17,18 @@ const EMPTY_OUTPUT_VALUES = new Set([
   '暂无',
   '待生成',
 ]);
+const NON_VIDEO_CONTENT_TYPES = new Set([
+  'image',
+  'images',
+  'article',
+  'text',
+  'note',
+  'document',
+  'pdf',
+  'webpage',
+  'supplemental_handoff',
+  'system-design',
+]);
 
 /**
  * 视频处理工具类
@@ -266,19 +278,7 @@ export class VideoUtils {
       (frontmatter as any).provided_transcript.trim()
     )
       return true;
-    if (
-      typeof (
-        (frontmatter as any).local_file ??
-        (frontmatter as any).localFileName ??
-        (frontmatter as any).localFile
-      ) === 'string' &&
-      (
-        (frontmatter as any).local_file ??
-        (frontmatter as any).localFileName ??
-        (frontmatter as any).localFile
-      ).trim()
-    )
-      return true;
+    if (this.hasLegacyMediaInputFromFrontmatter(frontmatter)) return true;
     if (
       typeof (frontmatter as any).video_transcript === 'string' &&
       this.isMeaningfulOutputValue((frontmatter as any).video_transcript)
@@ -317,15 +317,11 @@ export class VideoUtils {
     )
       return true;
 
-    const sourceType = String((frontmatter as any).source_type ?? '')
-      .trim()
-      .toLowerCase();
-    if (
-      ['image', 'images', 'article', 'text', 'note', 'document', 'pdf', 'webpage'].includes(
-        sourceType,
-      )
-    ) {
-      return true;
+    for (const field of ['source_type', 'content_type', 'type']) {
+      const value = String((frontmatter as any)[field] ?? '')
+        .trim()
+        .toLowerCase();
+      if (NON_VIDEO_CONTENT_TYPES.has(value)) return true;
     }
 
     const transcriptStatus = String((frontmatter as any).video_transcript_status ?? '')
@@ -339,15 +335,58 @@ export class VideoUtils {
    */
   static getProcessingStatusFromFrontmatter(frontmatter: any): string | null {
     if (!frontmatter || typeof frontmatter !== 'object') return 'pending';
-    const hasGeneratedOutput =
-      this.isMeaningfulOutputValue((frontmatter as any).summary) ||
-      this.isMeaningfulOutputValue((frontmatter as any).video_transcript);
+    const hasGeneratedOutput = this.hasGeneratedOutputFromFrontmatter(frontmatter);
     return this.resolveProcessingStatus((field) => {
       if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) {
         return { present: false, value: '' };
       }
       return { present: true, value: String((frontmatter as any)[field] ?? '').trim() };
     }, hasGeneratedOutput);
+  }
+
+  static hasGeneratedOutputFromFrontmatter(frontmatter: any): boolean {
+    if (!frontmatter || typeof frontmatter !== 'object') return false;
+    return (
+      this.isMeaningfulOutputValue((frontmatter as any).summary) ||
+      this.isMeaningfulOutputValue((frontmatter as any).video_transcript)
+    );
+  }
+
+  static hasGeneratedOutput(content: string): boolean {
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return false;
+    const fmText = fmMatch[1];
+    return (
+      this.hasMeaningfulYamlField(fmText, 'summary') ||
+      this.hasMeaningfulYamlField(fmText, 'video_transcript')
+    );
+  }
+
+  /**
+   * 小红书详情 URL 本身不能区分图文与视频；旧笔记必须有真实媒体证据才进入视频库。
+   */
+  static hasDirectVideoEvidence(content: string): boolean {
+    return (
+      /<video\b/i.test(content) ||
+      /(?:https?:\/\/|!?\[\[)[^\s\]<>"']+\.(?:mp4|m4v|mov|webm)(?:[?#][^\s\]<>"']*)?/i.test(content)
+    );
+  }
+
+  static isSupportedLocalMediaPath(value: string): boolean {
+    return /\.(?:mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i.test(value.trim());
+  }
+
+  static hasLegacyMediaInputFromFrontmatter(frontmatter: any): boolean {
+    if (!frontmatter || typeof frontmatter !== 'object') return false;
+    return [
+      (frontmatter as any).local_file,
+      (frontmatter as any).localFileName,
+      (frontmatter as any).localFile,
+      (frontmatter as any).source_file,
+      (frontmatter as any).audio_source,
+      (frontmatter as any).video_file,
+      (frontmatter as any).media_file,
+    ].some((value) => typeof value === 'string' && this.isSupportedLocalMediaPath(value));
   }
 
   /**
@@ -365,7 +404,8 @@ export class VideoUtils {
     }
 
     // 检查本地文件
-    if (this.extractLocalFileName(content)) {
+    const localFile = this.extractLocalFileName(content);
+    if (localFile && this.isSupportedLocalMediaPath(localFile)) {
       return true;
     }
 
@@ -397,6 +437,12 @@ export class VideoUtils {
     const generic = readField('status');
     if (generic.present) {
       const normalized = this.normalizeStatus(generic.value);
+      if (normalized === 'error' && hasGeneratedOutput) {
+        const processingError = readField('processing_error');
+        if (!processingError.present || !this.isMeaningfulOutputValue(processingError.value)) {
+          return 'success';
+        }
+      }
       if (normalized !== 'other') return normalized;
     }
 
@@ -496,14 +542,9 @@ export class VideoUtils {
     const marker = this.readYamlScalar(fmText, 'video_summary');
     if (marker.present && marker.value.toLowerCase() === 'false') return true;
 
-    const sourceType = this.readYamlScalar(fmText, 'source_type');
-    if (
-      sourceType.present &&
-      ['image', 'images', 'article', 'text', 'note', 'document', 'pdf', 'webpage'].includes(
-        sourceType.value.toLowerCase(),
-      )
-    ) {
-      return true;
+    for (const field of ['source_type', 'content_type', 'type']) {
+      const value = this.readYamlScalar(fmText, field);
+      if (value.present && NON_VIDEO_CONTENT_TYPES.has(value.value.toLowerCase())) return true;
     }
 
     const transcriptStatus = this.readYamlScalar(fmText, 'video_transcript_status');
