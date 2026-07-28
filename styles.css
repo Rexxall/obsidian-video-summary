@@ -1903,8 +1903,8 @@
 }
 
 /*
- * 某些 Obsidian 布局下命名容器没有参与查询；视图的 ResizeObserver 同步 is-narrow，
- * 让真实 284px 侧栏仍稳定保持 3 + 2 的配置排布。
+ * macOS 缩放下视觉约 300px 的侧栏可能报告为 400px 以上；视图的 ResizeObserver
+ * 用较宽的逻辑断点同步 is-narrow，让侧栏稳定保持 3 + 2 的配置排布。
  */
 .video-summary-view.is-narrow .vs-chip-row {
   display: grid;

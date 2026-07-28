@@ -8816,11 +8816,11 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     this.resizeObserver?.disconnect();
     this.resizeObserver = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? container.clientWidth;
-      container.toggleClass("is-narrow", width <= 400);
+      container.toggleClass("is-narrow", width <= 520);
       container.toggleClass("is-tiny", width <= 260);
     });
     this.resizeObserver.observe(container);
-    container.toggleClass("is-narrow", container.clientWidth <= 400);
+    container.toggleClass("is-narrow", container.clientWidth <= 520);
     container.toggleClass("is-tiny", container.clientWidth <= 260);
     this.headerEl = container.createDiv({ cls: "vs-top" });
     this.panelEl = container.createDiv({ cls: "vs-panels" });
