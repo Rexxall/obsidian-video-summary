@@ -5,7 +5,11 @@ import { SubmitOptions } from '../core/JobService';
 import { BackendState, DetailRef, PanelTab, ViewContext, ViewState } from './context';
 import { renderActionBar } from './panels/ActionBar';
 import { renderJobsPanel } from './panels/JobsPanel';
-import { renderLibraryPanel, resetLibraryPaging } from './panels/LibraryPanel';
+import {
+  disconnectLibraryCoverObserver,
+  renderLibraryPanel,
+  resetLibraryPaging,
+} from './panels/LibraryPanel';
 import { renderDetailPanel } from './panels/DetailPanel';
 import { segmented } from './ui';
 
@@ -100,6 +104,7 @@ export class VideoSummaryView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    disconnectLibraryCoverObserver();
     this.unsubscribe.forEach((off) => off());
     this.unsubscribe = [];
     if (this.tickTimer !== null) {
@@ -164,6 +169,7 @@ export class VideoSummaryView extends ItemView {
     const panel = this.panelEl;
     if (!panel) return;
     const scrollTop = panel.scrollTop;
+    disconnectLibraryCoverObserver();
     panel.empty();
 
     // 设计稿的笔记库与详情都是独立页面：只在任务页保留顶部输入区。

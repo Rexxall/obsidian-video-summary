@@ -1,5 +1,5 @@
 // agent: claude (2026-07-26)
-import { App, TAbstractFile, TFile } from 'obsidian';
+import { App, requestUrl, TAbstractFile, TFile } from 'obsidian';
 import { VideoUtils } from '../utils/VideoUtils';
 
 export interface VideoNoteEntry {
@@ -21,6 +21,22 @@ export interface VideoNoteEntry {
 }
 
 const BODY_SCAN_CHUNK = 60;
+const REMOTE_COVER_CONCURRENCY = 2;
+const REMOTE_COVER_TIMEOUT_MS = 8000;
+const REMOTE_COVER_RETRY_MS = 30 * 60 * 1000;
+const PLATFORM_COVER_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const PLATFORM_COVER_CACHE_LIMIT = 500;
+const PLATFORM_COVER_CACHE_KEY = 'video-summary-platform-cover-cache-v1';
+
+interface RemoteCoverTask {
+  key: string;
+  link: string;
+}
+
+interface PlatformCoverCacheItem {
+  url: string;
+  updatedAt: number;
+}
 
 /**
  * 视频笔记索引。
@@ -36,9 +52,16 @@ export class NoteIndex {
   private bodyScanQueue: TFile[] = [];
   private bodyScanTimer: number | null = null;
   private bodyScanDone = false;
+  /** 平台封面单独缓存，不改写用户笔记。 */
+  private platformCoverCache = new Map<string, PlatformCoverCacheItem>();
+  private platformCoverRetryAfter = new Map<string, number>();
+  private platformCoverQueue: RemoteCoverTask[] = [];
+  private activeCoverRequests = 0;
+  private coverEmitTimer: number | null = null;
 
   constructor(app: App) {
     this.app = app;
+    this.loadPlatformCoverCache();
   }
 
   subscribe(listener: () => void): () => void {
@@ -67,6 +90,45 @@ export class NoteIndex {
 
   get(path: string): VideoNoteEntry | undefined {
     return this.entries.get(path);
+  }
+
+  /**
+   * 为当前真正显示到屏幕附近的条目补平台封面。
+   * YouTube 在建索引时即可由视频 ID 推导；B站需要一次轻量元数据请求，因此走限流队列。
+   */
+  ensureCover(path: string): void {
+    const entry = this.entries.get(path);
+    if (!entry || entry.cover || !entry.link) return;
+
+    const immediate = this.coverForUrl(entry.link);
+    if (immediate) {
+      entry.cover = immediate;
+      this.emit();
+      return;
+    }
+    this.ensureCoverForUrl(entry.link);
+  }
+
+  /** 供任务卡/历史详情读取已推导或已缓存的平台封面。 */
+  coverForUrl(link?: string): string | undefined {
+    if (!link) return undefined;
+    const key = remoteCoverKey(link);
+    return derivePlatformCover(link) ?? (key ? this.platformCoverCache.get(key)?.url : undefined);
+  }
+
+  /** 任务卡没有对应笔记路径时，也可按同一套规则触发 B站封面读取。 */
+  ensureCoverForUrl(link?: string): void {
+    if (!link || derivePlatformCover(link)) return;
+    const key = remoteCoverKey(link);
+    if (!key) return;
+    const cached = this.platformCoverCache.get(key)?.url;
+    if (cached) return;
+    const retryAfter = this.platformCoverRetryAfter.get(key) ?? 0;
+    if (retryAfter > Date.now()) return;
+
+    this.platformCoverRetryAfter.set(key, Date.now() + REMOTE_COVER_RETRY_MS);
+    this.platformCoverQueue.push({ key, link });
+    this.pumpCoverQueue();
   }
 
   build() {
@@ -197,6 +259,7 @@ export class NoteIndex {
   private entryFromFrontmatter(file: TFile, frontmatter: any): VideoNoteEntry {
     const rawStatus = VideoUtils.getProcessingStatusFromFrontmatter(frontmatter) || 'pending';
     const link = this.readLink(frontmatter);
+    const cover = this.resolveCover(frontmatter, file) ?? this.coverForUrl(link);
     return {
       path: file.path,
       basename: file.basename,
@@ -205,7 +268,7 @@ export class NoteIndex {
       link,
       platform: link ? detectPlatform(link) : undefined,
       title: typeof frontmatter?.video_title === 'string' ? frontmatter.video_title : undefined,
-      cover: this.resolveCover(frontmatter, file),
+      cover,
       duration: readString(frontmatter?.video_duration),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
@@ -215,6 +278,8 @@ export class NoteIndex {
   private entryFromContent(file: TFile, content: string): VideoNoteEntry {
     const rawStatus = VideoUtils.getProcessingStatus(content) || 'pending';
     const link = VideoUtils.extractVideoUrl(content) || undefined;
+    const cover =
+      this.resolveCover({ cover: readCoverFromContent(content) }, file) ?? this.coverForUrl(link);
     return {
       path: file.path,
       basename: file.basename,
@@ -222,7 +287,7 @@ export class NoteIndex {
       hasGeneratedOutput: VideoUtils.hasGeneratedOutput(content),
       link,
       platform: link ? detectPlatform(link) : undefined,
-      cover: this.resolveCover({ cover: readCoverFromContent(content) }, file),
+      cover,
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
     };
@@ -232,7 +297,9 @@ export class NoteIndex {
   private resolveCover(frontmatter: any, file: TFile): string | undefined {
     const raw = readCover(frontmatter);
     if (!raw) return undefined;
-    if (/^https?:\/\//.test(raw)) return raw;
+    const remote = normalizeRemoteCoverUrl(raw);
+    if (remote) return remote;
+    if (/^data:image\//i.test(raw)) return raw;
 
     const linkpath = raw
       .replace(/^!?\[\[/, '')
@@ -250,10 +317,103 @@ export class NoteIndex {
   }
 
   private readLink(frontmatter: any): string | undefined {
-    const raw = frontmatter?.link;
-    if (typeof raw === 'string' && raw.trim()) return raw.trim();
-    if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0].trim();
+    const fields = ['link', 'video_url', 'audio_source', 'source_url', 'url'];
+    for (const field of fields) {
+      const raw = frontmatter?.[field];
+      const candidates = Array.isArray(raw) ? raw : [raw];
+      for (const candidate of candidates) {
+        if (typeof candidate !== 'string') continue;
+        const value = candidate.trim();
+        if (value && VideoUtils.isValidVideoUrl(value)) return value;
+      }
+    }
     return undefined;
+  }
+
+  private pumpCoverQueue(): void {
+    while (
+      this.activeCoverRequests < REMOTE_COVER_CONCURRENCY &&
+      this.platformCoverQueue.length > 0
+    ) {
+      const task = this.platformCoverQueue.shift();
+      if (!task) return;
+      this.activeCoverRequests += 1;
+      void this.loadRemoteCover(task);
+    }
+  }
+
+  private async loadRemoteCover(task: RemoteCoverTask): Promise<void> {
+    try {
+      const cover = await fetchBilibiliCover(task.link);
+      if (!cover) return;
+
+      this.platformCoverCache.set(task.key, { url: cover, updatedAt: Date.now() });
+      this.platformCoverRetryAfter.delete(task.key);
+      this.persistPlatformCoverCache();
+      let changed = false;
+      for (const entry of this.entries.values()) {
+        if (!entry.cover && entry.link && remoteCoverKey(entry.link) === task.key) {
+          entry.cover = cover;
+          changed = true;
+        }
+      }
+      if (changed || this.listeners.size > 0) this.scheduleCoverEmit();
+    } catch (error) {
+      // 封面只是增强信息：平台限流或视频失效时安静退回本地占位，不影响笔记索引。
+      console.debug('[NoteIndex] 平台封面读取失败', error);
+    } finally {
+      this.activeCoverRequests -= 1;
+      this.pumpCoverQueue();
+    }
+  }
+
+  /** 合并同一批返回的封面，避免两张图同时到达时连续重画整个面板。 */
+  private scheduleCoverEmit(): void {
+    if (this.coverEmitTimer !== null) return;
+    this.coverEmitTimer = window.setTimeout(() => {
+      this.coverEmitTimer = null;
+      this.emit();
+    }, 80);
+  }
+
+  private loadPlatformCoverCache(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(PLATFORM_COVER_CACHE_KEY);
+      if (!raw) return;
+      const items = JSON.parse(raw) as unknown;
+      if (!Array.isArray(items)) return;
+      const cutoff = Date.now() - PLATFORM_COVER_CACHE_TTL_MS;
+      for (const row of items.slice(0, PLATFORM_COVER_CACHE_LIMIT)) {
+        if (!Array.isArray(row) || row.length < 2) continue;
+        const [key, item] = row as [unknown, Partial<PlatformCoverCacheItem>];
+        if (
+          typeof key !== 'string' ||
+          !key.startsWith('bilibili:') ||
+          typeof item?.url !== 'string' ||
+          typeof item?.updatedAt !== 'number' ||
+          item.updatedAt < cutoff
+        ) {
+          continue;
+        }
+        const url = normalizeBilibiliCoverUrl(item.url);
+        if (url) this.platformCoverCache.set(key, { url, updatedAt: item.updatedAt });
+      }
+    } catch {
+      // 缓存损坏时忽略；下一次成功读取会覆盖它。
+    }
+  }
+
+  private persistPlatformCoverCache(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const items = Array.from(this.platformCoverCache.entries())
+        .sort((left, right) => right[1].updatedAt - left[1].updatedAt)
+        .slice(0, PLATFORM_COVER_CACHE_LIMIT);
+      localStorage.setItem(PLATFORM_COVER_CACHE_KEY, JSON.stringify(items));
+    } catch {
+      // localStorage 不可用时退化为会话缓存，不影响封面显示。
+    }
   }
 }
 
@@ -285,10 +445,12 @@ function isVideoCentricFile(file: TFile): boolean {
 /** 封面允许几种常见字段名，外链和库内图片都收，解析在 NoteIndex.resolveCover */
 function readCover(frontmatter: any): string | undefined {
   return (
-    readString(frontmatter?.cover) ??
-    readString(frontmatter?.image) ??
+    readString(frontmatter?.video_cover) ??
+    readString(frontmatter?.thumbnail_url) ??
+    readString(frontmatter?.thumbnailUrl) ??
     readString(frontmatter?.thumbnail) ??
-    readString(frontmatter?.video_cover)
+    readString(frontmatter?.cover) ??
+    readString(frontmatter?.image)
   );
 }
 
@@ -300,6 +462,128 @@ function readCoverFromContent(content: string): string | undefined {
     /!\[[^\]]*\]\((https?:\/\/[^)\s]+|[^)\s]+\.(?:png|jpe?g|webp|gif|avif))\)/i,
   );
   return markdownImage?.[1]?.trim();
+}
+
+/** 无需 API key 的 YouTube 封面；链接无明确视频 ID 时不猜测。 */
+export function derivePlatformCover(url: string): string | undefined {
+  const youtubeId = extractYouTubeVideoId(url);
+  return youtubeId ? `https://i.ytimg.com/vi/${youtubeId}/mqdefault.jpg` : undefined;
+}
+
+/** 只有明确指向单个 B站视频的链接才允许进入远程封面队列。 */
+export function canLoadRemoteCover(url?: string): boolean {
+  return !!url && remoteCoverKey(url) !== undefined;
+}
+
+function extractYouTubeVideoId(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    let candidate: string | null = null;
+    if (hostname === 'youtu.be') {
+      candidate = url.pathname.split('/').filter(Boolean)[0] ?? null;
+    } else if (hostname === 'youtube.com' || hostname === 'm.youtube.com') {
+      candidate = url.searchParams.get('v');
+      if (!candidate) {
+        const parts = url.pathname.split('/').filter(Boolean);
+        if (['embed', 'shorts', 'live'].includes(parts[0])) candidate = parts[1] ?? null;
+      }
+    }
+    return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractBilibiliVideoId(value: string): { type: 'bvid' | 'aid'; id: string } | undefined {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    const hostname = url.hostname.toLowerCase();
+    if (hostname !== 'bilibili.com' && !hostname.endsWith('.bilibili.com')) return undefined;
+
+    const queryBvid = url.searchParams.get('bvid');
+    if (queryBvid && /^BV[0-9A-Za-z]{10}$/i.test(queryBvid)) {
+      return { type: 'bvid', id: `BV${queryBvid.slice(2)}` };
+    }
+
+    const pathId = url.pathname.match(/\/video\/(BV[0-9A-Za-z]{10}|av\d+)(?:$|\/)/i)?.[1];
+    if (!pathId) return undefined;
+    if (/^BV/i.test(pathId)) return { type: 'bvid', id: `BV${pathId.slice(2)}` };
+    return { type: 'aid', id: pathId.slice(2) };
+  } catch {
+    return undefined;
+  }
+}
+
+function remoteCoverKey(value: string): string | undefined {
+  if (detectPlatform(value) !== 'bilibili') return undefined;
+  const id = extractBilibiliVideoId(value);
+  return id ? `bilibili:${id.type}:${id.id}` : undefined;
+}
+
+async function fetchBilibiliCover(value: string): Promise<string | undefined> {
+  const id = extractBilibiliVideoId(value);
+  if (!id) return undefined;
+
+  const query = id.type === 'bvid' ? `bvid=${encodeURIComponent(id.id)}` : `aid=${id.id}`;
+  const response = await withTimeout(
+    requestUrl({
+      url: `https://api.bilibili.com/x/web-interface/view?${query}`,
+      headers: {
+        Accept: 'application/json',
+        Referer: 'https://www.bilibili.com/',
+      },
+      throw: false,
+    }),
+    REMOTE_COVER_TIMEOUT_MS,
+  );
+  if (response.status < 200 || response.status >= 300) return undefined;
+  const payload = response.json as { code?: number; data?: { pic?: unknown } } | undefined;
+  if (payload?.code !== 0 || typeof payload.data?.pic !== 'string') return undefined;
+  return normalizeBilibiliCoverUrl(payload.data.pic);
+}
+
+export function normalizeRemoteCoverUrl(value: string): string | undefined {
+  const normalized = value.trim().replace(/^\/\//, 'https://');
+  try {
+    const url = new URL(normalized);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeBilibiliCoverUrl(value: string): string | undefined {
+  const normalized = normalizeRemoteCoverUrl(value.trim().replace(/^http:\/\//, 'https://'));
+  if (!normalized) return undefined;
+  const hostname = new URL(normalized).hostname.toLowerCase();
+  if (
+    hostname === 'hdslb.com' ||
+    hostname.endsWith('.hdslb.com') ||
+    hostname === 'biliimg.com' ||
+    hostname.endsWith('.biliimg.com')
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('平台封面请求超时')), timeoutMs);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 export function detectPlatform(url: string): string {

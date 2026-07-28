@@ -17,7 +17,7 @@ import {
   textButton,
   thumbnail,
 } from '../ui';
-import { platformLabel } from '../../core/NoteIndex';
+import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
 
 const RECENT_HISTORY_LIMIT = 3;
 let historyExpanded = false;
@@ -199,8 +199,13 @@ function mediaOf(
   job: Job,
 ): { cover?: string; duration?: string; platform?: string } {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : undefined;
+  const resultCover = safeCoverUrl(job.result?.video_cover);
+  if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!resultCover && !entry?.cover && job.input.url) {
+    ctx.plugin.noteIndex.ensureCoverForUrl(job.input.url);
+  }
   return {
-    cover: entry?.cover || safeCoverUrl(job.result?.video_cover),
+    cover: resultCover || entry?.cover || ctx.plugin.noteIndex.coverForUrl(job.input.url),
     duration: entry?.duration || job.result?.video_duration,
     platform: job.platform || entry?.platform,
   };
@@ -259,8 +264,14 @@ function buildHistoryRows(ctx: ViewContext, finishedJobs: Job[]): HistoryRow[] {
 function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: HistoryRow) {
   const item = container.createDiv({ cls: 'vs-row' });
   const entry = findEntry(ctx, row.title);
+  const sourceUrl = row.job?.input.url || row.record?.url;
+  const resultCover = safeCoverUrl(row.job?.result?.video_cover);
+  if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!resultCover && !entry?.cover && sourceUrl) {
+    ctx.plugin.noteIndex.ensureCoverForUrl(sourceUrl);
+  }
   thumbnail(item, {
-    cover: entry?.cover,
+    cover: resultCover || entry?.cover || ctx.plugin.noteIndex.coverForUrl(sourceUrl),
     duration: entry?.duration,
     platform: row.platform || entry?.platform,
   });
@@ -371,7 +382,9 @@ function safeCoverUrl(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const cover = value.trim();
   if (!cover) return undefined;
-  if (/^(https?:|app:|data:image\/)/i.test(cover)) return cover;
+  const remote = normalizeRemoteCoverUrl(cover);
+  if (remote) return remote;
+  if (/^(app:|data:image\/)/i.test(cover)) return cover;
   return undefined;
 }
 

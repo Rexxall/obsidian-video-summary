@@ -18,7 +18,7 @@ import {
   statusPill,
   textButton,
 } from '../ui';
-import { platformLabel } from '../../core/NoteIndex';
+import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
 
 /** 详情层：结果预览 + 写入方式 + 失败日志。写入笔记前能先看到要写什么。 */
 export function renderDetailPanel(container: HTMLElement, ctx: ViewContext) {
@@ -55,7 +55,15 @@ function renderBanner(
     cls: `vs-banner ${platformClass(options.platform)}`,
   });
   if (options.cover) {
-    const img = banner.createEl('img', { cls: 'vs-banner-img', attr: { src: options.cover } });
+    const img = banner.createEl('img', {
+      cls: 'vs-banner-img',
+      attr: {
+        src: options.cover,
+        alt: '',
+        decoding: 'async',
+        referrerpolicy: 'no-referrer',
+      },
+    });
     img.addEventListener('error', () => img.remove());
   }
   banner.createSpan({ cls: 'vs-banner-bar' });
@@ -71,11 +79,16 @@ function renderBanner(
 function renderJobDetail(container: HTMLElement, ctx: ViewContext, job: Job) {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : undefined;
   const duration = job.result?.video_duration || entry?.duration;
+  const resultCover = safeCoverUrl(job.result?.video_cover);
+  if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!resultCover && !entry?.cover && job.input.url) {
+    ctx.plugin.noteIndex.ensureCoverForUrl(job.input.url);
+  }
 
   renderBanner(container, ctx, {
     status: job.state,
     platform: job.platform || entry?.platform,
-    cover: entry?.cover,
+    cover: resultCover || entry?.cover || ctx.plugin.noteIndex.coverForUrl(job.input.url),
     duration,
   });
 
@@ -178,7 +191,12 @@ function renderJobDetail(container: HTMLElement, ctx: ViewContext, job: Job) {
     );
     prependIcon(write, 'check');
   } else if (job.notePath) {
-    const open = textButton(actions, '打开笔记', () => ctx.openNote(job.notePath!), 'is-primary is-fill has-icon');
+    const open = textButton(
+      actions,
+      '打开笔记',
+      () => ctx.openNote(job.notePath!),
+      'is-primary is-fill has-icon',
+    );
     prependIcon(open, 'file-text');
   }
 
@@ -290,10 +308,12 @@ function renderPreview(body: HTMLElement, ctx: ViewContext, job: Job) {
 
 function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: ProcessingHistory) {
   const entry = ctx.plugin.noteIndex.getAll().find((item) => item.basename === record.file);
+  if (entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!entry?.cover && record.url) ctx.plugin.noteIndex.ensureCoverForUrl(record.url);
   renderBanner(container, ctx, {
     status: record.result,
     platform: record.platform || entry?.platform,
-    cover: entry?.cover,
+    cover: entry?.cover || ctx.plugin.noteIndex.coverForUrl(record.url),
     duration: entry?.duration,
   });
 
@@ -344,6 +364,15 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
   }
 }
 
+function safeCoverUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const cover = value.trim();
+  if (!cover) return undefined;
+  const remote = normalizeRemoteCoverUrl(cover);
+  if (remote) return remote;
+  return /^(app:|data:image\/)/i.test(cover) ? cover : undefined;
+}
+
 function renderLogs(container: HTMLElement, job: Job) {
   const box = container.createDiv({ cls: 'vs-log-box' });
   if (job.logs.length === 0) {
@@ -370,7 +399,6 @@ function renderText(container: HTMLElement, text: string | undefined, empty: str
   }
   container.createEl('pre', { text: text.slice(0, 20000), cls: 'vs-pre' });
 }
-
 
 function isCookieError(error: string): boolean {
   return /cookie|登录|login|403|需要验证/i.test(error);

@@ -4385,6 +4385,12 @@ var VideoUtils = class {
 
 // core/NoteIndex.ts
 var BODY_SCAN_CHUNK = 60;
+var REMOTE_COVER_CONCURRENCY = 2;
+var REMOTE_COVER_TIMEOUT_MS = 8e3;
+var REMOTE_COVER_RETRY_MS = 30 * 60 * 1e3;
+var PLATFORM_COVER_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
+var PLATFORM_COVER_CACHE_LIMIT = 500;
+var PLATFORM_COVER_CACHE_KEY = "video-summary-platform-cover-cache-v1";
 var NoteIndex = class {
   constructor(app) {
     this.entries = /* @__PURE__ */ new Map();
@@ -4392,7 +4398,14 @@ var NoteIndex = class {
     this.bodyScanQueue = [];
     this.bodyScanTimer = null;
     this.bodyScanDone = false;
+    /** 平台封面单独缓存，不改写用户笔记。 */
+    this.platformCoverCache = /* @__PURE__ */ new Map();
+    this.platformCoverRetryAfter = /* @__PURE__ */ new Map();
+    this.platformCoverQueue = [];
+    this.activeCoverRequests = 0;
+    this.coverEmitTimer = null;
     this.app = app;
+    this.loadPlatformCoverCache();
   }
   subscribe(listener) {
     this.listeners.add(listener);
@@ -4416,6 +4429,40 @@ var NoteIndex = class {
   }
   get(path) {
     return this.entries.get(path);
+  }
+  /**
+   * 为当前真正显示到屏幕附近的条目补平台封面。
+   * YouTube 在建索引时即可由视频 ID 推导；B站需要一次轻量元数据请求，因此走限流队列。
+   */
+  ensureCover(path) {
+    const entry = this.entries.get(path);
+    if (!entry || entry.cover || !entry.link) return;
+    const immediate = this.coverForUrl(entry.link);
+    if (immediate) {
+      entry.cover = immediate;
+      this.emit();
+      return;
+    }
+    this.ensureCoverForUrl(entry.link);
+  }
+  /** 供任务卡/历史详情读取已推导或已缓存的平台封面。 */
+  coverForUrl(link) {
+    if (!link) return void 0;
+    const key = remoteCoverKey(link);
+    return derivePlatformCover(link) ?? (key ? this.platformCoverCache.get(key)?.url : void 0);
+  }
+  /** 任务卡没有对应笔记路径时，也可按同一套规则触发 B站封面读取。 */
+  ensureCoverForUrl(link) {
+    if (!link || derivePlatformCover(link)) return;
+    const key = remoteCoverKey(link);
+    if (!key) return;
+    const cached = this.platformCoverCache.get(key)?.url;
+    if (cached) return;
+    const retryAfter = this.platformCoverRetryAfter.get(key) ?? 0;
+    if (retryAfter > Date.now()) return;
+    this.platformCoverRetryAfter.set(key, Date.now() + REMOTE_COVER_RETRY_MS);
+    this.platformCoverQueue.push({ key, link });
+    this.pumpCoverQueue();
   }
   build() {
     this.entries.clear();
@@ -4526,6 +4573,7 @@ var NoteIndex = class {
   entryFromFrontmatter(file, frontmatter) {
     const rawStatus = VideoUtils.getProcessingStatusFromFrontmatter(frontmatter) || "pending";
     const link = this.readLink(frontmatter);
+    const cover = this.resolveCover(frontmatter, file) ?? this.coverForUrl(link);
     return {
       path: file.path,
       basename: file.basename,
@@ -4534,7 +4582,7 @@ var NoteIndex = class {
       link,
       platform: link ? detectPlatform2(link) : void 0,
       title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
-      cover: this.resolveCover(frontmatter, file),
+      cover,
       duration: readString(frontmatter?.video_duration),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
@@ -4543,6 +4591,7 @@ var NoteIndex = class {
   entryFromContent(file, content) {
     const rawStatus = VideoUtils.getProcessingStatus(content) || "pending";
     const link = VideoUtils.extractVideoUrl(content) || void 0;
+    const cover = this.resolveCover({ cover: readCoverFromContent(content) }, file) ?? this.coverForUrl(link);
     return {
       path: file.path,
       basename: file.basename,
@@ -4550,7 +4599,7 @@ var NoteIndex = class {
       hasGeneratedOutput: VideoUtils.hasGeneratedOutput(content),
       link,
       platform: link ? detectPlatform2(link) : void 0,
-      cover: this.resolveCover({ cover: readCoverFromContent(content) }, file),
+      cover,
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
     };
@@ -4559,7 +4608,9 @@ var NoteIndex = class {
   resolveCover(frontmatter, file) {
     const raw = readCover(frontmatter);
     if (!raw) return void 0;
-    if (/^https?:\/\//.test(raw)) return raw;
+    const remote = normalizeRemoteCoverUrl(raw);
+    if (remote) return remote;
+    if (/^data:image\//i.test(raw)) return raw;
     const linkpath = raw.replace(/^!?\[\[/, "").replace(/\]\]$/, "").split("|")[0].trim();
     if (!linkpath) return void 0;
     const target = this.app.metadataCache.getFirstLinkpathDest(linkpath, file.path);
@@ -4571,10 +4622,83 @@ var NoteIndex = class {
     }
   }
   readLink(frontmatter) {
-    const raw = frontmatter?.link;
-    if (typeof raw === "string" && raw.trim()) return raw.trim();
-    if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
+    const fields = ["link", "video_url", "audio_source", "source_url", "url"];
+    for (const field of fields) {
+      const raw = frontmatter?.[field];
+      const candidates = Array.isArray(raw) ? raw : [raw];
+      for (const candidate of candidates) {
+        if (typeof candidate !== "string") continue;
+        const value = candidate.trim();
+        if (value && VideoUtils.isValidVideoUrl(value)) return value;
+      }
+    }
     return void 0;
+  }
+  pumpCoverQueue() {
+    while (this.activeCoverRequests < REMOTE_COVER_CONCURRENCY && this.platformCoverQueue.length > 0) {
+      const task = this.platformCoverQueue.shift();
+      if (!task) return;
+      this.activeCoverRequests += 1;
+      void this.loadRemoteCover(task);
+    }
+  }
+  async loadRemoteCover(task) {
+    try {
+      const cover = await fetchBilibiliCover(task.link);
+      if (!cover) return;
+      this.platformCoverCache.set(task.key, { url: cover, updatedAt: Date.now() });
+      this.platformCoverRetryAfter.delete(task.key);
+      this.persistPlatformCoverCache();
+      let changed = false;
+      for (const entry of this.entries.values()) {
+        if (!entry.cover && entry.link && remoteCoverKey(entry.link) === task.key) {
+          entry.cover = cover;
+          changed = true;
+        }
+      }
+      if (changed || this.listeners.size > 0) this.scheduleCoverEmit();
+    } catch (error) {
+      console.debug("[NoteIndex] \u5E73\u53F0\u5C01\u9762\u8BFB\u53D6\u5931\u8D25", error);
+    } finally {
+      this.activeCoverRequests -= 1;
+      this.pumpCoverQueue();
+    }
+  }
+  /** 合并同一批返回的封面，避免两张图同时到达时连续重画整个面板。 */
+  scheduleCoverEmit() {
+    if (this.coverEmitTimer !== null) return;
+    this.coverEmitTimer = window.setTimeout(() => {
+      this.coverEmitTimer = null;
+      this.emit();
+    }, 80);
+  }
+  loadPlatformCoverCache() {
+    if (typeof localStorage === "undefined") return;
+    try {
+      const raw = localStorage.getItem(PLATFORM_COVER_CACHE_KEY);
+      if (!raw) return;
+      const items = JSON.parse(raw);
+      if (!Array.isArray(items)) return;
+      const cutoff = Date.now() - PLATFORM_COVER_CACHE_TTL_MS;
+      for (const row of items.slice(0, PLATFORM_COVER_CACHE_LIMIT)) {
+        if (!Array.isArray(row) || row.length < 2) continue;
+        const [key, item] = row;
+        if (typeof key !== "string" || !key.startsWith("bilibili:") || typeof item?.url !== "string" || typeof item?.updatedAt !== "number" || item.updatedAt < cutoff) {
+          continue;
+        }
+        const url = normalizeBilibiliCoverUrl(item.url);
+        if (url) this.platformCoverCache.set(key, { url, updatedAt: item.updatedAt });
+      }
+    } catch {
+    }
+  }
+  persistPlatformCoverCache() {
+    if (typeof localStorage === "undefined") return;
+    try {
+      const items = Array.from(this.platformCoverCache.entries()).sort((left, right) => right[1].updatedAt - left[1].updatedAt).slice(0, PLATFORM_COVER_CACHE_LIMIT);
+      localStorage.setItem(PLATFORM_COVER_CACHE_KEY, JSON.stringify(items));
+    } catch {
+    }
   }
 };
 function readString(value) {
@@ -4598,7 +4722,7 @@ function isVideoCentricFile(file) {
   return /video|youtube|b站|视频|影片|录像|录屏|时间轴/i.test(file.basename);
 }
 function readCover(frontmatter) {
-  return readString(frontmatter?.cover) ?? readString(frontmatter?.image) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.video_cover);
+  return readString(frontmatter?.video_cover) ?? readString(frontmatter?.thumbnail_url) ?? readString(frontmatter?.thumbnailUrl) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.cover) ?? readString(frontmatter?.image);
 }
 function readCoverFromContent(content) {
   const wikiEmbed = content.match(/!\[\[([^\]|]+\.(?:png|jpe?g|webp|gif|avif))(?:\|[^\]]*)?\]\]/i);
@@ -4607,6 +4731,109 @@ function readCoverFromContent(content) {
     /!\[[^\]]*\]\((https?:\/\/[^)\s]+|[^)\s]+\.(?:png|jpe?g|webp|gif|avif))\)/i
   );
   return markdownImage?.[1]?.trim();
+}
+function derivePlatformCover(url) {
+  const youtubeId = extractYouTubeVideoId(url);
+  return youtubeId ? `https://i.ytimg.com/vi/${youtubeId}/mqdefault.jpg` : void 0;
+}
+function canLoadRemoteCover(url) {
+  return !!url && remoteCoverKey(url) !== void 0;
+}
+function extractYouTubeVideoId(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return void 0;
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    let candidate = null;
+    if (hostname === "youtu.be") {
+      candidate = url.pathname.split("/").filter(Boolean)[0] ?? null;
+    } else if (hostname === "youtube.com" || hostname === "m.youtube.com") {
+      candidate = url.searchParams.get("v");
+      if (!candidate) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (["embed", "shorts", "live"].includes(parts[0])) candidate = parts[1] ?? null;
+      }
+    }
+    return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function extractBilibiliVideoId(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return void 0;
+    const hostname = url.hostname.toLowerCase();
+    if (hostname !== "bilibili.com" && !hostname.endsWith(".bilibili.com")) return void 0;
+    const queryBvid = url.searchParams.get("bvid");
+    if (queryBvid && /^BV[0-9A-Za-z]{10}$/i.test(queryBvid)) {
+      return { type: "bvid", id: `BV${queryBvid.slice(2)}` };
+    }
+    const pathId = url.pathname.match(/\/video\/(BV[0-9A-Za-z]{10}|av\d+)(?:$|\/)/i)?.[1];
+    if (!pathId) return void 0;
+    if (/^BV/i.test(pathId)) return { type: "bvid", id: `BV${pathId.slice(2)}` };
+    return { type: "aid", id: pathId.slice(2) };
+  } catch {
+    return void 0;
+  }
+}
+function remoteCoverKey(value) {
+  if (detectPlatform2(value) !== "bilibili") return void 0;
+  const id = extractBilibiliVideoId(value);
+  return id ? `bilibili:${id.type}:${id.id}` : void 0;
+}
+async function fetchBilibiliCover(value) {
+  const id = extractBilibiliVideoId(value);
+  if (!id) return void 0;
+  const query = id.type === "bvid" ? `bvid=${encodeURIComponent(id.id)}` : `aid=${id.id}`;
+  const response = await withTimeout(
+    (0, import_obsidian4.requestUrl)({
+      url: `https://api.bilibili.com/x/web-interface/view?${query}`,
+      headers: {
+        Accept: "application/json",
+        Referer: "https://www.bilibili.com/"
+      },
+      throw: false
+    }),
+    REMOTE_COVER_TIMEOUT_MS
+  );
+  if (response.status < 200 || response.status >= 300) return void 0;
+  const payload = response.json;
+  if (payload?.code !== 0 || typeof payload.data?.pic !== "string") return void 0;
+  return normalizeBilibiliCoverUrl(payload.data.pic);
+}
+function normalizeRemoteCoverUrl(value) {
+  const normalized = value.trim().replace(/^\/\//, "https://");
+  try {
+    const url = new URL(normalized);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function normalizeBilibiliCoverUrl(value) {
+  const normalized = normalizeRemoteCoverUrl(value.trim().replace(/^http:\/\//, "https://"));
+  if (!normalized) return void 0;
+  const hostname = new URL(normalized).hostname.toLowerCase();
+  if (hostname === "hdslb.com" || hostname.endsWith(".hdslb.com") || hostname === "biliimg.com" || hostname.endsWith(".biliimg.com")) {
+    return normalized;
+  }
+  return void 0;
+}
+function withTimeout(promise, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("\u5E73\u53F0\u5C01\u9762\u8BF7\u6C42\u8D85\u65F6")), timeoutMs);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 function detectPlatform2(url) {
   const value = url.toLowerCase();
@@ -7310,7 +7537,7 @@ async function probeBackend(ctx, backend, force = false) {
     }
     try {
       if (force) {
-        const test = await withTimeout(ctx.plugin.api.testConnection(), BACKEND_PROBE_TIMEOUT_MS);
+        const test = await withTimeout2(ctx.plugin.api.testConnection(), BACKEND_PROBE_TIMEOUT_MS);
         return test.success ? {
           state: "is-online",
           checkedAt: Date.now(),
@@ -7350,7 +7577,7 @@ async function probeBackend(ctx, backend, force = false) {
   ctx.setBackendState(result.state);
   return result;
 }
-async function withTimeout(promise, timeoutMs) {
+async function withTimeout2(promise, timeoutMs) {
   let timer = 0;
   try {
     const timeout = new Promise((_, reject) => {
@@ -7863,8 +8090,13 @@ function renderReviewJob(container, ctx, job) {
 }
 function mediaOf(ctx, job) {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : void 0;
+  const resultCover = safeCoverUrl(job.result?.video_cover);
+  if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!resultCover && !entry?.cover && job.input.url) {
+    ctx.plugin.noteIndex.ensureCoverForUrl(job.input.url);
+  }
   return {
-    cover: entry?.cover || safeCoverUrl(job.result?.video_cover),
+    cover: resultCover || entry?.cover || ctx.plugin.noteIndex.coverForUrl(job.input.url),
     duration: entry?.duration || job.result?.video_duration,
     platform: job.platform || entry?.platform
   };
@@ -7906,8 +8138,14 @@ function buildHistoryRows(ctx, finishedJobs) {
 function renderHistoryRow(container, ctx, row) {
   const item = container.createDiv({ cls: "vs-row" });
   const entry = findEntry(ctx, row.title);
+  const sourceUrl = row.job?.input.url || row.record?.url;
+  const resultCover = safeCoverUrl(row.job?.result?.video_cover);
+  if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!resultCover && !entry?.cover && sourceUrl) {
+    ctx.plugin.noteIndex.ensureCoverForUrl(sourceUrl);
+  }
   thumbnail(item, {
-    cover: entry?.cover,
+    cover: resultCover || entry?.cover || ctx.plugin.noteIndex.coverForUrl(sourceUrl),
     duration: entry?.duration,
     platform: row.platform || entry?.platform
   });
@@ -7998,7 +8236,9 @@ function safeCoverUrl(value) {
   if (typeof value !== "string") return void 0;
   const cover = value.trim();
   if (!cover) return void 0;
-  if (/^(https?:|app:|data:image\/)/i.test(cover)) return cover;
+  const remote = normalizeRemoteCoverUrl(cover);
+  if (remote) return remote;
+  if (/^(app:|data:image\/)/i.test(cover)) return cover;
   return void 0;
 }
 function summarizeError(raw) {
@@ -8136,8 +8376,13 @@ var import_obsidian9 = require("obsidian");
 var PAGE_SIZE = 80;
 var searchHadFocus = false;
 var visibleCount = PAGE_SIZE;
+var coverObserver = null;
 function resetLibraryPaging() {
   visibleCount = PAGE_SIZE;
+}
+function disconnectLibraryCoverObserver() {
+  coverObserver?.disconnect();
+  coverObserver = null;
 }
 function renderLibraryPanel(container, ctx) {
   const { state, plugin } = ctx;
@@ -8208,6 +8453,23 @@ function renderLibraryPanel(container, ctx) {
     ctx
   );
   const renderList = () => {
+    coverObserver?.disconnect();
+    coverObserver = null;
+    if (typeof IntersectionObserver !== "undefined") {
+      const observer = new IntersectionObserver(
+        (observed) => {
+          observed.forEach((item) => {
+            if (!item.isIntersecting) return;
+            const element = item.target;
+            observer.unobserve(element);
+            const path = element.dataset.coverPath;
+            if (path) plugin.noteIndex.ensureCover(path);
+          });
+        },
+        { rootMargin: "96px 0px", threshold: 0.01 }
+      );
+      coverObserver = observer;
+    }
     listEl.empty();
     if (filtered.length === 0) {
       if (plugin.noteIndex.isScanning()) {
@@ -8217,7 +8479,7 @@ function renderLibraryPanel(container, ctx) {
       }
       return;
     }
-    filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry));
+    filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
     if (filtered.length > visibleCount) {
       const more = listEl.createEl("button", {
         text: `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${filtered.length - visibleCount} \u6761`,
@@ -8259,8 +8521,18 @@ function renderLibraryPanel(container, ctx) {
     container.createDiv({ text: "\u4ECD\u5728\u540E\u53F0\u626B\u63CF\u5386\u53F2\u7B14\u8BB0\u2026", cls: "vs-scan-hint" });
   }
 }
-function renderRow(listEl, ctx, entry) {
+function renderRow(listEl, ctx, entry, observer) {
   const row = listEl.createDiv({ cls: "vs-row" });
+  if (!entry.cover && canLoadRemoteCover(entry.link)) {
+    row.dataset.coverPath = entry.path;
+    if (observer) {
+      observer.observe(row);
+    } else {
+      const loadCover = () => ctx.plugin.noteIndex.ensureCover(entry.path);
+      row.addEventListener("pointerenter", loadCover, { once: true });
+      row.addEventListener("focusin", loadCover, { once: true });
+    }
+  }
   const displayStatus = noteDisplayStatus(entry, ctx.plugin.jobs);
   const filterStatus = filterForDisplayStatus(displayStatus);
   thumbnail(row, { cover: entry.cover, duration: entry.duration, platform: entry.platform });
@@ -8462,7 +8734,15 @@ function renderBanner(container, ctx, options) {
     cls: `vs-banner ${platformClass(options.platform)}`
   });
   if (options.cover) {
-    const img = banner.createEl("img", { cls: "vs-banner-img", attr: { src: options.cover } });
+    const img = banner.createEl("img", {
+      cls: "vs-banner-img",
+      attr: {
+        src: options.cover,
+        alt: "",
+        decoding: "async",
+        referrerpolicy: "no-referrer"
+      }
+    });
     img.addEventListener("error", () => img.remove());
   }
   banner.createSpan({ cls: "vs-banner-bar" });
@@ -8477,10 +8757,15 @@ function renderBanner(container, ctx, options) {
 function renderJobDetail(container, ctx, job) {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : void 0;
   const duration = job.result?.video_duration || entry?.duration;
+  const resultCover = safeCoverUrl2(job.result?.video_cover);
+  if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!resultCover && !entry?.cover && job.input.url) {
+    ctx.plugin.noteIndex.ensureCoverForUrl(job.input.url);
+  }
   renderBanner(container, ctx, {
     status: job.state,
     platform: job.platform || entry?.platform,
-    cover: entry?.cover,
+    cover: resultCover || entry?.cover || ctx.plugin.noteIndex.coverForUrl(job.input.url),
     duration
   });
   const body = container.createDiv({ cls: "vs-detail-main" });
@@ -8575,7 +8860,12 @@ function renderJobDetail(container, ctx, job) {
     );
     prependIcon(write, "check");
   } else if (job.notePath) {
-    const open = textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(job.notePath), "is-primary is-fill has-icon");
+    const open = textButton(
+      actions,
+      "\u6253\u5F00\u7B14\u8BB0",
+      () => ctx.openNote(job.notePath),
+      "is-primary is-fill has-icon"
+    );
     prependIcon(open, "file-text");
   }
   const more = textButton(actions, "\u66F4\u591A", () => void 0, "has-caret");
@@ -8676,10 +8966,12 @@ ${result.note}` : ""
 }
 function renderRecordDetail(container, ctx, record) {
   const entry = ctx.plugin.noteIndex.getAll().find((item) => item.basename === record.file);
+  if (entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
+  if (!entry?.cover && record.url) ctx.plugin.noteIndex.ensureCoverForUrl(record.url);
   renderBanner(container, ctx, {
     status: record.result,
     platform: record.platform || entry?.platform,
-    cover: entry?.cover,
+    cover: entry?.cover || ctx.plugin.noteIndex.coverForUrl(record.url),
     duration: entry?.duration
   });
   const body = container.createDiv({ cls: "vs-detail-main" });
@@ -8724,6 +9016,14 @@ function renderRecordDetail(container, ctx, record) {
   } else {
     body.createDiv({ text: `\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, cls: "vs-hint" });
   }
+}
+function safeCoverUrl2(value) {
+  if (typeof value !== "string") return void 0;
+  const cover = value.trim();
+  if (!cover) return void 0;
+  const remote = normalizeRemoteCoverUrl(cover);
+  if (remote) return remote;
+  return /^(app:|data:image\/)/i.test(cover) ? cover : void 0;
 }
 function renderLogs(container, job) {
   const box = container.createDiv({ cls: "vs-log-box" });
@@ -8842,6 +9142,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     this.renderAll();
   }
   async onClose() {
+    disconnectLibraryCoverObserver();
     this.unsubscribe.forEach((off) => off());
     this.unsubscribe = [];
     if (this.tickTimer !== null) {
@@ -8901,6 +9202,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     const panel = this.panelEl;
     if (!panel) return;
     const scrollTop = panel.scrollTop;
+    disconnectLibraryCoverObserver();
     panel.empty();
     this.headerEl?.toggleAttribute(
       "hidden",

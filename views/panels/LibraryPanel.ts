@@ -1,7 +1,7 @@
 // agent: claude (2026-07-26)
 import { Notice, TFile, setIcon } from 'obsidian';
 import { ViewContext, LibraryFilter } from '../context';
-import { VideoNoteEntry, platformLabel } from '../../core/NoteIndex';
+import { canLoadRemoteCover, VideoNoteEntry, platformLabel } from '../../core/NoteIndex';
 import { ConfirmModal } from '../../modals';
 import { liveJobForNote, noteDisplayStatus, NoteDisplayStatus } from '../noteStatus';
 import {
@@ -19,9 +19,15 @@ const PAGE_SIZE = 80;
 /** 搜索框失焦问题：面板重建后按这个标记把焦点还回去 */
 let searchHadFocus = false;
 let visibleCount = PAGE_SIZE;
+let coverObserver: IntersectionObserver | null = null;
 
 export function resetLibraryPaging() {
   visibleCount = PAGE_SIZE;
+}
+
+export function disconnectLibraryCoverObserver() {
+  coverObserver?.disconnect();
+  coverObserver = null;
 }
 
 /** 笔记库：索引驱动 + 分批渲染，库大了也不会一次铺几千个 DOM 节点 */
@@ -108,6 +114,24 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
   );
 
   const renderList = () => {
+    coverObserver?.disconnect();
+    coverObserver = null;
+    if (typeof IntersectionObserver !== 'undefined') {
+      const observer = new IntersectionObserver(
+        (observed) => {
+          observed.forEach((item) => {
+            if (!item.isIntersecting) return;
+            const element = item.target as HTMLElement;
+            observer.unobserve(element);
+            const path = element.dataset.coverPath;
+            if (path) plugin.noteIndex.ensureCover(path);
+          });
+        },
+        { rootMargin: '96px 0px', threshold: 0.01 },
+      );
+      coverObserver = observer;
+    }
+
     listEl.empty();
     if (filtered.length === 0) {
       if (plugin.noteIndex.isScanning()) {
@@ -117,7 +141,9 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
       }
       return;
     }
-    filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry));
+    filtered
+      .slice(0, visibleCount)
+      .forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
     if (filtered.length > visibleCount) {
       const more = listEl.createEl('button', {
         text: `显示更多 · 还有 ${filtered.length - visibleCount} 条`,
@@ -163,8 +189,24 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
   }
 }
 
-function renderRow(listEl: HTMLElement, ctx: ViewContext, entry: VideoNoteEntry) {
+function renderRow(
+  listEl: HTMLElement,
+  ctx: ViewContext,
+  entry: VideoNoteEntry,
+  observer: IntersectionObserver | null,
+) {
   const row = listEl.createDiv({ cls: 'vs-row' });
+  if (!entry.cover && canLoadRemoteCover(entry.link)) {
+    row.dataset.coverPath = entry.path;
+    if (observer) {
+      observer.observe(row);
+    } else {
+      // 老版 WebView 不自动扫 80 行；用户真的碰到或聚焦这一行时再取。
+      const loadCover = () => ctx.plugin.noteIndex.ensureCover(entry.path);
+      row.addEventListener('pointerenter', loadCover, { once: true });
+      row.addEventListener('focusin', loadCover, { once: true });
+    }
+  }
   const displayStatus = noteDisplayStatus(entry, ctx.plugin.jobs);
   const filterStatus = filterForDisplayStatus(displayStatus);
   thumbnail(row, { cover: entry.cover, duration: entry.duration, platform: entry.platform });
