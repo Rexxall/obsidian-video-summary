@@ -22,6 +22,7 @@ export class NoteFactory {
   /** 为一个待处理任务创建占位笔记 */
   async createStubNote(draft: JobDraft, options: NoteFactoryOptions): Promise<TFile | null> {
     const targetFolder = this.resolveFolder(options.outputFolder);
+    await this.ensureFolder(targetFolder);
     const filePath = await this.uniquePath(targetFolder, sanitizeFileName(draft.title));
 
     const now = new Date();
@@ -82,6 +83,7 @@ export class NoteFactory {
     options: NoteFactoryOptions,
   ): Promise<TFile | null> {
     const folder = this.resolveFolder(options.outputFolder);
+    await this.ensureFolder(folder);
     const baseTitle =
       entry.result.video_title || (entry.input.url ? titleForUrl(entry.input.url) : 'Webhook结果');
     const fileName = `${sanitizeFileName(baseTitle)}_${entry.timestamp}`;
@@ -125,6 +127,20 @@ export class NoteFactory {
     if (outputFolder) return outputFolder;
     const activeFile = this.app.workspace.getActiveFile();
     return activeFile?.parent?.path && activeFile.parent.path !== '/' ? activeFile.parent.path : '';
+  }
+
+  private async ensureFolder(folder: string): Promise<void> {
+    const parts = folder
+      .split('/')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    let current = '';
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (!this.app.vault.getAbstractFileByPath(current)) {
+        await this.app.vault.createFolder(current);
+      }
+    }
   }
 
   private async uniquePath(folder: string, baseName: string): Promise<string> {

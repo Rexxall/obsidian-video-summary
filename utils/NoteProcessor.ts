@@ -438,6 +438,9 @@ export class NoteProcessor {
       // 如果文件在子文件夹中，保持原有路径
       if (file.parent && file.parent.path !== '') {
         const newPath = `${file.parent.path}/${newFileName}`;
+        if (newPath === file.path) {
+          return;
+        }
 
         let targetPath = newPath;
         const exists = (p: string) => !!this.vault.getAbstractFileByPath(p);
@@ -464,6 +467,9 @@ export class NoteProcessor {
       } else {
         // 文件在根目录
         let targetPath = newFileName;
+        if (targetPath === file.path) {
+          return;
+        }
         const exists = (p: string) => !!this.vault.getAbstractFileByPath(p);
         if (exists(targetPath)) {
           if (strategy === 'skip') {

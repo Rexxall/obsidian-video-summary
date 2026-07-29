@@ -130,7 +130,8 @@ var SHORT_LINK_HOSTS = [
 ];
 var DEFAULT_HISTORY_LIMIT = 300;
 var DEFAULT_AI_MODELS = ["Gemini 3.1", "Gemini 3.0"];
-var DEFAULT_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/obsidian-video-summary";
+var DEFAULT_N8N_WEBHOOK_URL = "http://127.0.0.1:5678/webhook/obsidian-video-summary";
+var LEGACY_DEFAULT_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/obsidian-video-summary";
 var LEGACY_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/cyrus";
 var RECOMMENDED_WORKFLOW = {
   name: "Video Summary Advanced Workflow",
@@ -160,8 +161,8 @@ var PLATFORM_CAPABILITIES = [
     platform: "Bilibili",
     status: "supported",
     input: "link",
-    requirements: "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1BHTTP 412 \u65F6\u901A\u5E38\u9700\u8981\u66F4\u65B0 yt-dlp \u6216\u6DFB\u52A0 cookies\u3002",
-    notes: "\u53EA\u5904\u7406\u67D0\u4E00 P \u65F6\uFF0C\u5EFA\u8BAE\u590D\u5236\u5F53\u524D\u5206 P \u7684\u5B8C\u6574\u94FE\u63A5\uFF1Bcookie \u6587\u4EF6\u540D\u4E3A bilibili_cookies.txt\u3002"
+    requirements: "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1B\u53D7\u9650\u89C6\u9891\u6216\u90E8\u5206\u5206 P \u4ECD\u53EF\u80FD\u9700\u8981 cookies\u3002",
+    notes: "yt-dlp \u9047\u5230 HTTP 412 \u65F6\u4F1A\u56DE\u9000\u5230\u516C\u5F00 API \u8BFB\u53D6\u5143\u6570\u636E\u4E0E\u97F3\u8F68\u3002"
   },
   {
     platform: "\u6296\u97F3",
@@ -2991,6 +2992,9 @@ ${fieldLine}`;
       const newFileName = `${cleanTitle}.md`;
       if (file.parent && file.parent.path !== "") {
         const newPath = `${file.parent.path}/${newFileName}`;
+        if (newPath === file.path) {
+          return;
+        }
         let targetPath = newPath;
         const exists = (p) => !!this.vault.getAbstractFileByPath(p);
         if (exists(targetPath)) {
@@ -3015,6 +3019,9 @@ ${fieldLine}`;
         console.log(`\u6587\u4EF6\u5DF2\u91CD\u547D\u540D\u4E3A: ${targetPath}`);
       } else {
         let targetPath = newFileName;
+        if (targetPath === file.path) {
+          return;
+        }
         const exists = (p) => !!this.vault.getAbstractFileByPath(p);
         if (exists(targetPath)) {
           if (strategy === "skip") {
@@ -9579,6 +9586,7 @@ var NoteFactory = class {
   /** 为一个待处理任务创建占位笔记 */
   async createStubNote(draft, options) {
     const targetFolder = this.resolveFolder(options.outputFolder);
+    await this.ensureFolder(targetFolder);
     const filePath = await this.uniquePath(targetFolder, sanitizeFileName(draft.title));
     const now = /* @__PURE__ */ new Date();
     const dateString = formatDateTime(now);
@@ -9626,6 +9634,7 @@ var NoteFactory = class {
   /** 直接把一份 webhook 结果落成新笔记 */
   async createNoteFromResult(entry, options) {
     const folder = this.resolveFolder(options.outputFolder);
+    await this.ensureFolder(folder);
     const baseTitle = entry.result.video_title || (entry.input.url ? titleForUrl(entry.input.url) : "Webhook\u7ED3\u679C");
     const fileName = `${sanitizeFileName(baseTitle)}_${entry.timestamp}`;
     const filePath = await this.uniquePath(folder, fileName);
@@ -9665,6 +9674,16 @@ var NoteFactory = class {
     if (outputFolder) return outputFolder;
     const activeFile = this.app.workspace.getActiveFile();
     return activeFile?.parent?.path && activeFile.parent.path !== "/" ? activeFile.parent.path : "";
+  }
+  async ensureFolder(folder) {
+    const parts = folder.split("/").map((part) => part.trim()).filter(Boolean);
+    let current = "";
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (!this.app.vault.getAbstractFileByPath(current)) {
+        await this.app.vault.createFolder(current);
+      }
+    }
   }
   async uniquePath(folder, baseName) {
     let candidate = folder ? `${folder}/${baseName}.md` : `${baseName}.md`;
@@ -10644,6 +10663,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       this.settings.setupGuideDismissed = DEFAULT_SETTINGS.setupGuideDismissed;
       shouldSave = true;
     }
+    const normalizedSuccessStatus = normalizeSuccessStatusValue(
+      this.settings.successStatusValue
+    );
+    if (this.settings.successStatusValue !== normalizedSuccessStatus) {
+      this.settings.successStatusValue = normalizedSuccessStatus;
+      shouldSave = true;
+    }
     if (!Array.isArray(this.settings.webhookProfiles) || this.settings.webhookProfiles.length === 0) {
       this.settings.webhookProfiles = [
         {
@@ -10655,7 +10681,8 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       shouldSave = true;
     }
     this.settings.webhookProfiles.forEach((profile) => {
-      const isLegacyDefault = profile.url === LEGACY_N8N_WEBHOOK_URL && (profile.id === "default-webhook" || profile.name === "Cyrus" || profile.name === "\u9ED8\u8BA4 Webhook");
+      const hasDefaultIdentity = profile.id === "default-webhook" || profile.name === "Cyrus" || profile.name === "\u9ED8\u8BA4 Webhook";
+      const isLegacyDefault = hasDefaultIdentity && (profile.url === LEGACY_N8N_WEBHOOK_URL || profile.url === LEGACY_DEFAULT_N8N_WEBHOOK_URL);
       if (isLegacyDefault) {
         profile.name = profile.name === "Cyrus" ? "Local n8n" : profile.name;
         profile.url = DEFAULT_N8N_WEBHOOK_URL;
@@ -11013,6 +11040,26 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     }
   }
 };
+function normalizeSuccessStatusValue(value) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return DEFAULT_SETTINGS.successStatusValue;
+  const reservedStatuses = /* @__PURE__ */ new Set([
+    "pending",
+    "running",
+    "error",
+    "excluded",
+    "\u{1F4FA}",
+    "\u23F3",
+    "\u274C",
+    "\u26D4",
+    "\u26D4\uFE0F",
+    "\u5F85\u5904\u7406",
+    "\u5904\u7406\u4E2D",
+    "\u5904\u7406\u5931\u8D25",
+    "\u975E\u89C6\u9891\u7B14\u8BB0"
+  ]);
+  return reservedStatuses.has(normalized.toLowerCase()) ? DEFAULT_SETTINGS.successStatusValue : normalized;
+}
 var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -11788,7 +11835,11 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
     new import_obsidian14.Setting(section2).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
       (text) => text.setPlaceholder("success").setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
-        this.plugin.settings.successStatusValue = value ?? "success";
+        const normalized = normalizeSuccessStatusValue(value);
+        if (normalized !== value.trim()) {
+          new import_obsidian14.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
+        }
+        this.plugin.settings.successStatusValue = normalized;
         await this.plugin.saveSettings();
       })
     );

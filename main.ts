@@ -28,6 +28,7 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_N8N_WEBHOOK_URL,
   DEFAULT_HISTORY_LIMIT,
+  LEGACY_DEFAULT_N8N_WEBHOOK_URL,
   LEGACY_N8N_WEBHOOK_URL,
   PLATFORM_CAPABILITIES,
   RECOMMENDED_WORKFLOW,
@@ -944,6 +945,14 @@ export default class VideoSummaryPlugin extends Plugin {
       shouldSave = true;
     }
 
+    const normalizedSuccessStatus = normalizeSuccessStatusValue(
+      this.settings.successStatusValue,
+    );
+    if (this.settings.successStatusValue !== normalizedSuccessStatus) {
+      this.settings.successStatusValue = normalizedSuccessStatus;
+      shouldSave = true;
+    }
+
     if (
       !Array.isArray(this.settings.webhookProfiles) ||
       this.settings.webhookProfiles.length === 0
@@ -959,11 +968,14 @@ export default class VideoSummaryPlugin extends Plugin {
     }
 
     this.settings.webhookProfiles.forEach((profile) => {
-      const isLegacyDefault =
-        profile.url === LEGACY_N8N_WEBHOOK_URL &&
+      const hasDefaultIdentity =
         (profile.id === 'default-webhook' ||
           profile.name === 'Cyrus' ||
           profile.name === '默认 Webhook');
+      const isLegacyDefault =
+        hasDefaultIdentity &&
+        (profile.url === LEGACY_N8N_WEBHOOK_URL ||
+          profile.url === LEGACY_DEFAULT_N8N_WEBHOOK_URL);
       if (isLegacyDefault) {
         profile.name = profile.name === 'Cyrus' ? 'Local n8n' : profile.name;
         profile.url = DEFAULT_N8N_WEBHOOK_URL;
@@ -1413,6 +1425,30 @@ export default class VideoSummaryPlugin extends Plugin {
       new Notice(`video-summary 协议处理失败: ${this.formatErrorForNotice(error)}`, 8000);
     }
   }
+}
+
+function normalizeSuccessStatusValue(value: unknown): string {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return DEFAULT_SETTINGS.successStatusValue;
+
+  const reservedStatuses = new Set([
+    'pending',
+    'running',
+    'error',
+    'excluded',
+    '📺',
+    '⏳',
+    '❌',
+    '⛔',
+    '⛔️',
+    '待处理',
+    '处理中',
+    '处理失败',
+    '非视频笔记',
+  ]);
+  return reservedStatuses.has(normalized.toLowerCase())
+    ? DEFAULT_SETTINGS.successStatusValue
+    : normalized;
 }
 
 class VideoSummarySettingTab extends PluginSettingTab {
@@ -2467,7 +2503,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
           .setPlaceholder('success')
           .setValue(this.plugin.settings.successStatusValue ?? 'success')
           .onChange(async (value) => {
-            this.plugin.settings.successStatusValue = value ?? 'success';
+            const normalized = normalizeSuccessStatusValue(value);
+            if (normalized !== value.trim()) {
+              new Notice('成功状态不能使用待处理、处理中或失败标记，已恢复为 success');
+            }
+            this.plugin.settings.successStatusValue = normalized;
             await this.plugin.saveSettings();
           }),
       );
