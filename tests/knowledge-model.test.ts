@@ -187,6 +187,7 @@ test('normalizes rich payload aliases, provenance, routing, and attention data',
         },
       ],
       resolved_content_type: 'tutorial',
+      content_type_confidence: 0.92,
       attention_assessment: {
         action: 'watch',
         score: 82,
@@ -216,6 +217,55 @@ test('normalizes rich payload aliases, provenance, routing, and attention data',
   assert.equal(result.attention?.must_watch?.[0].start, 4.5);
   assert.equal(result.artifact?.artifact_id, 'artifact-fixture');
   assert.equal(result.artifact?.processing_depth, 'evidence');
+});
+
+test('learning items use content-stable local ids and resolve labeled choice answers', () => {
+  const payload = {
+    learning: {
+      flashcards: [
+        { id: 'provider-random-a', front: 'What is evidence?', back: 'A supported claim.' },
+      ],
+      questions: [
+        {
+          id: 'provider-question-a',
+          prompt: 'Choose the supported answer',
+          choices: ['Guess', 'Evidence'],
+          correct_answer: 'Ｂ',
+        },
+        {
+          id: 'provider-number-a',
+          prompt: 'Choose by number',
+          choices: ['Wrong', 'Right'],
+          correct_answer: '2',
+        },
+      ],
+    },
+  };
+  const first = normalizeRichProcessingResult({}, payload, { sourceUrl: YOUTUBE_URL });
+  const second = normalizeRichProcessingResult(
+    {},
+    {
+      learning: {
+        flashcards: [
+          { id: 'provider-random-b', front: 'What is evidence?', back: 'A supported claim.' },
+        ],
+        questions: [
+          { ...payload.learning.questions[1], id: 'provider-number-b' },
+          { ...payload.learning.questions[0], id: 'provider-question-b' },
+        ],
+      },
+    },
+    { sourceUrl: YOUTUBE_URL },
+  );
+
+  assert.equal(first.learning?.flashcards?.[0].id, second.learning?.flashcards?.[0].id);
+  assert.equal(first.learning?.flashcards?.[0].provider_id, 'provider-random-a');
+  assert.equal(first.learning?.questions?.[0].answer, 'Evidence');
+  assert.equal(first.learning?.questions?.[1].answer, 'Right');
+  assert.deepEqual(
+    new Set(first.learning?.questions?.map((item) => item.id)),
+    new Set(second.learning?.questions?.map((item) => item.id)),
+  );
 });
 
 test('retains valid multi-channel evidence and rejects references to missing segments', () => {
@@ -271,8 +321,29 @@ test('mixed timed and untimed segments expose per-segment truth but aggregate co
     { sourceUrl: YOUTUBE_URL },
   );
 
-  assert.equal(result.video_segments?.[0].timing_quality, 'exact');
+  assert.equal(result.video_segments?.[0].timing_quality, 'estimated');
   assert.equal(result.video_segments?.[1].timing_quality, 'none');
   assert.equal(result.video_segments?.[1].timestamp_url, undefined);
   assert.equal(result.timing_quality, 'none');
+});
+
+test('an out-of-range claim timestamp never binds to an unrelated nearest segment', () => {
+  const result = normalizeRichProcessingResult(
+    {},
+    {
+      video_segments: [{ id: 'only-real-segment', start: 0, end: 10, text: 'Only real evidence' }],
+      evidence_claims: [
+        {
+          id: 'fabricated-time',
+          claim: 'This claim points far outside the source.',
+          start: 9999,
+          review_state: 'supported',
+        },
+      ],
+    },
+    { sourceUrl: YOUTUBE_URL },
+  );
+
+  assert.deepEqual(result.evidence_claims?.[0].evidence, []);
+  assert.equal(result.evidence_claims?.[0].review_state, 'needs-review');
 });

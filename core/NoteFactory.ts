@@ -107,6 +107,10 @@ export class NoteFactory {
       ...buildRichFrontmatterFields(entry.result),
     };
     if (entry.input.url) fm.link = entry.input.url;
+    const learningItems =
+      (entry.result.learning?.flashcards?.length || 0) +
+      (entry.result.learning?.questions?.length || 0);
+    if (learningItems > 0) fm.video_review_due = new Date(entry.timestamp).toISOString();
     const frontmatter = serializeScalarFrontmatter(fm);
     const body = writeManagedKnowledgeMarkdown('', entry.result, entry.input.url).trim();
 
@@ -189,6 +193,14 @@ export function extractVideoInputFromPayload(raw: any): VideoInput {
     sources.push(obj);
     if (obj.metadata && typeof obj.metadata === 'object') sources.push(obj.metadata);
     if (obj.input && typeof obj.input === 'object') sources.push(obj.input);
+    if (obj.artifact && typeof obj.artifact === 'object') sources.push(obj.artifact);
+    if (obj.result && typeof obj.result === 'object') {
+      sources.push(obj.result);
+      if (obj.result.input && typeof obj.result.input === 'object') sources.push(obj.result.input);
+      if (obj.result.artifact && typeof obj.result.artifact === 'object') {
+        sources.push(obj.result.artifact);
+      }
+    }
   };
   if (Array.isArray(raw)) raw.forEach(collect);
   else collect(raw);
@@ -204,7 +216,7 @@ export function extractVideoInputFromPayload(raw: any): VideoInput {
   };
 
   const input: VideoInput = {};
-  const link = pick(['link', 'url']);
+  const link = pick(['link', 'url', 'source_url']);
   if (link) input.url = link;
   const transcript = pick(['provided_transcript', 'transcript']);
   if (transcript) input.transcript = transcript;

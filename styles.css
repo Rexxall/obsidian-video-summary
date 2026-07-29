@@ -1892,7 +1892,6 @@
     padding-left: 7px;
     justify-content: center;
   }
-
 }
 
 /*
@@ -3194,6 +3193,104 @@
   font-size: var(--font-smallest);
 }
 
+.video-summary-view .vs-knowledge-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.video-summary-view .vs-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.video-summary-view .vs-signal-icon,
+.video-summary-view .vs-signal-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.video-summary-view .vs-signal.is-watch,
+.video-summary-view .vs-signal.is-visual {
+  border-color: color-mix(in srgb, var(--color-green) 32%, transparent);
+  color: var(--color-green);
+}
+
+.video-summary-view .vs-signal.is-skim {
+  border-color: color-mix(in srgb, var(--color-yellow) 35%, transparent);
+  color: var(--color-yellow);
+}
+
+.video-summary-view .vs-signal.is-skip {
+  border-color: color-mix(in srgb, var(--text-faint) 40%, transparent);
+  color: var(--text-muted);
+}
+
+.video-summary-view .vs-attention-card {
+  padding: 11px 12px;
+  margin-top: 9px;
+  border: 1px solid var(--background-modifier-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+
+.video-summary-view .vs-attention-card.is-watch {
+  border-left-color: var(--color-green);
+}
+
+.video-summary-view .vs-attention-card.is-skim {
+  border-left-color: var(--color-yellow);
+}
+
+.video-summary-view .vs-attention-card.is-skip {
+  border-left-color: var(--text-faint);
+}
+
+.video-summary-view .vs-attention-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-normal);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.video-summary-view .vs-attention-confidence,
+.video-summary-view .vs-attention-ranges {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.video-summary-view .vs-attention-rationale {
+  margin-top: 5px;
+  color: var(--text-normal);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.video-summary-view .vs-attention-ranges {
+  margin-top: 6px;
+}
+
+.video-summary-view .vs-signal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+
 .video-summary-view .vs-reader-highlight {
   width: 17px;
   height: 17px;
@@ -3220,4 +3317,374 @@
 
 .video-summary-view.is-tiny .vs-reader-highlight {
   display: none;
+}
+
+/* Artifact-first Claim Lab + cross-modal memory modal */
+.vs-knowledge-lab {
+  width: min(920px, 86vw);
+  max-width: 920px;
+}
+
+.vs-knowledge-lab-intro,
+.vs-memory-status,
+.vs-memory-meta,
+.vs-memory-relation-source span,
+.vs-claim-lab-artifact span {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.vs-memory-controls,
+.vs-claim-lab-actions,
+.vs-relation-confirm-gate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vs-memory-query {
+  flex: 1;
+  min-width: 220px;
+}
+
+.vs-memory-filters,
+.vs-claim-lab-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.vs-knowledge-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.vs-knowledge-field input,
+.vs-knowledge-field select {
+  width: 100%;
+}
+
+.vs-memory-relation-source {
+  display: grid;
+  grid-template-columns: max-content minmax(180px, 1fr);
+  gap: 5px 10px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.vs-memory-relation-source span {
+  grid-column: 2;
+}
+
+.vs-memory-results {
+  display: grid;
+  gap: 10px;
+  max-height: min(56vh, 640px);
+  margin-top: 10px;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
+.vs-memory-result {
+  position: relative;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+
+.vs-memory-result-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.vs-memory-result-heading > a,
+.vs-memory-result-heading > strong {
+  flex: 1;
+  min-width: 180px;
+  font-weight: 650;
+}
+
+.vs-memory-evidence-type,
+.vs-memory-score {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.vs-memory-score {
+  color: var(--interactive-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.vs-memory-snippet {
+  margin: 8px 0 4px;
+  line-height: 1.55;
+}
+
+.vs-memory-snippet mark {
+  border-radius: 3px;
+  padding: 0 1px;
+  background: color-mix(in srgb, var(--color-yellow) 34%, transparent);
+  color: inherit;
+}
+
+.vs-memory-score-details {
+  margin-top: 7px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.vs-memory-score-details ul {
+  margin: 5px 0;
+}
+
+.vs-memory-keyframe {
+  display: block;
+  width: min(320px, 100%);
+  max-height: 190px;
+  margin-top: 8px;
+  border-radius: var(--radius-s);
+  object-fit: cover;
+}
+
+.vs-relation-review {
+  margin-top: 10px;
+  padding: 9px;
+  border-left: 3px solid var(--color-orange);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+}
+
+.vs-relation-review p {
+  margin: 5px 0;
+}
+
+.vs-relation-pending {
+  color: var(--color-orange);
+  font-size: var(--font-ui-smaller);
+}
+
+.vs-relation-confirm-gate {
+  flex-wrap: wrap;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.vs-relation-confirm-gate p {
+  flex-basis: 100%;
+}
+
+.vs-claim-lab-artifacts {
+  display: grid;
+  gap: 5px;
+  max-height: min(50vh, 560px);
+  padding: 4px;
+  overflow-y: auto;
+}
+
+.vs-claim-lab-artifact {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 9px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.vs-claim-lab-artifact:hover {
+  background: var(--background-modifier-hover);
+}
+
+.vs-claim-lab-artifact div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vs-claim-lab-actions {
+  margin-top: 12px;
+}
+
+.vs-knowledge-lab-empty,
+.vs-knowledge-lab-loading {
+  padding: 18px;
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+@media (max-width: 620px) {
+  .vs-knowledge-lab {
+    width: auto;
+  }
+
+  .vs-memory-relation-source {
+    grid-template-columns: 1fr;
+  }
+
+  .vs-memory-relation-source span {
+    grid-column: 1;
+  }
+}
+
+/* Local learning loop: review state lives in sidecars, never in note prose. */
+.vs-learning-review-modal {
+  width: min(760px, 86vw);
+  max-width: 760px;
+}
+
+.vs-learning-review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.vs-learning-review-toolbar .vs-hint {
+  flex: 1 1 230px;
+  text-align: right;
+}
+
+.vs-learning-review-count {
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+.vs-learning-review-card {
+  display: grid;
+  gap: 13px;
+  padding: 18px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  background: var(--background-secondary);
+}
+
+.vs-learning-review-card > h3,
+.vs-learning-review-card > h4 {
+  margin: 0;
+}
+
+.vs-learning-review-kind {
+  width: max-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+  color: var(--interactive-accent);
+  font-size: var(--font-ui-smaller);
+  font-weight: 650;
+}
+
+.vs-learning-review-answer,
+.vs-learning-review-explanation {
+  padding: 11px 12px;
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  line-height: 1.6;
+}
+
+.vs-learning-review-choices {
+  display: grid;
+  gap: 7px;
+}
+
+.vs-learning-review-choice {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 9px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.vs-learning-review-choice:hover {
+  background: var(--background-modifier-hover);
+}
+
+.vs-learning-review-textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+}
+
+.vs-learning-review-confidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.vs-learning-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vs-learning-review-evidence {
+  display: grid;
+  gap: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.vs-learning-review-evidence h4 {
+  margin: 0;
+}
+
+.vs-learning-review-evidence-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+}
+
+.vs-learning-review-evidence-time {
+  color: var(--interactive-accent);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+}
+
+.vs-learning-review-evidence-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vs-signal.is-learning {
+  border-color: color-mix(in srgb, var(--color-purple) 32%, var(--background-modifier-border));
+  color: var(--color-purple);
+}
+
+@media (max-width: 620px) {
+  .vs-learning-review-modal {
+    width: auto;
+  }
+
+  .vs-learning-review-toolbar .vs-hint {
+    text-align: left;
+  }
+
+  .vs-learning-review-evidence-row {
+    grid-template-columns: 1fr;
+  }
 }

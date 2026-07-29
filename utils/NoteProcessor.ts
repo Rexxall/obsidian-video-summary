@@ -170,6 +170,11 @@ export class NoteProcessor {
 
     // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
     Object.assign(fm, buildRichFrontmatterFields(result));
+    const learningItems =
+      (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
+    if (learningItems > 0 && !fm.video_review_due) {
+      fm.video_review_due = new Date().toISOString();
+    }
     delete fm.processing_error;
     delete fm.processing_error_code;
     delete fm.processing_error_at;

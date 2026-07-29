@@ -133,6 +133,9 @@ export function buildRichFrontmatterFields(
   assignNonEmptyString(fields, 'video_content_type', result.content_type);
   assignNonEmptyString(fields, 'video_attention_action', result.attention?.action);
   assignNonEmptyString(fields, 'video_processing_depth', result.artifact?.processing_depth);
+  const learningItems =
+    (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
+  if (learningItems > 0) fields.video_learning_items = learningItems;
   return fields;
 }
 
@@ -329,8 +332,7 @@ function renderVisual(
       `- 画面证据（时间未对齐） ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`,
     );
     if (item.ocr_text) lines.push(`  - 屏幕文字：${escapeInline(item.ocr_text)}`);
-    if (item.keyframe?.path) lines.push(`  - ![[${item.keyframe.path}]]`);
-    else if (item.keyframe?.url) lines.push(`  - [查看关键帧](${item.keyframe.url})`);
+    appendKeyframe(lines, item);
     return;
   }
   const timestampUrl = buildTimestampUrl(sourceUrl, item.start);
@@ -339,8 +341,25 @@ function renderVisual(
     : formatTimestamp(item.start);
   lines.push(`- ${timestamp} ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`);
   if (item.ocr_text) lines.push(`  - 屏幕文字：${escapeInline(item.ocr_text)}`);
-  if (item.keyframe?.path) lines.push(`  - ![[${item.keyframe.path}]]`);
-  else if (item.keyframe?.url) lines.push(`  - [查看关键帧](${item.keyframe.url})`);
+  appendKeyframe(lines, item);
+}
+
+function appendKeyframe(lines: string[], item: VisualEvidence): void {
+  const path = item.keyframe?.path?.trim();
+  if (path && !isAbsoluteMediaPath(path)) {
+    lines.push(`  - ![[${path.replace(/\|/g, '\\|')}]]`);
+    return;
+  }
+  const url = item.keyframe?.url?.trim() || (path ? `file://${encodeURI(path)}` : '');
+  if (url) lines.push(`  - ![关键帧](<${escapeMarkdownDestination(url)}>)`);
+}
+
+function isAbsoluteMediaPath(path: string): boolean {
+  return path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path);
+}
+
+function escapeMarkdownDestination(value: string): string {
+  return value.replace(/</g, '%3C').replace(/>/g, '%3E').replace(/\r?\n/g, '');
 }
 
 function segmentLink(segment: VideoSegment, sourceUrl: string, allowTimestamps: boolean): string {

@@ -126,6 +126,8 @@ function renderJobDetail(
   }
   if (job.input.url) body.createDiv({ text: job.input.url, cls: 'vs-meta-link' });
 
+  renderKnowledgeSignals(body, ctx, job);
+
   if (job.state === 'error' && job.error) {
     const errorBox = body.createDiv({ cls: 'vs-error-box' });
     const icon = errorBox.createDiv({ cls: 'vs-error-icon' });
@@ -367,6 +369,220 @@ function artifactToJob(artifact: VideoKnowledgeArtifact, notePath: string): Job 
       },
     },
   };
+}
+
+function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
+  const result = job.result;
+  if (!result) return;
+  const hasSignals =
+    result.content_type ||
+    result.attention ||
+    result.visual_evidence?.length ||
+    result.learning ||
+    job.input.processingDepth;
+  if (!hasSignals) return;
+
+  const signals = body.createDiv({ cls: 'vs-knowledge-signals' });
+  if (result.content_type) {
+    const route = signals.createDiv({ cls: 'vs-signal' });
+    const icon = route.createSpan({ cls: 'vs-signal-icon' });
+    setIcon(icon, 'route');
+    route.createSpan({ text: `结构 · ${contentTypeLabel(result.content_type)}` });
+  }
+  if (result.attention) {
+    const decision = signals.createDiv({
+      cls: `vs-signal is-attention is-${result.attention.action}`,
+    });
+    const icon = decision.createSpan({ cls: 'vs-signal-icon' });
+    setIcon(
+      icon,
+      result.attention.action === 'watch'
+        ? 'eye'
+        : result.attention.action === 'skim'
+          ? 'scan'
+          : 'skip-forward',
+    );
+    const score =
+      typeof result.attention.score === 'number'
+        ? ` · ${Math.round(result.attention.score * 100)}`
+        : '';
+    decision.createSpan({ text: `${attentionLabel(result.attention.action)}${score}` });
+  }
+  if (result.visual_evidence?.length) {
+    const visual = signals.createDiv({ cls: 'vs-signal is-visual' });
+    const icon = visual.createSpan({ cls: 'vs-signal-icon' });
+    setIcon(icon, 'scan-eye');
+    visual.createSpan({ text: `真实画面证据 · ${result.visual_evidence.length}` });
+  }
+  const learningCount =
+    (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
+  if (learningCount > 0) {
+    const learning = signals.createDiv({ cls: 'vs-signal is-learning' });
+    const icon = learning.createSpan({ cls: 'vs-signal-icon' });
+    setIcon(icon, 'graduation-cap');
+    learning.createSpan({ text: `学习练习 · ${learningCount}` });
+  }
+
+  if (result.attention) {
+    const card = body.createDiv({
+      cls: `vs-attention-card is-${result.attention.action}`,
+    });
+    const heading = card.createDiv({ cls: 'vs-attention-heading' });
+    heading.createSpan({ text: attentionLabel(result.attention.action) });
+    if (typeof result.attention.confidence === 'number') {
+      heading.createSpan({
+        text: `置信 ${Math.round(result.attention.confidence * 100)}%`,
+        cls: 'vs-attention-confidence',
+      });
+    }
+    card.createDiv({ text: result.attention.rationale, cls: 'vs-attention-rationale' });
+    const ranges = result.attention.must_watch || [];
+    if (ranges.length > 0) {
+      card.createDiv({
+        text: `优先看 ${ranges
+          .slice(0, 3)
+          .map((range) => `${formatShortTime(range.start)}–${formatShortTime(range.end)}`)
+          .join('、')}`,
+        cls: 'vs-attention-ranges',
+      });
+    }
+    if (result.attention.limitations?.length) {
+      card.createDiv({
+        text: `限制：${result.attention.limitations.slice(0, 2).join('；')}`,
+        cls: 'vs-hint',
+      });
+    }
+  }
+
+  if (job.state !== 'success' && job.state !== 'review') return;
+  const depth = job.input.processingDepth || result.artifact?.processing_depth || 'quick';
+  const actionRow = body.createDiv({ cls: 'vs-signal-actions' });
+  if (!result.attention) {
+    textButton(
+      actionRow,
+      '先做观看判断',
+      () => queueKnowledgeUpgrade(ctx, job, 'quick'),
+      'has-icon',
+    );
+  }
+  if (depth !== 'deep-visual' && !result.visual_evidence?.length) {
+    const upgrade = textButton(
+      actionRow,
+      '深度看画面',
+      () => queueKnowledgeUpgrade(ctx, job, 'deep-visual'),
+      'has-icon',
+    );
+    prependIcon(upgrade, 'scan-eye');
+  }
+  if (learningCount > 0 && job.notePath) {
+    const review = textButton(
+      actionRow,
+      `开始复习 · ${learningCount}`,
+      () => {
+        const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || '');
+        if (!(file instanceof TFile)) {
+          new Notice('目标笔记已不存在');
+          return;
+        }
+        void ctx.plugin.openLearningReviewForFile(file);
+      },
+      'has-icon',
+    );
+    prependIcon(review, 'graduation-cap');
+  } else if (learningCount === 0 && job.notePath) {
+    const generate = textButton(
+      actionRow,
+      '生成学习卡',
+      () => queueLearningUpgrade(ctx, job),
+      'has-icon',
+    );
+    prependIcon(generate, 'graduation-cap');
+  }
+  if (actionRow.childElementCount === 0) actionRow.remove();
+}
+
+async function queueKnowledgeUpgrade(ctx: ViewContext, job: Job, depth: 'quick' | 'deep-visual') {
+  if (depth === 'deep-visual' && ctx.plugin.settings.activeBackend !== 'codex-worker') {
+    new Notice('内置 n8n 工作流尚未接通安全的画面凭据。请先在设置中切换 Codex Worker。', 7000);
+    return;
+  }
+  if (!job.notePath) {
+    new Notice('先把结果保存为笔记，才能追加处理');
+    return;
+  }
+  const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
+  if (!(file instanceof TFile)) {
+    new Notice('目标笔记已不存在');
+    return;
+  }
+  const queued = await ctx.plugin.jobService.submitFile(file, {
+    ...ctx.submitOptions(),
+    processingDepth: depth,
+    attentionAssessment: true,
+    generateLearning: false,
+    previewBeforeWrite: true,
+    useCache: true,
+  });
+  if (!queued) return;
+  ctx.state.tab = 'jobs';
+  ctx.closeDetail();
+  new Notice(depth === 'deep-visual' ? '已提交深度画面分析' : '已提交快速观看判断');
+}
+
+async function queueLearningUpgrade(ctx: ViewContext, job: Job) {
+  if (!job.notePath) {
+    new Notice('先把结果保存为笔记，才能生成学习卡');
+    return;
+  }
+  const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
+  if (!(file instanceof TFile)) {
+    new Notice('目标笔记已不存在');
+    return;
+  }
+  const queued = await ctx.plugin.jobService.submitFile(file, {
+    ...ctx.submitOptions(),
+    processingDepth: job.input.processingDepth || 'evidence',
+    attentionAssessment: Boolean(job.result?.attention),
+    generateLearning: true,
+    previewBeforeWrite: true,
+    useCache: true,
+  });
+  if (!queued) return;
+  ctx.state.tab = 'jobs';
+  ctx.closeDetail();
+  new Notice('已提交学习卡生成任务');
+}
+
+function contentTypeLabel(type: string): string {
+  return (
+    {
+      course: '课程',
+      interview: '访谈',
+      tutorial: '教程',
+      news: '新闻',
+      meeting: '会议',
+      review: '评测',
+      general: '通用',
+    }[type] || type
+  );
+}
+
+function attentionLabel(action: 'watch' | 'skim' | 'skip'): string {
+  return {
+    watch: '值得完整观看',
+    skim: '建议选段浏览',
+    skip: '可以跳过',
+  }[action];
+}
+
+function formatShortTime(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remainder = safe % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+    : `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
 function renderEvidence(container: HTMLElement, ctx: ViewContext, job: Job) {

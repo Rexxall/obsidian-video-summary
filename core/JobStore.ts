@@ -189,7 +189,6 @@ export class JobStore {
     job.state = 'queued';
     job.error = undefined;
     job.result = undefined;
-    job.awaitingWrite = false;
     job.stageLabel = undefined;
     job.progress = undefined;
     job.startedAt = undefined;

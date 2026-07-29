@@ -2,6 +2,7 @@ import type {
   ArtifactProvenance,
   AttentionAssessment,
   AttentionRange,
+  ContentRoutingDecision,
   EvidenceClaim,
   EvidenceReference,
   EvidenceSourceType,
@@ -10,11 +11,12 @@ import type {
   ProcessingDepth,
   ProcessingResult,
   RelatedNoteSuggestion,
+  RequestedContentType,
   TimingQuality,
-  VideoContentType,
   VideoSegment,
   VisualEvidence,
 } from '../types';
+import { resolveContentRoute } from './ContentRouter';
 
 export const VIDEO_ARTIFACT_SCHEMA_VERSION = 3;
 
@@ -25,17 +27,10 @@ export interface RichResultContext {
   processingDepth?: ProcessingDepth;
   promptProfile?: string;
   promptVersion?: string;
+  requestedContentType?: RequestedContentType;
+  autoRoute?: boolean;
+  chapters?: unknown;
 }
-
-const CONTENT_TYPES = new Set<VideoContentType>([
-  'course',
-  'interview',
-  'tutorial',
-  'news',
-  'meeting',
-  'review',
-  'general',
-]);
 
 const EVIDENCE_SOURCES = new Set<EvidenceSourceType>([
   'speech',
@@ -81,16 +76,47 @@ export function normalizeRichProcessingResult(
     readArray(payload, ['visual_evidence', 'visual_observations', 'keyframes']) ||
       readArray(payload?.artifact, ['visual_evidence', 'visual_observations', 'keyframes']),
   );
-  const contentType = normalizeContentType(
-    payload?.content_type || payload?.resolved_content_type || payload?.artifact?.content_type,
-  );
+  const backendRouting =
+    objectOrUndefined(payload?.content_routing) ||
+    objectOrUndefined(payload?.routing) ||
+    objectOrUndefined(payload?.artifact?.content_routing);
+  const contentRouting = resolveContentRoute({
+    requestedType: context.requestedContentType,
+    autoRoute: context.autoRoute,
+    backendType:
+      payload?.content_type ||
+      payload?.resolved_content_type ||
+      payload?.artifact?.content_type ||
+      backendRouting?.type ||
+      backendRouting?.content_type,
+    backendConfidence:
+      backendRouting?.confidence ?? payload?.content_type_confidence ?? payload?.routing_confidence,
+    backendReasons:
+      backendRouting?.reasons ?? payload?.content_type_reasons ?? payload?.routing_reasons,
+    title: base.video_title || readString(payload, ['video_title', 'title', 'name']),
+    author:
+      base.video_author ||
+      readString(payload, ['video_author', 'author', 'channel', 'creator', 'uploader']),
+    transcript,
+    chapters:
+      context.chapters ||
+      payload?.video_chapters ||
+      payload?.chapters ||
+      payload?.artifact?.chapters,
+  });
   const attention = normalizeAttention(
     payload?.attention || payload?.attention_assessment || payload?.artifact?.attention,
   );
   const learning = normalizeLearning(
     payload?.learning || payload?.learning_package || payload?.artifact?.learning,
   );
-  const provenance = normalizeProvenance(payload, context, sourceUrl, timingQuality);
+  const provenance = normalizeProvenance(
+    payload,
+    context,
+    sourceUrl,
+    timingQuality,
+    contentRouting,
+  );
 
   return {
     ...base,
@@ -106,7 +132,8 @@ export function normalizeRichProcessingResult(
     video_segments: segments,
     evidence_claims: claims,
     visual_evidence: visualEvidence,
-    content_type: contentType,
+    content_type: contentRouting.type,
+    content_routing: contentRouting,
     attention,
     learning,
     artifact: provenance,
@@ -227,7 +254,7 @@ function normalizeSegment(
   const source = normalizeEvidenceSource(raw.source || raw.source_type || raw.kind, 'speech');
   const quality = normalizeTimingQuality(
     raw.timing_quality,
-    start === null ? 'none' : fallbackQuality === 'none' ? 'exact' : fallbackQuality,
+    start === null ? 'none' : fallbackQuality === 'none' ? 'estimated' : fallbackQuality,
   );
   const id =
     readString(raw, ['id', 'segment_id']) || stableSegmentId(sourceUrl, start, text, index);
@@ -364,15 +391,23 @@ function normalizeClaims(
         });
       }
       const start = readNumber(raw, ['start', 'start_seconds', 'timestamp']);
-      if (evidence.length === 0 && start !== null) {
+      if (start !== null) {
         const nearest = nearestSegment(segments, start);
-        if (nearest) {
+        if (evidence.length === 0 && nearest) {
           evidence.push({
             segment_id: nearest.id,
             source: nearest.source,
             quote: nearest.text,
             asset_id: nearest.keyframe?.id,
           });
+        } else if (
+          !nearest ||
+          (evidence.length > 0 && !evidence.some((item) => item.segment_id === nearest.id))
+        ) {
+          // A timestamp is not evidence by itself. Never bind a wildly
+          // out-of-range model timestamp to whichever segment happens to be
+          // closest in the transcript.
+          rejectedEvidence = true;
         }
       }
       const id =
@@ -450,12 +485,14 @@ function normalizeLearning(raw: any): LearningPackage | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const flashcards = Array.isArray(raw.flashcards)
     ? raw.flashcards
-        .map((item: any, index: number) => {
+        .map((item: any) => {
           const front = readString(item, ['front', 'question', 'prompt']);
           const back = readString(item, ['back', 'answer']);
           if (!front || !back) return null;
+          const providerId = readString(item, ['id']);
           return {
-            id: readString(item, ['id']) || `card-${stableHash(`${front}|${back}|${index}`)}`,
+            id: `card-${stableHash(`${normalizeText(front)}|${normalizeText(back)}`)}`,
+            provider_id: providerId || undefined,
             front,
             back,
             evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
@@ -466,18 +503,21 @@ function normalizeLearning(raw: any): LearningPackage | undefined {
     : undefined;
   const questions = Array.isArray(raw.questions)
     ? raw.questions
-        .map((item: any, index: number) => {
+        .map((item: any) => {
           const prompt = readString(item, ['prompt', 'question']);
-          const answer = readString(item, ['answer', 'correct_answer']);
+          const rawAnswer = readString(item, ['answer', 'correct_answer']);
+          const choices = normalizeStringArray(item.choices);
+          const answer = resolveChoiceAnswer(rawAnswer, choices);
           if (!prompt || !answer) return null;
           const difficulty = ['easy', 'medium', 'hard'].includes(item.difficulty)
             ? item.difficulty
             : undefined;
+          const providerId = readString(item, ['id']);
           return {
-            id:
-              readString(item, ['id']) || `question-${stableHash(`${prompt}|${answer}|${index}`)}`,
+            id: `question-${stableHash(`${normalizeText(prompt)}|${normalizeText(answer)}`)}`,
+            provider_id: providerId || undefined,
             prompt,
-            choices: normalizeStringArray(item.choices),
+            choices,
             answer,
             explanation: readString(item, ['explanation', 'rationale']),
             evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
@@ -495,11 +535,24 @@ function normalizeLearning(raw: any): LearningPackage | undefined {
   };
 }
 
+function resolveChoiceAnswer(answer: string, choices: string[] | undefined): string {
+  const raw = String(answer || '').trim();
+  if (!raw || !choices?.length) return raw;
+  const normalized = raw.normalize('NFKC');
+  const label = normalized.match(/^([A-Ha-h]|[1-9])(?:[.、:：)\]\s]|$)/)?.[1];
+  if (!label) return raw;
+  const index = /^\d$/.test(label)
+    ? Number(label) - 1
+    : label.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+  return choices[index] || raw;
+}
+
 function normalizeProvenance(
   payload: any,
   context: RichResultContext,
   sourceUrl: string,
   timingQuality: TimingQuality,
+  contentRouting: ContentRoutingDecision,
 ): ArtifactProvenance {
   const raw = payload?.artifact?.provenance || payload?.provenance || payload?.artifact || {};
   const sourceHash = readString(raw, ['source_hash']) || stableHash(normalizeSource(sourceUrl));
@@ -518,11 +571,20 @@ function normalizeProvenance(
     transcript_hash: readString(raw, ['transcript_hash']),
     backend: normalizeBackend(raw.backend || context.backend),
     model: readString(raw, ['model']) || context.model,
-    prompt_profile: readString(raw, ['prompt_profile']) || context.promptProfile,
+    prompt_profile:
+      readString(raw, ['prompt_profile']) ||
+      contentRouting.prompt_profile.id ||
+      context.promptProfile,
     prompt_version: readString(raw, ['prompt_version']) || context.promptVersion,
     processing_depth:
       normalizeProcessingDepth(raw.processing_depth || context.processingDepth) ||
       context.processingDepth,
+    content_routing: {
+      source: contentRouting.source,
+      confidence: contentRouting.confidence,
+      reasons: contentRouting.reasons.map((reason) => reason.message),
+      prompt_profile: contentRouting.prompt_profile.id,
+    },
     generated_at: readString(raw, ['generated_at']) || new Date().toISOString(),
     transcript_source: readString(raw, ['transcript_source', 'source']),
     warnings: warnings.length > 0 ? Array.from(new Set(warnings)) : undefined,
@@ -697,12 +759,19 @@ function aggregateTimingQuality(segments: VideoSegment[], fallback: TimingQualit
 }
 
 function nearestSegment(segments: VideoSegment[], seconds: number): VideoSegment | undefined {
-  return segments
-    .filter((segment) => segment.start !== null)
-    .sort(
-      (left, right) =>
-        Math.abs((left.start || 0) - seconds) - Math.abs((right.start || 0) - seconds),
-    )[0];
+  const MAX_ALIGNMENT_GAP_SECONDS = 5;
+  let best: { segment: VideoSegment; distance: number } | undefined;
+  for (const segment of segments) {
+    if (segment.start === null || segment.timing_quality === 'none') continue;
+    const end =
+      segment.end !== undefined && segment.end !== null && segment.end >= segment.start
+        ? segment.end
+        : segment.start;
+    const distance =
+      seconds < segment.start ? segment.start - seconds : seconds > end ? seconds - end : 0;
+    if (!best || distance < best.distance) best = { segment, distance };
+  }
+  return best && best.distance <= MAX_ALIGNMENT_GAP_SECONDS ? best.segment : undefined;
 }
 
 function normalizeTimingQuality(raw: any, fallback: TimingQuality): TimingQuality {
@@ -728,13 +797,6 @@ function normalizeEvidenceSource(raw: any, fallback: EvidenceSourceType): Eviden
   return EVIDENCE_SOURCES.has(normalized as EvidenceSourceType)
     ? (normalized as EvidenceSourceType)
     : fallback;
-}
-
-function normalizeContentType(raw: any): VideoContentType | undefined {
-  const value = String(raw || '')
-    .trim()
-    .toLowerCase();
-  return CONTENT_TYPES.has(value as VideoContentType) ? (value as VideoContentType) : undefined;
 }
 
 function normalizeReviewState(raw: any, source: EvidenceSourceType) {
@@ -776,6 +838,12 @@ function readArray(source: any, keys: string[]): unknown[] | undefined {
     if (Array.isArray(source[key])) return source[key];
   }
   return undefined;
+}
+
+function objectOrUndefined(source: unknown): Record<string, any> | undefined {
+  return source && typeof source === 'object' && !Array.isArray(source)
+    ? (source as Record<string, any>)
+    : undefined;
 }
 
 function readString(source: any, keys: string[]): string {

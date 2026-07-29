@@ -115,7 +115,7 @@ interface FingerprintEnvelope {
 export function buildArtifactFingerprint(request: ArtifactFingerprintRequest): ArtifactFingerprint {
   validateSchemaVersion(request.schemaVersion);
 
-  const canonicalUrl = canonicalSourceUrl(request.input.url);
+  const canonicalUrl = canonicalSourceUrl(request.input.sourceUrl || request.input.url);
   const localPaths = collectLocalPaths(request.input);
   const normalizedTranscript = normalizeTranscript(request.input.transcript);
   const urlHash = canonicalUrl ? sha256Hex(canonicalUrl) : null;

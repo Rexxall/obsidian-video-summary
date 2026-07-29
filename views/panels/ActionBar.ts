@@ -472,6 +472,10 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
     (['quick', 'evidence', 'deep-visual'] as ProcessingDepth[]).map((depth) => ({
       title: depthLabels[depth],
       onClick: async () => {
+        if (depth === 'deep-visual' && settings.activeBackend !== 'codex-worker') {
+          new Notice('深度视觉只由 Codex Worker 执行；当前 n8n 后端可用到证据模式。', 7000);
+          return;
+        }
         settings.defaultProcessingDepth = depth;
         plugin.api.setAnalysisDefaults({ processingDepth: depth });
         await plugin.saveSettings();

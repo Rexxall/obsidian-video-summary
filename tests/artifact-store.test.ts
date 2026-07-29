@@ -36,6 +36,78 @@ test('stable source hashes collapse equivalent YouTube URLs', async () => {
   );
 });
 
+test('transcript-only artifact identity survives note renames', async () => {
+  const transcriptHash = await sha256Hex('Transcript-only source');
+  const before = await stableSourceHash({
+    note_path: 'Video Inbox/Untitled.md',
+    transcript_hash: transcriptHash,
+    source_hash: '',
+  });
+  const after = await stableSourceHash({
+    note_path: 'Video Notes/Generated title.md',
+    transcript_hash: transcriptHash,
+    source_hash: '',
+  });
+
+  assert.equal(before, after);
+  assert.equal(before, await sha256Hex(`transcript:${transcriptHash}`));
+});
+
+test('store save, note rename, and resave retain one transcript-only sidecar id', async () => {
+  const adapter = new MemoryAdapter();
+  const root = 'plugin-data/artifacts';
+  const store = new ArtifactStore(adapter, root, { now: () => FIXED_NOW });
+  const transcript = 'Transcript-only source';
+  const transcriptHash = await sha256Hex(transcript);
+  const artifact = makeArtifact();
+  artifact.source = {
+    note_path: 'Video Inbox/Untitled.md',
+    transcript_hash: transcriptHash,
+    source_hash: '',
+  };
+  artifact.transcript = transcript;
+  artifact.provenance.source_url = undefined;
+
+  const beforeRename = await store.save(artifact);
+  const afterRename = await store.save({
+    ...beforeRename,
+    source: {
+      ...beforeRename.source,
+      note_path: 'Video Notes/Generated title.md',
+    },
+  });
+
+  assert.equal(beforeRename.artifact_id, afterRename.artifact_id);
+  assert.equal(afterRename.source.transcript_hash, transcriptHash);
+  assert.equal(afterRename.source.note_path, 'Video Notes/Generated title.md');
+  assert.equal(
+    beforeRename.artifact_id,
+    stableArtifactId(await sha256Hex(`transcript:${transcriptHash}`)),
+  );
+  assert.deepEqual(
+    Array.from(adapter.files.keys()).filter((path) => path.startsWith(`${root}/`)),
+    [`${root}/${beforeRename.artifact_id}.json`],
+  );
+});
+
+test('an existing note-only source hash remains stable when its Vault path changes', async () => {
+  const adapter = new MemoryAdapter();
+  const store = new ArtifactStore(adapter, 'plugin-data/artifacts', { now: () => FIXED_NOW });
+  const artifact = makeArtifact();
+  artifact.source = { note_path: 'Inbox/Original.md', source_hash: '' };
+  artifact.transcript = undefined;
+  artifact.provenance.transcript_hash = undefined;
+  const original = await store.save(artifact);
+  const renamed = await store.save({
+    ...original,
+    source: { ...original.source, note_path: 'Library/Renamed.md' },
+  });
+
+  assert.equal(renamed.artifact_id, original.artifact_id);
+  assert.equal(renamed.source.source_hash, original.source.source_hash);
+  assert.equal(renamed.source.note_path, 'Library/Renamed.md');
+});
+
 test('save/load/list use sidecar files and preserve a stable artifact id', async () => {
   const adapter = new MemoryAdapter();
   const store = new ArtifactStore(adapter, '.obsidian/plugins/video-summary/data/artifacts', {
@@ -100,6 +172,92 @@ test('updateHighlights is atomic, validates segment references, and supports tra
     ArtifactValidationError,
   );
   assert.deepEqual((await store.load(saved.artifact_id)).highlights, updated.highlights);
+});
+
+test('updateRelatedNotes atomically writes only valid reviewed relation shapes', async () => {
+  const adapter = new MemoryAdapter();
+  const store = new ArtifactStore(adapter, 'plugin-data/artifacts', {
+    now: () => FIXED_NOW,
+  });
+  const saved = await store.save(makeArtifact());
+
+  const updated = await store.updateRelatedNotes(saved.artifact_id, (current) => [
+    ...current,
+    {
+      note_path: 'Videos/Compared.md',
+      relation: 'supplements',
+      reason: '用户已审阅：两条有证据主张讨论相邻主题。',
+      confidence: 0.72,
+    },
+  ]);
+
+  assert.equal(updated.related_notes.length, 1);
+  assert.equal(updated.related_notes[0].note_path, 'Videos/Compared.md');
+  assert.deepEqual(updated.highlights, saved.highlights);
+  assert.equal(updated.updated_at, FIXED_NOW.toISOString());
+
+  await assert.rejects(
+    () =>
+      store.updateRelatedNotes(saved.artifact_id, [
+        {
+          note_path: '',
+          relation: 'conflicts',
+          reason: '',
+        },
+      ]),
+    ArtifactValidationError,
+  );
+  assert.deepEqual((await store.load(saved.artifact_id)).related_notes, updated.related_notes);
+});
+
+test('processor saves atomically retain newer reviewed state and rebase changed segment ids', async () => {
+  const adapter = new MemoryAdapter();
+  const store = new ArtifactStore(adapter, 'plugin-data/artifacts', {
+    now: () => FIXED_NOW,
+  });
+  const staleProcessorSnapshot = await store.save(makeArtifact());
+  await store.updateHighlights(staleProcessorSnapshot.artifact_id, [
+    {
+      id: 'highlight-one',
+      segment_id: 'segment-one',
+      created_at: '2026-07-29T11:00:00.000Z',
+    },
+  ]);
+  await store.updateRelatedNotes(staleProcessorSnapshot.artifact_id, [
+    {
+      note_path: 'Videos/Reviewed.md',
+      relation: 'supplements',
+      reason: 'Confirmed by the user.',
+    },
+  ]);
+
+  const saved = await store.save({
+    ...staleProcessorSnapshot,
+    segments: [
+      {
+        id: 'segment-new',
+        start: 12,
+        end: 17,
+        text: 'Hello from a timed segment.',
+        source: 'speech',
+        timing_quality: 'exact',
+      },
+    ],
+    claims: [
+      {
+        id: 'claim-new',
+        claim: 'The speaker says hello.',
+        evidence: [{ segment_id: 'segment-new', source: 'speech' }],
+      },
+    ],
+    highlights: [],
+    related_notes: [],
+  });
+
+  assert.equal(saved.highlights[0].segment_id, 'segment-new');
+  assert.equal(saved.highlights[0].original_segment_id, 'segment-one');
+  assert.equal(saved.highlights[0].needs_review, true);
+  assert.equal(saved.related_notes[0].note_path, 'Videos/Reviewed.md');
 });
 
 test('v1 artifacts migrate to the current canonical id and sidecar path', async () => {

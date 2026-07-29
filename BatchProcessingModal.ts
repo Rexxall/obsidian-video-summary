@@ -1,21 +1,39 @@
 import { App, Modal, Notice, Setting, TFile, setIcon } from 'obsidian';
 import VideoSummaryPlugin from './main';
-import { ProcessingMode, SupportedLanguage, BatchProgress, PlaylistItem } from './types';
+import { ProcessingMode, SupportedLanguage, BatchProgress, VideoInput } from './types';
 import { LANGUAGE_OPTIONS, PROCESSING_MODES } from './constants';
 import { NoteProcessor } from './utils/NoteProcessor';
-import { PlaylistProcessor } from './utils/PlaylistProcessor';
+import {
+  PlaylistInfo,
+  PlaylistItem,
+  PlaylistProcessor,
+  canonicalizeVideoUrl,
+} from './utils/PlaylistProcessor';
 import { MenuItemSpec, configChip, segmented, showMenu, statusPill } from './views/ui';
 import { platformLabel } from './core/NoteIndex';
+import { CourseStore, CourseManifest, summarizeCourseProgress } from './core/CourseStore';
+import {
+  CourseImportResult,
+  compileCourseImport,
+  courseIndexBaseName,
+} from './core/CourseCompiler';
+import { NoteFactory } from './core/NoteFactory';
+import { syncCourseIndexAtomic } from './core/CourseIndexWriter';
 
 export class BatchProcessingModal extends Modal {
   private plugin: VideoSummaryPlugin;
   private noteProcessor: NoteProcessor;
+  private noteFactory: NoteFactory;
+  private courseStore: CourseStore;
 
   private mode: ProcessingMode = 'summary';
   private language: SupportedLanguage = 'zh';
   private selectedFiles: TFile[] = [];
   private allVideoFiles: TFile[] = [];
   private playlistItems: PlaylistItem[] = [];
+  private playlistInfo: PlaylistInfo | null = null;
+  private courseImport: CourseImportResult | null = null;
+  private selectedPlaylistKeys = new Set<string>();
   private processingMode: 'files' | 'playlist' = 'files';
   private playlistUrl: string = '';
   private progress: BatchProgress = {
@@ -46,6 +64,8 @@ export class BatchProcessingModal extends Modal {
     super(app);
     this.plugin = plugin;
     this.noteProcessor = new NoteProcessor(app.vault);
+    this.noteFactory = new NoteFactory(app);
+    this.courseStore = plugin.courseStore;
   }
 
   onOpen() {
@@ -69,7 +89,7 @@ export class BatchProcessingModal extends Modal {
       bodyEl,
       [
         { value: 'files' as const, label: '本地笔记文件', icon: 'files' },
-        { value: 'playlist' as const, label: '播放列表 / 收藏夹', icon: 'list-video' },
+        { value: 'playlist' as const, label: '导入视频课程', icon: 'list-video' },
       ],
       this.processingMode,
       (value: 'files' | 'playlist') => {
@@ -207,18 +227,18 @@ export class BatchProcessingModal extends Modal {
     // ---------- 播放列表 ----------
     const playlistSelectionEl = bodyEl.createDiv({ cls: 'batch-playlist-selection' });
     new Setting(playlistSelectionEl)
-      .setName('播放列表链接')
-      .setDesc('B站播放列表或收藏夹链接')
+      .setName('课程来源链接')
+      .setDesc('支持 YouTube 播放列表与 B站合集/收藏夹；解析和导入不会调用 AI')
       .addText((text) =>
         text
-          .setPlaceholder('https://space.bilibili.com/xxx/favlist?fid=xxx')
+          .setPlaceholder('YouTube playlist 或 B站合集/收藏夹链接')
           .setValue(this.playlistUrl)
           .onChange((value) => {
             this.playlistUrl = value;
           }),
       );
     const parseButton = playlistSelectionEl.createEl('button', {
-      text: '解析播放列表',
+      text: '预览增量',
       cls: 'vs-text-btn is-primary',
       attr: { type: 'button' },
     });
@@ -358,8 +378,19 @@ export class BatchProcessingModal extends Modal {
 
   private updateStartButton() {
     if (this.startLabelEl) {
-      const count = this.processingMode === 'files' ? this.selectedFiles.length : 0;
-      this.startLabelEl.setText(count > 0 ? `开始处理 ${count} 个` : '开始处理');
+      if (this.processingMode === 'playlist') {
+        const count = this.selectedPlaylistKeys.size;
+        this.startLabelEl.setText(
+          this.courseImport
+            ? count > 0
+              ? `导入课程 · 新建 ${count} 条待处理笔记`
+              : '更新课程索引'
+            : '先预览课程增量',
+        );
+      } else {
+        const count = this.selectedFiles.length;
+        this.startLabelEl.setText(count > 0 ? `开始处理 ${count} 个` : '开始处理');
+      }
     }
     if (this.countEl) {
       this.countEl.setText(`已选 ${this.selectedFiles.length} / ${this.allVideoFiles.length}`);
@@ -373,7 +404,7 @@ export class BatchProcessingModal extends Modal {
     }
 
     if (!PlaylistProcessor.isPlaylistUrl(this.playlistUrl)) {
-      new Notice('请输入有效的B站播放列表或收藏夹链接');
+      new Notice('请输入有效的 YouTube 播放列表或 B站合集/收藏夹链接');
       return;
     }
 
@@ -386,23 +417,58 @@ export class BatchProcessingModal extends Modal {
     });
 
     try {
-      const playlistInfo = await PlaylistProcessor.extractBvIds(this.playlistUrl);
+      const playlistInfo = await PlaylistProcessor.extract(this.playlistUrl, {
+        maxItems: 500,
+        maxPages: 20,
+        pageSize: 50,
+      });
+      const previous = await this.courseStore.loadForPlaylist(playlistInfo);
+      const courseImport = compileCourseImport(playlistInfo, previous);
+      this.playlistInfo = playlistInfo;
+      this.courseImport = courseImport;
       this.playlistItems = playlistInfo.items;
+      const newKeys = new Set(courseImport.diff.new.map((item) => item.canonical_key));
+      const selectableKeys = new Set(
+        courseImport.manifest.items
+          .filter(
+            (item) =>
+              !item.removed_from_source &&
+              ['pending', 'error'].includes(item.progress.status) &&
+              !item.progress.note_path,
+          )
+          .map((item) => item.canonical_key),
+      );
+      this.selectedPlaylistKeys = new Set(selectableKeys);
 
       this.playlistEl.empty();
-      this.playlistEl.createEl('h4', { text: `播放列表: ${playlistInfo.title}` });
-      this.playlistEl.createEl('p', { text: `共 ${playlistInfo.itemCount} 个视频` });
+      this.playlistEl.createEl('h4', { text: `课程: ${playlistInfo.title}` });
+      this.playlistEl.createEl('p', {
+        text: `共 ${playlistInfo.itemCount} 个 · 新增 ${courseImport.diff.new.length} · 已存在 ${courseImport.diff.existing.length} · 来源移除 ${courseImport.diff.removed.length}`,
+      });
+      if (playlistInfo.truncated) {
+        this.playlistEl.createEl('p', {
+          text: `已触达安全上限（${playlistInfo.fetchedPages} 页），当前预览可能不是完整列表`,
+          cls: 'mod-warning',
+        });
+      }
 
       // 显示视频列表
       for (const item of this.playlistItems) {
         const itemEl = this.playlistEl.createEl('div', { cls: 'playlist-item' });
+        const isNew = newKeys.has(item.canonicalKey);
+        const canCreatePendingNote = selectableKeys.has(item.canonicalKey);
 
         // 复选框
         const checkbox = itemEl.createEl('input', {
           type: 'checkbox',
-          attr: { id: `playlist-${item.bvid}` },
         });
-        checkbox.checked = true;
+        checkbox.checked = canCreatePendingNote;
+        checkbox.disabled = !canCreatePendingNote;
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) this.selectedPlaylistKeys.add(item.canonicalKey);
+          else this.selectedPlaylistKeys.delete(item.canonicalKey);
+          this.updateStartButton();
+        });
 
         // 视频信息
         const infoEl = itemEl.createEl('div', { cls: 'playlist-item-info' });
@@ -411,7 +477,7 @@ export class BatchProcessingModal extends Modal {
           cls: 'playlist-item-title',
         });
         infoEl.createEl('div', {
-          text: `UP主: ${item.author}`,
+          text: `${item.platform === 'youtube' ? '频道' : 'UP主'}: ${item.author || '未知'}`,
           cls: 'playlist-item-author',
         });
         if (item.duration) {
@@ -421,20 +487,28 @@ export class BatchProcessingModal extends Modal {
           });
         }
         infoEl.createEl('div', {
-          text: `BV号: ${item.bvid}`,
+          text: `${
+            isNew
+              ? '新增 · 将进入待处理'
+              : canCreatePendingNote
+                ? '已在课程中 · 可补建待处理笔记'
+                : '已导入 · 不重复创建'
+          } · ${item.videoId}`,
           cls: 'playlist-item-bvid',
         });
       }
 
-      new Notice(`✅ 成功解析播放列表，共 ${playlistInfo.itemCount} 个视频`);
+      this.updateStartButton();
+      new Notice(`课程增量已就绪：${courseImport.diff.new.length} 个新增视频（尚未调用 AI）`);
     } catch (error) {
       console.error('解析播放列表失败:', error);
+      const message = messageOf(error);
       this.playlistEl.empty();
       this.playlistEl.createEl('p', {
-        text: `❌ 解析失败: ${error.message}`,
+        text: `❌ 解析失败: ${message}`,
         cls: 'mod-warning',
       });
-      new Notice(`❌ 解析播放列表失败: ${error.message}`);
+      new Notice(`❌ 解析播放列表失败: ${message}`);
     }
   }
 
@@ -491,16 +565,16 @@ export class BatchProcessingModal extends Modal {
           cls: `vs-platform is-${entry.platform}`,
         });
       }
-      sub.createSpan({ text: file.parent?.path && file.parent.path !== '/' ? file.parent.path : '根目录' });
+      sub.createSpan({
+        text: file.parent?.path && file.parent.path !== '/' ? file.parent.path : '根目录',
+      });
       sub.createSpan({ text: new Date(file.stat.mtime).toLocaleDateString('zh-CN') });
 
       statusPill(row, entry?.status || 'pending');
 
       row.addEventListener('click', () => {
         if (checked) {
-          this.selectedFiles = this.selectedFiles.filter(
-            (selected) => selected.path !== file.path,
-          );
+          this.selectedFiles = this.selectedFiles.filter((selected) => selected.path !== file.path);
         } else {
           this.selectedFiles.push(file);
         }
@@ -588,6 +662,7 @@ export class BatchProcessingModal extends Modal {
       new Notice('请先选择要处理的文件');
       return;
     }
+    if (!(await this.plugin.ensureBackendReady())) return;
 
     // 显示进度区域
     if (this.progressEl) {
@@ -605,15 +680,50 @@ export class BatchProcessingModal extends Modal {
     };
 
     try {
-      // 构建批量请求
-      const requests = await Promise.all(
-        this.selectedFiles.map(async (file) => ({
-          noteName: file.basename,
-          input: this.noteProcessor.buildVideoInput(await this.app.vault.read(file)),
-          mode: this.mode,
-          language: this.language,
-        })),
-      );
+      // 逐个构建请求：一个文件读取失败时，不应让其他已标记为 running 的文件
+      // 停在半途中；同时保留独立的文件数组，避免失败项造成回调索引错位。
+      const requests: Array<{
+        noteName: string;
+        input: VideoInput;
+        mode: ProcessingMode;
+        language: SupportedLanguage;
+      }> = [];
+      const requestFiles: TFile[] = [];
+      for (const file of [...this.selectedFiles]) {
+        try {
+          const input = this.noteProcessor.buildVideoInput(await this.app.vault.read(file));
+          await this.noteProcessor.setProcessingStatus(file, 'running');
+          await this.plugin.jobService.updateCourseProgressForFile(file, 'processing', 10);
+          requests.push({
+            noteName: file.basename,
+            input: {
+              ...input,
+              processingDepth: this.plugin.settings.defaultProcessingDepth,
+              contentType: this.plugin.settings.defaultContentType,
+              autoRoute: this.plugin.settings.autoRouteContent,
+              attentionAssessment: this.plugin.settings.attentionAssessmentEnabled,
+              generateLearning: this.plugin.settings.generateLearningArtifacts,
+            },
+            mode: this.mode,
+            language: this.language,
+          });
+          requestFiles.push(file);
+        } catch (requestError) {
+          const normalizedError =
+            requestError instanceof Error ? requestError : new Error(String(requestError));
+          console.error(`读取批量文件失败: ${file.basename}`, normalizedError);
+          try {
+            await this.noteProcessor.setProcessingError(file, normalizedError);
+            await this.plugin.jobService.updateCourseProgressForFile(file, 'error', 0);
+          } catch (statusError) {
+            console.error(`设置批量文件错误状态失败: ${file.basename}`, statusError);
+          }
+          this.progress.failed++;
+          this.progress.current = file.basename;
+          this.updateProgressDisplay();
+          new Notice(`❌ ${file.basename} 无法加入批量任务: ${normalizedError.message}`, 5000);
+        }
+      }
 
       // 创建实时进度回调
       const onProgress = async (result: {
@@ -623,31 +733,55 @@ export class BatchProcessingModal extends Modal {
         noteName: string;
         index: number;
       }) => {
-        const file = this.selectedFiles[result.index];
+        const file = requestFiles[result.index];
         if (!file) return;
 
         this.progress.current = file.basename;
 
         if (result.success && result.result) {
           try {
-            // 立即更新笔记
+            const request = requests[result.index];
+            const artifactContext = {
+              title: file.basename,
+              notePath: file.path,
+              input: request.input,
+              platform: result.result.video_platform,
+            };
+            await this.plugin.jobService.persistExternalResult(artifactContext, result.result);
             await this.noteProcessor.updateNote(file, result.result, this.mode, {
               autoRename: this.plugin.settings.autoRenameEnabled,
               conflictStrategy: this.plugin.settings.renameConflictStrategy,
             });
+            await this.plugin.jobService.relinkExternalResult(artifactContext, result.result, file);
+            await this.noteProcessor.setProcessingStatus(
+              file,
+              this.plugin.settings.successStatusValue ?? 'success',
+            );
+            await this.plugin.jobService.updateCourseProgressForFile(
+              file,
+              'complete',
+              100,
+              result.result.artifact?.artifact_id,
+            );
             this.progress.completed++;
 
             // 显示成功通知
             new Notice(`✅ ${file.basename} 处理完成`, 3000);
           } catch (updateError) {
             console.error(`更新笔记失败: ${file.basename}`, updateError);
+            await this.noteProcessor.setProcessingError(file, updateError);
+            await this.plugin.jobService.updateCourseProgressForFile(file, 'error', 0);
             this.progress.failed++;
             new Notice(`❌ ${file.basename} 更新失败: ${updateError.message}`, 5000);
           }
         } else {
           // 设置错误状态
           try {
-            await this.noteProcessor.setProcessingStatus(file, 'error');
+            await this.noteProcessor.setProcessingError(
+              file,
+              new Error(result.error || '批量处理失败'),
+            );
+            await this.plugin.jobService.updateCourseProgressForFile(file, 'error', 0);
             this.progress.failed++;
             new Notice(`❌ ${file.basename} 处理失败: ${result.error}`, 5000);
           } catch (statusError) {
@@ -664,6 +798,7 @@ export class BatchProcessingModal extends Modal {
         requests,
         this.plugin.settings.batchConcurrency,
         onProgress,
+        this.plugin.settings.enableCache !== false,
       );
 
       // 完成
@@ -683,169 +818,206 @@ export class BatchProcessingModal extends Modal {
   }
 
   private async processPlaylist() {
-    const selectedItems = this.getSelectedPlaylistItems();
-    if (selectedItems.length === 0) {
-      new Notice('请先选择要处理的视频');
+    if (!this.courseImport || !this.playlistInfo) {
+      new Notice('请先预览课程增量');
       return;
     }
+    const selectedKeys = new Set(this.selectedPlaylistKeys);
+    let manifest = this.courseImport.manifest;
+    const selectedItemKeys = manifest.items
+      .filter((item) => !item.removed_from_source && selectedKeys.has(item.canonical_key))
+      .map((item) => item.canonical_key);
 
-    // 显示进度区域
     if (this.progressEl) {
       this.progressEl.style.display = 'block';
-      this.updateProgressDisplay();
     }
-
-    // 初始化进度
     this.progress = {
-      total: selectedItems.length,
+      total: selectedItemKeys.length,
       completed: 0,
       failed: 0,
       current: '',
       status: 'running',
     };
+    this.updateProgressDisplay();
 
     try {
-      // 构建批量请求
-      const requests = await Promise.all(
-        selectedItems.map(async (item) => {
-          // 创建笔记文件
-          const fileName = `${item.title} - ${item.bvid}.md`;
-          const filePath = `视频总结/${fileName}`;
-
-          // 确保目录存在
-          await this.ensureDirectoryExists('视频总结');
-
-          // 创建笔记内容
-          const noteContent = this.createNoteContent(item);
-
-          // 创建文件
-          await this.app.vault.create(filePath, noteContent);
-
-          return {
-            noteName: fileName,
-            input: { url: item.url },
-            mode: this.mode,
-            language: this.language,
-            filePath: filePath,
-          };
-        }),
+      manifest.index_note_path =
+        manifest.index_note_path ?? (await this.resolveCourseIndexPath(manifest));
+      const reusableNotes = await this.indexReusableCourseNotes(manifest.course_id);
+      const reusableArtifacts = new Map(
+        (await this.plugin.artifactStore.list())
+          .filter((artifact) => artifact.source.note_path)
+          .map((artifact) => [artifact.source.note_path as string, artifact] as const),
       );
-
-      // 创建实时进度回调
-      const onProgress = async (result: {
-        success: boolean;
-        result?: any;
-        error?: string;
-        noteName: string;
-        index: number;
-      }) => {
-        const request = requests[result.index];
-        if (!request) return;
-
-        this.progress.current = request.noteName;
-
-        if (result.success && result.result) {
+      for (const itemKey of selectedItemKeys) {
+        const item = manifest.items.find((candidate) => candidate.canonical_key === itemKey);
+        if (!item) {
+          this.progress.failed += 1;
+          continue;
+        }
+        this.progress.current = item.title;
+        this.updateProgressDisplay();
+        const recovered = reusableNotes.get(item.canonical_key);
+        const file =
+          recovered ||
+          (await this.noteFactory.createStubNote(
+            {
+              title: item.title,
+              input: { url: item.canonical_url },
+              source: 'url',
+              platform: item.platform,
+            },
+            {
+              outputFolder: this.plugin.settings.outputFolder || '',
+              successStatusValue: this.plugin.settings.successStatusValue ?? 'success',
+            },
+          ));
+        if (!file) {
+          item.progress = {
+            ...item.progress,
+            status: 'error',
+            percent: 0,
+            updated_at: new Date().toISOString(),
+          };
+          this.progress.failed += 1;
+          manifest.progress = summarizeCourseProgress(manifest.items);
+          manifest = await this.courseStore.save(manifest);
+          await this.writeCourseIndex(manifest);
+          continue;
+        }
+        await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+          frontmatter.video_course_id = manifest.course_id;
+          frontmatter.video_course_item_id = item.item_id;
+          frontmatter.video_course_position = item.recommended_position + 1;
+        });
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        const frontmatterArtifactId = String(frontmatter?.video_artifact_id || '').trim();
+        let linkedArtifact = reusableArtifacts.get(file.path);
+        if (!linkedArtifact && frontmatterArtifactId) {
           try {
-            // 立即更新笔记
-            const file = this.app.vault.getAbstractFileByPath(request.filePath) as TFile;
-            if (file) {
-              await this.noteProcessor.updateNote(file, result.result, this.mode, {
-                autoRename: this.plugin.settings.autoRenameEnabled,
-                conflictStrategy: this.plugin.settings.renameConflictStrategy,
+            linkedArtifact = await this.plugin.artifactStore.load(frontmatterArtifactId);
+          } catch {
+            // A stale frontmatter id is not proof that a sidecar still exists.
+          }
+        }
+        let artifactId = '';
+        if (linkedArtifact) {
+          try {
+            linkedArtifact = await this.plugin.artifactStore.save({
+              ...linkedArtifact,
+              source: { ...linkedArtifact.source, note_path: file.path },
+              course_ids: Array.from(
+                new Set([...(linkedArtifact.course_ids || []), manifest.course_id]),
+              ).sort(),
+            });
+            artifactId = linkedArtifact.artifact_id;
+            reusableArtifacts.set(file.path, linkedArtifact);
+            this.plugin.memoryIndex.upsert(linkedArtifact);
+            if (artifactId !== frontmatterArtifactId) {
+              await this.app.fileManager.processFrontMatter(file, (current) => {
+                current.video_artifact_id = artifactId;
               });
             }
-            this.progress.completed++;
-
-            // 显示成功通知
-            new Notice(`✅ ${request.noteName} 处理完成`, 3000);
-          } catch (updateError) {
-            console.error(`更新笔记失败: ${request.noteName}`, updateError);
-            this.progress.failed++;
-            new Notice(`❌ ${request.noteName} 更新失败: ${updateError.message}`, 5000);
+          } catch (error) {
+            console.warn(`课程工件关联失败: ${file.path}`, error);
           }
-        } else {
-          this.progress.failed++;
-          new Notice(`❌ ${request.noteName} 处理失败: ${result.error}`, 5000);
         }
-
-        // 实时更新进度显示
-        this.updateProgressDisplay();
-      };
-
-      // 执行批量处理（使用实时回调）
-      await this.plugin.api.batchProcess(
-        requests.map((r) => ({
-          noteName: r.noteName,
-          input: r.input,
-          mode: r.mode,
-          language: r.language,
-        })),
-        this.plugin.settings.batchConcurrency,
-        onProgress,
-      );
-
-      // 完成
+        const alreadyComplete = Boolean(artifactId);
+        item.progress = {
+          ...item.progress,
+          status: alreadyComplete ? 'complete' : 'pending',
+          percent: alreadyComplete ? 100 : 0,
+          note_path: file.path,
+          ...(artifactId ? { artifact_id: artifactId } : {}),
+          updated_at: new Date().toISOString(),
+        };
+        this.progress.completed += 1;
+        reusableNotes.set(item.canonical_key, file);
+        manifest.progress = summarizeCourseProgress(manifest.items);
+        manifest = await this.courseStore.save(manifest);
+        await this.writeCourseIndex(manifest);
+      }
+      manifest.progress = summarizeCourseProgress(manifest.items);
+      manifest = await this.courseStore.save(manifest);
+      await this.writeCourseIndex(manifest);
       this.progress.status = 'complete';
       this.progress.current = '';
       this.updateProgressDisplay();
-
-      // 显示完成通知
-      const successText = `播放列表处理完成！成功: ${this.progress.completed}, 失败: ${this.progress.failed}`;
-      new Notice(successText, 5000);
+      this.selectedPlaylistKeys.clear();
+      this.courseImport = compileCourseImport(this.playlistInfo, manifest);
+      this.updateStartButton();
+      new Notice(
+        `课程已导入：${this.progress.completed} 条待处理笔记，未调用 AI${
+          this.progress.failed > 0 ? `，${this.progress.failed} 条创建失败` : ''
+        }`,
+        5000,
+      );
     } catch (error) {
-      console.error('播放列表处理失败:', error);
+      console.error('课程导入失败:', error);
       this.progress.status = 'error';
       this.updateProgressDisplay();
-      new Notice(`❌ 播放列表处理失败: ${error.message}`, 0);
+      new Notice(`❌ 课程导入失败: ${messageOf(error)}`, 0);
     }
   }
 
-  private getSelectedPlaylistItems(): PlaylistItem[] {
-    const selectedItems: PlaylistItem[] = [];
-
-    for (const item of this.playlistItems) {
-      const checkbox = this.contentEl.querySelector(`#playlist-${item.bvid}`) as HTMLInputElement;
-      if (checkbox && checkbox.checked) {
-        selectedItems.push(item);
+  /**
+   * Recover a note created just before an interrupted manifest write. Reusing
+   * the canonical source prevents an import retry from creating duplicates.
+   */
+  private async indexReusableCourseNotes(courseId: string): Promise<Map<string, TFile>> {
+    const byKey = new Map<string, TFile>();
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const cached = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      const existingCourseId = String(cached?.video_course_id || '').trim();
+      if (existingCourseId && existingCourseId !== courseId) continue;
+      let link = '';
+      if (typeof cached?.link === 'string') link = cached.link.trim();
+      if (!link) {
+        const content = await this.app.vault.cachedRead(file);
+        link = this.noteProcessor.extractVideoUrl(content) || '';
+      }
+      if (!link) continue;
+      try {
+        const canonical = canonicalizeVideoUrl(link);
+        if (!byKey.has(canonical.canonicalKey)) byKey.set(canonical.canonicalKey, file);
+      } catch {
+        // Non-playlist video notes are irrelevant to this recovery index.
       }
     }
-
-    return selectedItems;
+    return byKey;
   }
 
-  private async ensureDirectoryExists(dirPath: string) {
-    try {
-      await this.app.vault.createFolder(dirPath);
-    } catch {
-      // 目录已存在，忽略错误
+  private async resolveCourseIndexPath(manifest: CourseManifest): Promise<string> {
+    const folder = [this.plugin.settings.outputFolder || '', '课程'].filter(Boolean).join('/');
+    await this.ensureDirectoryExists(folder);
+    const base = courseIndexBaseName(manifest);
+    let path = folder ? `${folder}/${base}.md` : `${base}.md`;
+    let suffix = 1;
+    while (await this.app.vault.adapter.exists(path)) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) {
+        const content = await this.app.vault.read(file);
+        if (content.includes(`course_id: ${manifest.course_id}`)) return path;
+      }
+      path = folder ? `${folder}/${base} (${suffix}).md` : `${base} (${suffix}).md`;
+      suffix += 1;
     }
+    return path;
   }
 
-  private createNoteContent(item: PlaylistItem): string {
-    const now = new Date().toISOString().split('T')[0];
-    return `---
-link: ${item.url}
-video_title: ${item.title}
-video_author: ${item.author}
-date: ${now}
-status: pending
----
+  private async writeCourseIndex(manifest: CourseManifest): Promise<void> {
+    await syncCourseIndexAtomic(this.app.vault, this.courseStore, manifest.course_id);
+  }
 
-# ${item.title}
-
-**UP主:** ${item.author}  
-**BV号:** ${item.bvid}  
-**链接:** ${item.url}  
-**添加时间:** ${now}
-
-## 视频总结
-
-<!-- 视频总结将在这里生成 -->
-
-## 文稿
-
-<!-- 视频文稿将在这里生成 -->
-`;
+  private async ensureDirectoryExists(dirPath: string): Promise<void> {
+    const parts = dirPath.split('/').filter(Boolean);
+    let current = '';
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (!this.app.vault.getAbstractFileByPath(current)) {
+        await this.app.vault.createFolder(current);
+      }
+    }
   }
 
   private updateProgressDisplay() {
@@ -907,4 +1079,8 @@ status: pending
     const { contentEl } = this;
     contentEl.empty();
   }
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

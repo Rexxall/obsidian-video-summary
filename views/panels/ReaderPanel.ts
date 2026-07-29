@@ -19,6 +19,11 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
   const playerHost = reader.createDiv({ cls: 'vs-reader-player' });
   const player = createPlayer(playerHost, ctx, job, sourceUrl);
   ctx.registerPanelCleanup(() => player.destroy());
+  const initialSeek = ctx.state.readerSeekSeconds;
+  if (typeof initialSeek === 'number' && Number.isFinite(initialSeek)) {
+    ctx.state.readerSeekSeconds = undefined;
+    window.setTimeout(() => player.seek(initialSeek), 0);
+  }
 
   const toolbar = reader.createDiv({ cls: 'vs-reader-toolbar' });
   const search = toolbar.createEl('input', {
@@ -141,6 +146,16 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
 
   void loadHighlights(ctx, job).then((stored) => {
     stored.forEach((highlight) => highlights.add(highlight.segment_id));
+    const segmentIds = new Set(segments.map((segment) => segment.id));
+    const needsReview = stored.filter(
+      (highlight) => highlight.needs_review || !segmentIds.has(highlight.segment_id),
+    ).length;
+    if (needsReview > 0) {
+      toolbar.createSpan({
+        text: `${needsReview} 个旧重点待重新定位`,
+        cls: 'vs-hint is-warning',
+      });
+    }
     renderRows();
   });
   renderRows();
@@ -281,6 +296,10 @@ function createBilibiliPlayer(container: HTMLElement, bvid: string): PlayerContr
       allow: 'autoplay; fullscreen',
       allowfullscreen: 'true',
     },
+  });
+  container.createDiv({
+    text: 'B站嵌入播放器不提供稳定的播放时间事件：点击文稿可跳转，播放时暂不自动跟随。',
+    cls: 'vs-hint is-warning',
   });
   const listeners = new Set<(seconds: number) => void>();
   const loadAt = (seconds: number) => {

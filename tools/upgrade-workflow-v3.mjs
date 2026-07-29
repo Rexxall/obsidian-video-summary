@@ -17,10 +17,12 @@ const ACTIVE_AI_AGENT_NAMES = [
 ];
 
 const RICH_PROMPT_MARKER = 'VIDEO_KNOWLEDGE_V3_EVIDENCE_OUTPUT';
+const CONTENT_ROUTE_PROMPT_MARKER = 'VIDEO_CONTENT_ROUTE_V1';
 
 const RICH_PROMPT_BLOCK = [
   `// ${RICH_PROMPT_MARKER}`,
   "const knowledgeMetadata = {{ $('Webhook').item.json.body.metadata || {} }};",
+  'const contentRouterContract = knowledgeMetadata.content_router_contract || null;',
   "const rawEvidenceSegments = {{ $('Set: Final Transcript for AI').item.json.video_segments || [] }};",
   'const evidenceSegmentCatalog = Array.isArray(rawEvidenceSegments)',
   '  ? rawEvidenceSegments.map((segment) => ({',
@@ -42,8 +44,20 @@ const RICH_PROMPT_BLOCK = [
   '在既有必填字段 video_title、summary、note 之外，输出以下可选 JSON 字段。不要删除既有字段：',
   '- content_type：只能是 course / interview / tutorial / news / meeting / review / general；请求值为 ${requestedContentType}，auto 时根据文稿判断。',
   '- evidence_claims：数组。每项为 {"id":"claim-1","claim":"可核查陈述","evidence":[{"segment_id":"下方真实 segment id","source":"speech","quote":"对应原话"}],"start":秒或null,"end":秒或null,"confidence":0到1,"review_state":"supported或needs-review或inference"}。',
-  '- attention：仅当 ${shouldAssessAttention} 为 true 时输出；结构为 {"action":"watch或skim或skip","score":0到100,"confidence":0到1,"rationale":"理由","evidence_segment_ids":["真实segment id"],"limitations":["限制"]}。',
+  '- attention：仅当 ${shouldAssessAttention} 为 true 时输出；结构为 {"action":"watch或skim或skip","score":0到1,"confidence":0到1,"rationale":"理由","information_density":0到1,"originality":0到1,"actionability":0到1,"promotional_ratio":0到1,"evidence_segment_ids":["真实segment id"],"limitations":["限制"]}。四个核心指标不可省略；没有知识库上下文时不要输出 vault_relevance。',
   '- learning：仅当 ${shouldGenerateLearning} 为 true 时输出；可含 flashcards、questions、feynman_prompts，并让卡片/题目的 evidence_segment_ids 只引用真实 segment id。',
+  '',
+  `【内容类型路由结构（${CONTENT_ROUTE_PROMPT_MARKER}）】`,
+  '机器可读路由合同：${JSON.stringify(contentRouterContract)}',
+  '以下结构要求优先于前面的通用排版法则。requestedContentType 不是 auto 时必须按用户指定类型组织；auto 时只能依据标题、作者、章节和文稿判断，证据不足使用 general。',
+  '- course：学习目标 → 概念地图 → 课程结构 → 重点讲解 → 练习与复习。',
+  '- interview：人物与语境 → 对谈主题 → 按说话者归属的观点 → 关键问答 → 未决问题。不得把主持人的问题写成嘉宾主张。',
+  '- tutorial：目标与前置条件 → 材料与配置 → 可复现的顺序步骤 → 验证与排错 → 完成检查表。不得补造文稿没有的步骤。',
+  '- news：事件概览 → 时间线 → 相关方与信源 → 已确认事实/主张/未知事项 → 影响与后续。',
+  '- meeting：会议背景 → 已定事项 → 行动项（事项/负责人/期限/状态）→ 讨论摘要 → 未决事项。',
+  '- review：评测范围与标准 → 对象事实 → 优势 → 不足与权衡 → 有条件的结论与适用人群。',
+  '- general：内容概览 → 关键内容 → 证据与限制 → 可用结论。',
+  'content_type 必须与 note 实际采用的结构一致；缺失信息应写“未提供”，不能为了填满结构而虚构。',
   '',
   '处理深度：${processingDepth}',
   '可引用的语音时间段目录（这是字幕证据，不是画面证据）：',
@@ -568,6 +582,9 @@ export function validateWorkflow(workflow) {
       if (!agent.parameters.text.includes(RICH_PROMPT_MARKER)) {
         errors.push(`${name} is missing the rich evidence prompt.`);
       }
+      if (!agent.parameters.text.includes(CONTENT_ROUTE_PROMPT_MARKER)) {
+        errors.push(`${name} is missing the content-route prompt.`);
+      }
       if (!agent.parameters.text.includes('当前工作流没有接通视频画面理解')) {
         errors.push(`${name} does not disclose the visual-understanding limit.`);
       }
@@ -665,4 +682,4 @@ if (isDirectRun) {
   }
 }
 
-export { DEFAULT_WORKFLOW_PATH, RICH_PROMPT_MARKER, stableSegmentId };
+export { CONTENT_ROUTE_PROMPT_MARKER, DEFAULT_WORKFLOW_PATH, RICH_PROMPT_MARKER, stableSegmentId };

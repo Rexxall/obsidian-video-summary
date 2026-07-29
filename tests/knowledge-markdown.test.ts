@@ -124,6 +124,31 @@ test('evidence block ids are stable across identical renders and distinct for un
   assert.notEqual(idsOnce[0], idsOnce[1]);
 });
 
+test('remote worker keyframes render inline while absolute paths never become broken wiki embeds', () => {
+  const result = richResult('真实关键帧');
+  result.visual_evidence = [
+    {
+      id: 'visual-remote',
+      start: 14,
+      description: '由真实抽帧支持的画面说明。',
+      keyframe: {
+        id: 'frame-000014000',
+        path: '/private/tmp/codex-video-worker/frame-000014000.jpg',
+        url: 'http://127.0.0.1:8787/video-summary/assets/visual-abc/frame-000014000.jpg',
+        mime_type: 'image/jpeg',
+      },
+    },
+  ];
+
+  const markdown = renderEvidenceMarkdown(result, SOURCE_URL);
+
+  assert.match(
+    markdown,
+    /!\[关键帧\]\(<http:\/\/127\.0\.0\.1:8787\/video-summary\/assets\/visual-abc\/frame-000014000\.jpg>\)/,
+  );
+  assert.doesNotMatch(markdown, /!\[\[\/private\/tmp/);
+});
+
 test('rich frontmatter projects only scalar values and round-trips as safe YAML', () => {
   const result = richResult('第一行\n第二行: #仍是总结文本');
   result.video_title = '标题: [需要安全转义]\n下一行';
@@ -146,6 +171,7 @@ test('rich frontmatter projects only scalar values and round-trips as safe YAML'
   assert.equal('artifact' in fields, false);
   assert.equal('attention' in fields, false);
   assert.equal('learning' in fields, false);
+  assert.equal(fields.video_learning_items, 2);
   assert.equal('evidence_claims' in fields, false);
 
   const serialized = serializeScalarFrontmatter({

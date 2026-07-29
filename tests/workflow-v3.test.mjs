@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  CONTENT_ROUTE_PROMPT_MARKER,
   DEFAULT_WORKFLOW_PATH,
   executeNodeCode,
   upgradeWorkflow,
@@ -106,6 +107,33 @@ test('active AI prompt expressions remain syntactically executable', () => {
     assert.ok(node, `Missing node: ${name}`);
     const materialized = materializeN8nPromptExpression(node.parameters.text);
     assert.doesNotThrow(() => new Function(materialized), name);
+  }
+});
+
+test('all active AI prompts carry every durable content route contract', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  for (const name of [
+    'AI Agent',
+    'AI Agent1',
+    'AI Agent2',
+    'AI Agent3',
+    'AI Agent5',
+    'AI Agent6',
+  ]) {
+    const node = workflow.nodes.find((candidate) => candidate.name === name);
+    assert.ok(node, `Missing node: ${name}`);
+    assert.match(node.parameters.text, new RegExp(CONTENT_ROUTE_PROMPT_MARKER));
+    for (const route of [
+      'course',
+      'interview',
+      'tutorial',
+      'news',
+      'meeting',
+      'review',
+      'general',
+    ]) {
+      assert.match(node.parameters.text, new RegExp(`- ${route}：`), `${name}.${route}`);
+    }
   }
 });
 

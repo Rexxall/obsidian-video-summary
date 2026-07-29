@@ -1,5 +1,10 @@
 import type { DataAdapter, ListedFiles } from 'obsidian';
-import type { UserHighlight, VideoKnowledgeArtifact } from '../types';
+import type {
+  RelatedNoteSuggestion,
+  UserHighlight,
+  VideoKnowledgeArtifact,
+  VideoSegment,
+} from '../types';
 
 /**
  * Machine-readable knowledge artifacts live beside the plugin's other sidecars,
@@ -42,6 +47,10 @@ export interface ArtifactListOptions {
 export type HighlightUpdater =
   | readonly UserHighlight[]
   | ((current: readonly UserHighlight[]) => readonly UserHighlight[]);
+
+export type RelatedNotesUpdater =
+  | readonly RelatedNoteSuggestion[]
+  | ((current: readonly RelatedNoteSuggestion[]) => readonly RelatedNoteSuggestion[]);
 
 export interface ArtifactMigrationResult {
   artifact: VideoKnowledgeArtifact;
@@ -111,8 +120,27 @@ export class ArtifactStore {
     const path = this.pathFor(normalized.artifact_id);
     return this.withLock(path, async () => {
       await this.ensureRoot();
-      await this.atomicWrite(path, serializeArtifact(normalized));
-      return cloneArtifact(normalized);
+      if (!(await this.adapter.exists(path))) {
+        await this.atomicWrite(path, serializeArtifact(normalized));
+        return cloneArtifact(normalized);
+      }
+
+      let saved: VideoKnowledgeArtifact | undefined;
+      const merge = (currentText: string): string => {
+        const current = parseCurrentArtifact(currentText);
+        saved = mergeLatestUserOwnedState(normalized, current);
+        validateVideoKnowledgeArtifact(saved);
+        return serializeArtifact(saved);
+      };
+      if (this.adapter.process) {
+        await this.adapter.process(path, merge);
+      } else {
+        const currentText = await this.adapter.read(path);
+        await this.atomicWrite(path, merge(currentText));
+      }
+      if (!saved)
+        throw new Error(`Artifact save did not produce a result: ${normalized.artifact_id}`);
+      return cloneArtifact(saved);
     });
   }
 
@@ -218,6 +246,62 @@ export class ArtifactStore {
 
       if (!updated) {
         throw new Error(`Artifact highlight update did not produce a result: ${artifactId}`);
+      }
+      return cloneArtifact(updated);
+    });
+  }
+
+  /**
+   * Atomically replace or transform reviewed cross-video relations.
+   *
+   * Search and relationship engines only produce suggestions. They must never
+   * call this method until the user has explicitly confirmed a suggestion.
+   * The atomic read-modify-write preserves highlights and any fields written by
+   * a newer processor while the review UI is open.
+   */
+  async updateRelatedNotes(
+    artifactId: string,
+    updater: RelatedNotesUpdater,
+  ): Promise<VideoKnowledgeArtifact> {
+    assertArtifactId(artifactId);
+    const path = this.pathFor(artifactId);
+    return this.withLock(path, async () => {
+      if (!(await this.adapter.exists(path))) {
+        throw new ArtifactNotFoundError(artifactId);
+      }
+
+      const loaded = await this.loadUnlocked(path);
+      const canonicalPath = this.pathFor(loaded.artifact_id);
+      if (canonicalPath !== path) {
+        return this.updateRelatedNotes(loaded.artifact_id, updater);
+      }
+
+      let updated: VideoKnowledgeArtifact | undefined;
+      const apply = (currentText: string): string => {
+        const current = parseCurrentArtifact(currentText);
+        const requested =
+          typeof updater === 'function'
+            ? updater(cloneRelatedNotes(current.related_notes))
+            : updater;
+        const relatedNotes = normalizeRelatedNotes(requested);
+        updated = {
+          ...current,
+          related_notes: relatedNotes,
+          updated_at: this.now().toISOString(),
+        };
+        validateVideoKnowledgeArtifact(updated);
+        return serializeArtifact(updated);
+      };
+
+      if (this.adapter.process) {
+        await this.adapter.process(path, apply);
+      } else {
+        const currentText = await this.adapter.read(path);
+        await this.atomicWrite(path, apply(currentText));
+      }
+
+      if (!updated) {
+        throw new Error(`Artifact relation update did not produce a result: ${artifactId}`);
       }
       return cloneArtifact(updated);
     });
@@ -362,11 +446,23 @@ export class ArtifactStore {
 }
 
 export async function stableSourceHash(source: VideoKnowledgeArtifact['source']): Promise<string> {
+  const existing = String(source?.source_hash || '')
+    .trim()
+    .toLowerCase();
+  const hasStrongIdentity = Boolean(
+    String(source?.url || '').trim() ||
+    normalizeLocalPath(String(source?.local_file || '')) ||
+    HASH_VALUE.test(
+      String(source?.transcript_hash || '')
+        .trim()
+        .toLowerCase(),
+    ),
+  );
+  // A note path is a locator, not immutable content identity. Once a note-only
+  // artifact has a valid source hash, retain it across ordinary Vault renames.
+  if (!hasStrongIdentity && HASH_VALUE.test(existing)) return existing;
   const identity = canonicalSourceIdentity(source);
   if (!identity) {
-    const existing = String(source?.source_hash || '')
-      .trim()
-      .toLowerCase();
     if (HASH_VALUE.test(existing)) return existing;
     throw new ArtifactValidationError([
       {
@@ -399,6 +495,11 @@ export function canonicalSourceIdentity(
 
   const localFile = normalizeLocalPath(String(source.local_file || ''));
   if (localFile) return `local:${localFile}`;
+
+  const transcriptHash = String(source.transcript_hash || '')
+    .trim()
+    .toLowerCase();
+  if (HASH_VALUE.test(transcriptHash)) return `transcript:${transcriptHash}`;
 
   const notePath = normalizeLocalPath(String(source.note_path || ''));
   if (notePath) return `note:${notePath}`;
@@ -450,22 +551,9 @@ export async function migrateVideoKnowledgeArtifact(
         url: readString(working.source_url),
         local_file: readString(working.local_file),
         note_path: readString(working.note_path),
+        transcript_hash: readString(working.transcript_hash),
         source_hash: readString(working.source_hash),
       };
-  const source = {
-    url: readOptionalString(sourceRaw.url),
-    local_file: readOptionalString(sourceRaw.local_file),
-    note_path: readOptionalString(sourceRaw.note_path),
-    source_hash: await stableSourceHash({
-      url: readOptionalString(sourceRaw.url),
-      local_file: readOptionalString(sourceRaw.local_file),
-      note_path: readOptionalString(sourceRaw.note_path),
-      source_hash: readString(sourceRaw.source_hash),
-    }),
-  };
-  const artifactId = stableArtifactId(source.source_hash);
-  const createdAt = validIso(working.created_at) || now.toISOString();
-  const updatedAt = validIso(working.updated_at) || createdAt;
   const provenanceRaw = isRecord(working.provenance)
     ? working.provenance
     : isRecord(working.artifact)
@@ -475,7 +563,24 @@ export async function migrateVideoKnowledgeArtifact(
   const transcriptHash =
     transcript && transcript.length > 0
       ? await sha256Hex(normalizeTranscriptForHash(transcript))
-      : readOptionalString(provenanceRaw.transcript_hash);
+      : readOptionalString(sourceRaw.transcript_hash) ||
+        readOptionalString(provenanceRaw.transcript_hash);
+  const source = {
+    url: readOptionalString(sourceRaw.url),
+    local_file: readOptionalString(sourceRaw.local_file),
+    note_path: readOptionalString(sourceRaw.note_path),
+    transcript_hash: transcriptHash,
+    source_hash: await stableSourceHash({
+      url: readOptionalString(sourceRaw.url),
+      local_file: readOptionalString(sourceRaw.local_file),
+      note_path: readOptionalString(sourceRaw.note_path),
+      transcript_hash: transcriptHash,
+      source_hash: readString(sourceRaw.source_hash),
+    }),
+  };
+  const artifactId = stableArtifactId(source.source_hash);
+  const createdAt = validIso(working.created_at) || now.toISOString();
+  const updatedAt = validIso(working.updated_at) || createdAt;
 
   const artifact: VideoKnowledgeArtifact = {
     schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
@@ -547,6 +652,15 @@ export function validateVideoKnowledgeArtifact(
   if (isRecord(value.source)) {
     requireString(issues, '$.source.source_hash', value.source.source_hash, HASH_VALUE);
     if (
+      value.source.transcript_hash !== undefined &&
+      !HASH_VALUE.test(readString(value.source.transcript_hash))
+    ) {
+      issues.push({
+        path: '$.source.transcript_hash',
+        message: 'must be a lowercase hexadecimal hash',
+      });
+    }
+    if (
       !canonicalSourceIdentity(value.source) &&
       !HASH_VALUE.test(readString(value.source.source_hash))
     ) {
@@ -573,6 +687,7 @@ export function validateVideoKnowledgeArtifact(
   const segmentIds = validateSegments(issues, value.segments);
   validateClaims(issues, value.claims, segmentIds);
   validateVisualEvidence(issues, value.visual_evidence);
+  validateRelatedNotes(issues, value.related_notes);
   validateHighlights(issues, value.highlights, segmentIds);
   validateStringArray(issues, '$.course_ids', value.course_ids);
 
@@ -685,11 +800,128 @@ function normalizeHighlights(highlights: readonly UserHighlight[]): UserHighligh
         ? highlight.note.trim()
         : undefined,
     created_at: validIso(highlight?.created_at) || '',
+    original_segment_id:
+      typeof highlight?.original_segment_id === 'string' && highlight.original_segment_id.trim()
+        ? highlight.original_segment_id.trim()
+        : undefined,
+    needs_review: highlight?.needs_review === true ? true : undefined,
   }));
   return normalized.sort((left, right) => {
     const byDate = left.created_at.localeCompare(right.created_at);
     return byDate || left.id.localeCompare(right.id);
   });
+}
+
+function mergeLatestUserOwnedState(
+  generated: VideoKnowledgeArtifact,
+  current: VideoKnowledgeArtifact,
+): VideoKnowledgeArtifact {
+  return {
+    ...generated,
+    highlights: rebaseHighlightsForSegments(
+      current.highlights,
+      current.segments,
+      generated.segments,
+    ),
+    related_notes: cloneRelatedNotes(current.related_notes),
+    course_ids: uniqueStrings([...(current.course_ids || []), ...(generated.course_ids || [])]),
+    created_at: current.created_at || generated.created_at,
+  };
+}
+
+/**
+ * Preserve user highlights across a processor changing segment ids. Exact ids
+ * stay exact; safe time/text matches are retained but flagged for review; an
+ * unmatched highlight remains as an explicit review item instead of blocking
+ * the whole artifact save or being silently dropped.
+ */
+export function rebaseHighlightsForSegments(
+  highlights: readonly UserHighlight[],
+  previousSegments: readonly VideoSegment[],
+  nextSegments: readonly VideoSegment[],
+): UserHighlight[] {
+  const nextById = new Map(nextSegments.map((segment) => [segment.id, segment] as const));
+  const previousById = new Map(previousSegments.map((segment) => [segment.id, segment] as const));
+  return highlights.map((highlight) => {
+    if (nextById.has(highlight.segment_id)) return { ...highlight };
+    const previous = previousById.get(highlight.segment_id);
+    const replacement = previous ? closestReplacementSegment(previous, nextSegments) : undefined;
+    return {
+      ...highlight,
+      segment_id: replacement?.id || highlight.segment_id,
+      original_segment_id: highlight.original_segment_id || highlight.segment_id,
+      needs_review: true,
+    };
+  });
+}
+
+function closestReplacementSegment(
+  previous: VideoSegment,
+  candidates: readonly VideoSegment[],
+): VideoSegment | undefined {
+  if (previous.start !== null) {
+    const timed = candidates
+      .filter((candidate) => candidate.start !== null)
+      .map((candidate) => ({
+        candidate,
+        distance: Math.abs((candidate.start as number) - (previous.start as number)),
+      }))
+      .sort((left, right) => left.distance - right.distance);
+    if (timed[0]?.distance <= 5) return timed[0].candidate;
+  }
+  const previousText = comparableText(previous.text);
+  if (previousText.length === 0) return undefined;
+  const textual = candidates
+    .map((candidate) => ({
+      candidate,
+      score: textOverlap(previousText, comparableText(candidate.text)),
+    }))
+    .sort((left, right) => right.score - left.score);
+  return textual[0]?.score >= 0.6 ? textual[0].candidate : undefined;
+}
+
+function comparableText(value: string): string[] {
+  return value
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function textOverlap(left: string[], right: string[]): number {
+  if (left.length === 0 || right.length === 0) return 0;
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  const intersection = [...leftSet].filter((token) => rightSet.has(token)).length;
+  return intersection / Math.max(leftSet.size, rightSet.size);
+}
+
+function normalizeRelatedNotes(
+  relatedNotes: readonly RelatedNoteSuggestion[],
+): RelatedNoteSuggestion[] {
+  const normalized = relatedNotes.map((suggestion) => ({
+    note_path: String(suggestion?.note_path || '').trim(),
+    relation: suggestion?.relation,
+    reason: String(suggestion?.reason || '').trim(),
+    confidence:
+      typeof suggestion?.confidence === 'number' && Number.isFinite(suggestion.confidence)
+        ? Math.max(0, Math.min(1, suggestion.confidence))
+        : undefined,
+  }));
+  const unique = new Map<string, RelatedNoteSuggestion>();
+  normalized.forEach((suggestion) => {
+    unique.set(`${suggestion.note_path}\u0000${suggestion.relation}`, suggestion);
+  });
+  return Array.from(unique.values()).sort(
+    (left, right) =>
+      left.note_path.localeCompare(right.note_path) || left.relation.localeCompare(right.relation),
+  );
+}
+
+function cloneRelatedNotes(
+  relatedNotes: readonly RelatedNoteSuggestion[],
+): RelatedNoteSuggestion[] {
+  return relatedNotes.map((suggestion) => ({ ...suggestion }));
 }
 
 function assertHighlightReferences(
@@ -770,6 +1002,41 @@ function validateClaims(
   });
 }
 
+function validateRelatedNotes(issues: ArtifactValidationIssue[], raw: unknown): void {
+  if (!Array.isArray(raw)) return;
+  const seen = new Set<string>();
+  const allowedRelations = new Set(['supplements', 'repeats', 'conflicts', 'updates', 'related']);
+  raw.forEach((suggestion, index) => {
+    const path = `$.related_notes[${index}]`;
+    if (!isRecord(suggestion)) {
+      issues.push({ path, message: 'must be an object' });
+      return;
+    }
+    requireString(issues, `${path}.note_path`, suggestion.note_path);
+    requireString(issues, `${path}.relation`, suggestion.relation);
+    requireString(issues, `${path}.reason`, suggestion.reason);
+    if (typeof suggestion.relation === 'string' && !allowedRelations.has(suggestion.relation)) {
+      issues.push({ path: `${path}.relation`, message: 'has an unsupported value' });
+    }
+    if (
+      suggestion.confidence !== undefined &&
+      (!isNonNegativeNumber(suggestion.confidence) || suggestion.confidence > 1)
+    ) {
+      issues.push({
+        path: `${path}.confidence`,
+        message: 'must be a number between 0 and 1',
+      });
+    }
+    if (typeof suggestion.note_path === 'string' && typeof suggestion.relation === 'string') {
+      const key = `${suggestion.note_path}\u0000${suggestion.relation}`;
+      if (seen.has(key)) {
+        issues.push({ path, message: 'duplicates an existing note_path/relation pair' });
+      }
+      seen.add(key);
+    }
+  });
+}
+
 function validateVisualEvidence(issues: ArtifactValidationIssue[], raw: unknown): void {
   if (!Array.isArray(raw)) return;
   const ids = new Set<string>();
@@ -807,14 +1074,27 @@ function validateHighlights(
     requireString(issues, `${path}.id`, highlight.id);
     requireString(issues, `${path}.segment_id`, highlight.segment_id);
     requireIso(issues, `${path}.created_at`, highlight.created_at);
+    if (
+      highlight.original_segment_id !== undefined &&
+      (typeof highlight.original_segment_id !== 'string' || !highlight.original_segment_id.trim())
+    ) {
+      issues.push({ path: `${path}.original_segment_id`, message: 'must be a non-empty string' });
+    }
+    if (highlight.needs_review !== undefined && typeof highlight.needs_review !== 'boolean') {
+      issues.push({ path: `${path}.needs_review`, message: 'must be a boolean' });
+    }
     if (typeof highlight.id === 'string') {
       if (ids.has(highlight.id)) issues.push({ path: `${path}.id`, message: 'must be unique' });
       ids.add(highlight.id);
     }
-    if (typeof highlight.segment_id === 'string' && !segmentIds.has(highlight.segment_id)) {
+    if (
+      typeof highlight.segment_id === 'string' &&
+      !segmentIds.has(highlight.segment_id) &&
+      highlight.needs_review !== true
+    ) {
       issues.push({
         path: `${path}.segment_id`,
-        message: 'must reference an existing segment',
+        message: 'must reference an existing segment unless needs_review is true',
       });
     }
   });
@@ -838,14 +1118,18 @@ function validateStringArray(issues: ArtifactValidationIssue[], path: string, ra
 function canonicalUrlIdentity(value: string): string {
   try {
     const url = new URL(value);
-    const host = url.hostname.toLowerCase().replace(/^www\./, '');
-    const youtubeId = youtubeVideoId(url, host);
+    const originalHost = url.hostname.toLowerCase();
+    const platformHost = originalHost.replace(/^www\./, '');
+    const youtubeId = youtubeVideoId(url, platformHost);
     if (youtubeId) return `youtube:${youtubeId}`;
-    const bilibili = bilibiliVideoId(url, host);
+    const bilibili = bilibiliVideoId(url, platformHost);
     if (bilibili) return bilibili;
 
     url.protocol = url.protocol.toLowerCase();
-    url.hostname = host;
+    // For an unknown site, `www.` can be a distinct host and keys such as
+    // `feature` or `share_source` can be application state rather than
+    // tracking. Preserve them instead of over-deduplicating unrelated pages.
+    url.hostname = originalHost;
     url.hash = '';
     const kept = Array.from(url.searchParams.entries())
       .filter(([key]) => !isTrackingParameter(key))
@@ -890,12 +1174,7 @@ function bilibiliVideoId(url: URL, host: string): string | undefined {
 
 function isTrackingParameter(key: string): boolean {
   const normalized = key.toLowerCase();
-  return (
-    normalized.startsWith('utm_') ||
-    ['fbclid', 'gclid', 'spm_id_from', 'share_source', 'share_medium', 'feature'].includes(
-      normalized,
-    )
-  );
+  return normalized.startsWith('utm_') || ['fbclid', 'gclid'].includes(normalized);
 }
 
 function normalizeLocalPath(value: string): string {
@@ -916,7 +1195,7 @@ function normalizeAdapterPath(value: string): string {
     .replace(/\/{2,}/g, '/');
 }
 
-function normalizeTranscriptForHash(value: string): string {
+export function normalizeTranscriptForHash(value: string): string {
   return value
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')

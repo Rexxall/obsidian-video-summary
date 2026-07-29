@@ -497,7 +497,7 @@ function showWebhookEntryActions(ctx: ViewContext, entry: any, event: MouseEvent
       icon: 'file-plus',
       onClick: async () => {
         await ctx.plugin.jobService.createNoteFromJson(
-          JSON.stringify(entry.result),
+          JSON.stringify({ ...entry.result, input: entry.input }),
           entry.language,
         );
         ctx.renderPanels();

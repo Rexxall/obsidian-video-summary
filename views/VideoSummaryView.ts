@@ -122,6 +122,18 @@ export class VideoSummaryView extends ItemView {
     this.renderAll();
   }
 
+  /** Open a persisted artifact and optionally seek its synchronized reader. */
+  openArtifact(notePath: string, artifactId: string, seekSeconds?: number): void {
+    this.state.tab = 'library';
+    this.state.detail = { kind: 'note', path: notePath, artifactId };
+    this.state.detailTab = 'reader';
+    this.state.readerSeekSeconds =
+      typeof seekSeconds === 'number' && Number.isFinite(seekSeconds)
+        ? Math.max(0, seekSeconds)
+        : undefined;
+    this.renderPanels();
+  }
+
   private context(): ViewContext {
     return {
       plugin: this.plugin,

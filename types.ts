@@ -20,6 +20,66 @@ export type VideoContentType =
 
 export type RequestedContentType = VideoContentType | 'auto';
 
+export type ContentRoutingSource = 'manual' | 'backend' | 'local' | 'fallback';
+
+export type ContentRoutingSignal =
+  | 'request'
+  | 'backend'
+  | 'title'
+  | 'author'
+  | 'transcript'
+  | 'chapter'
+  | 'structure'
+  | 'fallback';
+
+export interface ContentPromptSchemaProperty {
+  type: 'object' | 'array' | 'string' | 'number' | 'boolean';
+  description?: string;
+  const?: string;
+  required?: string[];
+  properties?: Record<string, ContentPromptSchemaProperty>;
+  items?: ContentPromptSchemaProperty;
+}
+
+export interface ContentPromptOutputSchema {
+  type: 'object';
+  required: string[];
+  properties: Record<string, ContentPromptSchemaProperty>;
+}
+
+export interface ContentPromptSection {
+  key: string;
+  heading: string;
+  purpose: string;
+  required: boolean;
+  evidence: 'required' | 'recommended' | 'optional';
+}
+
+export interface ContentPromptProfile {
+  id: string;
+  version: number;
+  content_type: VideoContentType;
+  objective: string;
+  sections: ContentPromptSection[];
+  output_schema: ContentPromptOutputSchema;
+  guardrails: string[];
+}
+
+export interface ContentRoutingReason {
+  signal: ContentRoutingSignal;
+  message: string;
+  weight?: number;
+}
+
+export interface ContentRoutingDecision {
+  type: VideoContentType;
+  confidence: number;
+  source: ContentRoutingSource;
+  reasons: ContentRoutingReason[];
+  prompt_profile: ContentPromptProfile;
+  candidate_scores?: Partial<Record<VideoContentType, number>>;
+}
+
 export type EvidenceSourceType = 'speech' | 'screen' | 'comment' | 'user' | 'ai-inference';
 
 export type TimingQuality = 'exact' | 'aligned' | 'estimated' | 'none';
@@ -106,6 +166,8 @@ export interface AttentionAssessment {
 
 export interface LearningCard {
   id: string;
+  /** Optional backend id retained only as provenance; local id is content-stable. */
+  provider_id?: string;
   front: string;
   back: string;
   evidence_segment_ids?: string[];
@@ -114,6 +176,8 @@ export interface LearningCard {
 
 export interface QuizQuestion {
   id: string;
+  /** Optional backend id retained only as provenance; local id is content-stable. */
+  provider_id?: string;
   prompt: string;
   choices?: string[];
   answer: string;
@@ -144,6 +208,12 @@ export interface ArtifactProvenance {
   prompt_profile?: string;
   prompt_version?: string;
   processing_depth?: ProcessingDepth;
+  content_routing?: {
+    source: ContentRoutingSource;
+    confidence: number;
+    reasons: string[];
+    prompt_profile: string;
+  };
   generated_at?: string;
   transcript_source?: string;
   warnings?: string[];
@@ -161,6 +231,10 @@ export interface UserHighlight {
   segment_id: string;
   note?: string;
   created_at: string;
+  /** Previous segment id when a reprocess changed segmentation. */
+  original_segment_id?: string;
+  /** The highlight was retained but its new segment mapping needs user review. */
+  needs_review?: boolean;
 }
 
 export interface VideoKnowledgeArtifact {
@@ -170,6 +244,8 @@ export interface VideoKnowledgeArtifact {
     url?: string;
     local_file?: string;
     note_path?: string;
+    /** Stable identity for transcript-only inputs whose note may be renamed. */
+    transcript_hash?: string;
     source_hash: string;
   };
   title?: string;
@@ -350,6 +426,8 @@ export type SupportedLanguage = 'zh' | 'en' | 'ja';
 
 export interface VideoInput {
   url?: string;
+  /** Stable source identity retained when the backend must not fetch the URL. */
+  sourceUrl?: string;
   transcript?: string;
   localFile?: string;
   localFiles?: string[];
@@ -361,6 +439,18 @@ export interface VideoInput {
   generateLearning?: boolean;
   artifactId?: string;
   highlightedSegmentIds?: string[];
+  /** Reprocess only persisted raw inputs; the backend must not download/transcribe. */
+  skipSourceFetch?: boolean;
+  /** Integrity-checked evidence snapshot used by no-fetch reprocessing. */
+  persistedSegments?: VideoSegment[];
+  persistedEvidenceClaims?: EvidenceClaim[];
+  persistedVisualEvidence?: VisualEvidence[];
+  persistedRun?: {
+    backend: ProcessingBackend;
+    model: string;
+    prompt: string;
+    version: string;
+  };
 }
 
 export interface ProcessingResult {
@@ -381,6 +471,7 @@ export interface ProcessingResult {
   evidence_claims?: EvidenceClaim[];
   visual_evidence?: VisualEvidence[];
   content_type?: VideoContentType;
+  content_routing?: ContentRoutingDecision;
   attention?: AttentionAssessment;
   learning?: LearningPackage;
   artifact?: ArtifactProvenance;

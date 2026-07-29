@@ -19,6 +19,8 @@ export interface ViewState {
   tab: PanelTab;
   detail: DetailRef | null;
   detailTab: DetailTab;
+  /** One-shot seek target used when another UI (for example review) opens evidence. */
+  readerSeekSeconds?: number;
   librarySearch: string;
   libraryFilter: LibraryFilter;
   librarySort: string;

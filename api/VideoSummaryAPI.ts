@@ -18,6 +18,10 @@ import type { Vault } from 'obsidian';
 import { RECOMMENDED_WORKFLOW } from '../constants';
 import { normalizeRichProcessingResult } from '../core/KnowledgeModel';
 import {
+  buildContentRoutingPromptContract,
+  CONTENT_ROUTER_CONTRACT_VERSION,
+} from '../core/ContentRouter';
+import {
   buildArtifactFingerprint,
   type ArtifactFingerprint,
   type VisualFingerprintMode,
@@ -78,6 +82,7 @@ export class VideoSummaryAPI {
   private webhookHistoryLimit = 50;
   private historyListener?: (history: WebhookHistoryEntry[]) => void;
   private controllers: Map<string, AbortController> = new Map();
+  private controllerSequence = 0;
   constructor(
     webhookUrl: string,
     vault: Vault,
@@ -187,7 +192,7 @@ export class VideoSummaryAPI {
     if (this.backend === 'codex-worker') {
       try {
         const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(payload, onProgress),
+          await this.processCodexWorkerJob(noteName, payload, onProgress),
           cacheFingerprint,
         );
         this.recordWebhookResult(result, input, mode, language);
@@ -318,7 +323,7 @@ export class VideoSummaryAPI {
     if (this.backend === 'codex-worker') {
       try {
         const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(payload),
+          await this.processCodexWorkerJob(this.nextControllerKey('simple'), payload),
           cacheFingerprint,
         );
         this.recordWebhookResult(result, input, mode, language);
@@ -559,13 +564,13 @@ export class VideoSummaryAPI {
     }
 
     // 添加输入数据
-    if (input.url) {
+    if (input.url && !input.skipSourceFetch) {
       metadata[keys.link] = input.url;
     }
     if (input.transcript) {
       metadata[keys.provided_transcript] = input.transcript;
     }
-    if (input.localFile) {
+    if (input.localFile && !input.skipSourceFetch) {
       metadata[keys.local_file] = input.localFile;
     }
     this.addAnalysisMetadata(metadata, input);
@@ -594,20 +599,24 @@ export class VideoSummaryAPI {
     if (mode === 'info-only') {
       metadata.info_only = true;
     }
-    if (input.url) {
+    if (input.url && !input.skipSourceFetch) {
       metadata.link = input.url;
     }
     if (input.transcript) {
       metadata.provided_transcript = input.transcript;
     }
-    if (input.localFile) {
+    if (input.localFile && !input.skipSourceFetch) {
       metadata.local_file = input.localFile;
     }
-    if (Array.isArray(input.localFiles) && input.localFiles.length > 0) {
+    if (!input.skipSourceFetch && Array.isArray(input.localFiles) && input.localFiles.length > 0) {
       metadata.local_files = input.localFiles;
     }
     if (input.merge !== undefined) {
       metadata.merge = input.merge;
+    }
+    if (input.skipSourceFetch) {
+      metadata.skip_source_fetch = true;
+      if (input.sourceUrl) metadata.source_url_for_citation = input.sourceUrl;
     }
     this.addAnalysisMetadata(metadata, input);
 
@@ -621,9 +630,11 @@ export class VideoSummaryAPI {
   }
 
   private withAnalysisDefaults(input: VideoInput): VideoInput {
+    const requestedDepth = input.processingDepth || this.analysisDefaults.processingDepth;
     return {
       ...input,
-      processingDepth: input.processingDepth || this.analysisDefaults.processingDepth,
+      processingDepth:
+        this.backend === 'n8n' && requestedDepth === 'deep-visual' ? 'evidence' : requestedDepth,
       contentType: input.contentType || this.analysisDefaults.contentType,
       autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
       attentionAssessment: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
@@ -684,6 +695,7 @@ export class VideoSummaryAPI {
   private cacheSourceLabel(input: VideoInput): string {
     return (
       input.url ||
+      input.sourceUrl ||
       input.localFile ||
       input.localFiles?.filter(Boolean).join(', ') ||
       (input.transcript ? 'provided-transcript' : '')
@@ -696,9 +708,31 @@ export class VideoSummaryAPI {
     metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
     metadata.content_type = input.contentType || this.analysisDefaults.contentType;
     metadata.auto_route = input.autoRoute ?? this.analysisDefaults.autoRoute;
+    metadata.content_router_contract = buildContentRoutingPromptContract(
+      metadata.content_type,
+      metadata.auto_route,
+    );
+    metadata.prompt_profile =
+      metadata.content_type === 'auto'
+        ? CONTENT_ROUTER_CONTRACT_VERSION
+        : metadata.content_router_contract.profiles[0]?.id;
     metadata.attention_assessment =
       input.attentionAssessment ?? this.analysisDefaults.attentionAssessment;
     metadata.generate_learning = input.generateLearning ?? this.analysisDefaults.generateLearning;
+    if (input.skipSourceFetch) {
+      metadata.skip_source_fetch = true;
+      if (input.sourceUrl) metadata.source_url_for_citation = input.sourceUrl;
+      if (input.persistedSegments?.length) {
+        metadata.persisted_video_segments = input.persistedSegments;
+      }
+      if (input.persistedEvidenceClaims?.length) {
+        metadata.persisted_evidence_claims = input.persistedEvidenceClaims;
+      }
+      if (input.persistedVisualEvidence?.length) {
+        metadata.persisted_visual_evidence = input.persistedVisualEvidence;
+      }
+      if (input.persistedRun) metadata.persisted_run = input.persistedRun;
+    }
     if (input.artifactId) metadata.artifact_id = input.artifactId;
     if (input.highlightedSegmentIds?.length) {
       metadata.highlighted_segment_ids = Array.from(new Set(input.highlightedSegmentIds));
@@ -737,71 +771,104 @@ export class VideoSummaryAPI {
   }
 
   private async processCodexWorkerJob(
+    controllerKey: string,
     payload: any,
     onProgress?: ProcessProgressReporter,
   ): Promise<ProcessingResult> {
+    const controller = new AbortController();
+    const previousController = this.controllers.get(controllerKey);
+    if (previousController) previousController.abort();
+    this.controllers.set(controllerKey, controller);
+
+    const timeoutMs = Math.max(1, Math.floor(Number(this.timeout) || 1));
+    const deadline = Date.now() + timeoutMs;
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     const jobsUrl = this.getCodexWorkerJobsUrl();
-    const response = await fetch(jobsUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch(jobsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Codex Worker HTTP ${response.status}: ${text || response.statusText}`);
-    }
-
-    const createdJob = await response.json();
-    if (!createdJob?.id) {
-      throw new Error('Codex Worker 没有返回任务 ID');
-    }
-
-    const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
-    const started = Date.now();
-    let latestJob = createdJob;
-
-    while (Date.now() - started < this.timeout) {
-      await this.sleep(1000);
-      const statusResponse = await fetch(statusUrl);
-      if (!statusResponse.ok) {
-        const text = await statusResponse.text();
-        throw new Error(
-          `Codex Worker job 状态读取失败: HTTP ${statusResponse.status} ${text || statusResponse.statusText}`,
-        );
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Codex Worker HTTP ${response.status}: ${text || response.statusText}`);
       }
 
-      latestJob = await statusResponse.json();
-      if (onProgress) {
-        const stageLabel = pickString(latestJob, ['stage', 'step', 'phase', 'status']);
-        const message = pickString(latestJob, ['message', 'detail', 'lastLog']);
-        const progress = pickRatio(latestJob, ['progress', 'percent', 'percentage']);
-        if (stageLabel || message || progress !== undefined) {
-          onProgress({ stageLabel, message, progress });
+      const createdJob = await response.json();
+      if (!createdJob?.id) {
+        throw new Error('Codex Worker 没有返回任务 ID');
+      }
+
+      const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
+      let latestJob = createdJob;
+
+      while (Date.now() < deadline) {
+        await this.sleep(Math.min(1000, Math.max(1, deadline - Date.now())), controller.signal);
+        const statusResponse = await fetch(statusUrl, { signal: controller.signal });
+        if (!statusResponse.ok) {
+          const text = await statusResponse.text();
+          throw new Error(
+            `Codex Worker job 状态读取失败: HTTP ${statusResponse.status} ${text || statusResponse.statusText}`,
+          );
+        }
+
+        latestJob = await statusResponse.json();
+        if (onProgress) {
+          const stageLabel = pickString(latestJob, ['stage', 'step', 'phase', 'status']);
+          const message = pickString(latestJob, ['message', 'detail', 'lastLog']);
+          const progress = pickRatio(latestJob, ['progress', 'percent', 'percentage']);
+          if (stageLabel || message || progress !== undefined) {
+            onProgress({ stageLabel, message, progress });
+          }
+        }
+        if (latestJob.status === 'success') {
+          return this.parseSummaryResponse(latestJob.result, {
+            url: payload?.metadata?.link,
+            sourceUrl: payload?.metadata?.source_url_for_citation,
+            processingDepth: payload?.metadata?.processing_depth,
+            contentType: payload?.metadata?.content_type,
+            autoRoute: payload?.metadata?.auto_route,
+            attentionAssessment: payload?.metadata?.attention_assessment,
+            generateLearning: payload?.metadata?.generate_learning,
+          });
+        }
+        if (
+          latestJob.status === 'needs-review' ||
+          latestJob.status === 'error' ||
+          latestJob.status === 'cancelled'
+        ) {
+          throw new Error(this.formatCodexJobError(latestJob));
         }
       }
-      if (latestJob.status === 'success') {
-        return this.parseSummaryResponse(latestJob.result, {
-          url: payload?.metadata?.link,
-          processingDepth: payload?.metadata?.processing_depth,
-          contentType: payload?.metadata?.content_type,
-          autoRoute: payload?.metadata?.auto_route,
-          attentionAssessment: payload?.metadata?.attention_assessment,
-          generateLearning: payload?.metadata?.generate_learning,
-        });
+
+      timedOut = true;
+      controller.abort();
+      throw this.abortError();
+    } catch (error) {
+      if (controller.signal.aborted || (error as Error)?.name === 'AbortError') {
+        if (timedOut || Date.now() >= deadline) {
+          throw new Error(
+            `Codex Worker 任务超时。可在控制台查看: ${this.getCodexWorkerDashboardUrl()}`,
+          );
+        }
+        throw new Error('请求被取消');
       }
-      if (
-        latestJob.status === 'needs-review' ||
-        latestJob.status === 'error' ||
-        latestJob.status === 'cancelled'
-      ) {
-        throw new Error(this.formatCodexJobError(latestJob));
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      if (this.controllers.get(controllerKey) === controller) {
+        this.controllers.delete(controllerKey);
       }
     }
-
-    throw new Error(`Codex Worker 任务超时。可在控制台查看: ${this.getCodexWorkerDashboardUrl()}`);
   }
 
   private getCodexWorkerJobsUrl(): string {
@@ -875,8 +942,31 @@ export class VideoSummaryAPI {
     return `${value.slice(0, max)}...`;
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return Promise.reject(this.abortError());
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onAbort);
+        reject(this.abortError());
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  private abortError(): Error {
+    const error = new Error('Aborted');
+    error.name = 'AbortError';
+    return error;
+  }
+
+  private nextControllerKey(prefix: string): string {
+    this.controllerSequence += 1;
+    return `${prefix}:${Date.now().toString(36)}:${this.controllerSequence.toString(36)}`;
   }
 
   private parseSummaryResponse(data: any, input: VideoInput = {}): ProcessingResult {
@@ -1006,12 +1096,13 @@ export class VideoSummaryAPI {
     }
 
     return normalizeRichProcessingResult(result, payload, {
-      sourceUrl: input.url,
+      sourceUrl: input.sourceUrl || input.url,
       backend: this.backend,
       model: this.aiModel,
       processingDepth: input.processingDepth,
-      promptProfile: input.contentType,
       promptVersion: CACHE_PROMPT_VERSION,
+      requestedContentType: input.contentType,
+      autoRoute: input.autoRoute,
     });
   }
 
@@ -1035,6 +1126,8 @@ export class VideoSummaryAPI {
           'video_segments',
           'evidence_claims',
           'visual_evidence',
+          'content_type',
+          'content_routing',
           'attention',
           'learning',
           'artifact',
@@ -1067,7 +1160,7 @@ export class VideoSummaryAPI {
       error?: string;
       noteName: string;
       index: number;
-    }) => void,
+    }) => void | Promise<void>,
     useCache: boolean = true,
   ): Promise<
     Array<{ success: boolean; result?: ProcessingResult; error?: string; noteName: string }>
@@ -1100,7 +1193,7 @@ export class VideoSummaryAPI {
 
           // 实时回调
           if (onProgress) {
-            onProgress({ ...resultObj, index: globalIndex });
+            await onProgress({ ...resultObj, index: globalIndex });
           }
 
           return resultObj;
@@ -1113,7 +1206,7 @@ export class VideoSummaryAPI {
 
           // 实时回调
           if (onProgress) {
-            onProgress({ ...errorObj, index: globalIndex });
+            await onProgress({ ...errorObj, index: globalIndex });
           }
 
           return errorObj;
@@ -1129,8 +1222,9 @@ export class VideoSummaryAPI {
 
   private chunkArray<T>(array: T[], size: number): T[][] {
     const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
+    const safeSize = Math.max(1, Math.floor(Number(size) || 1));
+    for (let i = 0; i < array.length; i += safeSize) {
+      chunks.push(array.slice(i, i + safeSize));
     }
     return chunks;
   }

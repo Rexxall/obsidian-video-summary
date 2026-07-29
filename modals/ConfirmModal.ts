@@ -2,6 +2,7 @@ import { App, Modal } from 'obsidian';
 
 export class ConfirmModal extends Modal {
   private resolve: (value: boolean) => void;
+  private settled = false;
 
   constructor(
     app: App,
@@ -22,7 +23,10 @@ export class ConfirmModal extends Modal {
 
     // 消息内容
     const messageEl = contentEl.createEl('div', { cls: 'confirm-message' });
-    messageEl.innerHTML = this.message.replace(/\n/g, '<br>');
+    this.message.split('\n').forEach((line, index) => {
+      if (index > 0) messageEl.createEl('br');
+      messageEl.appendText(line);
+    });
 
     // 按钮容器
     const buttonContainer = contentEl.createEl('div', { cls: 'confirm-buttons' });
@@ -33,7 +37,7 @@ export class ConfirmModal extends Modal {
       cls: 'mod-cta',
     });
     confirmBtn.onclick = () => {
-      this.resolve(true);
+      this.settle(true);
       this.close();
     };
 
@@ -43,16 +47,24 @@ export class ConfirmModal extends Modal {
       cls: 'mod-warning',
     });
     cancelBtn.onclick = () => {
-      this.resolve(false);
+      this.settle(false);
       this.close();
     };
 
-    // 默认聚焦到确认按钮
-    confirmBtn.focus();
+    // 安全默认：按回车或通过键盘操作时不会意外授权敏感动作。
+    cancelBtn.focus();
   }
 
   onClose() {
+    // Escape、点击遮罩、窗口关闭等路径都必须按取消完成 Promise。
+    this.settle(false);
     const { contentEl } = this;
     contentEl.empty();
+  }
+
+  private settle(value: boolean): void {
+    if (this.settled) return;
+    this.settled = true;
+    this.resolve(value);
   }
 }
