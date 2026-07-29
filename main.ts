@@ -23,6 +23,9 @@ import {
   SetupCheckItem,
   ConnectionTestResult,
   PlatformCapability,
+  ProcessingDepth,
+  RequestedContentType,
+  VideoInput,
 } from './types';
 import {
   DEFAULT_SETTINGS,
@@ -43,6 +46,7 @@ import { NoteProcessor } from './utils/NoteProcessor';
 import { JobStore } from './core/JobStore';
 import { JobService } from './core/JobService';
 import { NoteIndex } from './core/NoteIndex';
+import { ArtifactStore } from './core/ArtifactStore';
 import { Modal } from 'obsidian';
 
 export default class VideoSummaryPlugin extends Plugin {
@@ -54,6 +58,7 @@ export default class VideoSummaryPlugin extends Plugin {
   jobs: JobStore;
   jobService: JobService;
   noteIndex: NoteIndex;
+  artifactStore: ArtifactStore;
 
   // history.json 延迟写入
   private historySaveTimer: number | null = null;
@@ -78,6 +83,12 @@ export default class VideoSummaryPlugin extends Plugin {
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = new NoteProcessor(this.app.vault);
+    const pluginDir =
+      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    this.artifactStore = new ArtifactStore(
+      this.app.vault.adapter,
+      `${pluginDir}/data/knowledge-artifacts`,
+    );
 
     // 任务队列 + 视频笔记索引
     this.jobs = new JobStore();
@@ -355,6 +366,15 @@ export default class VideoSummaryPlugin extends Plugin {
           this.settings.defaultLanguage,
           this.settings.enableCache !== false,
         );
+        await this.jobService.persistExternalResult(
+          {
+            title: file.basename,
+            notePath: file.path,
+            input: videoInput,
+            platform: result.video_platform,
+          },
+          result,
+        );
 
         await this.noteProcessor.updateNote(file, result, 'info-only', {
           autoRename: forceRename,
@@ -448,6 +468,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
       try {
         let result: any;
+        let artifactInput: VideoInput = {};
 
         // ===== 多文件合并逻辑 =====
         if (isMerge) {
@@ -483,10 +504,13 @@ export default class VideoSummaryPlugin extends Plugin {
           statusNotice.setMessage(`正在以${langText}生成合并总结...`);
 
           // 构建新的输入，使用合并后的文稿
-          const mergedInput: any = {
+          const mergedInput: VideoInput = {
             transcript: combinedTranscript,
-            url: url,
+            url: url || undefined,
+            localFiles,
+            merge: true,
           };
+          artifactInput = mergedInput;
 
           // 调用主处理流程（重试逻辑）
           result = await RetryUtils.withSmartRetry(
@@ -509,10 +533,11 @@ export default class VideoSummaryPlugin extends Plugin {
           // ===== 单文件/常规逻辑 =====
 
           // 构建输入数据
-          const input: any = {};
+          const input: VideoInput = {};
           if (url) input.url = url;
           if (providedTranscript) input.transcript = providedTranscript;
           if (localFileName) input.localFile = localFileName; // 单文件情况
+          artifactInput = input;
 
           // 设置处理中状态
           await this.noteProcessor.setProcessingStatus(file, 'running');
@@ -537,6 +562,15 @@ export default class VideoSummaryPlugin extends Plugin {
         }
 
         // ===== 处理结果 =====
+        await this.jobService.persistExternalResult(
+          {
+            title: file.basename,
+            notePath: file.path,
+            input: artifactInput,
+            platform: result.video_platform,
+          },
+          result,
+        );
 
         // 更新笔记内容（按设置控制自动重命名）
         await this.noteProcessor.updateNote(file, result, mode, {
@@ -599,7 +633,7 @@ export default class VideoSummaryPlugin extends Plugin {
       const statusNotice = new Notice(`正在将全文发送处理...`, 0);
 
       try {
-        const input: any = {
+        const input: VideoInput = {
           transcript: fullText,
         };
 
@@ -619,6 +653,15 @@ export default class VideoSummaryPlugin extends Plugin {
           (attempt, error) => {
             statusNotice.setMessage(`重试中 (${attempt}/2): ${error.message}`);
           },
+        );
+        await this.jobService.persistExternalResult(
+          {
+            title: file.basename,
+            notePath: file.path,
+            input,
+            platform: result.video_platform,
+          },
+          result,
         );
 
         // 更新笔记内容，强制开启 autoRename 以便此模式下总是应用由 n8n 生成的好的标题
@@ -1112,6 +1155,13 @@ export default class VideoSummaryPlugin extends Plugin {
     });
     this.api.setDebug(this.settings.enableDebugMode);
     this.api.setExpandShortLinks(this.settings.expandShortLinks !== false);
+    this.api.setAnalysisDefaults({
+      processingDepth: this.settings.defaultProcessingDepth,
+      contentType: this.settings.defaultContentType,
+      autoRoute: this.settings.autoRouteContent,
+      attentionAssessment: this.settings.attentionAssessmentEnabled,
+      generateLearning: this.settings.generateLearningArtifacts,
+    });
 
     if (this.settings.enableCache !== false) {
       this.api.setCacheConfig(1000, this.settings.cacheExpiryDays);
@@ -1193,6 +1243,11 @@ export default class VideoSummaryPlugin extends Plugin {
       language: this.settings.defaultLanguage,
       useCache: this.settings.enableCache !== false,
       previewBeforeWrite: this.settings.previewBeforeWrite === true,
+      processingDepth: this.settings.defaultProcessingDepth,
+      contentType: this.settings.defaultContentType,
+      autoRoute: this.settings.autoRouteContent,
+      attentionAssessment: this.settings.attentionAssessmentEnabled,
+      generateLearning: this.settings.generateLearningArtifacts,
     });
     if (!job) return;
 
@@ -2232,6 +2287,72 @@ class VideoSummarySettingTab extends PluginSettingTab {
             this.plugin.settings.defaultLanguage = value as 'zh' | 'en' | 'ja';
             await this.plugin.saveSettings();
           }),
+      );
+
+    new Setting(section)
+      .setName('默认理解深度')
+      .setDesc('极速只读字幕；证据模式保留时间轴；深度视觉会请求后端分析关键画面。')
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('quick', '极速')
+          .addOption('evidence', '证据')
+          .addOption('deep-visual', '深度视觉')
+          .setValue(this.plugin.settings.defaultProcessingDepth)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultProcessingDepth = value as ProcessingDepth;
+            this.plugin.api.setAnalysisDefaults({ processingDepth: value as ProcessingDepth });
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName('默认内容类型')
+      .setDesc('自动识别会根据内容选择课程、访谈、教程、新闻、会议或评测结构。')
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('auto', '自动识别')
+          .addOption('course', '课程')
+          .addOption('interview', '访谈')
+          .addOption('tutorial', '教程')
+          .addOption('news', '新闻')
+          .addOption('meeting', '会议')
+          .addOption('review', '评测')
+          .addOption('general', '通用')
+          .setValue(this.plugin.settings.defaultContentType)
+          .onChange(async (value) => {
+            const contentType = value as RequestedContentType;
+            this.plugin.settings.defaultContentType = contentType;
+            this.plugin.settings.autoRouteContent = contentType === 'auto';
+            this.plugin.api.setAnalysisDefaults({
+              contentType,
+              autoRoute: this.plugin.settings.autoRouteContent,
+            });
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName('观看价值判断')
+      .setDesc('输出值得观看、建议略读或可以跳过，并给出高价值片段。')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.attentionAssessmentEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.attentionAssessmentEnabled = value;
+            this.plugin.api.setAnalysisDefaults({ attentionAssessment: value });
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName('生成学习练习')
+      .setDesc('随结果生成闪卡、自测题和费曼解释题；默认关闭以节省处理成本。')
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.generateLearningArtifacts).onChange(async (value) => {
+          this.plugin.settings.generateLearningArtifacts = value;
+          this.plugin.api.setAnalysisDefaults({ generateLearning: value });
+          await this.plugin.saveSettings();
+        }),
       );
 
     const aiSection = section.createDiv({ cls: 'vs-subsection' });

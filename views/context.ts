@@ -4,10 +4,11 @@ import { SubmitOptions } from '../core/JobService';
 
 export type PanelTab = 'jobs' | 'library';
 export type LibraryFilter = 'all' | 'pending' | 'running' | 'success' | 'error';
-export type DetailTab = 'preview' | 'transcript' | 'meta' | 'logs';
+export type DetailTab = 'reader' | 'evidence' | 'preview' | 'transcript' | 'meta' | 'logs';
 
 export type DetailRef =
   | { kind: 'job'; id: string }
+  | { kind: 'note'; path: string; artifactId: string }
   | { kind: 'history'; file: string; time: string };
 
 export interface ViewState {
@@ -47,4 +48,6 @@ export interface ViewContext {
   openDetail(ref: DetailRef): void;
   closeDetail(): void;
   submitOptions(): SubmitOptions;
+  /** Register DOM/listener cleanup owned by the currently rendered panel. */
+  registerPanelCleanup(cleanup: () => void): void;
 }

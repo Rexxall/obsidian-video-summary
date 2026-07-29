@@ -2,6 +2,15 @@
 import { App, TFile } from 'obsidian';
 import { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 import { JobDraft, titleForUrl } from './InputParser';
+import {
+  buildRichFrontmatterFields,
+  renderAttentionMarkdown,
+  renderEvidenceMarkdown,
+  renderLearningMarkdown,
+  SafeFrontmatterScalar,
+  serializeScalarFrontmatter,
+  writeManagedKnowledgeMarkdown,
+} from './KnowledgeMarkdown';
 
 export interface NoteFactoryOptions {
   outputFolder: string;
@@ -89,33 +98,22 @@ export class NoteFactory {
     const fileName = `${sanitizeFileName(baseTitle)}_${entry.timestamp}`;
     const filePath = await this.uniquePath(folder, fileName);
 
-    const fm: string[] = ['---'];
-    fm.push('video_summary: true');
-    fm.push('source_type: video');
-    fm.push('video_summary_status: success');
-    fm.push(`status: ${yamlEscape(options.successStatusValue || 'success')}`);
-    if (entry.input.url) fm.push(`link: ${yamlEscape(entry.input.url)}`);
-    if (entry.result.video_title) fm.push(`video_title: ${yamlEscape(entry.result.video_title)}`);
-    if (entry.result.video_author)
-      fm.push(`video_author: ${yamlEscape(entry.result.video_author)}`);
-    if (entry.result.video_duration)
-      fm.push(`video_duration: ${yamlEscape(entry.result.video_duration)}`);
-    if (entry.result.video_cover) fm.push(`video_cover: ${yamlEscape(entry.result.video_cover)}`);
-    fm.push(`date: ${new Date(entry.timestamp).toISOString()}`);
-    if (entry.result.summary) {
-      fm.push('summary: |');
-      fm.push(`  ${entry.result.summary.replace(/\n/g, '\n  ')}`);
-    }
-    if (entry.result.video_transcript) {
-      fm.push('video_transcript: |');
-      fm.push(`  ${entry.result.video_transcript.replace(/\n/g, '\n  ')}`);
-    }
-    fm.push('---\n');
+    const fm: Record<string, SafeFrontmatterScalar> = {
+      video_summary: true,
+      source_type: 'video',
+      video_summary_status: 'success',
+      status: options.successStatusValue || 'success',
+      date: new Date(entry.timestamp).toISOString(),
+      ...buildRichFrontmatterFields(entry.result),
+    };
+    if (entry.input.url) fm.link = entry.input.url;
+    const frontmatter = serializeScalarFrontmatter(fm);
+    const body = writeManagedKnowledgeMarkdown('', entry.result, entry.input.url).trim();
 
     try {
       return await this.app.vault.create(
         filePath,
-        `${fm.join('\n')}${entry.result.note?.trim() ?? ''}`,
+        `---\n${frontmatter}\n---\n${body ? `${body}\n` : ''}`,
       );
     } catch (error) {
       console.error('[NoteFactory] 从结果创建笔记失败', error);
@@ -169,6 +167,15 @@ export function buildInsertionContent(result: ProcessingResult): string {
   }
   if (result.video_transcript) {
     lines.push('', '### 文稿', result.video_transcript);
+  }
+  if (result.video_segments?.length || result.evidence_claims?.length) {
+    lines.push('', renderEvidenceMarkdown(result, result.artifact?.source_url));
+  }
+  if (result.attention) {
+    lines.push('', renderAttentionMarkdown(result, result.artifact?.source_url));
+  }
+  if (result.learning) {
+    lines.push('', renderLearningMarkdown(result));
   }
   lines.push('---');
   return lines.join('\n');

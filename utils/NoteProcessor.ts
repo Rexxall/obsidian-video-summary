@@ -3,6 +3,11 @@ import { TFile, Vault } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { ProcessingResult, NoteMetadata, VideoInput, ProcessingMode } from '../types';
 import { SUPPORTED_PLATFORMS } from '../constants';
+import {
+  buildRichFrontmatterFields,
+  managedWriteOptionsForMode,
+  writeManagedKnowledgeMarkdown,
+} from '../core/KnowledgeMarkdown';
 
 export class NoteProcessor {
   private vault: Vault;
@@ -125,6 +130,11 @@ export class NoteProcessor {
       'video_author',
       'video_duration',
       'video_cover',
+      'video_artifact_id',
+      'video_content_type',
+      'video_attention_action',
+      'video_processing_depth',
+      'video_review_due',
       'summary',
       'video_transcript',
       'date',
@@ -158,13 +168,8 @@ export class NoteProcessor {
     fm.video_summary = true;
     if (!fm.source_type) fm.source_type = 'video';
 
-    // 更新处理结果
-    if (result.video_title) fm.video_title = result.video_title;
-    if (result.video_author) fm.video_author = result.video_author;
-    if (result.video_duration) fm.video_duration = result.video_duration;
-    if (result.video_cover) fm.video_cover = result.video_cover;
-    if (result.summary) fm.summary = result.summary;
-    if (result.video_transcript) fm.video_transcript = result.video_transcript;
+    // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
+    Object.assign(fm, buildRichFrontmatterFields(result));
     delete fm.processing_error;
     delete fm.processing_error_code;
     delete fm.processing_error_at;
@@ -175,7 +180,13 @@ export class NoteProcessor {
     // 更新正文
     let newBody = body;
     newBody = this.removeProcessingErrorBlock(newBody);
-    if (mode === 'summary' && result.note) newBody = result.note;
+    const sourceUrl = typeof fm.link === 'string' ? fm.link : '';
+    newBody = writeManagedKnowledgeMarkdown(
+      newBody,
+      result,
+      sourceUrl,
+      managedWriteOptionsForMode(mode),
+    );
 
     const newContent = this.buildContent(fm, newBody);
     await this.vault.modify(file, newContent);

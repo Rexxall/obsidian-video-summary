@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => VideoSummaryPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 
 // modals/VideoSummaryModal.ts
 var import_obsidian = require("obsidian");
@@ -208,6 +208,11 @@ var DEFAULT_SETTINGS = {
   setupGuideDismissed: false,
   defaultLanguage: "zh",
   defaultMode: "summary",
+  defaultProcessingDepth: "evidence",
+  defaultContentType: "auto",
+  autoRouteContent: true,
+  attentionAssessmentEnabled: true,
+  generateLearningArtifacts: false,
   aiModel: "Gemini 3.1",
   customAiModels: [...DEFAULT_AI_MODELS],
   timeoutMinutes: 10,
@@ -2647,6 +2652,937 @@ var import_js_yaml = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((ex
 var { Type, Schema, FAILSAFE_SCHEMA, JSON_SCHEMA, CORE_SCHEMA, DEFAULT_SCHEMA, load, loadAll, dump, YAMLException, types, safeLoad, safeLoadAll, safeDump } = import_js_yaml.default;
 var index_vite_proxy_tmp_default = import_js_yaml.default;
 
+// core/KnowledgeModel.ts
+var VIDEO_ARTIFACT_SCHEMA_VERSION = 3;
+var CONTENT_TYPES = /* @__PURE__ */ new Set([
+  "course",
+  "interview",
+  "tutorial",
+  "news",
+  "meeting",
+  "review",
+  "general"
+]);
+var EVIDENCE_SOURCES = /* @__PURE__ */ new Set([
+  "speech",
+  "screen",
+  "comment",
+  "user",
+  "ai-inference"
+]);
+var TIMING_QUALITY = /* @__PURE__ */ new Set(["exact", "aligned", "estimated", "none"]);
+function normalizeRichProcessingResult(base, payload, context = {}) {
+  const sourceUrl = context.sourceUrl || readString(payload, ["source_url", "video_url", "link"]);
+  const transcript = base.video_transcript || readString(payload, ["video_transcript", "transcript", "provided_transcript"]);
+  const rawSegments = readArray(payload, ["video_segments", "segments", "transcript_segments", "cues"]) || readArray(payload?.artifact, ["video_segments", "segments", "transcript_segments", "cues"]);
+  const fallbackQuality = normalizeTimingQuality(
+    payload?.timing_quality || payload?.artifact?.timing_quality,
+    "none"
+  );
+  const segments = normalizeSegments(rawSegments, transcript, sourceUrl, fallbackQuality);
+  const timingQuality = aggregateTimingQuality(
+    segments,
+    normalizeTimingQuality(payload?.timing_quality || payload?.artifact?.timing_quality, "none")
+  );
+  const claims = normalizeClaims(
+    readArray(payload, ["evidence_claims", "claims"]) || readArray(payload?.artifact, ["evidence_claims", "claims"]),
+    segments
+  );
+  const visualEvidence = normalizeVisualEvidence(
+    readArray(payload, ["visual_evidence", "visual_observations", "keyframes"]) || readArray(payload?.artifact, ["visual_evidence", "visual_observations", "keyframes"])
+  );
+  const contentType = normalizeContentType(
+    payload?.content_type || payload?.resolved_content_type || payload?.artifact?.content_type
+  );
+  const attention = normalizeAttention(
+    payload?.attention || payload?.attention_assessment || payload?.artifact?.attention
+  );
+  const learning = normalizeLearning(
+    payload?.learning || payload?.learning_package || payload?.artifact?.learning
+  );
+  const provenance = normalizeProvenance(payload, context, sourceUrl, timingQuality);
+  return {
+    ...base,
+    video_id: base.video_id || readString(payload, ["video_id", "id"]),
+    video_platform: base.video_platform || readString(payload, ["video_platform", "platform"]),
+    video_published_at: base.video_published_at || readString(payload, ["video_published_at", "published_at"]),
+    transcript_source: base.transcript_source || readString(payload, ["transcript_source"]) || provenance.transcript_source,
+    timing_quality: timingQuality,
+    video_segments: segments,
+    evidence_claims: claims,
+    visual_evidence: visualEvidence,
+    content_type: contentType,
+    attention,
+    learning,
+    artifact: provenance,
+    related_notes: normalizeRelatedNotes(
+      payload?.related_notes || payload?.artifact?.related_notes
+    )
+  };
+}
+function normalizeSegments(rawSegments, transcript = "", sourceUrl = "", fallbackQuality = "none") {
+  const normalized = (rawSegments || []).map((raw, index) => normalizeSegment(raw, index, sourceUrl, fallbackQuality)).filter((segment) => segment !== null);
+  if (normalized.length > 0) {
+    return normalized.sort(compareSegments);
+  }
+  return parseTranscriptSegments(transcript, sourceUrl);
+}
+function parseTranscriptSegments(transcript, sourceUrl = "") {
+  const text = normalizeText(transcript);
+  if (!text) return [];
+  const cueSegments = parseCueTranscript(text, sourceUrl);
+  if (cueSegments.length > 0) return cueSegments;
+  const prefixed = parseTimestampPrefixedTranscript(text, sourceUrl);
+  if (prefixed.length > 0) return prefixed;
+  return splitUntimedTranscript(text).map((part, index) => ({
+    id: stableSegmentId(sourceUrl, null, part, index),
+    start: null,
+    text: part,
+    source: "speech",
+    timing_quality: "none"
+  }));
+}
+function stableSegmentId(sourceUrl, start, text, fallbackIndex = 0) {
+  const timing = start === null ? `untimed-${fallbackIndex}` : start.toFixed(3);
+  return `vs-${stableHash(`${normalizeSource(sourceUrl)}|${timing}|${normalizeText(text)}`)}`;
+}
+function stableHash(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+function buildTimestampUrl(sourceUrl, seconds) {
+  if (!sourceUrl || seconds === null || !Number.isFinite(seconds) || seconds < 0) return void 0;
+  try {
+    const url = new URL(sourceUrl);
+    if (url.hostname.includes("youtube.com") || url.hostname.includes("youtu.be") || url.hostname.includes("bilibili.com")) {
+      url.searchParams.set("t", `${Math.floor(seconds)}s`);
+      return url.toString();
+    }
+  } catch {
+    return void 0;
+  }
+  return void 0;
+}
+function formatTimestamp(seconds) {
+  if (seconds === null || seconds === void 0 || !Number.isFinite(seconds) || seconds < 0) {
+    return "--:--";
+  }
+  const whole = Math.floor(seconds);
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor(whole % 3600 / 60);
+  const secs = whole % 60;
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+function normalizeSegment(raw, index, sourceUrl, fallbackQuality) {
+  if (typeof raw === "string") {
+    const text2 = normalizeText(raw);
+    if (!text2) return null;
+    return {
+      id: stableSegmentId(sourceUrl, null, text2, index),
+      start: null,
+      text: text2,
+      source: "speech",
+      timing_quality: "none"
+    };
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const text = readString(raw, ["text", "transcript", "content", "quote"]);
+  if (!text) return null;
+  const start = readNumber(raw, ["start", "start_seconds", "startTime", "offset"]);
+  const end = readNumber(raw, ["end", "end_seconds", "endTime"]);
+  const source = normalizeEvidenceSource(raw.source || raw.source_type || raw.kind, "speech");
+  const quality = normalizeTimingQuality(
+    raw.timing_quality,
+    start === null ? "none" : fallbackQuality === "none" ? "exact" : fallbackQuality
+  );
+  const id = readString(raw, ["id", "segment_id"]) || stableSegmentId(sourceUrl, start, text, index);
+  return {
+    id: sanitizeId(id),
+    start,
+    end,
+    text: normalizeText(text),
+    speaker: readString(raw, ["speaker", "speaker_name", "speaker_label"]),
+    source,
+    timing_quality: quality,
+    timestamp_url: readString(raw, ["timestamp_url", "timestamp_link"]) || buildTimestampUrl(sourceUrl, start),
+    keyframe: normalizeAsset(raw.keyframe || raw.asset || raw.image, `${id}-frame`),
+    visual_text: readString(raw, ["visual_text", "ocr_text", "screen_text"]),
+    confidence: normalizeRatio(raw.confidence)
+  };
+}
+function parseCueTranscript(text, sourceUrl) {
+  const lines = text.split("\n");
+  const result = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const timing = parseTimingLine(lines[index]);
+    if (!timing) continue;
+    const body = [];
+    index += 1;
+    while (index < lines.length && !parseTimingLine(lines[index])) {
+      const line = cleanCueText(lines[index]);
+      if (line && !/^\d+$/.test(line) && line !== "WEBVTT") body.push(line);
+      if (!lines[index].trim() && body.length > 0) break;
+      index += 1;
+    }
+    const content = normalizeText(body.join(" "));
+    if (!content) continue;
+    const id = stableSegmentId(sourceUrl, timing.start, content, result.length);
+    result.push({
+      id,
+      start: timing.start,
+      end: timing.end,
+      text: content,
+      source: "speech",
+      timing_quality: "exact",
+      timestamp_url: buildTimestampUrl(sourceUrl, timing.start)
+    });
+    index -= 1;
+  }
+  return dedupeRollingCues(result);
+}
+function parseTimestampPrefixedTranscript(text, sourceUrl) {
+  const result = [];
+  for (const line of text.split("\n")) {
+    const match = line.match(
+      /^\s*(?:\[|\()?((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)(?:\]|\))?\s+(.+)$/
+    );
+    if (!match) continue;
+    const start = parseClock(match[1]);
+    const content = normalizeText(match[2]);
+    if (start === null || !content) continue;
+    const previous = result[result.length - 1];
+    if (previous && previous.end === void 0) previous.end = start;
+    const id = stableSegmentId(sourceUrl, start, content, result.length);
+    result.push({
+      id,
+      start,
+      text: content,
+      source: "speech",
+      timing_quality: "exact",
+      timestamp_url: buildTimestampUrl(sourceUrl, start)
+    });
+  }
+  return result;
+}
+function normalizeClaims(rawClaims, segments) {
+  const segmentsById = new Map(segments.map((segment) => [segment.id, segment]));
+  return (rawClaims || []).map((raw, index) => {
+    if (!raw || typeof raw !== "object") return null;
+    const claim = readString(raw, ["claim", "text", "summary", "title"]);
+    if (!claim) return null;
+    const explicitEvidence = Array.isArray(raw.evidence) ? raw.evidence : [];
+    const legacyIds = Array.isArray(raw.segment_ids) ? raw.segment_ids : Array.isArray(raw.evidence_segment_ids) ? raw.evidence_segment_ids : [];
+    const fallbackSource = normalizeEvidenceSource(raw.source || raw.source_type, "ai-inference");
+    let rejectedEvidence = false;
+    const evidenceCandidates = explicitEvidence.map(
+      (item) => normalizeEvidenceReference(item, fallbackSource)
+    );
+    const evidence = evidenceCandidates.filter((item) => {
+      if (!item) {
+        rejectedEvidence = true;
+        return false;
+      }
+      if (!segmentsById.has(item.segment_id)) {
+        rejectedEvidence = true;
+        return false;
+      }
+      return true;
+    }).filter(
+      (item, itemIndex, items) => items.findIndex(
+        (candidate) => candidate.segment_id === item.segment_id && candidate.source === item.source
+      ) === itemIndex
+    );
+    for (const segmentId of legacyIds) {
+      const rawId = String(segmentId || "").trim();
+      if (!rawId) {
+        rejectedEvidence = true;
+        continue;
+      }
+      const id2 = sanitizeId(rawId);
+      const segment = segmentsById.get(id2);
+      if (!segment) {
+        rejectedEvidence = true;
+        continue;
+      }
+      if (evidence.some((item) => item.segment_id === id2)) continue;
+      evidence.push({
+        segment_id: id2,
+        source: segment.source || fallbackSource,
+        quote: segment.text,
+        asset_id: segment.keyframe?.id
+      });
+    }
+    const start = readNumber(raw, ["start", "start_seconds", "timestamp"]);
+    if (evidence.length === 0 && start !== null) {
+      const nearest = nearestSegment(segments, start);
+      if (nearest) {
+        evidence.push({
+          segment_id: nearest.id,
+          source: nearest.source,
+          quote: nearest.text,
+          asset_id: nearest.keyframe?.id
+        });
+      }
+    }
+    const id = readString(raw, ["id", "claim_id"]) || `claim-${stableHash(`${claim}|${evidence.map((item) => item.segment_id).join("|")}|${index}`)}`;
+    const reviewState = rejectedEvidence || explicitEvidence.length > 0 && evidence.length === 0 ? "needs-review" : normalizeReviewState(raw.review_state, fallbackSource);
+    return {
+      id: sanitizeId(id),
+      claim: normalizeText(claim),
+      evidence,
+      start,
+      end: readNumber(raw, ["end", "end_seconds"]),
+      confidence: normalizeRatio(raw.confidence),
+      review_state: reviewState
+    };
+  }).filter((claim) => claim !== null);
+}
+function normalizeVisualEvidence(rawItems) {
+  return (rawItems || []).map((raw, index) => {
+    if (!raw || typeof raw !== "object") return null;
+    const description = readString(raw, ["description", "text", "caption", "summary"]);
+    const ocrText = readString(raw, ["ocr_text", "visual_text", "screen_text"]);
+    if (!description && !ocrText) return null;
+    const start = readNumber(raw, ["start", "start_seconds", "timestamp"]);
+    if (start === null) return null;
+    const id = readString(raw, ["id", "evidence_id"]) || `visual-${stableHash(`${start}|${description}|${ocrText}|${index}`)}`;
+    return {
+      id: sanitizeId(id),
+      start,
+      end: readNumber(raw, ["end", "end_seconds"]) ?? void 0,
+      description: normalizeText(description || ocrText),
+      ocr_text: ocrText || void 0,
+      keyframe: normalizeAsset(raw.keyframe || raw.asset || raw.image, `${id}-frame`),
+      kind: normalizeVisualKind(raw.kind || raw.type),
+      confidence: normalizeRatio(raw.confidence)
+    };
+  }).filter((item) => item !== null);
+}
+function normalizeAttention(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const action = ["watch", "skim", "skip"].includes(raw.action) ? raw.action : void 0;
+  const rationale = readString(raw, ["rationale", "reason", "summary"]);
+  if (!action || !rationale) return void 0;
+  return {
+    action,
+    score: normalizeRatio(raw.score),
+    confidence: normalizeRatio(raw.confidence),
+    rationale,
+    context: readString(raw, ["context", "relevance_context"]),
+    information_density: normalizeRatio(raw.information_density),
+    originality: normalizeRatio(raw.originality),
+    actionability: normalizeRatio(raw.actionability),
+    vault_relevance: normalizeRatio(raw.vault_relevance),
+    promotional_ratio: normalizeRatio(raw.promotional_ratio),
+    estimated_useful_seconds: readNumber(raw, ["estimated_useful_seconds", "useful_seconds"]) ?? void 0,
+    evidence_segment_ids: normalizeStringArray(raw.evidence_segment_ids),
+    limitations: normalizeStringArray(raw.limitations),
+    must_watch: normalizeAttentionRanges(raw.must_watch),
+    skippable: normalizeAttentionRanges(raw.skippable)
+  };
+}
+function normalizeLearning(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const flashcards = Array.isArray(raw.flashcards) ? raw.flashcards.map((item, index) => {
+    const front = readString(item, ["front", "question", "prompt"]);
+    const back = readString(item, ["back", "answer"]);
+    if (!front || !back) return null;
+    return {
+      id: readString(item, ["id"]) || `card-${stableHash(`${front}|${back}|${index}`)}`,
+      front,
+      back,
+      evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
+      tags: normalizeStringArray(item.tags)
+    };
+  }).filter(Boolean) : void 0;
+  const questions = Array.isArray(raw.questions) ? raw.questions.map((item, index) => {
+    const prompt = readString(item, ["prompt", "question"]);
+    const answer = readString(item, ["answer", "correct_answer"]);
+    if (!prompt || !answer) return null;
+    const difficulty = ["easy", "medium", "hard"].includes(item.difficulty) ? item.difficulty : void 0;
+    return {
+      id: readString(item, ["id"]) || `question-${stableHash(`${prompt}|${answer}|${index}`)}`,
+      prompt,
+      choices: normalizeStringArray(item.choices),
+      answer,
+      explanation: readString(item, ["explanation", "rationale"]),
+      evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
+      difficulty
+    };
+  }).filter(Boolean) : void 0;
+  const feynmanPrompts = normalizeStringArray(raw.feynman_prompts);
+  if (!flashcards?.length && !questions?.length && !feynmanPrompts?.length) return void 0;
+  return {
+    flashcards,
+    questions,
+    feynman_prompts: feynmanPrompts
+  };
+}
+function normalizeProvenance(payload, context, sourceUrl, timingQuality) {
+  const raw = payload?.artifact?.provenance || payload?.provenance || payload?.artifact || {};
+  const sourceHash = readString(raw, ["source_hash"]) || stableHash(normalizeSource(sourceUrl));
+  const warnings = normalizeStringArray(raw.warnings) ?? [];
+  if (timingQuality === "estimated") {
+    warnings?.push("\u90E8\u5206\u65F6\u95F4\u70B9\u4E3A\u4F30\u7B97\u503C\uFF0C\u5F15\u7528\u524D\u5E94\u56DE\u770B\u539F\u89C6\u9891\u3002");
+  }
+  if (timingQuality === "none") {
+    warnings?.push("\u5F53\u524D\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u8F74\uFF0C\u672A\u751F\u6210\u53EF\u70B9\u51FB\u8BC1\u636E\u65F6\u95F4\u70B9\u3002");
+  }
+  return {
+    schema_version: VIDEO_ARTIFACT_SCHEMA_VERSION,
+    artifact_id: readString(raw, ["artifact_id", "id"]),
+    source_url: sourceUrl || void 0,
+    source_hash: sourceHash,
+    transcript_hash: readString(raw, ["transcript_hash"]),
+    backend: normalizeBackend(raw.backend || context.backend),
+    model: readString(raw, ["model"]) || context.model,
+    prompt_profile: readString(raw, ["prompt_profile"]) || context.promptProfile,
+    prompt_version: readString(raw, ["prompt_version"]) || context.promptVersion,
+    processing_depth: normalizeProcessingDepth(raw.processing_depth || context.processingDepth) || context.processingDepth,
+    generated_at: readString(raw, ["generated_at"]) || (/* @__PURE__ */ new Date()).toISOString(),
+    transcript_source: readString(raw, ["transcript_source", "source"]),
+    warnings: warnings.length > 0 ? Array.from(new Set(warnings)) : void 0
+  };
+}
+function normalizeEvidenceReference(raw, fallbackSource) {
+  if (typeof raw === "string") {
+    const segmentId2 = raw.trim();
+    return segmentId2 ? { segment_id: sanitizeId(segmentId2), source: fallbackSource } : null;
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const segmentId = readString(raw, ["segment_id", "id"]);
+  if (!segmentId) return null;
+  return {
+    segment_id: sanitizeId(segmentId),
+    source: normalizeEvidenceSource(raw.source || raw.source_type, fallbackSource),
+    quote: readString(raw, ["quote", "text"]),
+    asset_id: readString(raw, ["asset_id", "keyframe_id"])
+  };
+}
+function normalizeAsset(raw, fallbackId) {
+  if (!raw) return void 0;
+  if (typeof raw === "string") {
+    const value = raw.trim();
+    if (!value) return void 0;
+    return /^https?:\/\//i.test(value) ? { id: sanitizeId(fallbackId), url: value } : { id: sanitizeId(fallbackId), path: value };
+  }
+  if (typeof raw !== "object") return void 0;
+  const url = readString(raw, ["url", "source_url"]);
+  const path = readString(raw, ["path", "local_path"]);
+  if (!url && !path) return void 0;
+  return {
+    id: sanitizeId(readString(raw, ["id", "asset_id"]) || fallbackId),
+    path: path || void 0,
+    url: url || void 0,
+    mime_type: readString(raw, ["mime_type", "mimeType"]),
+    sha256: readString(raw, ["sha256", "hash"]),
+    width: readNumber(raw, ["width"]) ?? void 0,
+    height: readNumber(raw, ["height"]) ?? void 0,
+    bytes: readNumber(raw, ["bytes", "size"]) ?? void 0
+  };
+}
+function normalizeRelatedNotes(raw) {
+  if (!Array.isArray(raw)) return void 0;
+  const allowed = /* @__PURE__ */ new Set([
+    "supplements",
+    "repeats",
+    "conflicts",
+    "updates",
+    "related"
+  ]);
+  const values = raw.map((item) => {
+    if (!item || typeof item !== "object") return null;
+    const notePath = readString(item, ["note_path", "path"]);
+    const reason = readString(item, ["reason", "rationale"]);
+    const relation = allowed.has(item.relation) ? item.relation : "related";
+    if (!notePath || !reason) return null;
+    return {
+      note_path: notePath,
+      relation,
+      reason,
+      confidence: normalizeRatio(item.confidence)
+    };
+  }).filter((item) => item !== null);
+  return values.length > 0 ? values : void 0;
+}
+function normalizeAttentionRanges(raw) {
+  if (!Array.isArray(raw)) return void 0;
+  const values = raw.map((item) => {
+    if (!item || typeof item !== "object") return null;
+    const start = readNumber(item, ["start", "start_seconds"]);
+    const end = readNumber(item, ["end", "end_seconds"]);
+    const reason = readString(item, ["reason", "rationale"]);
+    if (start === null || end === null || end <= start || !reason) return null;
+    return { start, end, reason };
+  }).filter((item) => item !== null);
+  return values.length > 0 ? values : void 0;
+}
+function parseTimingLine(line) {
+  const match = line.match(
+    /((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)\s*-->\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)/
+  );
+  if (!match) return null;
+  const start = parseClock(match[1]);
+  const end = parseClock(match[2]);
+  return start === null || end === null ? null : { start, end };
+}
+function parseClock(value) {
+  const normalized = value.trim().replace(",", ".");
+  const parts = normalized.split(":").map(Number);
+  if (parts.some((part) => !Number.isFinite(part)) || parts.length < 2 || parts.length > 3) {
+    return null;
+  }
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] * 3600 + parts[1] * 60 + parts[2];
+}
+function dedupeRollingCues(segments) {
+  const result = [];
+  for (const segment of segments) {
+    const previous = result[result.length - 1];
+    if (previous && previous.text.toLocaleLowerCase() === segment.text.toLocaleLowerCase() && previous.start === segment.start) {
+      previous.end = Math.max(
+        previous.end || previous.start || 0,
+        segment.end || segment.start || 0
+      );
+      continue;
+    }
+    result.push(segment);
+  }
+  return result;
+}
+function splitUntimedTranscript(text) {
+  const paragraphs = text.split(/\n{2,}/).map(normalizeText).filter(Boolean);
+  if (paragraphs.length > 1) return paragraphs;
+  const lines = text.split("\n").map(normalizeText).filter(Boolean);
+  if (lines.length > 1) return lines;
+  return text.split(/(?<=[。！？.!?])\s+/).reduce((chunks, sentence) => {
+    const current = chunks[chunks.length - 1];
+    if (!current || current.length + sentence.length > 500) chunks.push(sentence);
+    else chunks[chunks.length - 1] = `${current} ${sentence}`;
+    return chunks;
+  }, []).filter(Boolean);
+}
+function compareSegments(left, right) {
+  if (left.start === null && right.start === null) return 0;
+  if (left.start === null) return 1;
+  if (right.start === null) return -1;
+  return left.start - right.start;
+}
+function aggregateTimingQuality(segments, fallback) {
+  if (segments.length === 0) return fallback;
+  const values = segments.map((segment) => segment.timing_quality || "none");
+  if (values.every((value) => value === "exact")) return "exact";
+  if (values.some((value) => value === "none")) return "none";
+  if (values.some((value) => value === "estimated")) return "estimated";
+  if (values.some((value) => value === "aligned")) return "aligned";
+  return fallback;
+}
+function nearestSegment(segments, seconds) {
+  return segments.filter((segment) => segment.start !== null).sort(
+    (left, right) => Math.abs((left.start || 0) - seconds) - Math.abs((right.start || 0) - seconds)
+  )[0];
+}
+function normalizeTimingQuality(raw, fallback) {
+  return TIMING_QUALITY.has(raw) ? raw : fallback;
+}
+function normalizeEvidenceSource(raw, fallback) {
+  const value = String(raw || "").trim().toLowerCase();
+  const aliases = {
+    audio: "speech",
+    transcript: "speech",
+    voice: "speech",
+    visual: "screen",
+    ocr: "screen",
+    image: "screen",
+    comments: "comment",
+    inference: "ai-inference",
+    ai: "ai-inference"
+  };
+  const normalized = aliases[value] || value;
+  return EVIDENCE_SOURCES.has(normalized) ? normalized : fallback;
+}
+function normalizeContentType(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  return CONTENT_TYPES.has(value) ? value : void 0;
+}
+function normalizeReviewState(raw, source) {
+  if (["supported", "needs-review", "inference"].includes(raw)) return raw;
+  return source === "ai-inference" ? "inference" : "supported";
+}
+function normalizeVisualKind(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  const allowed = /* @__PURE__ */ new Set(["slide", "chart", "code", "interface", "object", "scene", "other"]);
+  return allowed.has(value) ? value : "other";
+}
+function normalizeProcessingDepth(raw) {
+  return ["quick", "evidence", "deep-visual"].includes(raw) ? raw : void 0;
+}
+function normalizeBackend(raw) {
+  return raw === "n8n" || raw === "codex-worker" ? raw : void 0;
+}
+function normalizeRatio(raw) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return void 0;
+  return Math.max(0, Math.min(1, value > 1 ? value / 100 : value));
+}
+function normalizeStringArray(raw) {
+  if (!Array.isArray(raw)) return void 0;
+  const values = raw.map((item) => String(item || "").trim()).filter(Boolean);
+  return values.length > 0 ? Array.from(new Set(values)) : void 0;
+}
+function readArray(source, keys) {
+  if (!source || typeof source !== "object") return void 0;
+  for (const key of keys) {
+    if (Array.isArray(source[key])) return source[key];
+  }
+  return void 0;
+}
+function readString(source, keys) {
+  if (!source || typeof source !== "object") return "";
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+function readNumber(source, keys) {
+  if (!source || typeof source !== "object") return null;
+  for (const key of keys) {
+    const raw = source[key];
+    if (raw === null || raw === void 0 || typeof raw === "boolean" || typeof raw === "string" && !raw.trim()) {
+      continue;
+    }
+    const value = Number(raw);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+function cleanCueText(value) {
+  return value.replace(/<[^>]+>/g, "").replace(/\{\\[^}]+\}/g, "").replace(/\s+/g, " ").trim();
+}
+function normalizeText(value) {
+  return String(value || "").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
+}
+function normalizeSource(value) {
+  return String(value || "").trim().replace(/#.*$/, "");
+}
+function sanitizeId(value) {
+  return String(value || "").trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || `vs-${stableHash(value)}`;
+}
+
+// core/KnowledgeMarkdown.ts
+var SOURCE_LABELS = {
+  speech: "\u53E3\u8FF0",
+  screen: "\u5C4F\u5E55",
+  comment: "\u8BC4\u8BBA",
+  user: "\u7528\u6237",
+  "ai-inference": "AI \u63A8\u65AD"
+};
+function upsertManagedBlock(body, kind, markdown) {
+  const start = `<!-- video-summary-${kind}:start -->`;
+  const end = `<!-- video-summary-${kind}:end -->`;
+  const expression = new RegExp(`${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}`, "g");
+  const cleanMarkdown = markdown.trim();
+  const replacement = cleanMarkdown ? `${start}
+${cleanMarkdown}
+${end}` : "";
+  if (expression.test(body)) return body.replace(expression, replacement);
+  if (!replacement) return body;
+  const withoutPlaceholder = removeLegacyPlaceholder(body, kind);
+  if (!withoutPlaceholder) return `${replacement}
+`;
+  const separator = withoutPlaceholder.endsWith("\n\n") ? "" : withoutPlaceholder.endsWith("\n") ? "\n" : "\n\n";
+  return `${withoutPlaceholder}${separator}${replacement}
+`;
+}
+function writeManagedKnowledgeMarkdown(body, result, sourceUrl = "", options = {}) {
+  const {
+    updateGenerated = true,
+    updateEvidence = true,
+    updateAttention = true,
+    updateLearning = true
+  } = options;
+  let next = body;
+  if (updateGenerated) {
+    next = upsertManagedBlock(next, "generated", renderGeneratedMarkdown(result));
+  }
+  if (updateEvidence) {
+    const hasEvidence = !!result.video_segments?.length || !!result.evidence_claims?.length || !!result.visual_evidence?.length;
+    next = upsertManagedBlock(
+      next,
+      "evidence",
+      hasEvidence ? renderEvidenceMarkdown(result, sourceUrl) : ""
+    );
+  }
+  if (updateAttention) {
+    next = upsertManagedBlock(
+      next,
+      "attention",
+      result.attention ? renderAttentionMarkdown(result, sourceUrl) : ""
+    );
+  }
+  if (updateLearning) {
+    next = upsertManagedBlock(
+      next,
+      "learning",
+      result.learning ? renderLearningMarkdown(result) : ""
+    );
+  }
+  return next;
+}
+function managedWriteOptionsForMode(mode) {
+  if (mode === "summary") return {};
+  if (mode === "transcript-only") {
+    return {
+      updateGenerated: false,
+      updateEvidence: true,
+      updateAttention: false,
+      updateLearning: false
+    };
+  }
+  return {
+    updateGenerated: false,
+    updateEvidence: false,
+    updateAttention: false,
+    updateLearning: false
+  };
+}
+function buildRichFrontmatterFields(result) {
+  const fields = {};
+  assignNonEmptyString(fields, "video_title", result.video_title);
+  assignNonEmptyString(fields, "video_author", result.video_author);
+  assignNonEmptyString(fields, "video_duration", result.video_duration);
+  assignNonEmptyString(fields, "video_cover", result.video_cover);
+  assignNonEmptyString(fields, "summary", result.summary);
+  assignNonEmptyString(fields, "video_transcript", result.video_transcript);
+  assignNonEmptyString(fields, "video_artifact_id", result.artifact?.artifact_id);
+  assignNonEmptyString(fields, "video_content_type", result.content_type);
+  assignNonEmptyString(fields, "video_attention_action", result.attention?.action);
+  assignNonEmptyString(fields, "video_processing_depth", result.artifact?.processing_depth);
+  return fields;
+}
+function serializeScalarFrontmatter(fields) {
+  for (const [key, value] of Object.entries(fields)) {
+    if (!isSafeFrontmatterScalar(value)) {
+      throw new TypeError(`Frontmatter field "${key}" must be a scalar value.`);
+    }
+  }
+  return dump(fields, {
+    lineWidth: 1e3,
+    noRefs: true,
+    sortKeys: false
+  }).trimEnd();
+}
+function renderGeneratedMarkdown(result) {
+  return (result.note || result.summary || "").trim();
+}
+function renderEvidenceMarkdown(result, sourceUrl = "", limits = {}) {
+  const claims = (result.evidence_claims || []).slice(0, limits.claims ?? 20);
+  const segments = result.video_segments || [];
+  const segmentById = new Map(segments.map((segment) => [segment.id, segment]));
+  const visual = (result.visual_evidence || []).slice(0, limits.visual ?? 12);
+  const lines = ["## \u8BC1\u636E\u5730\u56FE"];
+  const allowTimestamps = result.timing_quality !== "none";
+  if (result.timing_quality === "none") {
+    lines.push(
+      "",
+      "> [!warning] \u5F53\u524D\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u8F74",
+      "> \u6587\u672C\u4ECD\u53EF\u6838\u5BF9\uFF0C\u4F46\u63D2\u4EF6\u4E0D\u4F1A\u4F2A\u9020\u53EF\u70B9\u51FB\u7684\u65F6\u95F4\u6233\u3002"
+    );
+  } else if (result.timing_quality === "estimated") {
+    lines.push("", "> [!warning] \u90E8\u5206\u65F6\u95F4\u70B9\u4E3A\u4F30\u7B97\u503C", "> \u5F15\u7528\u524D\u8BF7\u56DE\u770B\u539F\u89C6\u9891\u786E\u8BA4\u3002");
+  }
+  const warnings = result.artifact?.warnings || [];
+  if (warnings.length > 0) {
+    lines.push("", "> [!info] \u5904\u7406\u9650\u5236");
+    warnings.slice(0, 5).forEach((warning) => lines.push(`> - ${escapeInline(warning)}`));
+  }
+  if (claims.length > 0) {
+    lines.push("", "### \u5173\u952E\u4E3B\u5F20");
+    claims.forEach((claim) => renderClaim(lines, claim, segmentById, sourceUrl, allowTimestamps));
+  } else if (segments.length > 0) {
+    lines.push("", "### \u53EF\u6838\u5BF9\u7247\u6BB5");
+    segments.slice(0, limits.segments ?? 40).forEach((segment) => {
+      const prefix = segmentLink(segment, sourceUrl, allowTimestamps);
+      lines.push(`- ${prefix} ${escapeInline(segment.text)} ^${segment.id}`);
+      const meta = segmentMeta(segment);
+      if (meta) lines.push(`  - ${meta}`);
+    });
+  } else {
+    lines.push("", "> [!info] \u8FD9\u6B21\u7ED3\u679C\u6CA1\u6709\u8FD4\u56DE\u7ED3\u6784\u5316\u8BC1\u636E\u3002");
+  }
+  if (visual.length > 0) {
+    lines.push("", "### \u753B\u9762\u8BC1\u636E");
+    visual.forEach((item) => renderVisual(lines, item, sourceUrl, allowTimestamps));
+  }
+  return lines.join("\n");
+}
+function renderAttentionMarkdown(result, sourceUrl = "") {
+  const assessment = result.attention;
+  if (!assessment) return "";
+  const actionLabel = {
+    watch: "\u503C\u5F97\u89C2\u770B",
+    skim: "\u5EFA\u8BAE\u9009\u6BB5\u6D4F\u89C8",
+    skip: "\u53EF\u4EE5\u8DF3\u8FC7"
+  }[assessment.action];
+  const lines = [
+    "## \u89C2\u770B\u4EF7\u503C\u5224\u65AD",
+    "",
+    `> [!summary] ${actionLabel}`,
+    `> ${escapeInline(assessment.rationale)}`
+  ];
+  const metrics = [
+    ["\u7EFC\u5408\u5206", assessment.score],
+    ["\u7F6E\u4FE1\u5EA6", assessment.confidence],
+    ["\u4FE1\u606F\u5BC6\u5EA6", assessment.information_density],
+    ["\u539F\u521B\u6027", assessment.originality],
+    ["\u53EF\u64CD\u4F5C\u6027", assessment.actionability],
+    ["\u4E0E\u5F53\u524D\u77E5\u8BC6\u5E93\u76F8\u5173\u5EA6", assessment.vault_relevance],
+    ["\u63A8\u5E7F\u5185\u5BB9\u5360\u6BD4", assessment.promotional_ratio]
+  ].filter((item) => typeof item[1] === "number");
+  if (metrics.length > 0) {
+    lines.push("", "| \u7EF4\u5EA6 | \u7ED3\u679C |", "| --- | ---: |");
+    metrics.forEach(([label, value]) => lines.push(`| ${label} | ${Math.round(value * 100)}% |`));
+  }
+  if (assessment.estimated_useful_seconds !== void 0) {
+    lines.push("", `\u9884\u8BA1\u9AD8\u4EF7\u503C\u5185\u5BB9\uFF1A\u7EA6 ${formatDuration(assessment.estimated_useful_seconds)}`);
+  }
+  const allowTimestamps = result.timing_quality !== "none";
+  appendRanges(lines, "\u5EFA\u8BAE\u89C2\u770B", assessment.must_watch, sourceUrl, allowTimestamps);
+  appendRanges(lines, "\u53EF\u4EE5\u7565\u8FC7", assessment.skippable, sourceUrl, allowTimestamps);
+  if (assessment.limitations?.length) {
+    lines.push("", "### \u5224\u65AD\u9650\u5236");
+    assessment.limitations.forEach((item) => lines.push(`- ${escapeInline(item)}`));
+  }
+  return lines.join("\n");
+}
+function renderLearningMarkdown(result) {
+  const learning = result.learning;
+  if (!learning) return "";
+  const lines = ["## \u5B66\u4E60\u7EC3\u4E60"];
+  if (learning.flashcards?.length) {
+    lines.push("", "### \u95EA\u5361");
+    learning.flashcards.forEach((card) => {
+      lines.push(`- **\u95EE\uFF1A${escapeInline(card.front)}** ^${sanitizeBlockId(card.id)}`);
+      lines.push(`  - \u7B54\uFF1A${escapeInline(card.back)}`);
+      if (card.evidence_segment_ids?.length) {
+        lines.push(`  - \u8BC1\u636E\uFF1A${card.evidence_segment_ids.map((id) => `#^${id}`).join("\u3001")}`);
+      }
+    });
+  }
+  if (learning.questions?.length) {
+    lines.push("", "### \u81EA\u6D4B\u9898");
+    learning.questions.forEach((question, index) => {
+      lines.push(`${index + 1}. ${escapeInline(question.prompt)} ^${sanitizeBlockId(question.id)}`);
+      if (question.choices?.length) {
+        question.choices.forEach((choice) => lines.push(`   - ${escapeInline(choice)}`));
+      }
+      lines.push(`   - \u7B54\u6848\uFF1A||${escapeInline(question.answer)}||`);
+      if (question.explanation) lines.push(`   - \u89E3\u91CA\uFF1A${escapeInline(question.explanation)}`);
+    });
+  }
+  if (learning.feynman_prompts?.length) {
+    lines.push("", "### \u8D39\u66FC\u89E3\u91CA");
+    learning.feynman_prompts.forEach((prompt) => lines.push(`- [ ] ${escapeInline(prompt)}`));
+  }
+  return lines.join("\n");
+}
+function renderClaim(lines, claim, segments, sourceUrl, allowTimestamps) {
+  const firstSegment = claim.evidence.map((reference) => segments.get(reference.segment_id)).find(Boolean);
+  const start = allowTimestamps ? claim.start ?? firstSegment?.start ?? null : null;
+  const timestampUrl = buildTimestampUrl(sourceUrl, start);
+  const timestamp = start === null ? "\u6587\u672C\u8BC1\u636E" : timestampUrl ? `[${formatTimestamp(start)}](${timestampUrl})` : formatTimestamp(start);
+  const review = claim.review_state === "needs-review" ? " \xB7 **\u9700\u590D\u6838**" : claim.review_state === "inference" ? " \xB7 AI \u63A8\u65AD" : "";
+  lines.push(`- ${timestamp} ${escapeInline(claim.claim)}${review} ^${sanitizeBlockId(claim.id)}`);
+  if (claim.evidence.length === 0) {
+    lines.push("  - \u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u6765\u6E90\u5F15\u7528");
+    return;
+  }
+  claim.evidence.forEach((reference) => {
+    const segment = segments.get(reference.segment_id);
+    const label = SOURCE_LABELS[reference.source];
+    const quote = reference.quote || segment?.text;
+    const segmentTimestamp = segment ? segmentLink(segment, sourceUrl, allowTimestamps) : "\u6765\u6E90\u7F3A\u5931";
+    lines.push(`  - ${label} \xB7 ${segmentTimestamp}${quote ? `\uFF1A${escapeInline(quote)}` : ""}`);
+  });
+}
+function renderVisual(lines, item, sourceUrl, allowTimestamps) {
+  if (!allowTimestamps) {
+    lines.push(
+      `- \u753B\u9762\u8BC1\u636E\uFF08\u65F6\u95F4\u672A\u5BF9\u9F50\uFF09 ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`
+    );
+    if (item.ocr_text) lines.push(`  - \u5C4F\u5E55\u6587\u5B57\uFF1A${escapeInline(item.ocr_text)}`);
+    if (item.keyframe?.path) lines.push(`  - ![[${item.keyframe.path}]]`);
+    else if (item.keyframe?.url) lines.push(`  - [\u67E5\u770B\u5173\u952E\u5E27](${item.keyframe.url})`);
+    return;
+  }
+  const timestampUrl = buildTimestampUrl(sourceUrl, item.start);
+  const timestamp = timestampUrl ? `[${formatTimestamp(item.start)}](${timestampUrl})` : formatTimestamp(item.start);
+  lines.push(`- ${timestamp} ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`);
+  if (item.ocr_text) lines.push(`  - \u5C4F\u5E55\u6587\u5B57\uFF1A${escapeInline(item.ocr_text)}`);
+  if (item.keyframe?.path) lines.push(`  - ![[${item.keyframe.path}]]`);
+  else if (item.keyframe?.url) lines.push(`  - [\u67E5\u770B\u5173\u952E\u5E27](${item.keyframe.url})`);
+}
+function segmentLink(segment, sourceUrl, allowTimestamps) {
+  if (!allowTimestamps || segment.start === null || segment.timing_quality === "none") {
+    return "\u6587\u672C\u8BC1\u636E";
+  }
+  const url = segment.timestamp_url || buildTimestampUrl(sourceUrl, segment.start);
+  const label = formatTimestamp(segment.start);
+  return url ? `[${label}](${url})` : label;
+}
+function segmentMeta(segment) {
+  const parts = [SOURCE_LABELS[segment.source]];
+  if (segment.speaker) parts.push(segment.speaker);
+  if (segment.timing_quality === "estimated") parts.push("\u4F30\u7B97\u65F6\u95F4");
+  if (segment.visual_text) parts.push(`\u5C4F\u5E55\uFF1A${escapeInline(segment.visual_text)}`);
+  return parts.join(" \xB7 ");
+}
+function appendRanges(lines, title, ranges, sourceUrl, allowTimestamps) {
+  if (!Array.isArray(ranges) || ranges.length === 0) return;
+  lines.push("", `### ${title}`);
+  ranges.forEach((range) => {
+    if (!allowTimestamps) {
+      lines.push(`- \u65F6\u95F4\u672A\u5BF9\u9F50 \xB7 ${escapeInline(range.reason)}`);
+      return;
+    }
+    const url = buildTimestampUrl(sourceUrl, range.start);
+    const time = `${formatTimestamp(range.start)}\u2013${formatTimestamp(range.end)}`;
+    lines.push(`- ${url ? `[${time}](${url})` : time} ${escapeInline(range.reason)}`);
+  });
+}
+function removeLegacyPlaceholder(body, kind) {
+  if (kind !== "generated") return body;
+  return body.replace(/## 视频内容\s*\n<!-- 视频总结将在这里生成 -->\s*/g, "");
+}
+function formatDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.round(seconds % 60);
+  return minutes > 0 ? `${minutes} \u5206 ${remainder} \u79D2` : `${remainder} \u79D2`;
+}
+function escapeInline(value) {
+  return String(value || "").replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
+}
+function sanitizeBlockId(value) {
+  const raw = String(value || "").trim();
+  const normalized = raw.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!normalized) return `video-evidence-${stableHash(raw || "missing")}`;
+  return normalized === raw ? normalized : `${normalized}-${stableHash(raw)}`;
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function assignNonEmptyString(fields, key, value) {
+  if (typeof value === "string" && value.trim()) fields[key] = value;
+}
+function isSafeFrontmatterScalar(value) {
+  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
 // utils/NoteProcessor.ts
 var NoteProcessor = class {
   constructor(vault) {
@@ -2757,6 +3693,11 @@ ${body}`;
       "video_author",
       "video_duration",
       "video_cover",
+      "video_artifact_id",
+      "video_content_type",
+      "video_attention_action",
+      "video_processing_depth",
+      "video_review_due",
       "summary",
       "video_transcript",
       "date",
@@ -2780,19 +3721,20 @@ ${body}`;
     const { fm, body } = this.parseFrontmatter(content);
     fm.video_summary = true;
     if (!fm.source_type) fm.source_type = "video";
-    if (result.video_title) fm.video_title = result.video_title;
-    if (result.video_author) fm.video_author = result.video_author;
-    if (result.video_duration) fm.video_duration = result.video_duration;
-    if (result.video_cover) fm.video_cover = result.video_cover;
-    if (result.summary) fm.summary = result.summary;
-    if (result.video_transcript) fm.video_transcript = result.video_transcript;
+    Object.assign(fm, buildRichFrontmatterFields(result));
     delete fm.processing_error;
     delete fm.processing_error_code;
     delete fm.processing_error_at;
     if (fm.provided_transcript) delete fm.provided_transcript;
     let newBody = body;
     newBody = this.removeProcessingErrorBlock(newBody);
-    if (mode === "summary" && result.note) newBody = result.note;
+    const sourceUrl = typeof fm.link === "string" ? fm.link : "";
+    newBody = writeManagedKnowledgeMarkdown(
+      newBody,
+      result,
+      sourceUrl,
+      managedWriteOptionsForMode(mode)
+    );
     const newContent = this.buildContent(fm, newBody);
     await this.vault.modify(file, newContent);
     if (options?.autoRename) {
@@ -4590,7 +5532,8 @@ var NoteIndex = class {
       platform: link ? detectPlatform2(link) : void 0,
       title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
       cover,
-      duration: readString(frontmatter?.video_duration),
+      duration: readString2(frontmatter?.video_duration),
+      artifactId: readString2(frontmatter?.video_artifact_id),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
     };
@@ -4607,6 +5550,7 @@ var NoteIndex = class {
       link,
       platform: link ? detectPlatform2(link) : void 0,
       cover,
+      artifactId: readFrontmatterScalar(content, "video_artifact_id"),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
     };
@@ -4708,10 +5652,18 @@ var NoteIndex = class {
     }
   }
 };
-function readString(value) {
+function readString2(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return void 0;
+}
+function readFrontmatterScalar(content, key) {
+  const frontmatter = content.match(/^---\s*\n([\s\S]*?)\n---(?:\n|$)/)?.[1];
+  if (!frontmatter) return void 0;
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = frontmatter.match(new RegExp(`^${escapedKey}:\\s*(.+?)\\s*$`, "m"));
+  if (!match) return void 0;
+  return match[1].replace(/^['"]|['"]$/g, "").trim() || void 0;
 }
 function normalizeEntryStatus(status) {
   const normalized = VideoUtils.normalizeStatus(status);
@@ -4729,7 +5681,7 @@ function isVideoCentricFile(file) {
   return /video|youtube|b站|视频|影片|录像|录屏|时间轴/i.test(file.basename);
 }
 function readCover(frontmatter) {
-  return readString(frontmatter?.video_cover) ?? readString(frontmatter?.thumbnail_url) ?? readString(frontmatter?.thumbnailUrl) ?? readString(frontmatter?.thumbnail) ?? readString(frontmatter?.cover) ?? readString(frontmatter?.image);
+  return readString2(frontmatter?.video_cover) ?? readString2(frontmatter?.thumbnail_url) ?? readString2(frontmatter?.thumbnailUrl) ?? readString2(frontmatter?.thumbnail) ?? readString2(frontmatter?.cover) ?? readString2(frontmatter?.image);
 }
 function readCoverFromContent(content) {
   const wikiEmbed = content.match(/!\[\[([^\]|]+\.(?:png|jpe?g|webp|gif|avif))(?:\|[^\]]*)?\]\]/i);
@@ -5603,7 +6555,6 @@ status: pending
 // utils/CacheManager.ts
 var CacheManager = class {
   constructor(vault, pluginDataPath) {
-    this.cache = /* @__PURE__ */ new Map();
     this.maxSize = 1e3;
     this.defaultExpiryDays = 30;
     this.isInitialized = false;
@@ -5611,167 +6562,140 @@ var CacheManager = class {
     this.vault = vault;
     this.pluginDataPath = pluginDataPath || `${vault.configDir}/plugins/video-summary/data`;
     this.cacheDir = `${this.pluginDataPath}/cache`;
-    this.indexFile = `${this.pluginDataPath}/cache/index.json`;
-    this.itemsDir = `${this.pluginDataPath}/cache/items`;
+    this.indexFile = `${this.cacheDir}/index.json`;
+    this.itemsDir = `${this.cacheDir}/items`;
     this.index = this.createDefaultIndex();
-    this.initializeCache();
+    this.initialization = this.initializeCache();
   }
-  /**
-   * 创建默认索引
-   */
   createDefaultIndex() {
     return {
-      version: "2.0.0",
+      version: "3.0.0",
       lastUpdated: Date.now(),
       maxSize: this.maxSize,
       expiryDays: this.defaultExpiryDays,
       items: {}
     };
   }
-  /**
-   * 初始化缓存系统
-   */
   async initializeCache() {
     try {
       await this.ensureCacheDirectory();
       await this.loadIndex();
-      await this.migrateFromLocalStorage();
-      await this.cleanup();
       this.isInitialized = true;
+      await this.migrateFromLocalStorage();
+      await this.cleanupInternal();
     } catch (error) {
       console.error("\u521D\u59CB\u5316\u7F13\u5B58\u5931\u8D25:", error);
       this.isInitialized = false;
     }
   }
-  /**
-   * 确保缓存目录存在
-   */
+  /** Useful for startup callers and deterministic tests. */
+  async whenReady() {
+    await this.initialization;
+    return this.isInitialized;
+  }
   async ensureCacheDirectory() {
-    try {
-      const cacheDirExists = await this.vault.adapter.exists(this.cacheDir);
-      if (!cacheDirExists) {
-        await this.vault.adapter.mkdir(this.cacheDir);
-      }
-      const itemsDirExists = await this.vault.adapter.exists(this.itemsDir);
-      if (!itemsDirExists) {
-        await this.vault.adapter.mkdir(this.itemsDir);
-      }
-    } catch (error) {
-      console.error("\u521B\u5EFA\u7F13\u5B58\u76EE\u5F55\u5931\u8D25:", error);
-      throw error;
+    if (!await this.vault.adapter.exists(this.cacheDir)) {
+      await this.vault.adapter.mkdir(this.cacheDir);
+    }
+    if (!await this.vault.adapter.exists(this.itemsDir)) {
+      await this.vault.adapter.mkdir(this.itemsDir);
     }
   }
-  /**
-   * 生成缓存键
-   */
-  generateCacheKey(url, mode, language) {
+  legacyKey(url, mode, language) {
     return `${url}|${mode}|${language}`;
   }
-  /**
-   * 生成文件路径
-   */
-  generateFilePath(key) {
-    const hash = this.hashString(key);
-    return `${this.itemsDir}/${hash}.json`;
+  legacyFilePath(key) {
+    return `${this.itemsDir}/${this.hashString(key)}.json`;
   }
-  /**
-   * 简单的字符串哈希函数
-   */
-  hashString(str) {
+  fingerprintFilePath(fingerprint) {
+    return `${this.itemsDir}/${fingerprint.digest}.json`;
+  }
+  hashString(value) {
     let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
+    for (let index = 0; index < value.length; index += 1) {
+      hash = (hash << 5) - hash + value.charCodeAt(index);
+      hash &= hash;
     }
     return Math.abs(hash).toString(36);
   }
-  /**
-   * 从localStorage迁移数据
-   */
   async migrateFromLocalStorage() {
     try {
-      if (typeof localStorage !== "undefined") {
-        const oldCacheData = localStorage.getItem("video-summary-cache");
-        if (oldCacheData) {
-          console.log("\u53D1\u73B0\u65E7\u7F13\u5B58\u6570\u636E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
-          const entries = JSON.parse(oldCacheData);
-          let migratedCount = 0;
-          for (const [key, item] of entries) {
-            try {
-              await this.set(
-                key.split("|")[0],
-                item.mode || "summary",
-                item.language || "zh",
-                item.result
-              );
-              migratedCount++;
-            } catch (error) {
-              console.error(`\u8FC1\u79FB\u7F13\u5B58\u9879\u5931\u8D25: ${key}`, error);
-            }
-          }
-          console.log(`\u8FC1\u79FB\u5B8C\u6210\uFF0C\u5171\u8FC1\u79FB ${migratedCount} \u9879`);
-          localStorage.removeItem("video-summary-cache");
+      if (typeof localStorage === "undefined") return;
+      const oldCacheData = localStorage.getItem("video-summary-cache");
+      if (!oldCacheData) return;
+      console.log("\u53D1\u73B0\u65E7\u7F13\u5B58\u6570\u636E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
+      const entries = JSON.parse(oldCacheData);
+      let migratedCount = 0;
+      for (const [key, item] of entries) {
+        try {
+          await this.writeLegacyEntry(
+            key.split("|")[0],
+            item.mode || "summary",
+            item.language || "zh",
+            item.result
+          );
+          migratedCount += 1;
+        } catch (error) {
+          console.error(`\u8FC1\u79FB\u7F13\u5B58\u9879\u5931\u8D25: ${key}`, error);
         }
       }
+      console.log(`\u8FC1\u79FB\u5B8C\u6210\uFF0C\u5171\u8FC1\u79FB ${migratedCount} \u9879`);
+      localStorage.removeItem("video-summary-cache");
     } catch (error) {
       console.error("\u8FC1\u79FB\u65E7\u7F13\u5B58\u5931\u8D25:", error);
     }
   }
-  /**
-   * 加载索引文件
-   */
   async loadIndex() {
     try {
-      const indexExists = await this.vault.adapter.exists(this.indexFile);
-      if (indexExists) {
-        const indexData = await this.vault.adapter.read(this.indexFile);
-        this.index = JSON.parse(indexData);
-        if (!this.index.version || !this.index.items) {
-          throw new Error("\u7D22\u5F15\u6587\u4EF6\u683C\u5F0F\u65E0\u6548");
-        }
-        this.maxSize = this.index.maxSize;
-        this.defaultExpiryDays = this.index.expiryDays;
-      } else {
+      if (!await this.vault.adapter.exists(this.indexFile)) {
         await this.saveIndex();
+        return;
       }
+      const parsed = JSON.parse(
+        await this.vault.adapter.read(this.indexFile)
+      );
+      if (!parsed.version || !parsed.items || typeof parsed.items !== "object") {
+        throw new Error("\u7D22\u5F15\u6587\u4EF6\u683C\u5F0F\u65E0\u6548");
+      }
+      const defaults = this.createDefaultIndex();
+      this.index = {
+        ...defaults,
+        ...parsed,
+        // Loading a v2 index is supported, but newly saved entries use the v3
+        // scheme marker and cryptographic fingerprint identity.
+        version: "3.0.0",
+        items: parsed.items
+      };
+      this.maxSize = this.index.maxSize;
+      this.defaultExpiryDays = this.index.expiryDays;
     } catch (error) {
       console.error("\u52A0\u8F7D\u7D22\u5F15\u5931\u8D25:", error);
       this.index = this.createDefaultIndex();
     }
   }
-  /**
-   * 保存索引文件
-   */
   async saveIndex() {
-    try {
-      this.index.lastUpdated = Date.now();
-      const indexData = JSON.stringify(this.index, null, 2);
-      await this.vault.adapter.write(this.indexFile, indexData);
-    } catch (error) {
-      console.error("\u4FDD\u5B58\u7D22\u5F15\u5931\u8D25:", error);
-      throw error;
-    }
+    this.index.lastUpdated = Date.now();
+    await this.vault.adapter.write(this.indexFile, JSON.stringify(this.index, null, 2));
   }
   /**
-   * 获取缓存项
+   * Historical url|mode|language lookup kept for cache management and older
+   * callers. New processing must use getByFingerprint: legacy keys cannot prove
+   * model/backend/schema/prompt provenance and are never its fallback.
    */
   async get(url, mode, language, options) {
-    if (!this.enabled && !options?.bypassDisabled || !this.isInitialized) {
-      return null;
-    }
-    const key = this.generateCacheKey(url, mode, language);
+    await this.initialization;
+    if (!this.enabled && !options?.bypassDisabled || !this.isInitialized) return null;
+    const key = this.legacyKey(url, mode, language);
     const indexItem = this.index.items[key];
-    if (!indexItem) {
-      return null;
-    }
+    if (!indexItem || indexItem.scheme === "fingerprint-v2") return null;
     if (Date.now() > indexItem.expiryTimestamp) {
-      await this.remove(url, mode, language);
+      await this.removeIndexKey(key);
       return null;
     }
     try {
-      const cacheData = await this.vault.adapter.read(indexItem.path);
-      const cacheItem = JSON.parse(cacheData);
+      const cacheItem = JSON.parse(
+        await this.vault.adapter.read(indexItem.path)
+      );
       if (cacheItem.url !== url || cacheItem.mode !== mode || cacheItem.language !== language) {
         console.warn("\u7F13\u5B58\u952E\u4E0E\u6587\u4EF6\u5185\u5BB9\u4E0D\u5339\u914D\uFF08\u7591\u4F3C\u54C8\u5E0C\u78B0\u649E\uFF09\uFF0C\u6309\u672A\u547D\u4E2D\u5904\u7406:", key);
         return null;
@@ -5785,214 +6709,243 @@ var CacheManager = class {
     }
   }
   /**
-   * 设置缓存项
+   * Exact rich-result lookup. It intentionally does not inspect or reuse
+   * legacy url|mode|language entries, even when the URL happens to match.
    */
-  async set(url, mode, language, result) {
-    if (!this.enabled || !this.isInitialized) {
-      return;
+  async getByFingerprint(fingerprint, options) {
+    await this.initialization;
+    if (!this.enabled && !options?.bypassDisabled || !this.isInitialized) return null;
+    const key = fingerprint.key;
+    const indexItem = this.index.items[key];
+    if (!this.matchesIndexFingerprint(indexItem, fingerprint)) return null;
+    if (Date.now() > indexItem.expiryTimestamp) {
+      await this.removeIndexKey(key);
+      return null;
     }
-    const key = this.generateCacheKey(url, mode, language);
-    const filePath = this.generateFilePath(key);
+    try {
+      const cacheItem = JSON.parse(
+        await this.vault.adapter.read(indexItem.path)
+      );
+      if (!this.matchesStoredFingerprint(cacheItem, fingerprint)) {
+        console.warn("\u7F13\u5B58\u6307\u7EB9\u4E0E\u6587\u4EF6 provenance \u4E0D\u5339\u914D\uFF0C\u6309\u672A\u547D\u4E2D\u5904\u7406:", key);
+        return null;
+      }
+      return cacheItem.result;
+    } catch (error) {
+      console.error("\u8BFB\u53D6\u6307\u7EB9\u7F13\u5B58\u5931\u8D25:", error);
+      delete this.index.items[key];
+      await this.saveIndex();
+      return null;
+    }
+  }
+  async set(url, mode, language, result) {
+    await this.initialization;
+    if (!this.enabled || !this.isInitialized) return;
+    await this.writeLegacyEntry(url, mode, language, result);
+  }
+  async writeLegacyEntry(url, mode, language, result) {
+    const key = this.legacyKey(url, mode, language);
+    const filePath = this.legacyFilePath(key);
+    const timestamp = Date.now();
     const cacheItem = {
       url,
       mode,
       language,
       result,
-      timestamp: Date.now(),
-      expiryTimestamp: Date.now() + this.defaultExpiryDays * 24 * 60 * 60 * 1e3
+      timestamp,
+      expiryTimestamp: timestamp + this.defaultExpiryDays * 24 * 60 * 60 * 1e3
     };
-    try {
-      const cacheData = JSON.stringify(cacheItem, null, 2);
-      await this.vault.adapter.write(filePath, cacheData);
-      this.index.items[key] = {
-        url,
-        mode,
-        language,
-        timestamp: cacheItem.timestamp,
-        expiryTimestamp: cacheItem.expiryTimestamp,
-        size: cacheData.length,
-        path: filePath
-      };
-      if (Object.keys(this.index.items).length > this.maxSize) {
-        await this.evictOldest();
-      }
-      await this.saveIndex();
-    } catch (error) {
-      console.error("\u4FDD\u5B58\u7F13\u5B58\u5931\u8D25:", error);
-      throw error;
-    }
+    const cacheData = JSON.stringify(cacheItem, null, 2);
+    await this.vault.adapter.write(filePath, cacheData);
+    this.index.items[key] = {
+      url,
+      mode,
+      language,
+      timestamp,
+      expiryTimestamp: cacheItem.expiryTimestamp,
+      size: cacheData.length,
+      path: filePath,
+      scheme: "legacy-v1"
+    };
+    await this.finishWrite();
   }
-  /**
-   * 检查是否有缓存
-   */
+  async setByFingerprint(fingerprint, result, sourceLabel = "") {
+    await this.initialization;
+    if (!this.enabled || !this.isInitialized) return;
+    const key = fingerprint.key;
+    const filePath = this.fingerprintFilePath(fingerprint);
+    const timestamp = Date.now();
+    const resultWithProvenance = this.withFingerprintProvenance(result, fingerprint);
+    const cacheItem = {
+      scheme: "fingerprint-v2",
+      fingerprint: {
+        version: fingerprint.version,
+        key,
+        digest: fingerprint.digest,
+        sourceHash: fingerprint.source.source_hash,
+        runHash: fingerprint.run_hash
+      },
+      url: sourceLabel,
+      mode: fingerprint.run.mode,
+      language: fingerprint.run.language,
+      result: resultWithProvenance,
+      timestamp,
+      expiryTimestamp: timestamp + this.defaultExpiryDays * 24 * 60 * 60 * 1e3
+    };
+    const cacheData = JSON.stringify(cacheItem, null, 2);
+    await this.vault.adapter.write(filePath, cacheData);
+    this.index.items[key] = {
+      url: sourceLabel,
+      mode: fingerprint.run.mode,
+      language: fingerprint.run.language,
+      timestamp,
+      expiryTimestamp: cacheItem.expiryTimestamp,
+      size: cacheData.length,
+      path: filePath,
+      scheme: "fingerprint-v2",
+      fingerprintDigest: fingerprint.digest,
+      sourceHash: fingerprint.source.source_hash,
+      runHash: fingerprint.run_hash
+    };
+    await this.finishWrite();
+  }
   has(url, mode, language) {
-    if (!this.enabled || !this.isInitialized) {
-      return false;
-    }
-    const key = this.generateCacheKey(url, mode, language);
-    const indexItem = this.index.items[key];
-    if (!indexItem) {
-      return false;
-    }
-    return Date.now() <= indexItem.expiryTimestamp;
+    if (!this.enabled || !this.isInitialized) return false;
+    const item = this.index.items[this.legacyKey(url, mode, language)];
+    return Boolean(item && item.scheme !== "fingerprint-v2" && Date.now() <= item.expiryTimestamp);
   }
-  /**
-   * 删除缓存项
-   */
+  hasFingerprint(fingerprint) {
+    if (!this.enabled || !this.isInitialized) return false;
+    const item = this.index.items[fingerprint.key];
+    return this.matchesIndexFingerprint(item, fingerprint) && Date.now() <= item.expiryTimestamp;
+  }
   async remove(url, mode, language) {
-    if (!this.isInitialized) {
-      return;
-    }
-    const key = this.generateCacheKey(url, mode, language);
+    await this.initialization;
+    if (!this.isInitialized) return;
+    await this.removeIndexKey(this.legacyKey(url, mode, language));
+  }
+  async removeByFingerprint(fingerprint) {
+    await this.initialization;
+    if (!this.isInitialized) return;
+    await this.removeIndexKey(fingerprint.key);
+  }
+  async removeIndexKey(key) {
     const indexItem = this.index.items[key];
-    if (indexItem) {
-      try {
-        const fileExists = await this.vault.adapter.exists(indexItem.path);
-        if (fileExists) {
-          await this.vault.adapter.remove(indexItem.path);
-        }
-      } catch (error) {
-        console.error("\u5220\u9664\u7F13\u5B58\u6587\u4EF6\u5931\u8D25:", error);
+    if (!indexItem) return;
+    try {
+      if (await this.vault.adapter.exists(indexItem.path)) {
+        await this.vault.adapter.remove(indexItem.path);
       }
-      delete this.index.items[key];
-      await this.saveIndex();
+    } catch (error) {
+      console.error("\u5220\u9664\u7F13\u5B58\u6587\u4EF6\u5931\u8D25:", error);
     }
+    delete this.index.items[key];
+    await this.saveIndex();
   }
-  /**
-   * 删除最旧的缓存项
-   */
+  async finishWrite() {
+    if (Object.keys(this.index.items).length > this.maxSize) {
+      await this.evictOldest();
+    }
+    await this.saveIndex();
+  }
   async evictOldest() {
-    let oldestKey = null;
-    let oldestTimestamp = Date.now();
-    for (const [key, item] of Object.entries(this.index.items)) {
-      if (item.timestamp < oldestTimestamp) {
-        oldestTimestamp = item.timestamp;
-        oldestKey = key;
-      }
+    let oldest;
+    for (const entry of Object.entries(this.index.items)) {
+      if (!oldest || entry[1].timestamp < oldest[1].timestamp) oldest = entry;
     }
-    if (oldestKey) {
-      const url = this.index.items[oldestKey].url;
-      const mode = this.index.items[oldestKey].mode;
-      const language = this.index.items[oldestKey].language;
-      await this.remove(url, mode, language);
-    }
+    if (oldest) await this.removeIndexKey(oldest[0]);
   }
-  /**
-   * 清理过期项
-   */
   async cleanup() {
-    if (!this.isInitialized) {
-      return;
-    }
+    await this.initialization;
+    await this.cleanupInternal();
+  }
+  async cleanupInternal() {
+    if (!this.isInitialized) return;
     const now = Date.now();
-    const keysToRemove = [];
-    for (const [key, item] of Object.entries(this.index.items)) {
-      if (now > item.expiryTimestamp) {
-        keysToRemove.push(key);
-      }
-    }
-    for (const key of keysToRemove) {
-      const item = this.index.items[key];
-      await this.remove(item.url, item.mode, item.language);
-    }
-    if (keysToRemove.length > 0) {
-      console.log(`\u6E05\u7406\u4E86 ${keysToRemove.length} \u4E2A\u8FC7\u671F\u7F13\u5B58\u9879`);
+    const expiredKeys = Object.entries(this.index.items).filter(([, item]) => now > item.expiryTimestamp).map(([key]) => key);
+    for (const key of expiredKeys) await this.removeIndexKey(key);
+    if (expiredKeys.length > 0) {
+      console.log(`\u6E05\u7406\u4E86 ${expiredKeys.length} \u4E2A\u8FC7\u671F\u7F13\u5B58\u9879`);
     }
   }
-  /**
-   * 获取缓存统计信息
-   */
   getStats() {
     if (!this.isInitialized) {
       return { size: 0, maxSize: this.maxSize, expiredCount: 0, totalSize: 0 };
     }
     const now = Date.now();
-    let expiredCount = 0;
-    let totalSize = 0;
-    for (const item of Object.values(this.index.items)) {
-      if (now > item.expiryTimestamp) {
-        expiredCount++;
-      }
-      totalSize += item.size;
-    }
+    const entries = Object.values(this.index.items);
     return {
-      size: Object.keys(this.index.items).length,
+      size: entries.length,
       maxSize: this.maxSize,
-      expiredCount,
-      totalSize
+      expiredCount: entries.filter((item) => now > item.expiryTimestamp).length,
+      totalSize: entries.reduce((total, item) => total + item.size, 0)
     };
   }
-  /**
-   * 清空所有缓存
-   */
   async clear() {
-    if (!this.isInitialized) {
-      return;
-    }
-    try {
-      for (const item of Object.values(this.index.items)) {
-        try {
-          const fileExists = await this.vault.adapter.exists(item.path);
-          if (fileExists) {
-            await this.vault.adapter.remove(item.path);
-          }
-        } catch (error) {
-          console.error("\u5220\u9664\u7F13\u5B58\u6587\u4EF6\u5931\u8D25:", error);
-        }
-      }
-      this.index.items = {};
-      await this.saveIndex();
-    } catch (error) {
-      console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-      throw error;
-    }
+    await this.initialization;
+    if (!this.isInitialized) return;
+    for (const key of Object.keys(this.index.items)) await this.removeIndexKey(key);
   }
-  /**
-   * 设置缓存配置
-   */
   setConfig(maxSize, expiryDays) {
     this.maxSize = maxSize;
     this.defaultExpiryDays = expiryDays;
-    if (this.isInitialized) {
-      this.index.maxSize = maxSize;
-      this.index.expiryDays = expiryDays;
-      this.saveIndex();
-    }
+    if (!this.isInitialized) return;
+    this.index.maxSize = maxSize;
+    this.index.expiryDays = expiryDays;
+    void this.saveIndex();
   }
-  /**
-   * 获取所有缓存项（用于预览）
-   */
   async getAllItems() {
-    if (!this.isInitialized) {
-      return [];
-    }
+    await this.initialization;
+    if (!this.isInitialized) return [];
     const now = Date.now();
-    const items = [];
-    for (const [key, item] of Object.entries(this.index.items)) {
-      items.push({
-        key,
-        url: item.url,
-        mode: item.mode,
-        language: item.language,
-        timestamp: item.timestamp,
-        expiryTimestamp: item.expiryTimestamp,
-        size: item.size,
-        isExpired: now > item.expiryTimestamp
-      });
-    }
-    return items.sort((a, b) => b.timestamp - a.timestamp);
+    return Object.entries(this.index.items).map(([key, item]) => ({
+      key,
+      url: item.url,
+      mode: item.mode,
+      language: item.language,
+      timestamp: item.timestamp,
+      expiryTimestamp: item.expiryTimestamp,
+      size: item.size,
+      isExpired: now > item.expiryTimestamp,
+      scheme: item.scheme || "legacy-v1"
+    })).sort((first, second) => second.timestamp - first.timestamp);
   }
-  /**
-   * 获取单个缓存项内容（用于预览）
-   */
   async getItemContent(url, mode, language) {
-    return await this.get(url, mode, language, { bypassDisabled: true });
+    return this.get(url, mode, language, { bypassDisabled: true });
   }
   setEnabled(enabled) {
     this.enabled = enabled;
   }
   isEnabled() {
     return this.enabled;
+  }
+  matchesIndexFingerprint(item, fingerprint) {
+    return Boolean(
+      item && item.scheme === "fingerprint-v2" && item.fingerprintDigest === fingerprint.digest && item.sourceHash === fingerprint.source.source_hash && item.runHash === fingerprint.run_hash
+    );
+  }
+  matchesStoredFingerprint(item, fingerprint) {
+    const provenance = item?.result?.artifact;
+    return item?.scheme === "fingerprint-v2" && item.fingerprint?.version === fingerprint.version && item.fingerprint?.key === fingerprint.key && item.fingerprint?.digest === fingerprint.digest && item.fingerprint?.sourceHash === fingerprint.source.source_hash && item.fingerprint?.runHash === fingerprint.run_hash && provenance?.fingerprint === fingerprint.key && provenance?.fingerprint_digest === fingerprint.digest && provenance?.run_hash === fingerprint.run_hash;
+  }
+  withFingerprintProvenance(result, fingerprint) {
+    return {
+      ...result,
+      artifact: {
+        ...result.artifact || {},
+        schema_version: fingerprint.run.schema_version,
+        source_hash: fingerprint.source.source_hash,
+        transcript_hash: fingerprint.source.transcript_hash || result.artifact?.transcript_hash,
+        backend: fingerprint.run.backend,
+        model: fingerprint.run.model,
+        prompt_version: fingerprint.run.prompt_version,
+        processing_depth: fingerprint.run.processing_depth,
+        fingerprint_version: fingerprint.version,
+        fingerprint: fingerprint.key,
+        fingerprint_digest: fingerprint.digest,
+        run_hash: fingerprint.run_hash
+      }
+    };
   }
 };
 
@@ -6093,13 +7046,357 @@ var UrlResolver = class {
 UrlResolver.MAX_HOPS = 5;
 UrlResolver.USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
+// core/ArtifactFingerprint.ts
+var ARTIFACT_FINGERPRINT_VERSION = 2;
+var ARTIFACT_FINGERPRINT_PREFIX = "video-summary:fingerprint:v2";
+function buildArtifactFingerprint(request) {
+  validateSchemaVersion(request.schemaVersion);
+  const canonicalUrl = canonicalSourceUrl(request.input.url);
+  const localPaths = collectLocalPaths(request.input);
+  const normalizedTranscript = normalizeTranscript(request.input.transcript);
+  const urlHash = canonicalUrl ? sha256Hex(canonicalUrl) : null;
+  const transcriptHash = request.transcriptHash ? normalizeProvidedHash(request.transcriptHash) : normalizedTranscript ? sha256Hex(normalizedTranscript) : null;
+  const localSources = localPaths.map((path, position) => {
+    const normalizedPath = normalizeLocalPath(path);
+    const providedHash = request.localFileHashes?.[path] ?? request.localFileHashes?.[normalizedPath];
+    return {
+      position,
+      path_hash: sha256Hex(normalizedPath),
+      content_hash: providedHash ? normalizeProvidedHash(providedHash) : null
+    };
+  });
+  const localHash = localSources.length > 0 ? sha256Hex(stableSerialize(localSources)) : null;
+  if (!urlHash && !localHash && !transcriptHash) {
+    throw new Error("Artifact fingerprint requires a URL, local file, or transcript.");
+  }
+  const sourceIdentity = {
+    url_hash: urlHash,
+    local_hash: localHash,
+    transcript_hash: transcriptHash
+  };
+  const source = {
+    ...sourceIdentity,
+    local_sources: localSources,
+    source_hash: sha256Hex(stableSerialize(sourceIdentity))
+  };
+  const run = {
+    mode: request.mode,
+    language: request.language,
+    model: normalizeLabel(request.model, "unspecified"),
+    backend: request.backend,
+    schema_version: request.schemaVersion,
+    processing_depth: request.processingDepth,
+    requested_content_type: request.requestedContentType,
+    auto_route: request.autoRoute === true,
+    visual: normalizeVisualMode(request.visual, request.processingDepth),
+    attention: request.attention === true,
+    learning: request.learning === true,
+    prompt_version: normalizeLabel(request.promptVersion, "unversioned")
+  };
+  const runHash = sha256Hex(stableSerialize(run));
+  const envelope = {
+    fingerprint_version: ARTIFACT_FINGERPRINT_VERSION,
+    source,
+    run
+  };
+  const serialized = stableSerialize(envelope);
+  const digest = sha256Hex(serialized);
+  return {
+    version: ARTIFACT_FINGERPRINT_VERSION,
+    algorithm: "sha256",
+    key: `${ARTIFACT_FINGERPRINT_PREFIX}:${digest}`,
+    digest,
+    source,
+    run,
+    run_hash: runHash,
+    serialized,
+    legacy: buildLegacyCacheMarker(
+      request.input,
+      canonicalUrl,
+      request.mode,
+      request.language,
+      localSources.length > 0,
+      transcriptHash !== null
+    )
+  };
+}
+function buildLegacyCacheKey(url, mode, language) {
+  return `${url}|${mode}|${language}`;
+}
+function legacyCacheFileStem(key) {
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash << 5) - hash + key.charCodeAt(index);
+    hash &= hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+function stableSerialize(value) {
+  return serializeStable(value, /* @__PURE__ */ new Set(), false);
+}
+function sha256Hex(value) {
+  const bytes = new TextEncoder().encode(value);
+  const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
+  const padded = new Uint8Array(paddedLength);
+  padded.set(bytes);
+  padded[bytes.length] = 128;
+  const bitLength = bytes.length * 8;
+  const view = new DataView(padded.buffer);
+  view.setUint32(paddedLength - 8, Math.floor(bitLength / 4294967296), false);
+  view.setUint32(paddedLength - 4, bitLength >>> 0, false);
+  const state = new Uint32Array([
+    1779033703,
+    3144134277,
+    1013904242,
+    2773480762,
+    1359893119,
+    2600822924,
+    528734635,
+    1541459225
+  ]);
+  const words = new Uint32Array(64);
+  for (let offset = 0; offset < paddedLength; offset += 64) {
+    for (let index = 0; index < 16; index += 1) {
+      words[index] = view.getUint32(offset + index * 4, false);
+    }
+    for (let index = 16; index < 64; index += 1) {
+      const s0 = rotateRight(words[index - 15], 7) ^ rotateRight(words[index - 15], 18) ^ words[index - 15] >>> 3;
+      const s1 = rotateRight(words[index - 2], 17) ^ rotateRight(words[index - 2], 19) ^ words[index - 2] >>> 10;
+      words[index] = words[index - 16] + s0 + words[index - 7] + s1 >>> 0;
+    }
+    let a = state[0];
+    let b = state[1];
+    let c = state[2];
+    let d = state[3];
+    let e = state[4];
+    let f = state[5];
+    let g = state[6];
+    let h = state[7];
+    for (let index = 0; index < 64; index += 1) {
+      const sigma1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+      const choose = e & f ^ ~e & g;
+      const temp1 = h + sigma1 + choose + SHA256_CONSTANTS[index] + words[index] >>> 0;
+      const sigma0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+      const majority = a & b ^ a & c ^ b & c;
+      const temp2 = sigma0 + majority >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = d + temp1 >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = temp1 + temp2 >>> 0;
+    }
+    state[0] = state[0] + a >>> 0;
+    state[1] = state[1] + b >>> 0;
+    state[2] = state[2] + c >>> 0;
+    state[3] = state[3] + d >>> 0;
+    state[4] = state[4] + e >>> 0;
+    state[5] = state[5] + f >>> 0;
+    state[6] = state[6] + g >>> 0;
+    state[7] = state[7] + h >>> 0;
+  }
+  return Array.from(state, (word) => word.toString(16).padStart(8, "0")).join("");
+}
+function canonicalSourceUrl(value) {
+  const trimmed = value?.trim();
+  return trimmed ? canonicalizeVideoUrl(trimmed, { keepP: true, keepTimestamp: false }).trim() : "";
+}
+function collectLocalPaths(input) {
+  const paths = [input.localFile, ...input.localFiles ?? []].filter((value) => typeof value === "string" && value.trim().length > 0).map((value) => normalizeLocalPath(value));
+  return paths.filter((path, index) => paths.indexOf(path) === index);
+}
+function normalizeLocalPath(value) {
+  return value.trim().replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+}
+function normalizeTranscript(value) {
+  return String(value ?? "").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").trim();
+}
+function normalizeProvidedHash(value) {
+  const trimmed = value.trim();
+  const sha = trimmed.match(/^(?:sha256:)?([a-fA-F0-9]{64})$/);
+  return sha ? sha[1].toLowerCase() : `external:${trimmed}`;
+}
+function normalizeLabel(value, fallback) {
+  return value.trim() || fallback;
+}
+function normalizeVisualMode(visual, depth) {
+  if (visual === false || visual === "off") return "off";
+  if (visual === "deep") return "deep";
+  if (visual === "keyframes") return "keyframes";
+  return depth === "deep-visual" ? "deep" : "keyframes";
+}
+function buildLegacyCacheMarker(input, canonicalUrl, mode, language, hasLocalSources, hasTranscript) {
+  const originalUrl = input.url?.trim() ?? "";
+  const urls = [originalUrl, canonicalUrl].filter(
+    (url, index, candidates2) => url.length > 0 && candidates2.indexOf(url) === index
+  );
+  const candidates = urls.map((url) => {
+    const key = buildLegacyCacheKey(url, mode, language);
+    return { key, file_stem: legacyCacheFileStem(key) };
+  });
+  if (candidates.length === 0) {
+    return {
+      scheme: "url|mode|language",
+      compatibility: "not-applicable",
+      candidates,
+      reuse_requires_validation: true,
+      reason: "Legacy cache keys require a URL."
+    };
+  }
+  if (hasLocalSources || hasTranscript) {
+    return {
+      scheme: "url|mode|language",
+      compatibility: "unsafe",
+      candidates,
+      reuse_requires_validation: true,
+      reason: "Legacy keys ignore supplemental local files and transcripts."
+    };
+  }
+  return {
+    scheme: "url|mode|language",
+    compatibility: "lookup-candidate",
+    candidates,
+    reuse_requires_validation: true,
+    reason: "Legacy keys omit model, backend, schema, depth, routing, feature flags, and prompt version."
+  };
+}
+function validateSchemaVersion(value) {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error("Artifact schemaVersion must be a positive integer.");
+  }
+}
+function serializeStable(value, ancestors, inArray) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError("Cannot fingerprint a non-finite number.");
+    return Object.is(value, -0) ? "0" : JSON.stringify(value);
+  }
+  if (value === void 0 || typeof value === "function" || typeof value === "symbol") {
+    return inArray ? "null" : "";
+  }
+  if (typeof value === "bigint") {
+    throw new TypeError("Cannot fingerprint a bigint value.");
+  }
+  if (value instanceof Date) return JSON.stringify(value.toISOString());
+  if (typeof value !== "object") {
+    throw new TypeError(`Unsupported fingerprint value: ${typeof value}`);
+  }
+  if (ancestors.has(value)) throw new TypeError("Cannot fingerprint a circular value.");
+  ancestors.add(value);
+  let serialized;
+  if (Array.isArray(value)) {
+    serialized = `[${value.map((item) => serializeStable(item, ancestors, true)).join(",")}]`;
+  } else {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      ancestors.delete(value);
+      throw new TypeError("Only plain objects can be fingerprinted.");
+    }
+    const entries = Object.keys(value).sort().filter((key) => {
+      const item = value[key];
+      return item !== void 0 && typeof item !== "function" && typeof item !== "symbol";
+    }).map(
+      (key) => `${JSON.stringify(key)}:${serializeStable(
+        value[key],
+        ancestors,
+        false
+      )}`
+    );
+    serialized = `{${entries.join(",")}}`;
+  }
+  ancestors.delete(value);
+  return serialized;
+}
+function rotateRight(value, shift) {
+  return value >>> shift | value << 32 - shift;
+}
+var SHA256_CONSTANTS = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
+
 // api/VideoSummaryAPI.ts
+var CACHE_ARTIFACT_SCHEMA_VERSION = 3;
+var CACHE_PROMPT_VERSION = "video-knowledge-v3";
 var VideoSummaryAPI = class _VideoSummaryAPI {
   constructor(webhookUrl, vault, pluginDataPath, payloadKeys, backend) {
     this.debugMode = false;
     this.aiModel = "Gemini 3.1";
     this.backend = "n8n";
     this.expandShortLinksEnabled = false;
+    this.analysisDefaults = {
+      processingDepth: "evidence",
+      contentType: "auto",
+      autoRoute: true,
+      attentionAssessment: true,
+      generateLearning: false
+    };
     this.lastWebhookResult = null;
     this.webhookHistory = [];
     this.webhookHistoryLimit = 50;
@@ -6135,6 +7432,9 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
   setExpandShortLinks(enabled) {
     this.expandShortLinksEnabled = enabled;
   }
+  setAnalysisDefaults(defaults) {
+    this.analysisDefaults = { ...this.analysisDefaults, ...defaults };
+  }
   /**
    * 短链展开（fail-open）：失败时原样返回 input。
    * 在缓存检查之前调用，保证缓存 key 用的是展开后的最终链接。
@@ -6168,12 +7468,14 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
    * 处理单个视频
    */
   async processVideo(noteName, input, mode, language = "zh", useCache = true, onProgress) {
+    input = this.withAnalysisDefaults(input);
     input = await this.resolveInputUrl(input);
-    if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
-      const cachedResult = await this.cacheManager.get(input.url, mode, language);
+    const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
+    if (useCache) {
+      const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] \u4F7F\u7528\u7F13\u5B58\u7ED3\u679C: ${input.url}`);
+          console.log(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
         onProgress?.({ stageLabel: "\u547D\u4E2D\u7F13\u5B58", progress: 1, message: "\u547D\u4E2D\u7F13\u5B58\uFF0C\u672A\u8BF7\u6C42\u540E\u7AEF" });
         return cachedResult;
@@ -6182,7 +7484,10 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     const payload = this.buildPayload(noteName, input, mode, language);
     if (this.backend === "codex-worker") {
       try {
-        const result = await this.processCodexWorkerJob(payload, onProgress);
+        const result = this.withCacheFingerprint(
+          await this.processCodexWorkerJob(payload, onProgress),
+          cacheFingerprint
+        );
         this.recordWebhookResult(result, input, mode, language);
         this.lastWebhookResult = {
           result,
@@ -6191,8 +7496,12 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
           language,
           timestamp: Date.now()
         };
-        if (useCache && input.url && result) {
-          await this.cacheManager.set(input.url, mode, language, result);
+        if (useCache) {
+          await this.cacheManager.setByFingerprint(
+            cacheFingerprint,
+            result,
+            this.cacheSourceLabel(input)
+          );
         }
         return result;
       } catch (error) {
@@ -6223,7 +7532,10 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
         throw new Error(await this.formatHttpError(response));
       }
       const data = await this.readJsonResponse(response);
-      const result = this.parseSummaryResponse(data);
+      const result = this.withCacheFingerprint(
+        this.parseSummaryResponse(data, input),
+        cacheFingerprint
+      );
       this.recordWebhookResult(result, input, mode, language);
       this.lastWebhookResult = {
         result,
@@ -6232,8 +7544,12 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
         language,
         timestamp: Date.now()
       };
-      if (useCache && input.url && result) {
-        await this.cacheManager.set(input.url, mode, language, result);
+      if (useCache) {
+        await this.cacheManager.setByFingerprint(
+          cacheFingerprint,
+          result,
+          this.cacheSourceLabel(input)
+        );
       }
       return result;
     } catch (error) {
@@ -6255,12 +7571,14 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
    * 简单处理视频（不更新笔记）
    */
   async processVideoSimple(input, mode, language = "zh", useCache = true) {
+    input = this.withAnalysisDefaults(input);
     input = await this.resolveInputUrl(input);
-    if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
-      const cachedResult = await this.cacheManager.get(input.url, mode, language);
+    const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
+    if (useCache) {
+      const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] \u4F7F\u7528\u7F13\u5B58\u7ED3\u679C: ${input.url}`);
+          console.log(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
         return cachedResult;
       }
@@ -6268,7 +7586,10 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     const payload = this.buildPayload("temp", input, mode, language);
     if (this.backend === "codex-worker") {
       try {
-        const result = await this.processCodexWorkerJob(payload);
+        const result = this.withCacheFingerprint(
+          await this.processCodexWorkerJob(payload),
+          cacheFingerprint
+        );
         this.recordWebhookResult(result, input, mode, language);
         this.lastWebhookResult = {
           result,
@@ -6277,8 +7598,12 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
           language,
           timestamp: Date.now()
         };
-        if (useCache && input.url && result) {
-          await this.cacheManager.set(input.url, mode, language, result);
+        if (useCache) {
+          await this.cacheManager.setByFingerprint(
+            cacheFingerprint,
+            result,
+            this.cacheSourceLabel(input)
+          );
         }
         return result;
       } catch (error) {
@@ -6304,7 +7629,10 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
         throw new Error(await this.formatHttpError(response));
       }
       const data = await this.readJsonResponse(response);
-      const result = this.parseSummaryResponse(data);
+      const result = this.withCacheFingerprint(
+        this.parseSummaryResponse(data, input),
+        cacheFingerprint
+      );
       this.recordWebhookResult(result, input, mode, language);
       this.lastWebhookResult = {
         result,
@@ -6313,8 +7641,12 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
         language,
         timestamp: Date.now()
       };
-      if (useCache && input.url && result) {
-        await this.cacheManager.set(input.url, mode, language, result);
+      if (useCache) {
+        await this.cacheManager.setByFingerprint(
+          cacheFingerprint,
+          result,
+          this.cacheSourceLabel(input)
+        );
       }
       return result;
     } catch (error) {
@@ -6447,6 +7779,7 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     if (input.localFile) {
       metadata[keys.local_file] = input.localFile;
     }
+    this.addAnalysisMetadata(metadata, input);
     return {
       name: noteName,
       metadata,
@@ -6480,6 +7813,7 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     if (input.merge !== void 0) {
       metadata.merge = input.merge;
     }
+    this.addAnalysisMetadata(metadata, input);
     return {
       source: "obsidian-plugin",
       action: "process",
@@ -6487,6 +7821,80 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
       metadata,
       content: ""
     };
+  }
+  withAnalysisDefaults(input) {
+    return {
+      ...input,
+      processingDepth: input.processingDepth || this.analysisDefaults.processingDepth,
+      contentType: input.contentType || this.analysisDefaults.contentType,
+      autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
+      attentionAssessment: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
+      generateLearning: input.generateLearning ?? this.analysisDefaults.generateLearning
+    };
+  }
+  buildCacheFingerprint(input, mode, language) {
+    const processingDepth = input.processingDepth || this.analysisDefaults.processingDepth;
+    let visual = "keyframes";
+    if (processingDepth === "quick") visual = "off";
+    if (processingDepth === "deep-visual") visual = "deep";
+    return buildArtifactFingerprint({
+      input,
+      mode,
+      language,
+      model: this.aiModel,
+      backend: this.backend,
+      schemaVersion: CACHE_ARTIFACT_SCHEMA_VERSION,
+      processingDepth,
+      requestedContentType: input.contentType || this.analysisDefaults.contentType,
+      autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
+      visual,
+      attention: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
+      learning: input.generateLearning ?? this.analysisDefaults.generateLearning,
+      promptVersion: CACHE_PROMPT_VERSION
+    });
+  }
+  withCacheFingerprint(result, fingerprint) {
+    return {
+      ...result,
+      artifact: {
+        ...result.artifact || {},
+        schema_version: fingerprint.run.schema_version,
+        source_hash: fingerprint.source.source_hash,
+        transcript_hash: fingerprint.source.transcript_hash || result.artifact?.transcript_hash,
+        backend: fingerprint.run.backend,
+        model: fingerprint.run.model,
+        prompt_version: fingerprint.run.prompt_version,
+        processing_depth: fingerprint.run.processing_depth,
+        fingerprint_version: fingerprint.version,
+        fingerprint: fingerprint.key,
+        fingerprint_digest: fingerprint.digest,
+        run_hash: fingerprint.run_hash
+      }
+    };
+  }
+  cacheSourceLabel(input) {
+    return input.url || input.localFile || input.localFiles?.filter(Boolean).join(", ") || (input.transcript ? "provided-transcript" : "");
+  }
+  addAnalysisMetadata(metadata, input) {
+    metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
+    metadata.prompt_version = CACHE_PROMPT_VERSION;
+    metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
+    metadata.content_type = input.contentType || this.analysisDefaults.contentType;
+    metadata.auto_route = input.autoRoute ?? this.analysisDefaults.autoRoute;
+    metadata.attention_assessment = input.attentionAssessment ?? this.analysisDefaults.attentionAssessment;
+    metadata.generate_learning = input.generateLearning ?? this.analysisDefaults.generateLearning;
+    if (input.artifactId) metadata.artifact_id = input.artifactId;
+    if (input.highlightedSegmentIds?.length) {
+      metadata.highlighted_segment_ids = Array.from(new Set(input.highlightedSegmentIds));
+    }
+    metadata.requested_capabilities = [
+      "artifact-v3",
+      "timestamped-segments",
+      "evidence-claims",
+      ...metadata.processing_depth === "quick" ? [] : ["visual-evidence"],
+      ...metadata.attention_assessment ? ["attention-assessment"] : [],
+      ...metadata.generate_learning ? ["learning-package"] : []
+    ];
   }
   recordWebhookResult(result, input, mode, language) {
     const entry = {
@@ -6544,7 +7952,14 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
         }
       }
       if (latestJob.status === "success") {
-        return this.parseSummaryResponse(latestJob.result);
+        return this.parseSummaryResponse(latestJob.result, {
+          url: payload?.metadata?.link,
+          processingDepth: payload?.metadata?.processing_depth,
+          contentType: payload?.metadata?.content_type,
+          autoRoute: payload?.metadata?.auto_route,
+          attentionAssessment: payload?.metadata?.attention_assessment,
+          generateLearning: payload?.metadata?.generate_learning
+        });
       }
       if (latestJob.status === "needs-review" || latestJob.status === "error" || latestJob.status === "cancelled") {
         throw new Error(this.formatCodexJobError(latestJob));
@@ -6619,7 +8034,7 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
   sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
-  parseSummaryResponse(data) {
+  parseSummaryResponse(data, input = {}) {
     const preserveKeys = /* @__PURE__ */ new Set(["summary", "note", "video_transcript"]);
     let payload = Array.isArray(data) ? {} : data;
     if (Array.isArray(data)) {
@@ -6714,10 +8129,25 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
     if (payload.video_cover && typeof payload.video_cover === "string") {
       result.video_cover = payload.video_cover;
     }
-    if (Object.keys(result).length === 0) {
+    const hasRichPayload = [
+      payload.video_segments,
+      payload.evidence_claims,
+      payload.visual_evidence,
+      payload.attention,
+      payload.learning,
+      payload.artifact
+    ].some((value) => value !== void 0 && value !== null);
+    if (Object.keys(result).length === 0 && !hasRichPayload) {
       throw new Error("\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u6570\u636E\u4E2D\u6CA1\u6709\u6709\u6548\u5185\u5BB9");
     }
-    return result;
+    return normalizeRichProcessingResult(result, payload, {
+      sourceUrl: input.url,
+      backend: this.backend,
+      model: this.aiModel,
+      processingDepth: input.processingDepth,
+      promptProfile: input.contentType,
+      promptVersion: CACHE_PROMPT_VERSION
+    });
   }
   unwrapResponsePayload(payload) {
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -6735,6 +8165,12 @@ var VideoSummaryAPI = class _VideoSummaryAPI {
           "video_author",
           "video_duration",
           "video_cover",
+          "video_segments",
+          "evidence_claims",
+          "visual_evidence",
+          "attention",
+          "learning",
+          "artifact",
           "cover",
           "thumbnail",
           "metadata",
@@ -7162,7 +8598,7 @@ function pickRatio(source, keys) {
 }
 
 // views/VideoSummaryView.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // views/panels/ActionBar.ts
 var import_obsidian7 = require("obsidian");
@@ -7720,6 +9156,63 @@ function renderChips(chips, ctx) {
       }
     }))
   );
+  const depthLabels = {
+    quick: "\u6781\u901F",
+    evidence: "\u8BC1\u636E",
+    "deep-visual": "\u6DF1\u5EA6\u89C6\u89C9"
+  };
+  configChip(
+    chips,
+    "\u7406\u89E3\u6DF1\u5EA6",
+    depthLabels[settings.defaultProcessingDepth],
+    ["quick", "evidence", "deep-visual"].map((depth) => ({
+      title: depthLabels[depth],
+      onClick: async () => {
+        settings.defaultProcessingDepth = depth;
+        plugin.api.setAnalysisDefaults({ processingDepth: depth });
+        await plugin.saveSettings();
+        ctx.renderAll();
+      }
+    }))
+  );
+  const contentLabels = {
+    auto: "\u81EA\u52A8\u8BC6\u522B",
+    course: "\u8BFE\u7A0B",
+    interview: "\u8BBF\u8C08",
+    tutorial: "\u6559\u7A0B",
+    news: "\u65B0\u95FB",
+    meeting: "\u4F1A\u8BAE",
+    review: "\u8BC4\u6D4B",
+    general: "\u901A\u7528"
+  };
+  const contentTypes = [
+    "auto",
+    "course",
+    "interview",
+    "tutorial",
+    "news",
+    "meeting",
+    "review",
+    "general"
+  ];
+  configChip(
+    chips,
+    "\u5185\u5BB9\u7C7B\u578B",
+    contentLabels[settings.defaultContentType],
+    contentTypes.map((contentType) => ({
+      title: contentLabels[contentType],
+      onClick: async () => {
+        settings.defaultContentType = contentType;
+        settings.autoRouteContent = contentType === "auto";
+        plugin.api.setAnalysisDefaults({
+          contentType,
+          autoRoute: settings.autoRouteContent
+        });
+        await plugin.saveSettings();
+        ctx.renderAll();
+      }
+    }))
+  );
   const models = settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel];
   configChip(
     chips,
@@ -7767,6 +9260,42 @@ function renderChips(chips, ctx) {
   previewChip.addEventListener("click", async (event) => {
     event.preventDefault();
     settings.previewBeforeWrite = !settings.previewBeforeWrite;
+    await plugin.saveSettings();
+    ctx.renderAll();
+  });
+  const attentionChip = chips.createEl("button", {
+    cls: `vs-chip vs-chip-toggle${settings.attentionAssessmentEnabled ? " is-active" : ""}`,
+    attr: {
+      type: "button",
+      title: settings.attentionAssessmentEnabled ? "\u5DF2\u751F\u6210\u89C2\u770B/\u7565\u8BFB/\u8DF3\u8FC7\u5224\u65AD" : "\u70B9\u51FB\u542F\u7528\u89C2\u770B\u4EF7\u503C\u5224\u65AD"
+    }
+  });
+  const attentionIcon = attentionChip.createSpan({ cls: "vs-chip-caret" });
+  (0, import_obsidian7.setIcon)(attentionIcon, "gauge");
+  attentionChip.createSpan({ text: "\u89C2\u770B\u5224\u65AD", cls: "vs-chip-value" });
+  attentionChip.addEventListener("click", async () => {
+    settings.attentionAssessmentEnabled = !settings.attentionAssessmentEnabled;
+    plugin.api.setAnalysisDefaults({
+      attentionAssessment: settings.attentionAssessmentEnabled
+    });
+    await plugin.saveSettings();
+    ctx.renderAll();
+  });
+  const learningChip = chips.createEl("button", {
+    cls: `vs-chip vs-chip-toggle${settings.generateLearningArtifacts ? " is-active" : ""}`,
+    attr: {
+      type: "button",
+      title: settings.generateLearningArtifacts ? "\u5DF2\u751F\u6210\u5B66\u4E60\u7EC3\u4E60" : "\u70B9\u51FB\u542F\u7528\u5B66\u4E60\u7EC3\u4E60"
+    }
+  });
+  const learningIcon = learningChip.createSpan({ cls: "vs-chip-caret" });
+  (0, import_obsidian7.setIcon)(learningIcon, "graduation-cap");
+  learningChip.createSpan({ text: "\u5B66\u4E60\u7EC3\u4E60", cls: "vs-chip-value" });
+  learningChip.addEventListener("click", async () => {
+    settings.generateLearningArtifacts = !settings.generateLearningArtifacts;
+    plugin.api.setAnalysisDefaults({
+      generateLearning: settings.generateLearningArtifacts
+    });
     await plugin.saveSettings();
     ctx.renderAll();
   });
@@ -8604,9 +10133,33 @@ function renderRow(listEl, ctx, entry, observer) {
       "is-accent"
     );
   }
+  if (entry.artifactId) {
+    iconButton(
+      actions,
+      "book-open",
+      "\u6253\u5F00\u540C\u6B65\u966A\u8BFB",
+      () => ctx.openDetail({
+        kind: "note",
+        path: entry.path,
+        artifactId: entry.artifactId
+      }),
+      "is-accent"
+    );
+  }
   iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
-    showMenu(event, [
+    const menuItems = [
       { title: "\u6253\u5F00\u7B14\u8BB0", icon: "file-text", onClick: () => ctx.openNote(entry.path) },
+      ...entry.artifactId ? [
+        {
+          title: "\u540C\u6B65\u966A\u8BFB",
+          icon: "book-open",
+          onClick: () => ctx.openDetail({
+            kind: "note",
+            path: entry.path,
+            artifactId: entry.artifactId
+          })
+        }
+      ] : [],
       {
         title: "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
         icon: "refresh-cw",
@@ -8637,7 +10190,8 @@ function renderRow(listEl, ctx, entry, observer) {
         }
       },
       { title: "\u5220\u9664\u7B14\u8BB0", icon: "trash-2", onClick: () => confirmDelete(ctx, entry) }
-    ]);
+    ];
+    showMenu(event, menuItems);
   });
 }
 function confirmDelete(ctx, entry) {
@@ -8714,7 +10268,362 @@ function filterForDisplayStatus(status) {
 }
 
 // views/panels/DetailPanel.ts
+var import_obsidian11 = require("obsidian");
+
+// views/panels/ReaderPanel.ts
 var import_obsidian10 = require("obsidian");
+var PAGE_SIZE2 = 240;
+function renderReaderPanel(container, ctx, job) {
+  const segments = job.result?.video_segments || [];
+  const sourceUrl = job.input.url || job.result?.artifact?.source_url || "";
+  const reader = container.createDiv({ cls: "vs-reader" });
+  const playerHost = reader.createDiv({ cls: "vs-reader-player" });
+  const player = createPlayer(playerHost, ctx, job, sourceUrl);
+  ctx.registerPanelCleanup(() => player.destroy());
+  const toolbar = reader.createDiv({ cls: "vs-reader-toolbar" });
+  const search = toolbar.createEl("input", {
+    cls: "vs-reader-search",
+    attr: { type: "search", placeholder: "\u641C\u7D22\u6587\u7A3F\u2026", "aria-label": "\u641C\u7D22\u6587\u7A3F" }
+  });
+  const count = toolbar.createSpan({
+    text: `${segments.length.toLocaleString()} \u6BB5`,
+    cls: "vs-reader-count"
+  });
+  void count;
+  if (segments.length === 0) {
+    reader.createDiv({
+      text: "\u5F53\u524D\u7ED3\u679C\u6CA1\u6709\u7ED3\u6784\u5316\u65F6\u95F4\u8F74\u3002\u91CD\u65B0\u5904\u7406\u65F6\u9009\u62E9\u201C\u8BC1\u636E\u6A21\u5F0F\u201D\u5373\u53EF\u751F\u6210\u3002",
+      cls: "vs-hint"
+    });
+    return;
+  }
+  const list = reader.createDiv({ cls: "vs-reader-transcript" });
+  const footer = reader.createDiv({ cls: "vs-reader-footer" });
+  const highlights = /* @__PURE__ */ new Set();
+  let visibleCount2 = Math.min(PAGE_SIZE2, segments.length);
+  let activeId = "";
+  let query = "";
+  const renderRows = () => {
+    list.empty();
+    footer.empty();
+    const matching = query ? segments.filter(
+      (segment) => `${segment.speaker || ""} ${segment.text} ${segment.visual_text || ""}`.toLocaleLowerCase().includes(query)
+    ) : segments;
+    const visible = matching.slice(0, query ? 400 : visibleCount2);
+    visible.forEach((segment) => {
+      const row = list.createEl("button", {
+        cls: `vs-reader-segment${segment.id === activeId ? " is-active" : ""}${highlights.has(segment.id) ? " is-highlighted" : ""}`,
+        attr: { type: "button", "data-segment-id": segment.id }
+      });
+      const time = row.createSpan({
+        text: formatTimestamp(segment.start),
+        cls: "vs-reader-time"
+      });
+      if (segment.start === null || segment.timing_quality === "none") {
+        time.addClass("is-untimed");
+      }
+      const content = row.createSpan({ cls: "vs-reader-copy" });
+      if (segment.speaker) {
+        content.createSpan({ text: segment.speaker, cls: "vs-reader-speaker" });
+      }
+      content.createSpan({ text: segment.text, cls: "vs-reader-text" });
+      if (segment.visual_text) {
+        content.createSpan({
+          text: `\u5C4F\u5E55\uFF1A${segment.visual_text}`,
+          cls: "vs-reader-visual-text"
+        });
+      }
+      const star = row.createSpan({
+        cls: "vs-reader-highlight",
+        attr: { title: highlights.has(segment.id) ? "\u53D6\u6D88\u91CD\u70B9" : "\u6807\u8BB0\u91CD\u70B9" }
+      });
+      (0, import_obsidian10.setIcon)(star, highlights.has(segment.id) ? "star" : "star-off");
+      star.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void toggleHighlight(ctx, job, segment, highlights).then(renderRows);
+      });
+      row.addEventListener("click", () => {
+        if (segment.start === null || segment.timing_quality === "none") {
+          new import_obsidian10.Notice("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+          return;
+        }
+        activeId = segment.id;
+        player.seek(segment.start);
+        markActiveRow(list, activeId);
+      });
+    });
+    if (!query && visibleCount2 < matching.length) {
+      const more = footer.createEl("button", {
+        text: `\u7EE7\u7EED\u52A0\u8F7D ${Math.min(PAGE_SIZE2, matching.length - visibleCount2)} \u6BB5`,
+        cls: "vs-text-btn",
+        attr: { type: "button" }
+      });
+      more.addEventListener("click", () => {
+        visibleCount2 = Math.min(visibleCount2 + PAGE_SIZE2, matching.length);
+        renderRows();
+      });
+    }
+    if (query && matching.length > visible.length) {
+      footer.createSpan({
+        text: `\u663E\u793A\u524D ${visible.length} \u6761\uFF0C\u5171 ${matching.length} \u6761\u5339\u914D`,
+        cls: "vs-hint"
+      });
+    }
+  };
+  const offTime = player.onTimeChange((seconds) => {
+    const active = activeSegmentAt(segments, seconds);
+    if (!active || active.id === activeId) return;
+    activeId = active.id;
+    markActiveRow(list, activeId, true);
+  });
+  ctx.registerPanelCleanup(offTime);
+  let searchTimer = 0;
+  search.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      query = search.value.trim().toLocaleLowerCase();
+      renderRows();
+    }, 120);
+  });
+  ctx.registerPanelCleanup(() => window.clearTimeout(searchTimer));
+  void loadHighlights(ctx, job).then((stored) => {
+    stored.forEach((highlight) => highlights.add(highlight.segment_id));
+    renderRows();
+  });
+  renderRows();
+}
+function createPlayer(container, ctx, job, sourceUrl) {
+  const localSource = resolveLocalSource(ctx, job.input.localFile);
+  if (localSource) return createHtmlPlayer(container, localSource);
+  const youtubeId = extractYouTubeId(sourceUrl);
+  if (youtubeId) return createYouTubePlayer(container, youtubeId);
+  const bilibiliId = sourceUrl.match(/\/video\/(BV[a-zA-Z0-9]+)/)?.[1];
+  if (bilibiliId) return createBilibiliPlayer(container, bilibiliId);
+  const fallback = container.createDiv({ cls: "vs-reader-player-fallback" });
+  const icon = fallback.createDiv({ cls: "vs-reader-player-icon" });
+  (0, import_obsidian10.setIcon)(icon, "external-link");
+  fallback.createDiv({ text: "\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", cls: "vs-reader-player-title" });
+  fallback.createDiv({
+    text: "\u70B9\u51FB\u6587\u7A3F\u65F6\u95F4\u70B9\u65F6\u4F1A\u6253\u5F00\u5BF9\u5E94\u7684\u89C6\u9891\u4F4D\u7F6E\u3002",
+    cls: "vs-hint"
+  });
+  let listener = null;
+  return {
+    seek(seconds) {
+      const url = buildTimestampUrl(sourceUrl, seconds) || sourceUrl;
+      if (url) window.open(url, "_blank");
+      listener?.(seconds);
+    },
+    onTimeChange(next) {
+      listener = next;
+      return () => {
+        if (listener === next) listener = null;
+      };
+    },
+    destroy() {
+      listener = null;
+    }
+  };
+}
+function createHtmlPlayer(container, source) {
+  const video = container.createEl("video", {
+    cls: "vs-reader-video",
+    attr: { controls: "true", preload: "metadata", src: source }
+  });
+  const listeners = /* @__PURE__ */ new Set();
+  const onTimeUpdate = () => listeners.forEach((listener) => listener(video.currentTime));
+  video.addEventListener("timeupdate", onTimeUpdate);
+  return {
+    seek(seconds) {
+      video.currentTime = seconds;
+      void video.play().catch(() => void 0);
+    },
+    onTimeChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    destroy() {
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      listeners.clear();
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
+  };
+}
+function createYouTubePlayer(container, videoId) {
+  const frameId = `vs-reader-${Date.now().toString(36)}`;
+  const iframe = container.createEl("iframe", {
+    cls: "vs-reader-iframe",
+    attr: {
+      id: frameId,
+      src: `https://www.youtube.com/embed/${encodeURIComponent(
+        videoId
+      )}?enablejsapi=1&playsinline=1&rel=0`,
+      title: "YouTube \u89C6\u9891",
+      allow: "accelerometer; autoplay; encrypted-media; picture-in-picture",
+      allowfullscreen: "true"
+    }
+  });
+  const listeners = /* @__PURE__ */ new Set();
+  const onMessage = (event) => {
+    if (event.source !== iframe.contentWindow) return;
+    let payload = event.data;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        return;
+      }
+    }
+    const currentTime = Number(payload?.info?.currentTime);
+    if (payload?.event === "infoDelivery" && Number.isFinite(currentTime)) {
+      listeners.forEach((listener) => listener(currentTime));
+    }
+  };
+  window.addEventListener("message", onMessage);
+  iframe.addEventListener("load", () => {
+    iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: frameId }), "*");
+  });
+  return {
+    seek(seconds) {
+      iframe.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func: "seekTo", args: [seconds, true], id: frameId }),
+        "*"
+      );
+      iframe.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func: "playVideo", args: [], id: frameId }),
+        "*"
+      );
+      listeners.forEach((listener) => listener(seconds));
+    },
+    onTimeChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    destroy() {
+      window.removeEventListener("message", onMessage);
+      listeners.clear();
+      iframe.src = "about:blank";
+    }
+  };
+}
+function createBilibiliPlayer(container, bvid) {
+  const iframe = container.createEl("iframe", {
+    cls: "vs-reader-iframe",
+    attr: {
+      title: "Bilibili \u89C6\u9891",
+      allow: "autoplay; fullscreen",
+      allowfullscreen: "true"
+    }
+  });
+  const listeners = /* @__PURE__ */ new Set();
+  const loadAt = (seconds) => {
+    iframe.src = `https://player.bilibili.com/player.html?bvid=${encodeURIComponent(
+      bvid
+    )}&page=1&high_quality=1&danmaku=0&t=${Math.max(0, Math.floor(seconds))}`;
+  };
+  loadAt(0);
+  return {
+    seek(seconds) {
+      loadAt(seconds);
+      listeners.forEach((listener) => listener(seconds));
+    },
+    onTimeChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    destroy() {
+      listeners.clear();
+      iframe.src = "about:blank";
+    }
+  };
+}
+function resolveLocalSource(ctx, localFile) {
+  if (!localFile) return "";
+  const direct = ctx.plugin.app.vault.getAbstractFileByPath(localFile);
+  if (direct instanceof import_obsidian10.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
+  if (/^(app:|file:|https?:)/i.test(localFile)) return localFile;
+  if (localFile.startsWith("/")) return encodeURI(`file://${localFile}`);
+  return "";
+}
+function extractYouTubeId(sourceUrl) {
+  try {
+    const url = new URL(sourceUrl);
+    if (url.hostname.includes("youtu.be")) return url.pathname.split("/").filter(Boolean)[0] || "";
+    if (url.hostname.includes("youtube.com")) {
+      if (url.pathname.startsWith("/shorts/")) {
+        return url.pathname.split("/").filter(Boolean)[1] || "";
+      }
+      return url.searchParams.get("v") || "";
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+function activeSegmentAt(segments, seconds) {
+  let candidate;
+  for (const segment of segments) {
+    if (segment.start === null || segment.start > seconds) break;
+    candidate = segment;
+    if (segment.end !== void 0 && segment.end !== null && seconds < segment.end) break;
+  }
+  return candidate;
+}
+function markActiveRow(list, activeId, scroll = false) {
+  list.querySelectorAll(".vs-reader-segment.is-active").forEach((row2) => {
+    row2.removeClass("is-active");
+  });
+  const row = list.querySelector(
+    `.vs-reader-segment[data-segment-id="${cssEscape(activeId)}"]`
+  );
+  if (!row) return;
+  row.addClass("is-active");
+  if (scroll) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+async function loadHighlights(ctx, job) {
+  const artifactId = job.result?.artifact?.artifact_id;
+  const store = ctx.plugin.artifactStore;
+  if (!artifactId || !store?.load) return [];
+  try {
+    const artifact = await store.load(artifactId);
+    return Array.isArray(artifact?.highlights) ? artifact.highlights : [];
+  } catch {
+    return [];
+  }
+}
+async function toggleHighlight(ctx, job, segment, highlights) {
+  const removing = highlights.has(segment.id);
+  if (removing) highlights.delete(segment.id);
+  else highlights.add(segment.id);
+  const artifactId = job.result?.artifact?.artifact_id;
+  const store = ctx.plugin.artifactStore;
+  if (!artifactId || !store?.updateHighlights) return;
+  try {
+    const updated = await store.updateHighlights(artifactId, (current) => {
+      if (removing) return current.filter((item) => item.segment_id !== segment.id);
+      if (current.some((item) => item.segment_id === segment.id)) return current;
+      const added = {
+        id: `highlight-${segment.id}`,
+        segment_id: segment.id,
+        created_at: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      return [...current, added];
+    });
+    highlights.clear();
+    updated.highlights.forEach((item) => highlights.add(item.segment_id));
+  } catch (error) {
+    if (removing) highlights.add(segment.id);
+    else highlights.delete(segment.id);
+    new import_obsidian10.Notice(`\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+function cssEscape(value) {
+  return value.replace(/["\\]/g, "\\$&");
+}
+
+// views/panels/DetailPanel.ts
 function renderDetailPanel(container, ctx) {
   const ref = ctx.state.detail;
   if (!ref) return;
@@ -8725,6 +10634,10 @@ function renderDetailPanel(container, ctx) {
       return;
     }
     renderJobDetail(container, ctx, job);
+    return;
+  }
+  if (ref.kind === "note") {
+    renderStoredArtifactDetail(container, ctx, ref.path, ref.artifactId);
     return;
   }
   const record = (ctx.plugin.settings.history || []).find(
@@ -8761,7 +10674,7 @@ function renderBanner(container, ctx, options) {
     banner.createSpan({ text: options.duration, cls: "vs-banner-time" });
   }
 }
-function renderJobDetail(container, ctx, job) {
+function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : void 0;
   const duration = job.result?.video_duration || entry?.duration;
   const resultCover = safeCoverUrl2(job.result?.video_cover);
@@ -8798,7 +10711,7 @@ function renderJobDetail(container, ctx, job) {
   if (job.state === "error" && job.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian10.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian11.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
     const actions2 = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
@@ -8812,7 +10725,7 @@ function renderJobDetail(container, ctx, job) {
     );
     textButton(actions2, "\u590D\u5236\u9519\u8BEF", () => {
       void navigator.clipboard.writeText(job.error || "");
-      new import_obsidian10.Notice("\u5DF2\u590D\u5236");
+      new import_obsidian11.Notice("\u5DF2\u590D\u5236");
     });
     if (isCookieError(job.error)) {
       textButton(actions2, "\u6253\u5F00 cookies \u76EE\u5F55", () => openCookiesFolder(ctx));
@@ -8827,6 +10740,8 @@ function renderJobDetail(container, ctx, job) {
   segmented(
     body,
     [
+      { value: "reader", label: "\u966A\u8BFB" },
+      { value: "evidence", label: "\u8BC1\u636E" },
       { value: "preview", label: "\u9884\u89C8" },
       { value: "transcript", label: "\u6587\u7A3F" },
       { value: "meta", label: "\u5143\u6570\u636E" },
@@ -8840,6 +10755,12 @@ function renderJobDetail(container, ctx, job) {
   );
   const pane = body.createDiv({ cls: "vs-detail-body" });
   switch (ctx.state.detailTab) {
+    case "reader":
+      renderReaderPanel(pane, ctx, job);
+      break;
+    case "evidence":
+      renderEvidence(pane, ctx, job);
+      break;
     case "transcript":
       renderText(pane, job.result.video_transcript, "\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u6587\u7A3F");
       break;
@@ -8859,7 +10780,7 @@ function renderJobDetail(container, ctx, job) {
       "\u5199\u5165\u7B14\u8BB0",
       async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
-          new import_obsidian10.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+          new import_obsidian11.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
           ctx.closeDetail();
         }
       },
@@ -8875,63 +10796,159 @@ function renderJobDetail(container, ctx, job) {
     );
     prependIcon(open, "file-text");
   }
-  const more = textButton(actions, "\u66F4\u591A", () => void 0, "has-caret");
-  more.addEventListener("click", (event) => {
-    showMenu(event, [
-      {
-        title: "\u65B0\u5EFA\u7B14\u8BB0",
-        icon: "file-plus",
-        onClick: async () => {
-          await ctx.plugin.jobService.createNoteFromResult(job);
-          ctx.renderPanels();
+  if (persistedArtifact) {
+    const copy = textButton(actions, "\u590D\u5236\u5DE5\u4EF6 JSON", () => {
+      void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
+      new import_obsidian11.Notice("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON");
+    });
+    prependIcon(copy, "clipboard");
+  } else {
+    const more = textButton(actions, "\u66F4\u591A", () => void 0, "has-caret");
+    more.addEventListener("click", (event) => {
+      showMenu(event, [
+        {
+          title: "\u65B0\u5EFA\u7B14\u8BB0",
+          icon: "file-plus",
+          onClick: async () => {
+            await ctx.plugin.jobService.createNoteFromResult(job);
+            ctx.renderPanels();
+          }
+        },
+        {
+          title: "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0",
+          icon: "save",
+          onClick: async () => {
+            if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
+          }
+        },
+        {
+          title: "\u63D2\u5165\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E",
+          icon: "text-cursor-input",
+          onClick: async () => {
+            if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
+          }
+        },
+        {
+          title: "\u590D\u5236 JSON",
+          icon: "clipboard",
+          onClick: () => {
+            void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
+            new import_obsidian11.Notice("\u5DF2\u590D\u5236 JSON");
+          }
         }
-      },
-      {
-        title: "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0",
-        icon: "save",
-        onClick: async () => {
-          if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
-        }
-      },
-      {
-        title: "\u63D2\u5165\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E",
-        icon: "text-cursor-input",
-        onClick: async () => {
-          if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
-        }
-      },
-      {
-        title: "\u590D\u5236 JSON",
-        icon: "clipboard",
-        onClick: () => {
-          void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-          new import_obsidian10.Notice("\u5DF2\u590D\u5236 JSON");
-        }
-      }
-    ]);
-  });
-  prependCaret(more);
-  if (job.state === "review") {
-    iconButton(
-      actions,
-      "trash-2",
-      "\u4E22\u5F03\u7ED3\u679C",
-      async () => {
-        await ctx.plugin.jobService.discardResult(job);
-        ctx.closeDetail();
-      },
-      "vs-icon-btn-boxed is-danger"
-    );
+      ]);
+    });
+    prependCaret(more);
+    if (job.state === "review") {
+      iconButton(
+        actions,
+        "trash-2",
+        "\u4E22\u5F03\u7ED3\u679C",
+        async () => {
+          await ctx.plugin.jobService.discardResult(job);
+          ctx.closeDetail();
+        },
+        "vs-icon-btn-boxed is-danger"
+      );
+    }
   }
+}
+function renderStoredArtifactDetail(container, ctx, notePath, artifactId) {
+  emptyState(container, "loader", "\u6B63\u5728\u52A0\u8F7D\u540C\u6B65\u966A\u8BFB\u2026", "\u4ECE\u672C\u5730 sidecar \u6062\u590D\u65F6\u95F4\u8F74\u548C\u91CD\u70B9");
+  let active = true;
+  ctx.registerPanelCleanup(() => {
+    active = false;
+  });
+  void ctx.plugin.artifactStore.load(artifactId).then((artifact) => {
+    const ref = ctx.state.detail;
+    if (!active || ref?.kind !== "note" || ref.path !== notePath || ref.artifactId !== artifactId) {
+      return;
+    }
+    container.empty();
+    renderJobDetail(container, ctx, artifactToJob(artifact, notePath), true);
+  }).catch((error) => {
+    if (!active) return;
+    container.empty();
+    emptyState(
+      container,
+      "alert-triangle",
+      "\u65E0\u6CD5\u6253\u5F00\u540C\u6B65\u966A\u8BFB",
+      error instanceof Error ? error.message : String(error)
+    );
+    const actions = container.createDiv({ cls: "vs-detail-actions" });
+    textButton(actions, "\u8FD4\u56DE\u7B14\u8BB0\u5E93", () => ctx.closeDetail(), "is-primary");
+    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(notePath));
+  });
+}
+function artifactToJob(artifact, notePath) {
+  const createdAt = Date.parse(artifact.created_at) || Date.now();
+  const endedAt = Date.parse(artifact.updated_at) || createdAt;
+  return {
+    id: `artifact-${artifact.artifact_id}`,
+    title: artifact.title || notePath.split("/").pop()?.replace(/\.md$/i, "") || "\u89C6\u9891\u5DE5\u4EF6",
+    notePath,
+    input: {
+      url: artifact.source.url,
+      localFile: artifact.source.local_file,
+      artifactId: artifact.artifact_id,
+      processingDepth: artifact.provenance.processing_depth
+    },
+    mode: "summary",
+    language: "zh",
+    useCache: true,
+    state: "success",
+    createdAt,
+    endedAt,
+    logs: [],
+    platform: artifact.platform,
+    result: {
+      video_title: artifact.title,
+      video_author: artifact.author,
+      video_duration: artifact.duration,
+      video_cover: artifact.cover,
+      video_platform: artifact.platform,
+      video_transcript: artifact.transcript,
+      transcript_source: artifact.provenance.transcript_source,
+      timing_quality: artifact.timing_quality,
+      video_segments: artifact.segments,
+      evidence_claims: artifact.claims,
+      visual_evidence: artifact.visual_evidence,
+      content_type: artifact.content_type,
+      attention: artifact.attention,
+      learning: artifact.learning,
+      related_notes: artifact.related_notes,
+      artifact: {
+        ...artifact.provenance,
+        artifact_id: artifact.artifact_id,
+        source_url: artifact.source.url,
+        source_hash: artifact.source.source_hash
+      }
+    }
+  };
+}
+function renderEvidence(container, ctx, job) {
+  if (!job.result) return;
+  const markdown = renderEvidenceMarkdown(
+    job.result,
+    job.input.url || job.result.artifact?.source_url
+  );
+  const markdownEl = container.createDiv({ cls: "vs-markdown vs-evidence-map" });
+  void import_obsidian11.MarkdownRenderer.render(
+    ctx.plugin.app,
+    markdown,
+    markdownEl,
+    job.notePath || "",
+    ctx.plugin
+  );
 }
 function prependIcon(button, icon) {
   const holder = createSpan({ cls: "vs-btn-icon" });
-  (0, import_obsidian10.setIcon)(holder, icon);
+  (0, import_obsidian11.setIcon)(holder, icon);
   button.prepend(holder);
 }
 function prependCaret(button) {
   const holder = createSpan({ cls: "vs-btn-caret" });
-  (0, import_obsidian10.setIcon)(holder, "chevron-down");
+  (0, import_obsidian11.setIcon)(holder, "chevron-down");
   button.append(holder);
 }
 function renderPreview(body, ctx, job) {
@@ -8944,7 +10961,7 @@ function renderPreview(body, ctx, job) {
   if (result.summary) fields.push("summary");
   const diff = body.createDiv({ cls: "vs-write-card" });
   const diffIcon = diff.createDiv({ cls: "vs-write-icon" });
-  (0, import_obsidian10.setIcon)(diffIcon, "file-diff");
+  (0, import_obsidian11.setIcon)(diffIcon, "file-diff");
   const diffText = diff.createDiv({ cls: "vs-write-text" });
   diffText.createDiv({ text: `\u5C06\u5199\u5165 frontmatter\uFF1A${fields.join(" \xB7 ") || "\u65E0"}` });
   diffText.createDiv({
@@ -8963,7 +10980,7 @@ ${result.note}` : ""
     markdownEl.setText("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587");
     return;
   }
-  void import_obsidian10.MarkdownRenderer.render(
+  void import_obsidian11.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown.slice(0, 6e3),
     markdownEl,
@@ -9004,7 +11021,7 @@ function renderRecordDetail(container, ctx, record) {
   if (record.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian10.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian11.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
   } else if (record.result === "error") {
     body.createDiv({
@@ -9060,25 +11077,25 @@ function isCookieError(error) {
 function openCookiesFolder(ctx) {
   const path = ctx.plugin.settings.cookiesDirPath;
   if (!path) {
-    new import_obsidian10.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
+    new import_obsidian11.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
     return;
   }
   const shell = window.require?.("electron")?.shell;
   if (shell?.openPath) {
     void shell.openPath(path);
   } else {
-    new import_obsidian10.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
+    new import_obsidian11.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
   }
 }
 function findNote2(ctx, name) {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian10.TFile) return direct;
+  if (direct instanceof import_obsidian11.TFile) return direct;
   return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
 }
 
 // views/VideoSummaryView.ts
 var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
-var VideoSummaryView = class extends import_obsidian11.ItemView {
+var VideoSummaryView = class extends import_obsidian12.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.headerEl = null;
@@ -9089,6 +11106,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     this.resizeObserver = null;
     this.lastActiveFilePath = "";
     this.backend = "is-unknown";
+    this.panelCleanup = [];
     this.plugin = plugin;
     this.state = {
       inputDraft: "",
@@ -9158,6 +11176,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     }
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.cleanupPanelResources();
   }
   /** 兼容旧调用方（main.ts 里的 refreshVideoSummaryView） */
   async refreshView() {
@@ -9176,7 +11195,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
       openNote: (path) => this.openNote(path),
       openDetail: (ref) => {
         this.state.detail = ref;
-        this.state.detailTab = "preview";
+        this.state.detailTab = ref.kind === "note" ? "reader" : "preview";
         this.renderPanels();
       },
       closeDetail: () => {
@@ -9187,8 +11206,16 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
         mode: this.plugin.settings.defaultMode,
         language: this.plugin.settings.defaultLanguage,
         useCache: this.plugin.settings.enableCache && !this.state.ignoreCache,
-        previewBeforeWrite: this.plugin.settings.previewBeforeWrite === true
-      })
+        previewBeforeWrite: this.plugin.settings.previewBeforeWrite === true,
+        processingDepth: this.plugin.settings.defaultProcessingDepth,
+        contentType: this.plugin.settings.defaultContentType,
+        autoRoute: this.plugin.settings.autoRouteContent,
+        attentionAssessment: this.plugin.settings.attentionAssessmentEnabled,
+        generateLearning: this.plugin.settings.generateLearningArtifacts
+      }),
+      registerPanelCleanup: (cleanup) => {
+        this.panelCleanup.push(cleanup);
+      }
     };
   }
   renderAll() {
@@ -9209,6 +11236,7 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
     const panel = this.panelEl;
     if (!panel) return;
     const scrollTop = panel.scrollTop;
+    this.cleanupPanelResources();
     disconnectLibraryCoverObserver();
     panel.empty();
     this.headerEl?.toggleAttribute(
@@ -9252,14 +11280,23 @@ var VideoSummaryView = class extends import_obsidian11.ItemView {
   }
   openNote(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian11.TFile) {
+    if (file instanceof import_obsidian12.TFile) {
       void this.app.workspace.getLeaf(false).openFile(file);
     }
+  }
+  cleanupPanelResources() {
+    this.panelCleanup.splice(0).forEach((cleanup) => {
+      try {
+        cleanup();
+      } catch (error) {
+        console.error("[VideoSummaryView] panel cleanup failed", error);
+      }
+    });
   }
 };
 
 // utils/FileProcessor.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var FileProcessor = class {
   constructor(app, plugin) {
     this.app = app;
@@ -9274,12 +11311,12 @@ var FileProcessor = class {
       await leaf.openFile(file);
       setTimeout(() => {
         const view = leaf.view;
-        if (view instanceof import_obsidian12.MarkdownView) {
+        if (view instanceof import_obsidian13.MarkdownView) {
           new VideoSummaryModal(this.app, this.plugin, view.editor, view).open();
         }
       }, 100);
     } catch (error) {
-      new import_obsidian12.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${error.message}`);
+      new import_obsidian13.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${error.message}`);
     }
   }
   /**
@@ -9576,7 +11613,7 @@ var JobStore = class {
 };
 
 // core/JobService.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // core/NoteFactory.ts
 var NoteFactory = class {
@@ -9638,32 +11675,25 @@ var NoteFactory = class {
     const baseTitle = entry.result.video_title || (entry.input.url ? titleForUrl(entry.input.url) : "Webhook\u7ED3\u679C");
     const fileName = `${sanitizeFileName(baseTitle)}_${entry.timestamp}`;
     const filePath = await this.uniquePath(folder, fileName);
-    const fm = ["---"];
-    fm.push("video_summary: true");
-    fm.push("source_type: video");
-    fm.push("video_summary_status: success");
-    fm.push(`status: ${yamlEscape(options.successStatusValue || "success")}`);
-    if (entry.input.url) fm.push(`link: ${yamlEscape(entry.input.url)}`);
-    if (entry.result.video_title) fm.push(`video_title: ${yamlEscape(entry.result.video_title)}`);
-    if (entry.result.video_author)
-      fm.push(`video_author: ${yamlEscape(entry.result.video_author)}`);
-    if (entry.result.video_duration)
-      fm.push(`video_duration: ${yamlEscape(entry.result.video_duration)}`);
-    if (entry.result.video_cover) fm.push(`video_cover: ${yamlEscape(entry.result.video_cover)}`);
-    fm.push(`date: ${new Date(entry.timestamp).toISOString()}`);
-    if (entry.result.summary) {
-      fm.push("summary: |");
-      fm.push(`  ${entry.result.summary.replace(/\n/g, "\n  ")}`);
-    }
-    if (entry.result.video_transcript) {
-      fm.push("video_transcript: |");
-      fm.push(`  ${entry.result.video_transcript.replace(/\n/g, "\n  ")}`);
-    }
-    fm.push("---\n");
+    const fm = {
+      video_summary: true,
+      source_type: "video",
+      video_summary_status: "success",
+      status: options.successStatusValue || "success",
+      date: new Date(entry.timestamp).toISOString(),
+      ...buildRichFrontmatterFields(entry.result)
+    };
+    if (entry.input.url) fm.link = entry.input.url;
+    const frontmatter = serializeScalarFrontmatter(fm);
+    const body = writeManagedKnowledgeMarkdown("", entry.result, entry.input.url).trim();
     try {
       return await this.app.vault.create(
         filePath,
-        `${fm.join("\n")}${entry.result.note?.trim() ?? ""}`
+        `---
+${frontmatter}
+---
+${body ? `${body}
+` : ""}`
       );
     } catch (error) {
       console.error("[NoteFactory] \u4ECE\u7ED3\u679C\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25", error);
@@ -9709,6 +11739,15 @@ function buildInsertionContent(result) {
   }
   if (result.video_transcript) {
     lines.push("", "### \u6587\u7A3F", result.video_transcript);
+  }
+  if (result.video_segments?.length || result.evidence_claims?.length) {
+    lines.push("", renderEvidenceMarkdown(result, result.artifact?.source_url));
+  }
+  if (result.attention) {
+    lines.push("", renderAttentionMarkdown(result, result.artifact?.source_url));
+  }
+  if (result.learning) {
+    lines.push("", renderLearningMarkdown(result));
   }
   lines.push("---");
   return lines.join("\n");
@@ -9757,6 +11796,791 @@ function formatDateTime(date) {
   )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
+// core/ArtifactStore.ts
+var VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION = 3;
+var ARTIFACT_FILE_SUFFIX = ".json";
+var SAFE_ARTIFACT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
+var HASH_VALUE = /^[a-f0-9]{8,128}$/;
+var TIMING_QUALITY2 = /* @__PURE__ */ new Set(["exact", "aligned", "estimated", "none"]);
+var ArtifactValidationError = class extends Error {
+  constructor(issues) {
+    super(
+      `Video knowledge artifact validation failed: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ")}`
+    );
+    this.name = "ArtifactValidationError";
+    this.issues = issues;
+  }
+};
+var ArtifactNotFoundError = class extends Error {
+  constructor(artifactId) {
+    super(`Video knowledge artifact not found: ${artifactId}`);
+    this.name = "ArtifactNotFoundError";
+  }
+};
+var ArtifactStore = class {
+  constructor(adapter, rootPath, options = {}) {
+    this.locks = /* @__PURE__ */ new Map();
+    this.tempSequence = 0;
+    this.adapter = adapter;
+    this.rootPath = normalizeAdapterPath(rootPath);
+    if (!this.rootPath) {
+      throw new Error("ArtifactStore rootPath must not be empty");
+    }
+    this.migrateOnLoad = options.migrateOnLoad !== false;
+    this.now = options.now || (() => /* @__PURE__ */ new Date());
+  }
+  /**
+   * Save an artifact after canonicalizing its source identity, hashes and id.
+   * The input object is never mutated.
+   */
+  async save(input) {
+    const normalized = await normalizeForSave(input, this.now());
+    validateVideoKnowledgeArtifact(normalized);
+    const path = this.pathFor(normalized.artifact_id);
+    return this.withLock(path, async () => {
+      await this.ensureRoot();
+      await this.atomicWrite(path, serializeArtifact(normalized));
+      return cloneArtifact(normalized);
+    });
+  }
+  /**
+   * Load one artifact. Old schemas are migrated and, by default, rewritten to
+   * the canonical current id only after the new sidecar has been saved safely.
+   */
+  async load(artifactId) {
+    assertArtifactId(artifactId);
+    const originalPath = this.pathFor(artifactId);
+    if (!await this.adapter.exists(originalPath)) {
+      throw new ArtifactNotFoundError(artifactId);
+    }
+    return this.withLock(originalPath, async () => {
+      const raw = await this.readJson(originalPath);
+      const migration = await migrateVideoKnowledgeArtifact(raw, this.now());
+      validateVideoKnowledgeArtifact(migration.artifact);
+      if (this.migrateOnLoad && migration.changed) {
+        const targetPath = this.pathFor(migration.artifact.artifact_id);
+        await this.ensureRoot();
+        await this.atomicWrite(targetPath, serializeArtifact(migration.artifact));
+        if (targetPath !== originalPath && await this.adapter.exists(originalPath)) {
+          await this.adapter.remove(originalPath);
+        }
+      }
+      return cloneArtifact(migration.artifact);
+    });
+  }
+  /**
+   * List valid artifacts, most recently updated first. Temporary files and
+   * unrelated JSON files are ignored.
+   */
+  async list(options = {}) {
+    if (!await this.adapter.exists(this.rootPath)) return [];
+    const listing = await this.adapter.list(this.rootPath);
+    const artifactIds = artifactIdsFromListing(listing, this.rootPath);
+    const artifacts = [];
+    for (const artifactId of artifactIds) {
+      try {
+        artifacts.push(await this.load(artifactId));
+      } catch (error) {
+        if (options.strict) throw error;
+        console.warn(`[ArtifactStore] \u8DF3\u8FC7\u635F\u574F\u7684\u5DE5\u4EF6 ${artifactId}`, error);
+      }
+    }
+    return artifacts.sort((left, right) => {
+      const byTime = Date.parse(right.updated_at) - Date.parse(left.updated_at);
+      return byTime || left.artifact_id.localeCompare(right.artifact_id);
+    });
+  }
+  /**
+   * Atomically replace or transform user highlights while preserving every
+   * other field written by a newer processor. Highlight ids and segment
+   * references are validated before the write commits.
+   */
+  async updateHighlights(artifactId, updater) {
+    assertArtifactId(artifactId);
+    const path = this.pathFor(artifactId);
+    return this.withLock(path, async () => {
+      if (!await this.adapter.exists(path)) {
+        throw new ArtifactNotFoundError(artifactId);
+      }
+      const loaded = await this.loadUnlocked(path);
+      const canonicalPath = this.pathFor(loaded.artifact_id);
+      if (canonicalPath !== path) {
+        return this.updateHighlights(loaded.artifact_id, updater);
+      }
+      let updated;
+      const apply = (currentText) => {
+        const current = parseCurrentArtifact(currentText);
+        const requested = typeof updater === "function" ? updater(cloneHighlights(current.highlights)) : updater;
+        const highlights = normalizeHighlights(requested);
+        assertHighlightReferences(highlights, current);
+        updated = {
+          ...current,
+          highlights,
+          updated_at: this.now().toISOString()
+        };
+        validateVideoKnowledgeArtifact(updated);
+        return serializeArtifact(updated);
+      };
+      if (this.adapter.process) {
+        await this.adapter.process(path, apply);
+      } else {
+        const currentText = await this.adapter.read(path);
+        await this.atomicWrite(path, apply(currentText));
+      }
+      if (!updated) {
+        throw new Error(`Artifact highlight update did not produce a result: ${artifactId}`);
+      }
+      return cloneArtifact(updated);
+    });
+  }
+  /**
+   * Compute the canonical source hash used by artifact ids. The hash describes
+   * source identity, not the generated summary, so it survives reprocessing.
+   */
+  static sourceHash(source) {
+    return stableSourceHash(source);
+  }
+  static artifactId(sourceHash) {
+    return stableArtifactId(sourceHash);
+  }
+  async loadUnlocked(path) {
+    const raw = await this.readJson(path);
+    const migration = await migrateVideoKnowledgeArtifact(raw, this.now());
+    validateVideoKnowledgeArtifact(migration.artifact);
+    if (!this.migrateOnLoad || !migration.changed) return migration.artifact;
+    const targetPath = this.pathFor(migration.artifact.artifact_id);
+    await this.atomicWrite(targetPath, serializeArtifact(migration.artifact));
+    if (targetPath !== path && await this.adapter.exists(path)) {
+      await this.adapter.remove(path);
+    }
+    return migration.artifact;
+  }
+  async readJson(path) {
+    const text = await this.adapter.read(path);
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      throw new ArtifactValidationError([
+        {
+          path: "$",
+          message: `invalid JSON (${error instanceof Error ? error.message : String(error)})`
+        }
+      ]);
+    }
+  }
+  pathFor(artifactId) {
+    assertArtifactId(artifactId);
+    return `${this.rootPath}/${artifactId}${ARTIFACT_FILE_SUFFIX}`;
+  }
+  async ensureRoot() {
+    const parts = this.rootPath.split("/").filter(Boolean);
+    let current = "";
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (!await this.adapter.exists(current)) {
+        try {
+          await this.adapter.mkdir(current);
+        } catch (error) {
+          if (!await this.adapter.exists(current)) throw error;
+        }
+      }
+    }
+  }
+  async atomicWrite(path, data) {
+    if (await this.adapter.exists(path)) {
+      if (this.adapter.process) {
+        await this.adapter.process(path, () => data);
+        return;
+      }
+      await this.replaceWithRename(path, data);
+      return;
+    }
+    const tempPath = this.tempPath(path);
+    try {
+      await this.adapter.write(tempPath, data);
+      await this.adapter.rename(tempPath, path);
+    } catch (error) {
+      await this.removeIfExists(tempPath);
+      if (await this.adapter.exists(path)) {
+        if (this.adapter.process) {
+          await this.adapter.process(path, () => data);
+          return;
+        }
+        await this.replaceWithRename(path, data);
+        return;
+      }
+      throw error;
+    }
+  }
+  async replaceWithRename(path, data) {
+    const tempPath = this.tempPath(path);
+    const backupPath = `${path}.bak`;
+    await this.removeIfExists(tempPath);
+    await this.removeIfExists(backupPath);
+    await this.adapter.write(tempPath, data);
+    let backedUp = false;
+    try {
+      if (await this.adapter.exists(path)) {
+        await this.adapter.rename(path, backupPath);
+        backedUp = true;
+      }
+      await this.adapter.rename(tempPath, path);
+      if (backedUp) await this.removeIfExists(backupPath);
+    } catch (error) {
+      await this.removeIfExists(tempPath);
+      if (backedUp && !await this.adapter.exists(path) && await this.adapter.exists(backupPath)) {
+        await this.adapter.rename(backupPath, path);
+      }
+      throw error;
+    }
+  }
+  tempPath(path) {
+    this.tempSequence += 1;
+    return `${path}.tmp-${Date.now().toString(36)}-${this.tempSequence.toString(36)}`;
+  }
+  async removeIfExists(path) {
+    if (await this.adapter.exists(path)) await this.adapter.remove(path);
+  }
+  async withLock(key, operation) {
+    const previous = this.locks.get(key) || Promise.resolve();
+    const current = previous.catch(() => void 0).then(operation);
+    this.locks.set(key, current);
+    try {
+      return await current;
+    } finally {
+      if (this.locks.get(key) === current) this.locks.delete(key);
+    }
+  }
+};
+async function stableSourceHash(source) {
+  const identity = canonicalSourceIdentity(source);
+  if (!identity) {
+    const existing = String(source?.source_hash || "").trim().toLowerCase();
+    if (HASH_VALUE.test(existing)) return existing;
+    throw new ArtifactValidationError([
+      {
+        path: "$.source",
+        message: "requires url, local_file, note_path, or an existing source_hash"
+      }
+    ]);
+  }
+  return sha256Hex2(identity);
+}
+function stableArtifactId(sourceHash) {
+  const normalized = String(sourceHash || "").trim().toLowerCase();
+  if (!HASH_VALUE.test(normalized)) {
+    throw new ArtifactValidationError([
+      { path: "$.source.source_hash", message: "must be a lowercase hexadecimal hash" }
+    ]);
+  }
+  return `vka-${normalized.slice(0, 32)}`;
+}
+function canonicalSourceIdentity(source) {
+  if (!source) return "";
+  const url = String(source.url || "").trim();
+  if (url) return canonicalUrlIdentity(url);
+  const localFile = normalizeLocalPath2(String(source.local_file || ""));
+  if (localFile) return `local:${localFile}`;
+  const notePath = normalizeLocalPath2(String(source.note_path || ""));
+  if (notePath) return `note:${notePath}`;
+  return "";
+}
+async function sha256Hex2(value) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error("Web Crypto SHA-256 is unavailable in this Obsidian runtime");
+  }
+  const bytes = new TextEncoder().encode(value);
+  const digest = await subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+async function migrateVideoKnowledgeArtifact(raw, now = /* @__PURE__ */ new Date()) {
+  if (!isRecord(raw)) {
+    throw new ArtifactValidationError([{ path: "$", message: "must be an object" }]);
+  }
+  const original = JSON.stringify(raw);
+  const detectedVersion = detectSchemaVersion(raw);
+  if (detectedVersion > VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION) {
+    throw new ArtifactValidationError([
+      {
+        path: "$.schema_version",
+        message: `unsupported future schema ${detectedVersion}`
+      }
+    ]);
+  }
+  let working = { ...raw };
+  if (detectedVersion <= 1) working = migrateV1ToV2(working);
+  if (detectedVersion <= 2) working = migrateV2ToV3(working);
+  const sourceRaw = isRecord(working.source) ? working.source : {
+    url: readString3(working.source_url),
+    local_file: readString3(working.local_file),
+    note_path: readString3(working.note_path),
+    source_hash: readString3(working.source_hash)
+  };
+  const source = {
+    url: readOptionalString(sourceRaw.url),
+    local_file: readOptionalString(sourceRaw.local_file),
+    note_path: readOptionalString(sourceRaw.note_path),
+    source_hash: await stableSourceHash({
+      url: readOptionalString(sourceRaw.url),
+      local_file: readOptionalString(sourceRaw.local_file),
+      note_path: readOptionalString(sourceRaw.note_path),
+      source_hash: readString3(sourceRaw.source_hash)
+    })
+  };
+  const artifactId = stableArtifactId(source.source_hash);
+  const createdAt = validIso(working.created_at) || now.toISOString();
+  const updatedAt = validIso(working.updated_at) || createdAt;
+  const provenanceRaw = isRecord(working.provenance) ? working.provenance : isRecord(working.artifact) ? working.artifact : {};
+  const transcript = readOptionalString(working.transcript);
+  const transcriptHash = transcript && transcript.length > 0 ? await sha256Hex2(normalizeTranscriptForHash(transcript)) : readOptionalString(provenanceRaw.transcript_hash);
+  const artifact = {
+    schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+    artifact_id: artifactId,
+    source,
+    title: readOptionalString(working.title),
+    author: readOptionalString(working.author),
+    platform: readOptionalString(working.platform),
+    duration: readOptionalString(working.duration),
+    cover: readOptionalString(working.cover),
+    content_type: working.content_type,
+    timing_quality: normalizeTimingQuality2(working.timing_quality),
+    transcript,
+    segments: arrayOrEmpty(working.segments),
+    claims: arrayOrEmpty(working.claims),
+    visual_evidence: arrayOrEmpty(
+      working.visual_evidence
+    ),
+    attention: isRecord(working.attention) ? working.attention : void 0,
+    learning: isRecord(working.learning) ? working.learning : void 0,
+    related_notes: arrayOrEmpty(working.related_notes),
+    highlights: normalizeHighlights(
+      arrayOrEmpty(working.highlights)
+    ),
+    course_ids: uniqueStrings(working.course_ids),
+    provenance: {
+      ...provenanceRaw,
+      schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+      artifact_id: artifactId,
+      source_url: source.url,
+      source_hash: source.source_hash,
+      transcript_hash: transcriptHash,
+      generated_at: validIso(provenanceRaw.generated_at) || createdAt
+    },
+    created_at: createdAt,
+    updated_at: updatedAt
+  };
+  stripUndefined(artifact);
+  const changed = original !== JSON.stringify(artifact);
+  return {
+    artifact,
+    migratedFrom: detectedVersion < VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION ? detectedVersion : void 0,
+    changed
+  };
+}
+function validateVideoKnowledgeArtifact(value) {
+  const issues = [];
+  if (!isRecord(value)) {
+    throw new ArtifactValidationError([{ path: "$", message: "must be an object" }]);
+  }
+  requireEqual(
+    issues,
+    "$.schema_version",
+    value.schema_version,
+    VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION
+  );
+  requireString(issues, "$.artifact_id", value.artifact_id, SAFE_ARTIFACT_ID);
+  requireRecord(issues, "$.source", value.source);
+  if (isRecord(value.source)) {
+    requireString(issues, "$.source.source_hash", value.source.source_hash, HASH_VALUE);
+    if (!canonicalSourceIdentity(value.source) && !HASH_VALUE.test(readString3(value.source.source_hash))) {
+      issues.push({
+        path: "$.source",
+        message: "requires a source locator or valid source_hash"
+      });
+    }
+  }
+  requireString(issues, "$.timing_quality", value.timing_quality);
+  if (typeof value.timing_quality === "string" && !TIMING_QUALITY2.has(value.timing_quality)) {
+    issues.push({ path: "$.timing_quality", message: "has an unsupported value" });
+  }
+  requireIso(issues, "$.created_at", value.created_at);
+  requireIso(issues, "$.updated_at", value.updated_at);
+  requireArray(issues, "$.segments", value.segments);
+  requireArray(issues, "$.claims", value.claims);
+  requireArray(issues, "$.visual_evidence", value.visual_evidence);
+  requireArray(issues, "$.related_notes", value.related_notes);
+  requireArray(issues, "$.highlights", value.highlights);
+  requireArray(issues, "$.course_ids", value.course_ids);
+  requireRecord(issues, "$.provenance", value.provenance);
+  const segmentIds = validateSegments(issues, value.segments);
+  validateClaims(issues, value.claims, segmentIds);
+  validateVisualEvidence(issues, value.visual_evidence);
+  validateHighlights(issues, value.highlights, segmentIds);
+  validateStringArray(issues, "$.course_ids", value.course_ids);
+  if (isRecord(value.provenance)) {
+    requireEqual(
+      issues,
+      "$.provenance.schema_version",
+      value.provenance.schema_version,
+      VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION
+    );
+    if (typeof value.provenance.source_hash === "string" && isRecord(value.source) && value.provenance.source_hash !== value.source.source_hash) {
+      issues.push({
+        path: "$.provenance.source_hash",
+        message: "must match source.source_hash"
+      });
+    }
+  }
+  if (issues.length > 0) throw new ArtifactValidationError(issues);
+}
+async function normalizeForSave(input, now) {
+  const migration = await migrateVideoKnowledgeArtifact(cloneArtifact(input), now);
+  const artifact = migration.artifact;
+  artifact.updated_at = now.toISOString();
+  if (!validIso(artifact.created_at)) artifact.created_at = artifact.updated_at;
+  if (artifact.transcript) {
+    artifact.provenance.transcript_hash = await sha256Hex2(
+      normalizeTranscriptForHash(artifact.transcript)
+    );
+  }
+  artifact.provenance.artifact_id = artifact.artifact_id;
+  artifact.provenance.source_hash = artifact.source.source_hash;
+  return artifact;
+}
+function migrateV1ToV2(raw) {
+  return {
+    ...raw,
+    schema_version: 2,
+    artifact_id: raw.artifact_id || raw.id,
+    source: isRecord(raw.source) ? raw.source : {
+      url: raw.source_url || raw.video_url || raw.link,
+      local_file: raw.local_file,
+      note_path: raw.note_path,
+      source_hash: raw.source_hash
+    },
+    transcript: raw.transcript || raw.video_transcript,
+    segments: raw.segments || raw.video_segments || raw.transcript_segments || [],
+    claims: raw.claims || raw.evidence_claims || [],
+    visual_evidence: raw.visual_evidence || raw.visual_observations || raw.keyframes || [],
+    related_notes: raw.related_notes || [],
+    highlights: raw.highlights || [],
+    course_ids: raw.course_ids || [],
+    provenance: raw.provenance || raw.artifact || {}
+  };
+}
+function migrateV2ToV3(raw) {
+  return {
+    ...raw,
+    schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+    timing_quality: raw.timing_quality || "none",
+    segments: raw.segments || [],
+    claims: raw.claims || [],
+    visual_evidence: raw.visual_evidence || [],
+    related_notes: raw.related_notes || [],
+    highlights: raw.highlights || [],
+    course_ids: raw.course_ids || [],
+    provenance: isRecord(raw.provenance) ? {
+      ...raw.provenance,
+      schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION
+    } : { schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION }
+  };
+}
+function parseCurrentArtifact(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new ArtifactValidationError([
+      {
+        path: "$",
+        message: `invalid JSON (${error instanceof Error ? error.message : String(error)})`
+      }
+    ]);
+  }
+  validateVideoKnowledgeArtifact(parsed);
+  return parsed;
+}
+function normalizeHighlights(highlights) {
+  const normalized = highlights.map((highlight) => ({
+    id: String(highlight?.id || "").trim(),
+    segment_id: String(highlight?.segment_id || "").trim(),
+    note: typeof highlight?.note === "string" && highlight.note.trim() ? highlight.note.trim() : void 0,
+    created_at: validIso(highlight?.created_at) || ""
+  }));
+  return normalized.sort((left, right) => {
+    const byDate = left.created_at.localeCompare(right.created_at);
+    return byDate || left.id.localeCompare(right.id);
+  });
+}
+function assertHighlightReferences(highlights, artifact) {
+  const issues = [];
+  validateHighlights(issues, highlights, new Set(artifact.segments.map((segment) => segment.id)));
+  if (issues.length > 0) throw new ArtifactValidationError(issues);
+}
+function validateSegments(issues, raw) {
+  const ids = /* @__PURE__ */ new Set();
+  if (!Array.isArray(raw)) return ids;
+  raw.forEach((segment, index) => {
+    const path = `$.segments[${index}]`;
+    if (!isRecord(segment)) {
+      issues.push({ path, message: "must be an object" });
+      return;
+    }
+    requireString(issues, `${path}.id`, segment.id);
+    requireString(issues, `${path}.text`, segment.text);
+    if (typeof segment.id === "string") {
+      if (ids.has(segment.id)) issues.push({ path: `${path}.id`, message: "must be unique" });
+      ids.add(segment.id);
+    }
+    if (segment.start !== null && !isNonNegativeNumber(segment.start)) {
+      issues.push({ path: `${path}.start`, message: "must be null or a non-negative number" });
+    }
+    if (segment.end !== void 0 && segment.end !== null && (!isNonNegativeNumber(segment.end) || typeof segment.start === "number" && segment.end < segment.start)) {
+      issues.push({ path: `${path}.end`, message: "must not precede start" });
+    }
+  });
+  return ids;
+}
+function validateClaims(issues, raw, segmentIds) {
+  if (!Array.isArray(raw)) return;
+  const ids = /* @__PURE__ */ new Set();
+  raw.forEach((claim, index) => {
+    const path = `$.claims[${index}]`;
+    if (!isRecord(claim)) {
+      issues.push({ path, message: "must be an object" });
+      return;
+    }
+    requireString(issues, `${path}.id`, claim.id);
+    requireString(issues, `${path}.claim`, claim.claim);
+    requireArray(issues, `${path}.evidence`, claim.evidence);
+    if (typeof claim.id === "string") {
+      if (ids.has(claim.id)) issues.push({ path: `${path}.id`, message: "must be unique" });
+      ids.add(claim.id);
+    }
+    if (Array.isArray(claim.evidence)) {
+      claim.evidence.forEach((reference, evidenceIndex) => {
+        const evidencePath = `${path}.evidence[${evidenceIndex}]`;
+        if (!isRecord(reference)) {
+          issues.push({ path: evidencePath, message: "must be an object" });
+          return;
+        }
+        requireString(issues, `${evidencePath}.segment_id`, reference.segment_id);
+        if (typeof reference.segment_id === "string" && !segmentIds.has(reference.segment_id)) {
+          issues.push({
+            path: `${evidencePath}.segment_id`,
+            message: "must reference an existing segment"
+          });
+        }
+      });
+    }
+  });
+}
+function validateVisualEvidence(issues, raw) {
+  if (!Array.isArray(raw)) return;
+  const ids = /* @__PURE__ */ new Set();
+  raw.forEach((item, index) => {
+    const path = `$.visual_evidence[${index}]`;
+    if (!isRecord(item)) {
+      issues.push({ path, message: "must be an object" });
+      return;
+    }
+    requireString(issues, `${path}.id`, item.id);
+    requireString(issues, `${path}.description`, item.description);
+    if (!isNonNegativeNumber(item.start)) {
+      issues.push({ path: `${path}.start`, message: "must be a non-negative number" });
+    }
+    if (typeof item.id === "string") {
+      if (ids.has(item.id)) issues.push({ path: `${path}.id`, message: "must be unique" });
+      ids.add(item.id);
+    }
+  });
+}
+function validateHighlights(issues, raw, segmentIds) {
+  if (!Array.isArray(raw)) return;
+  const ids = /* @__PURE__ */ new Set();
+  raw.forEach((highlight, index) => {
+    const path = `$.highlights[${index}]`;
+    if (!isRecord(highlight)) {
+      issues.push({ path, message: "must be an object" });
+      return;
+    }
+    requireString(issues, `${path}.id`, highlight.id);
+    requireString(issues, `${path}.segment_id`, highlight.segment_id);
+    requireIso(issues, `${path}.created_at`, highlight.created_at);
+    if (typeof highlight.id === "string") {
+      if (ids.has(highlight.id)) issues.push({ path: `${path}.id`, message: "must be unique" });
+      ids.add(highlight.id);
+    }
+    if (typeof highlight.segment_id === "string" && !segmentIds.has(highlight.segment_id)) {
+      issues.push({
+        path: `${path}.segment_id`,
+        message: "must reference an existing segment"
+      });
+    }
+  });
+}
+function validateStringArray(issues, path, raw) {
+  if (!Array.isArray(raw)) return;
+  const values = /* @__PURE__ */ new Set();
+  raw.forEach((item, index) => {
+    if (typeof item !== "string" || !item.trim()) {
+      issues.push({ path: `${path}[${index}]`, message: "must be a non-empty string" });
+      return;
+    }
+    if (values.has(item)) {
+      issues.push({ path: `${path}[${index}]`, message: "must be unique" });
+    }
+    values.add(item);
+  });
+}
+function canonicalUrlIdentity(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const youtubeId = youtubeVideoId(url, host);
+    if (youtubeId) return `youtube:${youtubeId}`;
+    const bilibili = bilibiliVideoId(url, host);
+    if (bilibili) return bilibili;
+    url.protocol = url.protocol.toLowerCase();
+    url.hostname = host;
+    url.hash = "";
+    const kept = Array.from(url.searchParams.entries()).filter(([key]) => !isTrackingParameter(key)).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      const byKey = leftKey.localeCompare(rightKey);
+      return byKey || leftValue.localeCompare(rightValue);
+    });
+    url.search = "";
+    for (const [key, item] of kept) url.searchParams.append(key, item);
+    url.pathname = url.pathname.replace(/\/{2,}/g, "/").replace(/\/$/, "") || "/";
+    return `url:${url.toString()}`;
+  } catch {
+    return `url:${value.trim()}`;
+  }
+}
+function youtubeVideoId(url, host) {
+  let candidate = "";
+  if (host === "youtu.be") {
+    candidate = url.pathname.split("/").filter(Boolean)[0] || "";
+  } else if (host === "youtube.com" || host === "m.youtube.com") {
+    candidate = url.searchParams.get("v") || "";
+    if (!candidate) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (["embed", "shorts", "live"].includes(parts[0])) candidate = parts[1] || "";
+    }
+  }
+  return /^[A-Za-z0-9_-]{6,20}$/.test(candidate) ? candidate : void 0;
+}
+function bilibiliVideoId(url, host) {
+  if (host !== "bilibili.com" && !host.endsWith(".bilibili.com")) return void 0;
+  const candidate = url.searchParams.get("bvid") || url.pathname.match(/\/video\/(BV[0-9A-Za-z]{10})(?:\/|$)/i)?.[1] || "";
+  if (!/^BV[0-9A-Za-z]{10}$/i.test(candidate)) return void 0;
+  const normalized = `BV${candidate.slice(2)}`;
+  const part = Number(url.searchParams.get("p") || 1);
+  return `bilibili:${normalized}:p${Number.isInteger(part) && part > 0 ? part : 1}`;
+}
+function isTrackingParameter(key) {
+  const normalized = key.toLowerCase();
+  return normalized.startsWith("utm_") || ["fbclid", "gclid", "spm_id_from", "share_source", "share_medium", "feature"].includes(
+    normalized
+  );
+}
+function normalizeLocalPath2(value) {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/\/\.\//g, "/").replace(/\/$/, "");
+  return normalized.replace(/^([A-Z]):/, (_match, drive) => `${drive.toLowerCase()}:`);
+}
+function normalizeAdapterPath(value) {
+  return value.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
+}
+function normalizeTranscriptForHash(value) {
+  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/[ \t]+\n/g, "\n").trim();
+}
+function artifactIdsFromListing(listing, rootPath) {
+  const prefix = `${rootPath}/`;
+  return listing.files.filter((path) => path.startsWith(prefix) && path.endsWith(ARTIFACT_FILE_SUFFIX)).map((path) => path.slice(prefix.length, -ARTIFACT_FILE_SUFFIX.length)).filter((id) => SAFE_ARTIFACT_ID.test(id)).sort();
+}
+function detectSchemaVersion(raw) {
+  const value = Number(raw.schema_version);
+  if (!Number.isFinite(value) || value < 1) return 1;
+  return Math.floor(value);
+}
+function normalizeTimingQuality2(raw) {
+  return typeof raw === "string" && TIMING_QUALITY2.has(raw) ? raw : "none";
+}
+function serializeArtifact(artifact) {
+  return `${JSON.stringify(artifact, null, 2)}
+`;
+}
+function cloneArtifact(artifact) {
+  return JSON.parse(JSON.stringify(artifact));
+}
+function cloneHighlights(highlights) {
+  return JSON.parse(JSON.stringify(highlights));
+}
+function stripUndefined(value) {
+  if (!isRecord(value)) return;
+  for (const [key, item] of Object.entries(value)) {
+    if (item === void 0) {
+      delete value[key];
+    } else if (isRecord(item)) {
+      stripUndefined(item);
+    }
+  }
+}
+function uniqueStrings(raw) {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(new Set(raw.map((item) => String(item || "").trim()).filter(Boolean))).sort();
+}
+function arrayOrEmpty(raw) {
+  return Array.isArray(raw) ? raw : [];
+}
+function validIso(raw) {
+  if (typeof raw !== "string" || !raw.trim() || !Number.isFinite(Date.parse(raw))) {
+    return void 0;
+  }
+  return new Date(raw).toISOString();
+}
+function readOptionalString(raw) {
+  return typeof raw === "string" && raw.trim() ? raw.trim() : void 0;
+}
+function readString3(raw) {
+  return typeof raw === "string" ? raw.trim() : "";
+}
+function assertArtifactId(artifactId) {
+  if (!SAFE_ARTIFACT_ID.test(artifactId)) {
+    throw new ArtifactValidationError([
+      {
+        path: "$.artifact_id",
+        message: "contains unsupported characters or has an invalid length"
+      }
+    ]);
+  }
+}
+function requireRecord(issues, path, raw) {
+  if (!isRecord(raw)) issues.push({ path, message: "must be an object" });
+}
+function requireArray(issues, path, raw) {
+  if (!Array.isArray(raw)) issues.push({ path, message: "must be an array" });
+}
+function requireString(issues, path, raw, pattern) {
+  if (typeof raw !== "string" || !raw.trim()) {
+    issues.push({ path, message: "must be a non-empty string" });
+    return;
+  }
+  if (pattern && !pattern.test(raw)) issues.push({ path, message: "has an invalid format" });
+}
+function requireIso(issues, path, raw) {
+  if (!validIso(raw)) issues.push({ path, message: "must be an ISO date-time string" });
+}
+function requireEqual(issues, path, actual, expected) {
+  if (actual !== expected) issues.push({ path, message: `must equal ${String(expected)}` });
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isNonNegativeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 // core/JobService.ts
 var JobService = class {
   constructor(plugin, store) {
@@ -9777,7 +12601,7 @@ var JobService = class {
     }
     if (runnableDrafts.length === 0) return jsonDrafts.length;
     if (!await this.plugin.ensureBackendReady()) {
-      new import_obsidian13.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
+      new import_obsidian14.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
       return jsonDrafts.length;
     }
     let queued = 0;
@@ -9787,12 +12611,12 @@ var JobService = class {
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       });
       if (!file) {
-        new import_obsidian13.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
+        new import_obsidian14.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
         continue;
       }
       this.store.enqueue({
         title: draft.title,
-        input: draft.input,
+        input: withAnalysisOptions(draft.input, options),
         mode: options.mode,
         language: options.language,
         useCache: options.useCache,
@@ -9809,13 +12633,13 @@ var JobService = class {
     const content = await this.plugin.app.vault.read(file);
     const input = this.noteProcessor.buildVideoInput(content);
     if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
-      new import_obsidian13.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
+      new import_obsidian14.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
       return null;
     }
     if (!await this.plugin.ensureBackendReady()) return null;
     return this.store.enqueue({
       title: file.basename,
-      input,
+      input: withAnalysisOptions(input, options),
       mode: options.mode,
       language: options.language,
       useCache: options.useCache,
@@ -9838,7 +12662,7 @@ var JobService = class {
     if (!job.result) return false;
     const file = this.fileFor(job);
     if (!file) {
-      new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+      new import_obsidian14.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
       return false;
     }
     try {
@@ -9851,7 +12675,7 @@ var JobService = class {
       });
       return true;
     } catch (error) {
-      new import_obsidian13.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf(error)}`);
+      new import_obsidian14.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf(error)}`);
       return false;
     }
   }
@@ -9865,21 +12689,21 @@ var JobService = class {
   async applyToActiveNote(result, mode) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian14.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
       return;
     }
     try {
       await this.applyResult(activeFile, result, mode);
-      new import_obsidian13.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
+      new import_obsidian14.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
     } catch (error) {
-      new import_obsidian13.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf(error)}`);
+      new import_obsidian14.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf(error)}`);
     }
   }
   /** 把结果插到当前打开的笔记末尾 */
   async insertIntoActiveNote(result) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian14.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
       return;
     }
     const content = await this.plugin.app.vault.read(activeFile);
@@ -9889,7 +12713,7 @@ var JobService = class {
 
 ${buildInsertionContent(result)}`
     );
-    new import_obsidian13.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
+    new import_obsidian14.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
   }
   /** 用结果新建一篇笔记 */
   async createNoteFromResult(job) {
@@ -9907,7 +12731,7 @@ ${buildInsertionContent(result)}`
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       }
     );
-    if (file) new import_obsidian13.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
+    if (file) new import_obsidian14.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
   }
   async createNoteFromJson(jsonText, language) {
     try {
@@ -9926,10 +12750,17 @@ ${buildInsertionContent(result)}`
           successStatusValue: this.plugin.settings.successStatusValue ?? "success"
         }
       );
-      if (file) new import_obsidian13.Notice(`\u5DF2\u6839\u636E JSON \u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
+      if (file) new import_obsidian14.Notice(`\u5DF2\u6839\u636E JSON \u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
     } catch (error) {
-      new import_obsidian13.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf(error)}`);
+      new import_obsidian14.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf(error)}`);
     }
+  }
+  /**
+   * 兼容仍保留专用交互的命令入口。它们可以继续自行控制提示/重命名，
+   * 但机器可读工件必须与任务队列走同一份持久化逻辑。
+   */
+  async persistExternalResult(context, result) {
+    await this.persistArtifact(context, result);
   }
   async runJob(job, report) {
     const file = this.fileFor(job);
@@ -9946,6 +12777,7 @@ ${buildInsertionContent(result)}`
         job.useCache,
         report
       );
+      await this.persistArtifact(job, result);
       if (job.awaitingWrite) {
         return result;
       }
@@ -9982,10 +12814,74 @@ ${buildInsertionContent(result)}`
       this.plugin.settings.successStatusValue ?? "success"
     );
   }
+  async persistArtifact(job, result) {
+    const source = {
+      url: result.artifact?.source_url || job.input.url,
+      local_file: job.input.localFile,
+      note_path: job.notePath,
+      source_hash: ""
+    };
+    const sourceHash = await ArtifactStore.sourceHash(source);
+    const artifactId = ArtifactStore.artifactId(sourceHash);
+    let previous;
+    try {
+      previous = await this.plugin.artifactStore.load(artifactId);
+    } catch (error) {
+      if (!(error instanceof ArtifactNotFoundError)) throw error;
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const provenance = {
+      ...result.artifact || {},
+      schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+      artifact_id: artifactId,
+      source_url: job.input.url,
+      source_hash: sourceHash,
+      backend: this.plugin.settings.activeBackend,
+      model: this.plugin.settings.aiModel,
+      prompt_profile: job.input.contentType || this.plugin.settings.defaultContentType,
+      prompt_version: result.artifact?.prompt_version || "video-knowledge-v3",
+      processing_depth: job.input.processingDepth || this.plugin.settings.defaultProcessingDepth,
+      generated_at: result.artifact?.generated_at || now,
+      transcript_source: result.transcript_source || result.artifact?.transcript_source
+    };
+    const artifact = {
+      schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+      artifact_id: artifactId,
+      source: { ...source, source_hash: sourceHash },
+      title: result.video_title || job.title,
+      author: result.video_author,
+      platform: result.video_platform || job.platform,
+      duration: result.video_duration,
+      cover: result.video_cover,
+      content_type: result.content_type,
+      timing_quality: result.timing_quality || "none",
+      transcript: result.video_transcript,
+      segments: result.video_segments || [],
+      claims: result.evidence_claims || [],
+      visual_evidence: result.visual_evidence || [],
+      attention: result.attention,
+      learning: result.learning,
+      related_notes: result.related_notes || [],
+      highlights: previous?.highlights || [],
+      course_ids: previous?.course_ids || [],
+      provenance,
+      created_at: previous?.created_at || now,
+      updated_at: now
+    };
+    const saved = await this.plugin.artifactStore.save(artifact);
+    result.artifact = {
+      ...saved.provenance,
+      artifact_id: saved.artifact_id,
+      source_hash: saved.source.source_hash
+    };
+    result.timing_quality = saved.timing_quality;
+    job.input.artifactId = saved.artifact_id;
+    job.input.highlightedSegmentIds = saved.highlights.map((highlight) => highlight.segment_id);
+  }
   fileFor(job) {
     if (!job.notePath) return null;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    return file instanceof import_obsidian13.TFile ? file : null;
+    return file instanceof import_obsidian14.TFile ? file : null;
   }
 };
 function basenameOf(path) {
@@ -9995,10 +12891,20 @@ function basenameOf(path) {
 function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
+function withAnalysisOptions(input, options) {
+  return {
+    ...input,
+    processingDepth: input.processingDepth || options.processingDepth,
+    contentType: input.contentType || options.contentType,
+    autoRoute: input.autoRoute ?? options.autoRoute,
+    attentionAssessment: input.attentionAssessment ?? options.attentionAssessment,
+    generateLearning: input.generateLearning ?? options.generateLearning
+  };
+}
 
 // main.ts
-var import_obsidian15 = require("obsidian");
-var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
+var import_obsidian16 = require("obsidian");
+var VideoSummaryPlugin = class extends import_obsidian15.Plugin {
   constructor() {
     super(...arguments);
     // history.json 延迟写入
@@ -10012,6 +12918,11 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
     this.initializeApiInstance();
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = new NoteProcessor(this.app.vault);
+    const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    this.artifactStore = new ArtifactStore(
+      this.app.vault.adapter,
+      `${pluginDir}/data/knowledge-artifacts`
+    );
     this.jobs = new JobStore();
     this.jobService = new JobService(this, this.jobs);
     this.noteIndex = new NoteIndex(this.app);
@@ -10028,7 +12939,7 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
-        if (file instanceof import_obsidian14.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian15.TFile && file.extension === "md") {
           void this.noteIndex.refreshFile(file);
         }
       })
@@ -10136,7 +13047,7 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
   registerContextMenu() {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
-        if (file instanceof import_obsidian14.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian15.TFile && file.extension === "md") {
           menu.addItem((item) => {
             item.setTitle("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406").setIcon("video").onClick(async () => {
               await this.processFile(file);
@@ -10155,7 +13066,7 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian15.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -10163,19 +13074,19 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian15.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new import_obsidian14.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processCurrentNoteWithMode(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian15.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -10183,32 +13094,32 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian15.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian14.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async updateVideoInfoOnly(editor, view, forceRename) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian15.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
       const videoInput = this.noteProcessor.buildVideoInput(content);
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian15.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
-      const statusNotice = new import_obsidian14.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
+      const statusNotice = new import_obsidian15.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
       try {
         const result = await this.api.processVideo(
           file.basename,
@@ -10216,6 +13127,15 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
           "info-only",
           this.settings.defaultLanguage,
           this.settings.enableCache !== false
+        );
+        await this.jobService.persistExternalResult(
+          {
+            title: file.basename,
+            notePath: file.path,
+            input: videoInput,
+            platform: result.video_platform
+          },
+          result
         );
         await this.noteProcessor.updateNote(file, result, "info-only", {
           autoRename: forceRename,
@@ -10235,26 +13155,26 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
         setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian14.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async reprocessCurrentNote(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian15.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.processFile(file);
     } catch (error) {
-      new import_obsidian14.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async quickProcessCurrentNote(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian15.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -10262,14 +13182,14 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian14.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian15.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
         return;
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
-      const statusNotice = new import_obsidian14.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
+      const statusNotice = new import_obsidian15.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
       let isMerge = false;
       let localFiles = [];
       if (localFileName && localFileName.includes(",")) {
@@ -10280,6 +13200,7 @@ var VideoSummaryPlugin = class extends import_obsidian14.Plugin {
       }
       try {
         let result;
+        let artifactInput = {};
         if (isMerge) {
           const langText = requestLanguage === "zh" ? "\u4E2D\u6587" : requestLanguage === "en" ? "\u82F1\u6587" : "\u65E5\u6587";
           statusNotice.setMessage(`\u6B63\u5728\u5408\u5E76\u5904\u7406 ${localFiles.length} \u4E2A\u6587\u4EF6...`);
@@ -10309,8 +13230,11 @@ ${extractResult.video_transcript}
           statusNotice.setMessage(`\u6B63\u5728\u4EE5${langText}\u751F\u6210\u5408\u5E76\u603B\u7ED3...`);
           const mergedInput = {
             transcript: combinedTranscript,
-            url
+            url: url || void 0,
+            localFiles,
+            merge: true
           };
+          artifactInput = mergedInput;
           result = await RetryUtils.withSmartRetry(
             async () => {
               return await this.api.processVideo(
@@ -10332,6 +13256,7 @@ ${extractResult.video_transcript}
           if (url) input.url = url;
           if (providedTranscript) input.transcript = providedTranscript;
           if (localFileName) input.localFile = localFileName;
+          artifactInput = input;
           await this.noteProcessor.setProcessingStatus(file, "running");
           result = await RetryUtils.withSmartRetry(
             async () => {
@@ -10353,6 +13278,15 @@ ${extractResult.video_transcript}
             }
           );
         }
+        await this.jobService.persistExternalResult(
+          {
+            title: file.basename,
+            notePath: file.path,
+            input: artifactInput,
+            platform: result.video_platform
+          },
+          result
+        );
         await this.noteProcessor.updateNote(file, result, mode, {
           autoRename: this.settings.autoRenameEnabled,
           conflictStrategy: this.settings.renameConflictStrategy
@@ -10371,19 +13305,19 @@ ${extractResult.video_transcript}
         setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian14.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processFullTextAsTranscript(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian15.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new import_obsidian14.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
+        new import_obsidian15.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
         return;
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
@@ -10392,7 +13326,7 @@ ${extractResult.video_transcript}
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
-      const statusNotice = new import_obsidian14.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
+      const statusNotice = new import_obsidian15.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
       try {
         const input = {
           transcript: fullText
@@ -10415,6 +13349,15 @@ ${extractResult.video_transcript}
             statusNotice.setMessage(`\u91CD\u8BD5\u4E2D (${attempt}/2): ${error.message}`);
           }
         );
+        await this.jobService.persistExternalResult(
+          {
+            title: file.basename,
+            notePath: file.path,
+            input,
+            platform: result.video_platform
+          },
+          result
+        );
         await this.noteProcessor.updateNote(file, result, mode, {
           autoRename: true,
           conflictStrategy: this.settings.renameConflictStrategy
@@ -10433,7 +13376,7 @@ ${extractResult.video_transcript}
         setTimeout(() => statusNotice.hide(), 5e3);
       }
     } catch (error) {
-      new import_obsidian14.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processAllPendingVideos() {
@@ -10461,7 +13404,7 @@ ${extractResult.video_transcript}
         }
       }
       if (pendingFiles.length === 0) {
-        new import_obsidian14.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
+        new import_obsidian15.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
         return;
       }
       const confirmed = await this.showConfirmDialog(
@@ -10480,7 +13423,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       if (!await this.ensureBackendReady()) {
         return;
       }
-      const progressNotice = new import_obsidian14.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
+      const progressNotice = new import_obsidian15.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < pendingFiles.length; i++) {
@@ -10501,7 +13444,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       progressNotice.setMessage(`\u5B8C\u6210\uFF01\u6210\u529F: ${successCount}, \u5931\u8D25: ${errorCount}`);
       setTimeout(() => progressNotice.hide(), 3e3);
     } catch (error) {
-      new import_obsidian14.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async showConfirmDialog(title, message) {
@@ -10532,9 +13475,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new import_obsidian14.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
+      new import_obsidian15.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
     } catch (error) {
-      new import_obsidian14.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${error.message}`);
+      new import_obsidian15.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${error.message}`);
     }
   }
   async testProcessingBackendConnection() {
@@ -10542,14 +13485,14 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       const result = await this.api.testConnection();
       const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
       if (result.success) {
-        new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
+        new import_obsidian15.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
       } else {
         const hint = result.hint ? `
 \u5EFA\u8BAE: ${result.hint}` : "";
-        new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+        new import_obsidian15.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
       }
     } catch (error) {
-      new import_obsidian14.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
+      new import_obsidian15.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
     }
   }
   formatErrorForNotice(error) {
@@ -10592,12 +13535,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       if (confirmed) {
         await this.setActiveBackend(otherBackend);
         this.lastPreflight = null;
-        new import_obsidian14.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
+        new import_obsidian15.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
         return true;
       }
       return false;
     }
-    new import_obsidian14.Notice(
+    new import_obsidian15.Notice(
       `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
 \uFF08${otherLabel} \u4E5F\u672A\u68C0\u6D4B\u5230\uFF09\u8BF7\u5148\u542F\u52A8\u5904\u7406\u670D\u52A1\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5 URL\u3002`,
       8e3
@@ -10799,6 +13742,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     });
     this.api.setDebug(this.settings.enableDebugMode);
     this.api.setExpandShortLinks(this.settings.expandShortLinks !== false);
+    this.api.setAnalysisDefaults({
+      processingDepth: this.settings.defaultProcessingDepth,
+      contentType: this.settings.defaultContentType,
+      autoRoute: this.settings.autoRouteContent,
+      attentionAssessment: this.settings.attentionAssessmentEnabled,
+      generateLearning: this.settings.generateLearningArtifacts
+    });
     if (this.settings.enableCache !== false) {
       this.api.setCacheConfig(1e3, this.settings.cacheExpiryDays);
       this.api.setCacheEnabled(true);
@@ -10812,7 +13762,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   async setActiveWebhook(profileId, options = {}) {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new import_obsidian14.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 Webhook \u914D\u7F6E");
+      new import_obsidian15.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 Webhook \u914D\u7F6E");
       return null;
     }
     this.settings.activeWebhookId = profileId;
@@ -10821,7 +13771,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
-      new import_obsidian14.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
+      new import_obsidian15.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
     }
     return profile;
   }
@@ -10861,24 +13811,29 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       mode,
       language: this.settings.defaultLanguage,
       useCache: this.settings.enableCache !== false,
-      previewBeforeWrite: this.settings.previewBeforeWrite === true
+      previewBeforeWrite: this.settings.previewBeforeWrite === true,
+      processingDepth: this.settings.defaultProcessingDepth,
+      contentType: this.settings.defaultContentType,
+      autoRoute: this.settings.autoRouteContent,
+      attentionAssessment: this.settings.attentionAssessmentEnabled,
+      generateLearning: this.settings.generateLearningArtifacts
     });
     if (!job) return;
     const finished = await this.jobs.waitFor(job.id);
     if (!finished) return;
     if (finished.state === "error") {
-      new import_obsidian14.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
+      new import_obsidian15.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
       throw new Error(finished.error || "\u5904\u7406\u5931\u8D25");
     }
     if (finished.state === "cancelled") {
-      new import_obsidian14.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
+      new import_obsidian15.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
       return;
     }
     if (finished.state === "review") {
-      new import_obsidian14.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
+      new import_obsidian15.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
       return;
     }
-    new import_obsidian14.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
+    new import_obsidian15.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
   }
   /**
    * 刷新视频总结视图
@@ -10959,13 +13914,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian14.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian15.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "excluded");
-      new import_obsidian14.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
+      new import_obsidian15.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
     } catch (error) {
-      new import_obsidian14.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
+      new import_obsidian15.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
     }
   }
   /**
@@ -10984,12 +13939,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     try {
       const rawUrl = (params.url || params.link || "").trim();
       if (!rawUrl) {
-        new import_obsidian14.Notice("video-summary \u534F\u8BAE\u8C03\u7528\u7F3A\u5C11 url \u53C2\u6570", 6e3);
+        new import_obsidian15.Notice("video-summary \u534F\u8BAE\u8C03\u7528\u7F3A\u5C11 url \u53C2\u6570", 6e3);
         return;
       }
       const url = VideoUtils.cleanVideoUrlKeepP(rawUrl);
       if (!VideoUtils.isValidVideoUrl(url)) {
-        new import_obsidian14.Notice(`\u4E0D\u662F\u53D7\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5: ${url}`, 6e3);
+        new import_obsidian15.Notice(`\u4E0D\u662F\u53D7\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5: ${url}`, 6e3);
         return;
       }
       const fallbackTitle = `Video ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace("T", " ").replace(":", "-")}`;
@@ -11027,7 +13982,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         ""
       ].join("\n");
       const file = await this.app.vault.create(notePath, content);
-      new import_obsidian14.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0\uFF0C\u5F00\u59CB\u5904\u7406: ${file.basename}`);
+      new import_obsidian15.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0\uFF0C\u5F00\u59CB\u5904\u7406: ${file.basename}`);
       const leaf = this.app.workspace.getLeaf(true);
       await leaf.openFile(file);
       const requestedMode = (params.mode || "").trim();
@@ -11036,7 +13991,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       ) ? requestedMode : this.settings.defaultMode;
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian14.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian15.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
 };
@@ -11060,7 +14015,7 @@ function normalizeSuccessStatusValue(value) {
   ]);
   return reservedStatuses.has(normalized.toLowerCase()) ? DEFAULT_SETTINGS.successStatusValue : normalized;
 }
-var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
+var VideoSummarySettingTab = class extends import_obsidian15.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.activeTab = "general";
@@ -11098,7 +14053,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   renderSettingsHeader(containerEl) {
     const header = containerEl.createDiv({ cls: "vs-settings-header" });
     const badge = header.createDiv({ cls: "vs-settings-badge" });
-    (0, import_obsidian14.setIcon)(badge, "clapperboard");
+    (0, import_obsidian15.setIcon)(badge, "clapperboard");
     const text = header.createDiv({ cls: "vs-settings-heading" });
     text.createDiv({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-settings-title" });
     const backendLabel = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n webhook";
@@ -11134,7 +14089,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     });
     const titleRow = section2.createDiv({ cls: "vs-settings-card-title" });
     const iconEl = titleRow.createSpan({ cls: "vs-settings-card-icon" });
-    (0, import_obsidian14.setIcon)(iconEl, icon);
+    (0, import_obsidian15.setIcon)(iconEl, icon);
     titleRow.createSpan({ text: title, cls: "vs-settings-card-text" });
     return { section: section2, titleRow };
   }
@@ -11153,7 +14108,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         attr: { type: "button" }
       });
       const iconEl = tabBtn.createSpan({ cls: "vs-seg-icon" });
-      (0, import_obsidian14.setIcon)(iconEl, tab.icon);
+      (0, import_obsidian15.setIcon)(iconEl, tab.icon);
       tabBtn.createSpan({ text: tab.label });
       tabBtn.onclick = () => {
         this.activeTab = tab.id;
@@ -11170,7 +14125,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
     titleRow.addClass("setup-guide-title-row");
     if (this.plugin.settings.setupGuideDismissed) {
-      new import_obsidian14.Setting(section2).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
+      new import_obsidian15.Setting(section2).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
         (button) => button.setButtonText("\u663E\u793A\u68C0\u67E5\u6E05\u5355").onClick(async () => {
           this.plugin.settings.setupGuideDismissed = false;
           await this.plugin.saveSettings();
@@ -11193,7 +14148,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       textWrap.createEl("span", { text: check.detail });
     });
     const resultBox = section2.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian14.Setting(section2).setName("\u8FDE\u63A5\u8BCA\u65AD").setDesc("\u5982\u679C\u8FD9\u91CC\u5931\u8D25\uFF0C\u4F18\u5148\u6309\u8BCA\u65AD\u5EFA\u8BAE\u5904\u7406\uFF0C\u518D\u67E5\u770B n8n Execution \u65E5\u5FD7\u3002").addButton(
+    new import_obsidian15.Setting(section2).setName("\u8FDE\u63A5\u8BCA\u65AD").setDesc("\u5982\u679C\u8FD9\u91CC\u5931\u8D25\uFF0C\u4F18\u5148\u6309\u8BCA\u65AD\u5EFA\u8BAE\u5904\u7406\uFF0C\u518D\u67E5\u770B n8n Execution \u65E5\u5FD7\u3002").addButton(
       (button) => button.setButtonText("\u8FD0\u884C\u8BCA\u65AD").setCta().onClick(async () => {
         button.setDisabled(true);
         button.setButtonText("\u8BCA\u65AD\u4E2D...");
@@ -11375,7 +14330,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       cls: "setting-item-description"
     });
     const resultBox = section2.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian14.Setting(section2).setName("Cookies \u76EE\u5F55").setDesc("docker/cookies \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 /Users/you/n8n-project/docker/cookies").addText(
+    new import_obsidian15.Setting(section2).setName("Cookies \u76EE\u5F55").setDesc("docker/cookies \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 /Users/you/n8n-project/docker/cookies").addText(
       (text) => text.setPlaceholder("/path/to/docker/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
@@ -11384,18 +14339,18 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       (button) => button.setButtonText("\u6253\u5F00\u76EE\u5F55").onClick(() => {
         const dir = (this.plugin.settings.cookiesDirPath || "").trim();
         if (!dir) {
-          new import_obsidian14.Notice("\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84");
+          new import_obsidian15.Notice("\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84");
           return;
         }
         try {
           const electron = window.require?.("electron");
           if (!electron?.shell?.openPath) {
-            new import_obsidian14.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
+            new import_obsidian15.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
             return;
           }
           electron.shell.openPath(dir);
         } catch (error) {
-          new import_obsidian14.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
+          new import_obsidian15.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
         }
       })
     ).addButton(
@@ -11508,18 +14463,18 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   createApiSection(containerEl) {
     const { section: section2 } = this.sectionCard(containerEl, "link", "\u4E3B\u5165\u53E3\u4E0E API \u914D\u7F6E");
     this.createWorkflowCompatibilityCard(section2);
-    new import_obsidian14.Setting(section2).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
+    new import_obsidian15.Setting(section2).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
       "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u5F53\u524D\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8981\u8C03\u7528 n8n \u8FD8\u662F\u672C\u5730 Codex worker\u3002"
     ).addDropdown(
       (dropdown) => dropdown.addOption("n8n", "n8n / \u517C\u5BB9 Webhook").addOption("codex-worker", "Codex Video Worker").setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
         await this.plugin.setActiveBackend(value);
-        new import_obsidian14.Notice(
+        new import_obsidian15.Notice(
           value === "codex-worker" ? "\u5DF2\u5207\u6362\u5230 Codex Video Worker" : "\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook"
         );
         this.display();
       })
     );
-    new import_obsidian14.Setting(section2).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u4F4D\u4E8E\u540C\u4E00 host \u7684 /dashboard\u3002").addText(
+    new import_obsidian15.Setting(section2).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u4F4D\u4E8E\u540C\u4E00 host \u7684 /dashboard\u3002").addText(
       (text) => text.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
         this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
         if (this.plugin.settings.activeBackend === "codex-worker") {
@@ -11532,7 +14487,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         this.plugin.openCodexWorkerDashboard();
       })
     );
-    const webhookSetting = new import_obsidian14.Setting(section2).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc(
+    const webhookSetting = new import_obsidian15.Setting(section2).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc(
       "\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A Webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n / \u517C\u5BB9 Webhook\u3002"
     );
     let webhookDropdown = null;
@@ -11569,11 +14524,11 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
           const res = await this.plugin.api.testConnection();
           const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
           if (res.success) {
-            new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
+            new import_obsidian15.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
           } else {
             const hint = res.hint ? `
 \u5EFA\u8BAE: ${res.hint}` : "";
-            new import_obsidian14.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+            new import_obsidian15.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
           }
           this.renderConnectionResult(workflowDiagnosticResult, res);
         } catch (error) {
@@ -11641,7 +14596,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new import_obsidian14.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A Webhook");
+            new import_obsidian15.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A Webhook");
             return;
           }
           this.plugin.settings.webhookProfiles = this.plugin.settings.webhookProfiles.filter(
@@ -11659,7 +14614,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       });
     };
     renderProfiles();
-    new import_obsidian14.Setting(section2).addButton(
+    new import_obsidian15.Setting(section2).addButton(
       (button) => button.setButtonText("\u6DFB\u52A0 Webhook").setCta().onClick(async () => {
         const newProfile = {
           id: `webhook-${Date.now()}`,
@@ -11675,9 +14630,42 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   }
   createBasicSection(containerEl) {
     const { section: section2 } = this.sectionCard(containerEl, "sliders-horizontal", "\u57FA\u7840\u914D\u7F6E");
-    new import_obsidian14.Setting(section2).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
+    new import_obsidian15.Setting(section2).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian15.Setting(section2).setName("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6").setDesc("\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF1B\u6DF1\u5EA6\u89C6\u89C9\u4F1A\u8BF7\u6C42\u540E\u7AEF\u5206\u6790\u5173\u952E\u753B\u9762\u3002").addDropdown(
+      (dropdown) => dropdown.addOption("quick", "\u6781\u901F").addOption("evidence", "\u8BC1\u636E").addOption("deep-visual", "\u6DF1\u5EA6\u89C6\u89C9").setValue(this.plugin.settings.defaultProcessingDepth).onChange(async (value) => {
+        this.plugin.settings.defaultProcessingDepth = value;
+        this.plugin.api.setAnalysisDefaults({ processingDepth: value });
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian15.Setting(section2).setName("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B").setDesc("\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002").addDropdown(
+      (dropdown) => dropdown.addOption("auto", "\u81EA\u52A8\u8BC6\u522B").addOption("course", "\u8BFE\u7A0B").addOption("interview", "\u8BBF\u8C08").addOption("tutorial", "\u6559\u7A0B").addOption("news", "\u65B0\u95FB").addOption("meeting", "\u4F1A\u8BAE").addOption("review", "\u8BC4\u6D4B").addOption("general", "\u901A\u7528").setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
+        const contentType = value;
+        this.plugin.settings.defaultContentType = contentType;
+        this.plugin.settings.autoRouteContent = contentType === "auto";
+        this.plugin.api.setAnalysisDefaults({
+          contentType,
+          autoRoute: this.plugin.settings.autoRouteContent
+        });
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian15.Setting(section2).setName("\u89C2\u770B\u4EF7\u503C\u5224\u65AD").setDesc("\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.attentionAssessmentEnabled).onChange(async (value) => {
+        this.plugin.settings.attentionAssessmentEnabled = value;
+        this.plugin.api.setAnalysisDefaults({ attentionAssessment: value });
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian15.Setting(section2).setName("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60").setDesc("\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.generateLearningArtifacts).onChange(async (value) => {
+        this.plugin.settings.generateLearningArtifacts = value;
+        this.plugin.api.setAnalysisDefaults({ generateLearning: value });
         await this.plugin.saveSettings();
       })
     );
@@ -11732,7 +14720,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.customAiModels.length <= 1) {
-            new import_obsidian14.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A\u5904\u7406\u6A21\u578B");
+            new import_obsidian15.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A\u5904\u7406\u6A21\u578B");
             return;
           }
           this.plugin.settings.customAiModels.splice(index, 1);
@@ -11746,7 +14734,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       });
     };
     renderAiModels();
-    new import_obsidian14.Setting(aiSection).addButton(
+    new import_obsidian15.Setting(aiSection).addButton(
       (button) => button.setButtonText("\u6DFB\u52A0\u65B0\u6A21\u578B").onClick(async () => {
         this.plugin.settings.customAiModels.push("\u65B0\u6A21\u578B");
         await this.plugin.saveSettings();
@@ -11754,7 +14742,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         renderAiModels();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u9ED8\u8BA4\u5904\u7406\u6A21\u578B").setDesc("\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u9ED8\u8BA4\u6A21\u578B\u6807\u7B7E").addDropdown((dropdown) => {
+    new import_obsidian15.Setting(section2).setName("\u9ED8\u8BA4\u5904\u7406\u6A21\u578B").setDesc("\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u9ED8\u8BA4\u6A21\u578B\u6807\u7B7E").addDropdown((dropdown) => {
       aiDropdown = dropdown;
       dropdown.onChange(async (value) => {
         this.plugin.settings.aiModel = value;
@@ -11762,20 +14750,20 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       });
     });
     refreshAiDropdownOptions();
-    new import_obsidian14.Setting(section2).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian15.Setting(section2).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
+    new import_obsidian15.Setting(section2).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u7684\u9ED8\u8BA4\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u5F53\u524D\u6587\u4EF6\u6240\u5728\u6587\u4EF6\u5939\uFF09").addText(
+    new import_obsidian15.Setting(section2).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u7684\u9ED8\u8BA4\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u5F53\u524D\u6587\u4EF6\u6240\u5728\u6587\u4EF6\u5939\uFF09").addText(
       (text) => text.setPlaceholder("\u4F8B\u5982: Videos/2024").setValue(this.plugin.settings.outputFolder).onChange(async (value) => {
         this.plugin.settings.outputFolder = value;
         await this.plugin.saveSettings();
@@ -11786,13 +14774,13 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     const { section: section2 } = this.sectionCard(containerEl, "zap", "\u4E00\u952E\u5904\u7406\u914D\u7F6E");
     const summarySubsection = section2.createEl("div", { cls: "vs-subsection" });
     summarySubsection.createEl("div", { text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian14.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    new import_obsidian15.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian15.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -11800,13 +14788,13 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
     const transcriptSubsection = section2.createEl("div", { cls: "vs-subsection" });
     transcriptSubsection.createEl("div", { text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian14.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    new import_obsidian15.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian15.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -11815,29 +14803,29 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   }
   createFileProcessingSection(containerEl) {
     const { section: section2 } = this.sectionCard(containerEl, "files", "\u6587\u4EF6\u5904\u7406\u914D\u7F6E");
-    new import_obsidian14.Setting(section2).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
+    new import_obsidian15.Setting(section2).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
+    new import_obsidian15.Setting(section2).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
       (drop) => drop.addOption("append-number", "\u8FFD\u52A0\u7F16\u53F7").addOption("append-date", "\u8FFD\u52A0\u65E5\u671F").addOption("skip", "\u8DF3\u8FC7").setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
+    new import_obsidian15.Setting(section2).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
+    new import_obsidian15.Setting(section2).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
       (text) => text.setPlaceholder("success").setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
-          new import_obsidian14.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
+          new import_obsidian15.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
         }
         this.plugin.settings.successStatusValue = normalized;
         await this.plugin.saveSettings();
@@ -11852,7 +14840,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     });
     const keys = this.plugin.settings.payloadKeys;
     const createKeySetting = (name, desc, key) => {
-      new import_obsidian14.Setting(section2).setName(name).setDesc(desc).addText(
+      new import_obsidian15.Setting(section2).setName(name).setDesc(desc).addText(
         (text) => text.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
           keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
           this.plugin.api.setPayloadKeys(keys);
@@ -11870,14 +14858,14 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   }
   createAdvancedSection(containerEl) {
     const { section: section2 } = this.sectionCard(containerEl, "wrench", "\u9AD8\u7EA7\u914D\u7F6E");
-    new import_obsidian14.Setting(section2).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
+    new import_obsidian15.Setting(section2).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
+    new import_obsidian15.Setting(section2).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
       "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.preflightCheckEnabled !== false).onChange(async (value) => {
@@ -11885,7 +14873,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian14.Setting(section2).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
+    new import_obsidian15.Setting(section2).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
       "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
@@ -11894,7 +14882,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    const historyLimitSetting = new import_obsidian14.Setting(section2).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
+    const historyLimitSetting = new import_obsidian15.Setting(section2).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
       `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`
     ).addSlider(
       (slider) => slider.setLimits(100, 1e3, 50).setValue(this.plugin.settings.historyLimit ?? 300).setDynamicTooltip().onChange(async (value) => {
@@ -11907,28 +14895,28 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
     );
     const cacheSubsection = section2.createEl("div", { cls: "vs-subsection" });
     cacheSubsection.createEl("div", { text: "\u7F13\u5B58\u914D\u7F6E", cls: "vs-subsection-title" });
-    const cacheStatusSetting = new import_obsidian14.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
+    const cacheStatusSetting = new import_obsidian15.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
       (button) => button.setButtonText("\u{1F4CA} \u67E5\u770B\u72B6\u6001").setClass("cache-status-btn").onClick(async () => {
         try {
           const stats = await this.plugin.api.getCacheStats();
           await this.showCachePreviewModal(stats);
         } catch (error) {
           console.error("\u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-          new import_obsidian14.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${error.message}`, 5e3);
+          new import_obsidian15.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${error.message}`, 5e3);
         }
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian14.Setting(cacheSubsection).setName("\u2705 \u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
+    const enableCacheSetting = new import_obsidian15.Setting(cacheSubsection).setName("\u2705 \u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
         await this.plugin.saveSettings();
-        new import_obsidian14.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
+        new import_obsidian15.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian14.Setting(cacheSubsection).setName("\u23F0 \u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
+    const expirySetting = new import_obsidian15.Setting(cacheSubsection).setName("\u23F0 \u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
       (slider) => slider.setLimits(1, 365, 1).setValue(this.plugin.settings.cacheExpiryDays ?? 30).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.cacheExpiryDays = value;
         this.plugin.api.setCacheConfig(1e3, value);
@@ -11949,7 +14937,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new import_obsidian14.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian15.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
       }
     };
     const cleanupBtn = quickActionsContainer.createEl("button", {
@@ -11960,10 +14948,10 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       try {
         await this.plugin.api.cleanupCache();
         const stats = await this.plugin.api.getCacheStats();
-        new import_obsidian14.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
+        new import_obsidian15.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
       } catch (error) {
         console.error("\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25:", error);
-        new import_obsidian14.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian15.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
       }
     };
     const clearBtn = quickActionsContainer.createEl("button", {
@@ -11983,10 +14971,10 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
       if (confirmed) {
         try {
           await this.plugin.api.clearCache();
-          new import_obsidian14.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
+          new import_obsidian15.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
         } catch (error) {
           console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-          new import_obsidian14.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
+          new import_obsidian15.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
         }
       }
     };
@@ -12009,7 +14997,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
   async showCachePreviewModal(stats) {
     console.log("\u{1F3AC} \u5F00\u59CB\u521B\u5EFA\u7F13\u5B58\u9884\u89C8\u6A21\u6001\u6846");
     console.log("\u{1F4CA} \u7EDF\u8BA1\u4FE1\u606F:", stats);
-    const modal = new import_obsidian15.Modal(this.app);
+    const modal = new import_obsidian16.Modal(this.app);
     modal.titleEl.setText("\u{1F4CA} \u7F13\u5B58\u9884\u89C8");
     console.log("\u{1F4DD} \u6A21\u6001\u6846\u6807\u9898\u5DF2\u8BBE\u7F6E");
     const { contentEl } = modal;
@@ -12021,7 +15009,7 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error("\u274C \u5237\u65B0\u6A21\u6001\u6846\u5185\u5BB9\u5931\u8D25:", error);
-        new import_obsidian14.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian15.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${error.message}`, 5e3);
       }
     };
     const renderModalContent = async (container, currentStats) => {
@@ -12114,9 +15102,9 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new import_obsidian14.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
+            new import_obsidian15.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
           } catch (error) {
-            new import_obsidian14.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${error.message}`, 5e3);
+            new import_obsidian15.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${error.message}`, 5e3);
           }
         };
       }
@@ -12175,12 +15163,12 @@ var VideoSummarySettingTab = class extends import_obsidian14.PluginSettingTab {
         "zh",
         testResult
       );
-      new import_obsidian14.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
+      new import_obsidian15.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
       const stats = await this.plugin.api.getCacheStats();
       console.log("\u6D4B\u8BD5\u6570\u636E\u6DFB\u52A0\u540E\u7684\u7F13\u5B58\u7EDF\u8BA1:", stats);
     } catch (error) {
       console.error("\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25:", error);
-      new import_obsidian14.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
+      new import_obsidian15.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
     }
   }
   /**

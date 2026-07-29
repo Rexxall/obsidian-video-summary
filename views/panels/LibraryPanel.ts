@@ -279,9 +279,38 @@ function renderRow(
     );
   }
 
+  if (entry.artifactId) {
+    iconButton(
+      actions,
+      'book-open',
+      '打开同步陪读',
+      () =>
+        ctx.openDetail({
+          kind: 'note',
+          path: entry.path,
+          artifactId: entry.artifactId!,
+        }),
+      'is-accent',
+    );
+  }
+
   iconButton(actions, 'more-horizontal', '更多操作', (event) => {
-    showMenu(event, [
+    const menuItems = [
       { title: '打开笔记', icon: 'file-text', onClick: () => ctx.openNote(entry.path) },
+      ...(entry.artifactId
+        ? [
+            {
+              title: '同步陪读',
+              icon: 'book-open',
+              onClick: () =>
+                ctx.openDetail({
+                  kind: 'note' as const,
+                  path: entry.path,
+                  artifactId: entry.artifactId!,
+                }),
+            },
+          ]
+        : []),
       {
         title: '重跑（跳过缓存）',
         icon: 'refresh-cw',
@@ -312,7 +341,8 @@ function renderRow(
         },
       },
       { title: '删除笔记', icon: 'trash-2', onClick: () => confirmDelete(ctx, entry) },
-    ]);
+    ];
+    showMenu(event, menuItems);
   });
 }
 

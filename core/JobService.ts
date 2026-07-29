@@ -2,11 +2,24 @@
 import { Notice, TFile } from 'obsidian';
 import VideoSummaryPlugin from '../main';
 import { NoteProcessor } from '../utils/NoteProcessor';
-import { ProcessingMode, ProcessingResult, SupportedLanguage } from '../types';
+import {
+  ProcessingDepth,
+  ProcessingMode,
+  ProcessingResult,
+  RequestedContentType,
+  SupportedLanguage,
+  VideoInput,
+  VideoKnowledgeArtifact,
+} from '../types';
 import { Job, JobStore } from './JobStore';
 import { JobDraft } from './InputParser';
 import { NoteFactory, buildInsertionContent, extractVideoInputFromPayload } from './NoteFactory';
 import { detectPlatform } from './NoteIndex';
+import {
+  ArtifactNotFoundError,
+  ArtifactStore,
+  VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+} from './ArtifactStore';
 
 export interface SubmitOptions {
   mode: ProcessingMode;
@@ -14,7 +27,14 @@ export interface SubmitOptions {
   useCache: boolean;
   /** 结果先进预览，由用户确认后再写入笔记 */
   previewBeforeWrite: boolean;
+  processingDepth: ProcessingDepth;
+  contentType: RequestedContentType;
+  autoRoute: boolean;
+  attentionAssessment: boolean;
+  generateLearning: boolean;
 }
+
+type ArtifactJobContext = Pick<Job, 'title' | 'input' | 'notePath' | 'platform'>;
 
 /**
  * 把"输入草稿"变成任务并驱动它们跑完：建笔记 → 调后端 → 写回笔记 → 记历史。
@@ -65,7 +85,7 @@ export class JobService {
       }
       this.store.enqueue({
         title: draft.title,
-        input: draft.input,
+        input: withAnalysisOptions(draft.input, options),
         mode: options.mode,
         language: options.language,
         useCache: options.useCache,
@@ -90,7 +110,7 @@ export class JobService {
 
     return this.store.enqueue({
       title: file.basename,
-      input,
+      input: withAnalysisOptions(input, options),
       mode: options.mode,
       language: options.language,
       useCache: options.useCache,
@@ -212,6 +232,17 @@ export class JobService {
     }
   }
 
+  /**
+   * 兼容仍保留专用交互的命令入口。它们可以继续自行控制提示/重命名，
+   * 但机器可读工件必须与任务队列走同一份持久化逻辑。
+   */
+  async persistExternalResult(
+    context: ArtifactJobContext,
+    result: ProcessingResult,
+  ): Promise<void> {
+    await this.persistArtifact(context, result);
+  }
+
   private async runJob(
     job: Job,
     report: (progress: { stageLabel?: string; progress?: number; message?: string }) => void,
@@ -232,6 +263,7 @@ export class JobService {
         job.useCache,
         report,
       );
+      await this.persistArtifact(job, result);
 
       if (job.awaitingWrite) {
         // 结果留在任务里等确认，笔记保持 running，由用户点"写入"或"丢弃"决定
@@ -273,6 +305,74 @@ export class JobService {
     );
   }
 
+  private async persistArtifact(job: ArtifactJobContext, result: ProcessingResult): Promise<void> {
+    const source = {
+      url: result.artifact?.source_url || job.input.url,
+      local_file: job.input.localFile,
+      note_path: job.notePath,
+      source_hash: '',
+    };
+    const sourceHash = await ArtifactStore.sourceHash(source);
+    const artifactId = ArtifactStore.artifactId(sourceHash);
+    let previous: VideoKnowledgeArtifact | undefined;
+    try {
+      previous = await this.plugin.artifactStore.load(artifactId);
+    } catch (error) {
+      if (!(error instanceof ArtifactNotFoundError)) throw error;
+    }
+
+    const now = new Date().toISOString();
+    const provenance = {
+      ...(result.artifact || {}),
+      schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+      artifact_id: artifactId,
+      source_url: job.input.url,
+      source_hash: sourceHash,
+      backend: this.plugin.settings.activeBackend,
+      model: this.plugin.settings.aiModel,
+      prompt_profile: job.input.contentType || this.plugin.settings.defaultContentType,
+      prompt_version: result.artifact?.prompt_version || 'video-knowledge-v3',
+      processing_depth:
+        job.input.processingDepth || this.plugin.settings.defaultProcessingDepth,
+      generated_at: result.artifact?.generated_at || now,
+      transcript_source: result.transcript_source || result.artifact?.transcript_source,
+    } satisfies VideoKnowledgeArtifact['provenance'];
+
+    const artifact: VideoKnowledgeArtifact = {
+      schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
+      artifact_id: artifactId,
+      source: { ...source, source_hash: sourceHash },
+      title: result.video_title || job.title,
+      author: result.video_author,
+      platform: result.video_platform || job.platform,
+      duration: result.video_duration,
+      cover: result.video_cover,
+      content_type: result.content_type,
+      timing_quality: result.timing_quality || 'none',
+      transcript: result.video_transcript,
+      segments: result.video_segments || [],
+      claims: result.evidence_claims || [],
+      visual_evidence: result.visual_evidence || [],
+      attention: result.attention,
+      learning: result.learning,
+      related_notes: result.related_notes || [],
+      highlights: previous?.highlights || [],
+      course_ids: previous?.course_ids || [],
+      provenance,
+      created_at: previous?.created_at || now,
+      updated_at: now,
+    };
+    const saved = await this.plugin.artifactStore.save(artifact);
+    result.artifact = {
+      ...saved.provenance,
+      artifact_id: saved.artifact_id,
+      source_hash: saved.source.source_hash,
+    };
+    result.timing_quality = saved.timing_quality;
+    job.input.artifactId = saved.artifact_id;
+    job.input.highlightedSegmentIds = saved.highlights.map((highlight) => highlight.segment_id);
+  }
+
   private fileFor(job: Job): TFile | null {
     if (!job.notePath) return null;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
@@ -287,4 +387,15 @@ function basenameOf(path: string): string {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function withAnalysisOptions(input: VideoInput, options: SubmitOptions): VideoInput {
+  return {
+    ...input,
+    processingDepth: input.processingDepth || options.processingDepth,
+    contentType: input.contentType || options.contentType,
+    autoRoute: input.autoRoute ?? options.autoRoute,
+    attentionAssessment: input.attentionAssessment ?? options.attentionAssessment,
+    generateLearning: input.generateLearning ?? options.generateLearning,
+  };
 }

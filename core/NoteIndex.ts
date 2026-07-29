@@ -16,6 +16,8 @@ export interface VideoNoteEntry {
   cover?: string;
   /** 视频时长文本，例如 42:17 */
   duration?: string;
+  /** 机器可读 sidecar id；存在时可在插件内重新打开同步陪读器。 */
+  artifactId?: string;
   ctime: number;
   mtime: number;
 }
@@ -270,6 +272,7 @@ export class NoteIndex {
       title: typeof frontmatter?.video_title === 'string' ? frontmatter.video_title : undefined,
       cover,
       duration: readString(frontmatter?.video_duration),
+      artifactId: readString(frontmatter?.video_artifact_id),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
     };
@@ -288,6 +291,7 @@ export class NoteIndex {
       link,
       platform: link ? detectPlatform(link) : undefined,
       cover,
+      artifactId: readFrontmatterScalar(content, 'video_artifact_id'),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
     };
@@ -421,6 +425,15 @@ function readString(value: any): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;
+}
+
+function readFrontmatterScalar(content: string, key: string): string | undefined {
+  const frontmatter = content.match(/^---\s*\n([\s\S]*?)\n---(?:\n|$)/)?.[1];
+  if (!frontmatter) return undefined;
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = frontmatter.match(new RegExp(`^${escapedKey}:\\s*(.+?)\\s*$`, 'm'));
+  if (!match) return undefined;
+  return match[1].replace(/^['"]|['"]$/g, '').trim() || undefined;
 }
 
 function normalizeEntryStatus(status: string): string {

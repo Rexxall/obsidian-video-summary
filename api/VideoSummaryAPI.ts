@@ -9,11 +9,22 @@ import {
   WebhookHistoryEntry,
   ConnectionTestResult,
   WorkflowHealthInfo,
+  ProcessingDepth,
+  RequestedContentType,
 } from '../types';
 import { CacheManager } from '../utils/CacheManager';
 import { UrlResolver } from '../utils/UrlResolver';
-import { Vault } from 'obsidian';
+import type { Vault } from 'obsidian';
 import { RECOMMENDED_WORKFLOW } from '../constants';
+import { normalizeRichProcessingResult } from '../core/KnowledgeModel';
+import {
+  buildArtifactFingerprint,
+  type ArtifactFingerprint,
+  type VisualFingerprintMode,
+} from '../core/ArtifactFingerprint';
+
+const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
+const CACHE_PROMPT_VERSION = 'video-knowledge-v3';
 
 export interface EndpointProbeResult {
   ok: boolean;
@@ -39,6 +50,19 @@ export class VideoSummaryAPI {
   private cacheManager: CacheManager;
   private payloadKeys: any;
   private expandShortLinksEnabled: boolean = false;
+  private analysisDefaults: {
+    processingDepth: ProcessingDepth;
+    contentType: RequestedContentType;
+    autoRoute: boolean;
+    attentionAssessment: boolean;
+    generateLearning: boolean;
+  } = {
+    processingDepth: 'evidence',
+    contentType: 'auto',
+    autoRoute: true,
+    attentionAssessment: true,
+    generateLearning: false,
+  };
 
   setAiModel(model: string) {
     this.aiModel = model;
@@ -94,6 +118,10 @@ export class VideoSummaryAPI {
     this.expandShortLinksEnabled = enabled;
   }
 
+  setAnalysisDefaults(defaults: Partial<typeof this.analysisDefaults>) {
+    this.analysisDefaults = { ...this.analysisDefaults, ...defaults };
+  }
+
   /**
    * 短链展开（fail-open）：失败时原样返回 input。
    * 在缓存检查之前调用，保证缓存 key 用的是展开后的最终链接。
@@ -136,15 +164,17 @@ export class VideoSummaryAPI {
     useCache: boolean = true,
     onProgress?: ProcessProgressReporter,
   ): Promise<ProcessingResult> {
+    input = this.withAnalysisDefaults(input);
     // 短链先展开再处理（缓存 key 也用展开后的链接）
     input = await this.resolveInputUrl(input);
+    const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
 
-    // 检查缓存（如果启用）
-    if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
-      const cachedResult = await this.cacheManager.get(input.url, mode, language);
+    // 富结果只按完整指纹读取，不回退到无法验证 provenance 的旧 URL key。
+    if (useCache) {
+      const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] 使用缓存结果: ${input.url}`);
+          console.log(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
         onProgress?.({ stageLabel: '命中缓存', progress: 1, message: '命中缓存，未请求后端' });
         return cachedResult;
@@ -156,7 +186,10 @@ export class VideoSummaryAPI {
 
     if (this.backend === 'codex-worker') {
       try {
-        const result = await this.processCodexWorkerJob(payload, onProgress);
+        const result = this.withCacheFingerprint(
+          await this.processCodexWorkerJob(payload, onProgress),
+          cacheFingerprint,
+        );
         this.recordWebhookResult(result, input, mode, language);
 
         this.lastWebhookResult = {
@@ -167,8 +200,12 @@ export class VideoSummaryAPI {
           timestamp: Date.now(),
         };
 
-        if (useCache && input.url && result) {
-          await this.cacheManager.set(input.url, mode, language, result);
+        if (useCache) {
+          await this.cacheManager.setByFingerprint(
+            cacheFingerprint,
+            result,
+            this.cacheSourceLabel(input),
+          );
         }
 
         return result;
@@ -207,7 +244,10 @@ export class VideoSummaryAPI {
       }
 
       const data = await this.readJsonResponse(response);
-      const result = this.parseSummaryResponse(data);
+      const result = this.withCacheFingerprint(
+        this.parseSummaryResponse(data, input),
+        cacheFingerprint,
+      );
 
       this.recordWebhookResult(result, input, mode, language);
 
@@ -221,8 +261,12 @@ export class VideoSummaryAPI {
       };
 
       // 将结果存入缓存
-      if (useCache && input.url && result) {
-        await this.cacheManager.set(input.url, mode, language, result);
+      if (useCache) {
+        await this.cacheManager.setByFingerprint(
+          cacheFingerprint,
+          result,
+          this.cacheSourceLabel(input),
+        );
       }
 
       return result;
@@ -253,15 +297,16 @@ export class VideoSummaryAPI {
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
   ): Promise<ProcessingResult> {
+    input = this.withAnalysisDefaults(input);
     // 短链先展开再处理（缓存 key 也用展开后的链接）
     input = await this.resolveInputUrl(input);
+    const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
 
-    // 检查缓存（如果启用）
-    if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
-      const cachedResult = await this.cacheManager.get(input.url, mode, language);
+    if (useCache) {
+      const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] 使用缓存结果: ${input.url}`);
+          console.log(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
         return cachedResult;
       }
@@ -272,7 +317,10 @@ export class VideoSummaryAPI {
 
     if (this.backend === 'codex-worker') {
       try {
-        const result = await this.processCodexWorkerJob(payload);
+        const result = this.withCacheFingerprint(
+          await this.processCodexWorkerJob(payload),
+          cacheFingerprint,
+        );
         this.recordWebhookResult(result, input, mode, language);
 
         this.lastWebhookResult = {
@@ -283,8 +331,12 @@ export class VideoSummaryAPI {
           timestamp: Date.now(),
         };
 
-        if (useCache && input.url && result) {
-          await this.cacheManager.set(input.url, mode, language, result);
+        if (useCache) {
+          await this.cacheManager.setByFingerprint(
+            cacheFingerprint,
+            result,
+            this.cacheSourceLabel(input),
+          );
         }
 
         return result;
@@ -317,7 +369,10 @@ export class VideoSummaryAPI {
       }
 
       const data = await this.readJsonResponse(response);
-      const result = this.parseSummaryResponse(data);
+      const result = this.withCacheFingerprint(
+        this.parseSummaryResponse(data, input),
+        cacheFingerprint,
+      );
 
       this.recordWebhookResult(result, input, mode, language);
 
@@ -331,8 +386,12 @@ export class VideoSummaryAPI {
       };
 
       // 将结果存入缓存
-      if (useCache && input.url && result) {
-        await this.cacheManager.set(input.url, mode, language, result);
+      if (useCache) {
+        await this.cacheManager.setByFingerprint(
+          cacheFingerprint,
+          result,
+          this.cacheSourceLabel(input),
+        );
       }
 
       return result;
@@ -509,6 +568,7 @@ export class VideoSummaryAPI {
     if (input.localFile) {
       metadata[keys.local_file] = input.localFile;
     }
+    this.addAnalysisMetadata(metadata, input);
 
     return {
       name: noteName,
@@ -549,6 +609,7 @@ export class VideoSummaryAPI {
     if (input.merge !== undefined) {
       metadata.merge = input.merge;
     }
+    this.addAnalysisMetadata(metadata, input);
 
     return {
       source: 'obsidian-plugin',
@@ -557,6 +618,99 @@ export class VideoSummaryAPI {
       metadata,
       content: '',
     };
+  }
+
+  private withAnalysisDefaults(input: VideoInput): VideoInput {
+    return {
+      ...input,
+      processingDepth: input.processingDepth || this.analysisDefaults.processingDepth,
+      contentType: input.contentType || this.analysisDefaults.contentType,
+      autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
+      attentionAssessment: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
+      generateLearning: input.generateLearning ?? this.analysisDefaults.generateLearning,
+    };
+  }
+
+  private buildCacheFingerprint(
+    input: VideoInput,
+    mode: ProcessingMode,
+    language: SupportedLanguage,
+  ): ArtifactFingerprint {
+    const processingDepth = input.processingDepth || this.analysisDefaults.processingDepth;
+    let visual: VisualFingerprintMode = 'keyframes';
+    if (processingDepth === 'quick') visual = 'off';
+    if (processingDepth === 'deep-visual') visual = 'deep';
+
+    return buildArtifactFingerprint({
+      input,
+      mode,
+      language,
+      model: this.aiModel,
+      backend: this.backend,
+      schemaVersion: CACHE_ARTIFACT_SCHEMA_VERSION,
+      processingDepth,
+      requestedContentType: input.contentType || this.analysisDefaults.contentType,
+      autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
+      visual,
+      attention: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
+      learning: input.generateLearning ?? this.analysisDefaults.generateLearning,
+      promptVersion: CACHE_PROMPT_VERSION,
+    });
+  }
+
+  private withCacheFingerprint(
+    result: ProcessingResult,
+    fingerprint: ArtifactFingerprint,
+  ): ProcessingResult {
+    return {
+      ...result,
+      artifact: {
+        ...(result.artifact || {}),
+        schema_version: fingerprint.run.schema_version,
+        source_hash: fingerprint.source.source_hash,
+        transcript_hash: fingerprint.source.transcript_hash || result.artifact?.transcript_hash,
+        backend: fingerprint.run.backend,
+        model: fingerprint.run.model,
+        prompt_version: fingerprint.run.prompt_version,
+        processing_depth: fingerprint.run.processing_depth,
+        fingerprint_version: fingerprint.version,
+        fingerprint: fingerprint.key,
+        fingerprint_digest: fingerprint.digest,
+        run_hash: fingerprint.run_hash,
+      },
+    };
+  }
+
+  private cacheSourceLabel(input: VideoInput): string {
+    return (
+      input.url ||
+      input.localFile ||
+      input.localFiles?.filter(Boolean).join(', ') ||
+      (input.transcript ? 'provided-transcript' : '')
+    );
+  }
+
+  private addAnalysisMetadata(metadata: Record<string, any>, input: VideoInput) {
+    metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
+    metadata.prompt_version = CACHE_PROMPT_VERSION;
+    metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
+    metadata.content_type = input.contentType || this.analysisDefaults.contentType;
+    metadata.auto_route = input.autoRoute ?? this.analysisDefaults.autoRoute;
+    metadata.attention_assessment =
+      input.attentionAssessment ?? this.analysisDefaults.attentionAssessment;
+    metadata.generate_learning = input.generateLearning ?? this.analysisDefaults.generateLearning;
+    if (input.artifactId) metadata.artifact_id = input.artifactId;
+    if (input.highlightedSegmentIds?.length) {
+      metadata.highlighted_segment_ids = Array.from(new Set(input.highlightedSegmentIds));
+    }
+    metadata.requested_capabilities = [
+      'artifact-v3',
+      'timestamped-segments',
+      'evidence-claims',
+      ...(metadata.processing_depth === 'quick' ? [] : ['visual-evidence']),
+      ...(metadata.attention_assessment ? ['attention-assessment'] : []),
+      ...(metadata.generate_learning ? ['learning-package'] : []),
+    ];
   }
 
   private recordWebhookResult(
@@ -629,7 +783,14 @@ export class VideoSummaryAPI {
         }
       }
       if (latestJob.status === 'success') {
-        return this.parseSummaryResponse(latestJob.result);
+        return this.parseSummaryResponse(latestJob.result, {
+          url: payload?.metadata?.link,
+          processingDepth: payload?.metadata?.processing_depth,
+          contentType: payload?.metadata?.content_type,
+          autoRoute: payload?.metadata?.auto_route,
+          attentionAssessment: payload?.metadata?.attention_assessment,
+          generateLearning: payload?.metadata?.generate_learning,
+        });
       }
       if (
         latestJob.status === 'needs-review' ||
@@ -718,7 +879,7 @@ export class VideoSummaryAPI {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private parseSummaryResponse(data: any): ProcessingResult {
+  private parseSummaryResponse(data: any, input: VideoInput = {}): ProcessingResult {
     // n8n 可能返回数组，需要合并所有对象的数据
     const preserveKeys = new Set(['summary', 'note', 'video_transcript']);
     let payload: any = Array.isArray(data) ? {} : data;
@@ -832,12 +993,26 @@ export class VideoSummaryAPI {
       result.video_cover = payload.video_cover;
     }
 
-    // 检查是否有任何有效数据
-    if (Object.keys(result).length === 0) {
+    const hasRichPayload = [
+      payload.video_segments,
+      payload.evidence_claims,
+      payload.visual_evidence,
+      payload.attention,
+      payload.learning,
+      payload.artifact,
+    ].some((value) => value !== undefined && value !== null);
+    if (Object.keys(result).length === 0 && !hasRichPayload) {
       throw new Error('服务器返回的数据中没有有效内容');
     }
 
-    return result;
+    return normalizeRichProcessingResult(result, payload, {
+      sourceUrl: input.url,
+      backend: this.backend,
+      model: this.aiModel,
+      processingDepth: input.processingDepth,
+      promptProfile: input.contentType,
+      promptVersion: CACHE_PROMPT_VERSION,
+    });
   }
 
   private unwrapResponsePayload(payload: any): any {
@@ -857,6 +1032,12 @@ export class VideoSummaryAPI {
           'video_author',
           'video_duration',
           'video_cover',
+          'video_segments',
+          'evidence_claims',
+          'visual_evidence',
+          'attention',
+          'learning',
+          'artifact',
           'cover',
           'thumbnail',
           'metadata',

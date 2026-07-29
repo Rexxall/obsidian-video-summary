@@ -2,7 +2,7 @@
 import { MarkdownRenderer, Notice, TFile, setIcon } from 'obsidian';
 import { DetailTab, ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
-import { ProcessingHistory } from '../../types';
+import { ProcessingHistory, VideoKnowledgeArtifact } from '../../types';
 import {
   emptyState,
   formatElapsed,
@@ -19,6 +19,8 @@ import {
   textButton,
 } from '../ui';
 import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
+import { renderEvidenceMarkdown } from '../../core/KnowledgeMarkdown';
+import { renderReaderPanel } from './ReaderPanel';
 
 /** 详情层：结果预览 + 写入方式 + 失败日志。写入笔记前能先看到要写什么。 */
 export function renderDetailPanel(container: HTMLElement, ctx: ViewContext) {
@@ -32,6 +34,11 @@ export function renderDetailPanel(container: HTMLElement, ctx: ViewContext) {
       return;
     }
     renderJobDetail(container, ctx, job);
+    return;
+  }
+
+  if (ref.kind === 'note') {
+    renderStoredArtifactDetail(container, ctx, ref.path, ref.artifactId);
     return;
   }
 
@@ -76,7 +83,12 @@ function renderBanner(
   }
 }
 
-function renderJobDetail(container: HTMLElement, ctx: ViewContext, job: Job) {
+function renderJobDetail(
+  container: HTMLElement,
+  ctx: ViewContext,
+  job: Job,
+  persistedArtifact = false,
+) {
   const entry = job.notePath ? ctx.plugin.noteIndex.get(job.notePath) : undefined;
   const duration = job.result?.video_duration || entry?.duration;
   const resultCover = safeCoverUrl(job.result?.video_cover);
@@ -149,6 +161,8 @@ function renderJobDetail(container: HTMLElement, ctx: ViewContext, job: Job) {
   segmented(
     body,
     [
+      { value: 'reader' as DetailTab, label: '陪读' },
+      { value: 'evidence' as DetailTab, label: '证据' },
       { value: 'preview' as DetailTab, label: '预览' },
       { value: 'transcript' as DetailTab, label: '文稿' },
       { value: 'meta' as DetailTab, label: '元数据' },
@@ -163,6 +177,12 @@ function renderJobDetail(container: HTMLElement, ctx: ViewContext, job: Job) {
 
   const pane = body.createDiv({ cls: 'vs-detail-body' });
   switch (ctx.state.detailTab) {
+    case 'reader':
+      renderReaderPanel(pane, ctx, job);
+      break;
+    case 'evidence':
+      renderEvidence(pane, ctx, job);
+      break;
     case 'transcript':
       renderText(pane, job.result.video_transcript, '这次没有返回文稿');
       break;
@@ -200,56 +220,169 @@ function renderJobDetail(container: HTMLElement, ctx: ViewContext, job: Job) {
     prependIcon(open, 'file-text');
   }
 
-  // 四个低频写入动作收进"更多"，不再六个按钮平铺
-  const more = textButton(actions, '更多', () => undefined, 'has-caret');
-  more.addEventListener('click', (event) => {
-    showMenu(event as MouseEvent, [
-      {
-        title: '新建笔记',
-        icon: 'file-plus',
-        onClick: async () => {
-          await ctx.plugin.jobService.createNoteFromResult(job);
-          ctx.renderPanels();
+  if (persistedArtifact) {
+    const copy = textButton(actions, '复制工件 JSON', () => {
+      void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
+      new Notice('已复制工件 JSON');
+    });
+    prependIcon(copy, 'clipboard');
+  } else {
+    // 四个低频写入动作收进"更多"，不再六个按钮平铺
+    const more = textButton(actions, '更多', () => undefined, 'has-caret');
+    more.addEventListener('click', (event) => {
+      showMenu(event as MouseEvent, [
+        {
+          title: '新建笔记',
+          icon: 'file-plus',
+          onClick: async () => {
+            await ctx.plugin.jobService.createNoteFromResult(job);
+            ctx.renderPanels();
+          },
         },
-      },
-      {
-        title: '应用到当前笔记',
-        icon: 'save',
-        onClick: async () => {
-          if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
+        {
+          title: '应用到当前笔记',
+          icon: 'save',
+          onClick: async () => {
+            if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
+          },
         },
-      },
-      {
-        title: '插入当前笔记末尾',
-        icon: 'text-cursor-input',
-        onClick: async () => {
-          if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
+        {
+          title: '插入当前笔记末尾',
+          icon: 'text-cursor-input',
+          onClick: async () => {
+            if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
+          },
         },
-      },
-      {
-        title: '复制 JSON',
-        icon: 'clipboard',
-        onClick: () => {
-          void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-          new Notice('已复制 JSON');
+        {
+          title: '复制 JSON',
+          icon: 'clipboard',
+          onClick: () => {
+            void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
+            new Notice('已复制 JSON');
+          },
         },
-      },
-    ]);
-  });
-  prependCaret(more);
+      ]);
+    });
+    prependCaret(more);
 
-  if (job.state === 'review') {
-    iconButton(
-      actions,
-      'trash-2',
-      '丢弃结果',
-      async () => {
-        await ctx.plugin.jobService.discardResult(job);
-        ctx.closeDetail();
-      },
-      'vs-icon-btn-boxed is-danger',
-    );
+    if (job.state === 'review') {
+      iconButton(
+        actions,
+        'trash-2',
+        '丢弃结果',
+        async () => {
+          await ctx.plugin.jobService.discardResult(job);
+          ctx.closeDetail();
+        },
+        'vs-icon-btn-boxed is-danger',
+      );
+    }
   }
+}
+
+function renderStoredArtifactDetail(
+  container: HTMLElement,
+  ctx: ViewContext,
+  notePath: string,
+  artifactId: string,
+) {
+  emptyState(container, 'loader', '正在加载同步陪读…', '从本地 sidecar 恢复时间轴和重点');
+  let active = true;
+  ctx.registerPanelCleanup(() => {
+    active = false;
+  });
+
+  void ctx.plugin.artifactStore
+    .load(artifactId)
+    .then((artifact) => {
+      const ref = ctx.state.detail;
+      if (
+        !active ||
+        ref?.kind !== 'note' ||
+        ref.path !== notePath ||
+        ref.artifactId !== artifactId
+      ) {
+        return;
+      }
+      container.empty();
+      renderJobDetail(container, ctx, artifactToJob(artifact, notePath), true);
+    })
+    .catch((error) => {
+      if (!active) return;
+      container.empty();
+      emptyState(
+        container,
+        'alert-triangle',
+        '无法打开同步陪读',
+        error instanceof Error ? error.message : String(error),
+      );
+      const actions = container.createDiv({ cls: 'vs-detail-actions' });
+      textButton(actions, '返回笔记库', () => ctx.closeDetail(), 'is-primary');
+      textButton(actions, '打开笔记', () => ctx.openNote(notePath));
+    });
+}
+
+function artifactToJob(artifact: VideoKnowledgeArtifact, notePath: string): Job {
+  const createdAt = Date.parse(artifact.created_at) || Date.now();
+  const endedAt = Date.parse(artifact.updated_at) || createdAt;
+  return {
+    id: `artifact-${artifact.artifact_id}`,
+    title: artifact.title || notePath.split('/').pop()?.replace(/\.md$/i, '') || '视频工件',
+    notePath,
+    input: {
+      url: artifact.source.url,
+      localFile: artifact.source.local_file,
+      artifactId: artifact.artifact_id,
+      processingDepth: artifact.provenance.processing_depth,
+    },
+    mode: 'summary',
+    language: 'zh',
+    useCache: true,
+    state: 'success',
+    createdAt,
+    endedAt,
+    logs: [],
+    platform: artifact.platform,
+    result: {
+      video_title: artifact.title,
+      video_author: artifact.author,
+      video_duration: artifact.duration,
+      video_cover: artifact.cover,
+      video_platform: artifact.platform,
+      video_transcript: artifact.transcript,
+      transcript_source: artifact.provenance.transcript_source,
+      timing_quality: artifact.timing_quality,
+      video_segments: artifact.segments,
+      evidence_claims: artifact.claims,
+      visual_evidence: artifact.visual_evidence,
+      content_type: artifact.content_type,
+      attention: artifact.attention,
+      learning: artifact.learning,
+      related_notes: artifact.related_notes,
+      artifact: {
+        ...artifact.provenance,
+        artifact_id: artifact.artifact_id,
+        source_url: artifact.source.url,
+        source_hash: artifact.source.source_hash,
+      },
+    },
+  };
+}
+
+function renderEvidence(container: HTMLElement, ctx: ViewContext, job: Job) {
+  if (!job.result) return;
+  const markdown = renderEvidenceMarkdown(
+    job.result,
+    job.input.url || job.result.artifact?.source_url,
+  );
+  const markdownEl = container.createDiv({ cls: 'vs-markdown vs-evidence-map' });
+  void MarkdownRenderer.render(
+    ctx.plugin.app,
+    markdown,
+    markdownEl,
+    job.notePath || '',
+    ctx.plugin,
+  );
 }
 
 function prependIcon(button: HTMLElement, icon: string) {

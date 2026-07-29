@@ -13,7 +13,12 @@ import {
 import { platformLabel } from '../../core/NoteIndex';
 import { expandParts, isAbsoluteLocalPath, parseInput } from '../../core/InputParser';
 import { FolderSelectModal } from '../../modals/FolderSelectModal';
-import { ProcessingMode, SupportedLanguage } from '../../types';
+import {
+  ProcessingDepth,
+  ProcessingMode,
+  RequestedContentType,
+  SupportedLanguage,
+} from '../../types';
 import { VideoUtils } from '../../utils/VideoUtils';
 import { liveJobForNote, noteDisplayStatus } from '../noteStatus';
 
@@ -455,6 +460,65 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
     })),
   );
 
+  const depthLabels: Record<ProcessingDepth, string> = {
+    quick: '极速',
+    evidence: '证据',
+    'deep-visual': '深度视觉',
+  };
+  configChip(
+    chips,
+    '理解深度',
+    depthLabels[settings.defaultProcessingDepth],
+    (['quick', 'evidence', 'deep-visual'] as ProcessingDepth[]).map((depth) => ({
+      title: depthLabels[depth],
+      onClick: async () => {
+        settings.defaultProcessingDepth = depth;
+        plugin.api.setAnalysisDefaults({ processingDepth: depth });
+        await plugin.saveSettings();
+        ctx.renderAll();
+      },
+    })),
+  );
+
+  const contentLabels: Record<RequestedContentType, string> = {
+    auto: '自动识别',
+    course: '课程',
+    interview: '访谈',
+    tutorial: '教程',
+    news: '新闻',
+    meeting: '会议',
+    review: '评测',
+    general: '通用',
+  };
+  const contentTypes: RequestedContentType[] = [
+    'auto',
+    'course',
+    'interview',
+    'tutorial',
+    'news',
+    'meeting',
+    'review',
+    'general',
+  ];
+  configChip(
+    chips,
+    '内容类型',
+    contentLabels[settings.defaultContentType],
+    contentTypes.map((contentType) => ({
+      title: contentLabels[contentType],
+      onClick: async () => {
+        settings.defaultContentType = contentType;
+        settings.autoRouteContent = contentType === 'auto';
+        plugin.api.setAnalysisDefaults({
+          contentType,
+          autoRoute: settings.autoRouteContent,
+        });
+        await plugin.saveSettings();
+        ctx.renderAll();
+      },
+    })),
+  );
+
   const models = settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel];
   configChip(
     chips,
@@ -510,6 +574,46 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
   previewChip.addEventListener('click', async (event) => {
     event.preventDefault();
     settings.previewBeforeWrite = !settings.previewBeforeWrite;
+    await plugin.saveSettings();
+    ctx.renderAll();
+  });
+
+  const attentionChip = chips.createEl('button', {
+    cls: `vs-chip vs-chip-toggle${settings.attentionAssessmentEnabled ? ' is-active' : ''}`,
+    attr: {
+      type: 'button',
+      title: settings.attentionAssessmentEnabled
+        ? '已生成观看/略读/跳过判断'
+        : '点击启用观看价值判断',
+    },
+  });
+  const attentionIcon = attentionChip.createSpan({ cls: 'vs-chip-caret' });
+  setIcon(attentionIcon, 'gauge');
+  attentionChip.createSpan({ text: '观看判断', cls: 'vs-chip-value' });
+  attentionChip.addEventListener('click', async () => {
+    settings.attentionAssessmentEnabled = !settings.attentionAssessmentEnabled;
+    plugin.api.setAnalysisDefaults({
+      attentionAssessment: settings.attentionAssessmentEnabled,
+    });
+    await plugin.saveSettings();
+    ctx.renderAll();
+  });
+
+  const learningChip = chips.createEl('button', {
+    cls: `vs-chip vs-chip-toggle${settings.generateLearningArtifacts ? ' is-active' : ''}`,
+    attr: {
+      type: 'button',
+      title: settings.generateLearningArtifacts ? '已生成学习练习' : '点击启用学习练习',
+    },
+  });
+  const learningIcon = learningChip.createSpan({ cls: 'vs-chip-caret' });
+  setIcon(learningIcon, 'graduation-cap');
+  learningChip.createSpan({ text: '学习练习', cls: 'vs-chip-value' });
+  learningChip.addEventListener('click', async () => {
+    settings.generateLearningArtifacts = !settings.generateLearningArtifacts;
+    plugin.api.setAnalysisDefaults({
+      generateLearning: settings.generateLearningArtifacts,
+    });
     await plugin.saveSettings();
     ctx.renderAll();
   });

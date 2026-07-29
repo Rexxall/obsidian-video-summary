@@ -26,6 +26,7 @@ export class VideoSummaryView extends ItemView {
   private resizeObserver: ResizeObserver | null = null;
   private lastActiveFilePath = '';
   private backend: BackendState = 'is-unknown';
+  private panelCleanup: Array<() => void> = [];
 
   constructor(leaf: WorkspaceLeaf, plugin: VideoSummaryPlugin) {
     super(leaf);
@@ -113,6 +114,7 @@ export class VideoSummaryView extends ItemView {
     }
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.cleanupPanelResources();
   }
 
   /** 兼容旧调用方（main.ts 里的 refreshVideoSummaryView） */
@@ -133,7 +135,7 @@ export class VideoSummaryView extends ItemView {
       openNote: (path: string) => this.openNote(path),
       openDetail: (ref: DetailRef) => {
         this.state.detail = ref;
-        this.state.detailTab = 'preview';
+        this.state.detailTab = ref.kind === 'note' ? 'reader' : 'preview';
         this.renderPanels();
       },
       closeDetail: () => {
@@ -145,7 +147,15 @@ export class VideoSummaryView extends ItemView {
         language: this.plugin.settings.defaultLanguage,
         useCache: this.plugin.settings.enableCache && !this.state.ignoreCache,
         previewBeforeWrite: this.plugin.settings.previewBeforeWrite === true,
+        processingDepth: this.plugin.settings.defaultProcessingDepth,
+        contentType: this.plugin.settings.defaultContentType,
+        autoRoute: this.plugin.settings.autoRouteContent,
+        attentionAssessment: this.plugin.settings.attentionAssessmentEnabled,
+        generateLearning: this.plugin.settings.generateLearningArtifacts,
       }),
+      registerPanelCleanup: (cleanup) => {
+        this.panelCleanup.push(cleanup);
+      },
     };
   }
 
@@ -169,6 +179,7 @@ export class VideoSummaryView extends ItemView {
     const panel = this.panelEl;
     if (!panel) return;
     const scrollTop = panel.scrollTop;
+    this.cleanupPanelResources();
     disconnectLibraryCoverObserver();
     panel.empty();
 
@@ -224,5 +235,15 @@ export class VideoSummaryView extends ItemView {
     if (file instanceof TFile) {
       void this.app.workspace.getLeaf(false).openFile(file);
     }
+  }
+
+  private cleanupPanelResources() {
+    this.panelCleanup.splice(0).forEach((cleanup) => {
+      try {
+        cleanup();
+      } catch (error) {
+        console.error('[VideoSummaryView] panel cleanup failed', error);
+      }
+    });
   }
 }

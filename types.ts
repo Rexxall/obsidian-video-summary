@@ -7,6 +7,192 @@ export interface WebhookProfile {
   url: string;
 }
 
+export type ProcessingDepth = 'quick' | 'evidence' | 'deep-visual';
+
+export type VideoContentType =
+  | 'course'
+  | 'interview'
+  | 'tutorial'
+  | 'news'
+  | 'meeting'
+  | 'review'
+  | 'general';
+
+export type RequestedContentType = VideoContentType | 'auto';
+
+export type EvidenceSourceType = 'speech' | 'screen' | 'comment' | 'user' | 'ai-inference';
+
+export type TimingQuality = 'exact' | 'aligned' | 'estimated' | 'none';
+
+export interface MediaAssetReference {
+  id: string;
+  /** Vault-relative or plugin-data-relative path after localization. */
+  path?: string;
+  /** Remote source URL before localization. */
+  url?: string;
+  mime_type?: string;
+  sha256?: string;
+  width?: number;
+  height?: number;
+  bytes?: number;
+}
+
+export interface VideoSegment {
+  /** Stable across reprocessing when source URL, timestamp, and text are unchanged. */
+  id: string;
+  start: number | null;
+  end?: number | null;
+  text: string;
+  speaker?: string;
+  source: EvidenceSourceType;
+  timing_quality?: TimingQuality;
+  timestamp_url?: string;
+  keyframe?: MediaAssetReference;
+  visual_text?: string;
+  confidence?: number;
+}
+
+export interface VisualEvidence {
+  id: string;
+  start: number;
+  end?: number;
+  description: string;
+  ocr_text?: string;
+  keyframe?: MediaAssetReference;
+  kind?: 'slide' | 'chart' | 'code' | 'interface' | 'object' | 'scene' | 'other';
+  confidence?: number;
+}
+
+export interface EvidenceReference {
+  segment_id: string;
+  source: EvidenceSourceType;
+  quote?: string;
+  asset_id?: string;
+}
+
+export interface EvidenceClaim {
+  id: string;
+  claim: string;
+  evidence: EvidenceReference[];
+  start?: number | null;
+  end?: number | null;
+  confidence?: number;
+  review_state?: 'supported' | 'needs-review' | 'inference';
+}
+
+export interface AttentionRange {
+  start: number;
+  end: number;
+  reason: string;
+}
+
+export interface AttentionAssessment {
+  action: 'watch' | 'skim' | 'skip';
+  score?: number;
+  confidence?: number;
+  rationale: string;
+  context?: string;
+  information_density?: number;
+  originality?: number;
+  actionability?: number;
+  vault_relevance?: number;
+  promotional_ratio?: number;
+  estimated_useful_seconds?: number;
+  evidence_segment_ids?: string[];
+  limitations?: string[];
+  must_watch?: AttentionRange[];
+  skippable?: AttentionRange[];
+}
+
+export interface LearningCard {
+  id: string;
+  front: string;
+  back: string;
+  evidence_segment_ids?: string[];
+  tags?: string[];
+}
+
+export interface QuizQuestion {
+  id: string;
+  prompt: string;
+  choices?: string[];
+  answer: string;
+  explanation?: string;
+  evidence_segment_ids?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+export interface LearningPackage {
+  flashcards?: LearningCard[];
+  questions?: QuizQuestion[];
+  feynman_prompts?: string[];
+}
+
+export interface ArtifactProvenance {
+  schema_version: number;
+  artifact_id?: string;
+  source_url?: string;
+  source_hash?: string;
+  transcript_hash?: string;
+  /** Complete cache identity for this exact source + processing configuration. */
+  fingerprint?: string;
+  fingerprint_version?: number;
+  fingerprint_digest?: string;
+  run_hash?: string;
+  backend?: ProcessingBackend;
+  model?: string;
+  prompt_profile?: string;
+  prompt_version?: string;
+  processing_depth?: ProcessingDepth;
+  generated_at?: string;
+  transcript_source?: string;
+  warnings?: string[];
+}
+
+export interface RelatedNoteSuggestion {
+  note_path: string;
+  relation: 'supplements' | 'repeats' | 'conflicts' | 'updates' | 'related';
+  reason: string;
+  confidence?: number;
+}
+
+export interface UserHighlight {
+  id: string;
+  segment_id: string;
+  note?: string;
+  created_at: string;
+}
+
+export interface VideoKnowledgeArtifact {
+  schema_version: number;
+  artifact_id: string;
+  source: {
+    url?: string;
+    local_file?: string;
+    note_path?: string;
+    source_hash: string;
+  };
+  title?: string;
+  author?: string;
+  platform?: string;
+  duration?: string;
+  cover?: string;
+  content_type?: VideoContentType;
+  timing_quality: TimingQuality;
+  transcript?: string;
+  segments: VideoSegment[];
+  claims: EvidenceClaim[];
+  visual_evidence: VisualEvidence[];
+  attention?: AttentionAssessment;
+  learning?: LearningPackage;
+  related_notes: RelatedNoteSuggestion[];
+  highlights: UserHighlight[];
+  course_ids: string[];
+  provenance: ArtifactProvenance;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface VideoSummarySettings {
   // API 配置
   activeBackend: ProcessingBackend;
@@ -19,6 +205,11 @@ export interface VideoSummarySettings {
   // 处理配置
   defaultLanguage: 'zh' | 'en' | 'ja';
   defaultMode: ProcessingMode;
+  defaultProcessingDepth: ProcessingDepth;
+  defaultContentType: RequestedContentType;
+  autoRouteContent: boolean;
+  attentionAssessmentEnabled: boolean;
+  generateLearningArtifacts: boolean;
   aiModel: string;
   customAiModels: string[];
   timeoutMinutes: number;
@@ -163,6 +354,13 @@ export interface VideoInput {
   localFile?: string;
   localFiles?: string[];
   merge?: boolean;
+  processingDepth?: ProcessingDepth;
+  contentType?: RequestedContentType;
+  autoRoute?: boolean;
+  attentionAssessment?: boolean;
+  generateLearning?: boolean;
+  artifactId?: string;
+  highlightedSegmentIds?: string[];
 }
 
 export interface ProcessingResult {
@@ -174,6 +372,19 @@ export interface ProcessingResult {
   video_duration?: string;
   /** 后端返回的视频封面；只作为展示元数据，不主动联网补抓 */
   video_cover?: string;
+  video_id?: string;
+  video_platform?: string;
+  video_published_at?: string;
+  transcript_source?: string;
+  timing_quality?: TimingQuality;
+  video_segments?: VideoSegment[];
+  evidence_claims?: EvidenceClaim[];
+  visual_evidence?: VisualEvidence[];
+  content_type?: VideoContentType;
+  attention?: AttentionAssessment;
+  learning?: LearningPackage;
+  artifact?: ArtifactProvenance;
+  related_notes?: RelatedNoteSuggestion[];
   error?: string;
 }
 
@@ -209,6 +420,11 @@ export interface NoteMetadata {
   video_author?: string;
   video_duration?: string;
   video_cover?: string;
+  video_artifact_id?: string;
+  video_content_type?: string;
+  video_attention_action?: string;
+  video_processing_depth?: string;
+  video_review_due?: string;
   summary?: string;
   video_transcript?: string;
   date?: string;
