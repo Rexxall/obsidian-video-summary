@@ -3294,7 +3294,13 @@
 .video-summary-view .vs-reader-highlight {
   width: 17px;
   height: 17px;
+  border-radius: 4px;
   color: var(--text-faint);
+}
+
+.video-summary-view .vs-reader-highlight:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
 }
 
 .video-summary-view .vs-reader-segment.is-highlighted .vs-reader-highlight {

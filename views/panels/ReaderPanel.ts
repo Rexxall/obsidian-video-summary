@@ -87,14 +87,27 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
           cls: 'vs-reader-visual-text',
         });
       }
+      const highlighted = highlights.has(segment.id);
+      const highlightLabel = highlighted ? '取消重点' : '标记重点';
       const star = row.createSpan({
         cls: 'vs-reader-highlight',
-        attr: { title: highlights.has(segment.id) ? '取消重点' : '标记重点' },
+        attr: {
+          title: highlightLabel,
+          role: 'button',
+          tabindex: '0',
+          'aria-label': highlightLabel,
+          'aria-pressed': String(highlighted),
+        },
       });
-      setIcon(star, highlights.has(segment.id) ? 'star' : 'star-off');
-      star.addEventListener('click', (event) => {
+      setIcon(star, highlighted ? 'star' : 'star-off');
+      const activateHighlight = (event: Event) => {
+        event.preventDefault();
         event.stopPropagation();
         void toggleHighlight(ctx, job, segment, highlights).then(renderRows);
+      };
+      star.addEventListener('click', activateHighlight);
+      star.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') activateHighlight(event);
       });
       row.addEventListener('click', () => {
         if (segment.start === null || segment.timing_quality === 'none') {

@@ -12672,14 +12672,27 @@ function renderReaderPanel(container, ctx, job) {
           cls: "vs-reader-visual-text"
         });
       }
+      const highlighted = highlights.has(segment.id);
+      const highlightLabel = highlighted ? "\u53D6\u6D88\u91CD\u70B9" : "\u6807\u8BB0\u91CD\u70B9";
       const star = row.createSpan({
         cls: "vs-reader-highlight",
-        attr: { title: highlights.has(segment.id) ? "\u53D6\u6D88\u91CD\u70B9" : "\u6807\u8BB0\u91CD\u70B9" }
+        attr: {
+          title: highlightLabel,
+          role: "button",
+          tabindex: "0",
+          "aria-label": highlightLabel,
+          "aria-pressed": String(highlighted)
+        }
       });
-      (0, import_obsidian11.setIcon)(star, highlights.has(segment.id) ? "star" : "star-off");
-      star.addEventListener("click", (event) => {
+      (0, import_obsidian11.setIcon)(star, highlighted ? "star" : "star-off");
+      const activateHighlight = (event) => {
+        event.preventDefault();
         event.stopPropagation();
         void toggleHighlight(ctx, job, segment, highlights).then(renderRows);
+      };
+      star.addEventListener("click", activateHighlight);
+      star.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") activateHighlight(event);
       });
       row.addEventListener("click", () => {
         if (segment.start === null || segment.timing_quality === "none") {
