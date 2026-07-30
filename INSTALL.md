@@ -272,6 +272,7 @@ Before posting the project publicly:
 - Confirm `manifest.json` version matches the Git tag.
 - Confirm `main.js`, `manifest.json`, and `styles.css` are attached to the release.
 - Confirm the install ZIP contains only those three files at its root.
+- Confirm the optional n8n asset is attached as `Obsidian.Video.Summary.json`.
 - Confirm `SHA256SUMS` matches every uploaded custom asset.
 - Confirm `README.md`, `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, and `CONTRIBUTING.md` are committed.
 - Confirm ignored local files are not tracked by Git.

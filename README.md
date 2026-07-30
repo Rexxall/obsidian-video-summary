@@ -109,8 +109,9 @@ styles.css
 
 Restart Obsidian, then enable `Video Summary` from `Settings -> Community plugins`.
 
-The separately attached `Obsidian Video Summary.json` is an n8n import, not an Obsidian plugin
-file.
+The separately attached `Obsidian.Video.Summary.json` is an n8n import, not an Obsidian plugin
+file. Its source in the repository is `Obsidian Video Summary.json`; the release uses a
+space-free asset name so downloaded checksums remain directly verifiable.
 
 This release is desktop-only. Its manifest minimum is Obsidian 1.4.0 and it was exercised on
 Obsidian 1.12.7. The generated `.base` library views require Obsidian 1.9.10 or newer with the
@@ -279,7 +280,7 @@ Obsidian installs community plugin files from GitHub Releases. The release tag m
 The release workflow also publishes:
 
 - `video-summary-<version>.zip` containing only the three plugin runtime files
-- `Obsidian Video Summary.json` as a separate optional n8n import
+- `Obsidian.Video.Summary.json` as a separate optional n8n import
 - `SHA256SUMS` for downloaded-asset verification
 
 The included GitHub Actions workflow tests and builds the plugin, validates all version files, and
