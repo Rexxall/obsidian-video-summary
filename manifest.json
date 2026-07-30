@@ -1,10 +1,10 @@
 {
   "id": "video-summary",
   "name": "Video Summary",
-  "version": "2.2.0",
-  "minAppVersion": "0.15.0",
+  "version": "2.4.1",
+  "minAppVersion": "1.4.0",
   "description": "Turn video links, local media, and transcripts into structured notes.",
   "author": "Rexx",
-  "authorUrl": "https://github.com/RoronoaZoro35",
-  "isDesktopOnly": false
+  "authorUrl": "https://github.com/Rexxall",
+  "isDesktopOnly": true
 }

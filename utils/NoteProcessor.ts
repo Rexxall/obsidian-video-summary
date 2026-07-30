@@ -3,6 +3,11 @@ import { TFile, Vault } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { ProcessingResult, NoteMetadata, VideoInput, ProcessingMode } from '../types';
 import { SUPPORTED_PLATFORMS } from '../constants';
+import {
+  buildRichFrontmatterFields,
+  managedWriteOptionsForMode,
+  writeManagedKnowledgeMarkdown,
+} from '../core/KnowledgeMarkdown';
 
 export class NoteProcessor {
   private vault: Vault;
@@ -119,10 +124,17 @@ export class NoteProcessor {
     };
     [
       'status',
+      'video_summary_status',
       'link',
       'video_title',
       'video_author',
       'video_duration',
+      'video_cover',
+      'video_artifact_id',
+      'video_content_type',
+      'video_attention_action',
+      'video_processing_depth',
+      'video_review_due',
       'summary',
       'video_transcript',
       'date',
@@ -152,14 +164,17 @@ export class NoteProcessor {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
 
-    // 不在此处修改 status，交由调用方根据设置写入
+    // 插件状态与用户自己的通用 status 分离；旧插件笔记仍由 setProcessingStatus 兼容。
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = 'video';
 
-    // 更新处理结果
-    if (result.video_title) fm.video_title = result.video_title;
-    if (result.video_author) fm.video_author = result.video_author;
-    if (result.video_duration) fm.video_duration = result.video_duration;
-    if (result.summary) fm.summary = result.summary;
-    if (result.video_transcript) fm.video_transcript = result.video_transcript;
+    // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
+    Object.assign(fm, buildRichFrontmatterFields(result));
+    const learningItems =
+      (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
+    if (learningItems > 0 && !fm.video_review_due) {
+      fm.video_review_due = new Date().toISOString();
+    }
     delete fm.processing_error;
     delete fm.processing_error_code;
     delete fm.processing_error_at;
@@ -170,7 +185,13 @@ export class NoteProcessor {
     // 更新正文
     let newBody = body;
     newBody = this.removeProcessingErrorBlock(newBody);
-    if (mode === 'summary' && result.note) newBody = result.note;
+    const sourceUrl = typeof fm.link === 'string' ? fm.link : '';
+    newBody = writeManagedKnowledgeMarkdown(
+      newBody,
+      result,
+      sourceUrl,
+      managedWriteOptionsForMode(mode),
+    );
 
     const newContent = this.buildContent(fm, newBody);
     await this.vault.modify(file, newContent);
@@ -192,7 +213,11 @@ export class NoteProcessor {
   async setProcessingStatus(file: TFile, status: string): Promise<void> {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
-    fm.status = status;
+    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = 'video';
+    fm.video_summary_status = canonicalPluginStatus(status);
+    if (mirrorLegacyStatus) fm.status = status;
     const newContent = this.buildContent(fm, body);
     await this.vault.modify(file, newContent);
   }
@@ -201,7 +226,11 @@ export class NoteProcessor {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
     const errorMessage = this.normalizeErrorMessage(error);
-    fm.status = 'error';
+    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = 'video';
+    fm.video_summary_status = 'error';
+    if (mirrorLegacyStatus) fm.status = 'error';
     fm.processing_error = errorMessage;
     fm.processing_error_at = new Date().toISOString();
     const newBody = `${this.removeProcessingErrorBlock(body).trim()}\n\n${this.buildProcessingErrorBlock(errorMessage)}\n`;
@@ -337,7 +366,7 @@ export class NoteProcessor {
    */
   getProcessingStatus(content: string): string | null {
     const metadata = this.extractMetadata(content);
-    return metadata.status || null;
+    return metadata.video_summary_status || metadata.status || null;
   }
 
   /**
@@ -425,6 +454,9 @@ export class NoteProcessor {
       // 如果文件在子文件夹中，保持原有路径
       if (file.parent && file.parent.path !== '') {
         const newPath = `${file.parent.path}/${newFileName}`;
+        if (newPath === file.path) {
+          return;
+        }
 
         let targetPath = newPath;
         const exists = (p: string) => !!this.vault.getAbstractFileByPath(p);
@@ -451,6 +483,9 @@ export class NoteProcessor {
       } else {
         // 文件在根目录
         let targetPath = newFileName;
+        if (targetPath === file.path) {
+          return;
+        }
         const exists = (p: string) => !!this.vault.getAbstractFileByPath(p);
         if (exists(targetPath)) {
           if (strategy === 'skip') {
@@ -477,4 +512,46 @@ export class NoteProcessor {
       console.error(`重命名文件失败: ${error.message}`);
     }
   }
+}
+
+/**
+ * 只兼容插件历来写入通用 `status` 的那些值。
+ * 诸如 `status: 🔍` 的用户工作流状态必须原样保留，插件状态写入独立字段。
+ */
+function shouldMirrorLegacyStatus(value: unknown): boolean {
+  if (value === undefined || value === null || String(value).trim() === '') return true;
+  const status = String(value).trim().toLowerCase();
+  return new Set([
+    'pending',
+    'running',
+    'success',
+    'error',
+    'excluded',
+    '📺',
+    '⏳',
+    '✅',
+    '▶️',
+    '❌',
+    '⛔️',
+    '⛔',
+    '待处理',
+    '处理中',
+    '已处理',
+    '处理失败',
+    '非视频笔记',
+  ]).has(status);
+}
+
+function canonicalPluginStatus(
+  value: string,
+): 'pending' | 'running' | 'success' | 'error' | 'excluded' {
+  const status = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (status === 'pending' || status === '📺' || status === '待处理') return 'pending';
+  if (status === 'running' || status === '⏳' || status === '处理中') return 'running';
+  if (status === 'error' || status === '❌' || status === '处理失败') return 'error';
+  if (status === 'excluded' || status.includes('⛔') || status === '非视频笔记') return 'excluded';
+  // 这个入口的其他值来自“成功状态文本”设置；插件自己的真值仍保持 canonical。
+  return 'success';
 }

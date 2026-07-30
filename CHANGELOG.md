@@ -2,6 +2,111 @@
 
 All notable changes to this project are documented here.
 
+## 2.4.1
+
+Turns the sidebar redesign into an evidence-aware video knowledge workflow.
+
+- Added versioned local knowledge artifacts with timed transcript segments, evidence-backed claims,
+  visual references, provenance, stable identifiers, and managed Markdown blocks that preserve
+  user-authored content.
+- Added a synchronized reader for local media and YouTube, transcript-to-time seeking, persistent
+  highlights, and accessible keyboard controls. Bilibili supports click-to-seek but does not claim
+  automatic playback tracking.
+- Added `quick`, `evidence`, and `deep-visual` processing depths with truthful backend degradation.
+  The bundled n8n workflow supports evidence depth; deep visual requires a separately deployed
+  compatible Worker, ffmpeg, and a configured visual model.
+- Added automatic and manual routing for course, interview, tutorial, news, meeting, review, and
+  general content, with route-specific output contracts.
+- Added transparent watch / skim / skip attention assessment, bounded must-watch and skippable
+  ranges, and explicit limitations when Vault relevance or timed evidence is unavailable.
+- Added incremental YouTube playlist and Bilibili collection course manifests with deduplication,
+  ordering, deterministic adjacent-lesson dependencies, missing lesson-number gaps, retained
+  progress, and pending-note import without automatic model calls. This does not infer semantic
+  prerequisite concepts.
+- Added a review-gated multi-video Claim Lab and a local cross-modal search index over transcripts,
+  OCR, screen text, visual descriptions, metadata, and claims.
+- Added local flashcard and question review with attempts, confidence, mastery, due scheduling, and
+  links back to source evidence.
+- Added offline-first `obsidian://video-summary` capture, managed Obsidian Base views, and validated
+  reprocessing from local reproducibility manifests without reacquiring the source.
+- Declared desktop-only support for the file and local-backend workflow. The core plugin can load
+  from Obsidian 1.4.0; generated `.base` views require Obsidian 1.9.10 or newer with Bases enabled.
+- Added platform-cover loading and metadata/status reconciliation so newly added supported links can
+  populate library covers after metadata is available.
+- Generalized the public n8n prompts so the distributed workflow contains no private user profile
+  or unsupported frame-analysis instruction. Instance-specific ASR workflow IDs are replaced by an
+  explicit setup placeholder and public subworkflow contract.
+- Expanded automated coverage to 143 plugin/workflow tests and added release packaging/version
+  validation. Local Obsidian UI acceptance was performed offline; online platform playback,
+  playlist import, n8n end-to-end processing, and live visual-model calls remain integration checks.
+
+## 2.4.0
+
+Implements the media-library sidebar design.
+
+- Sidebar: video thumbnails (76×44 job cards, 44×26 rows) with a platform colour bar and duration
+  badge, placeholder stripes when no cover is available. `NoteIndex` now reads `cover` / `image` /
+  `thumbnail` / `video_cover` and `video_duration` from frontmatter.
+- Status dots became status pills, and the pills are actions: a failed row's pill re-runs the job
+  without cache, a library row's pill filters the list to that status.
+- Job cards are cards with the progress bar welded to the bottom edge; review cards carry
+  preview / write / discard inline.
+- Header shows a backend status pill (click to test), the input became a card with pill config
+  chips, and the primary button is a 36px gradient.
+- Panel tabs and the detail sub-tabs are segmented controls. Detail gained a 110px cover banner,
+  a meta pill row, a green write-summary card, and collapsed six flat buttons into
+  primary + more menu + discard.
+- Settings page: gradient app badge header with backend pill, segmented tabs, one card per section
+  with lucide icons instead of emoji headings, and the install check is a three-up status grid.
+- Batch modal: segmented mode switch, five filter rows compressed to one, quick-select chips with a
+  live selected counter, custom checkboxes, a "last batch" success/failure bar derived from
+  history, and a footer with concurrency control plus a counted primary button. It now reads the
+  note index instead of re-scanning the vault.
+- Stylesheet gained a token layer (`--vs-card`, `--vs-chip`, `--vs-accent-*`, status tints, platform
+  colours) derived entirely from Obsidian theme variables, so light and dark both work.
+
+## 2.3.1
+
+Fixes the reason 2.3.0 looked like a pile of gray boxes.
+
+- Every control selector is now prefixed with `.video-summary-view`. Themes commonly style
+  `button:not(.clickable-icon)` (specificity 0-1-1), which beat the plain single-class selectors in
+  2.3.0, so icon buttons, chips, and the primary button were all repainted as default theme buttons.
+- Grouping now uses whitespace and hairlines instead of stacked gray fills: the context strip is a
+  left rule, detail stats are one wrapped meta line instead of three cards, the error block is a
+  tinted panel with a red left border instead of a saturated red slab, and row actions appear on
+  hover (always visible on touch devices).
+
+## 2.3.0
+
+Sidebar rewrite. The panel is now four layers: action bar, job stream, note library, detail.
+
+- Jobs are first-class: queued/running/failed work lives in a store on the plugin, survives closing
+  the panel, and shows stage, elapsed time, cancel, and retry. Progress stages are reported only by
+  backends that expose job status (Codex worker); the n8n webhook is a single request, so the card
+  says so instead of faking stages.
+- One smart input replaces the single/multi/JSON radio group: URLs, multi-line batches, local file
+  names, pasted transcripts, and webhook JSON are detected from the content.
+- Settings moved into inline chips (mode, language, model, webhook, output folder) with a popover.
+- Optional preview before write: results can be inspected (summary, transcript, metadata, raw JSON)
+  and then written to the note, sent to a new note, or discarded.
+- Failure reasons are recorded and displayed. History entries now carry the error message, source
+  URL, platform, and duration.
+- The note library is index-backed with incremental updates instead of a full vault scan on every
+  render, filters by status chips, and renders in pages.
+- Commands and the batch runner now go through the same job queue, so command-triggered work shows
+  up in the panel.
+- Visual pass: lucide icons instead of emoji, Obsidian theme variables everywhere, no hardcoded
+  colors and no `!important`. Stylesheet went from 3610 to about 2200 lines.
+- Removed the orphaned root `VideoSummaryModal.ts` and the duplicate render paths in the old view.
+- `minAppVersion` raised to 1.4.0 because the view uses `MarkdownRenderer.render`.
+
+## 2.2.0
+
+- Split processing history into `history.json` so `data.json` stops growing without bound.
+- Added backend preflight checks, a cookies manager, `obsidian://video-summary` protocol handling,
+  and automatic short-link expansion.
+
 ## 2.1.4
 
 - Added Bilibili cookie support with the expected `bilibili_cookies.txt` filename.

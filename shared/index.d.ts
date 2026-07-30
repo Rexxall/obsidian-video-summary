@@ -94,4 +94,11 @@ export function buildLegacyN8nPayload(
   item: Record<string, unknown>,
   settings?: Record<string, unknown>,
   action?: string,
-): { action: 'new' | 'append'; title: string; url: string; vault: string; folder: string; appendPath: string };
+): {
+  action: 'new' | 'append';
+  title: string;
+  url: string;
+  vault: string;
+  folder: string;
+  appendPath: string;
+};

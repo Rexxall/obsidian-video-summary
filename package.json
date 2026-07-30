@@ -1,11 +1,12 @@
 {
   "name": "obsidian-video-summary-plugin",
-  "version": "2.2.0",
+  "version": "2.4.1",
   "description": "将视频链接、本地音视频和文稿整理为结构化 Obsidian 笔记",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "node tests/run-tests.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "lint": "eslint --ext .ts .",
     "lint:fix": "eslint --ext .ts . --fix",
@@ -24,6 +25,14 @@
     "knowledge-management"
   ],
   "author": "Rexx",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rexxall/obsidian-video-summary-plugin.git"
+  },
+  "homepage": "https://github.com/Rexxall/obsidian-video-summary-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/Rexxall/obsidian-video-summary-plugin/issues"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

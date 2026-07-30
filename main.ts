@@ -11,6 +11,7 @@ import {
   TFile,
   WorkspaceLeaf,
   DropdownComponent,
+  setIcon,
 } from 'obsidian';
 import { VideoSummaryModal } from './modals';
 import { BatchProcessingModal } from './BatchProcessingModal';
@@ -22,14 +23,20 @@ import {
   SetupCheckItem,
   ConnectionTestResult,
   PlatformCapability,
+  ProcessingDepth,
+  RequestedContentType,
+  VideoInput,
+  VideoKnowledgeArtifact,
 } from './types';
 import {
   DEFAULT_SETTINGS,
   DEFAULT_N8N_WEBHOOK_URL,
   DEFAULT_HISTORY_LIMIT,
+  LEGACY_DEFAULT_N8N_WEBHOOK_URL,
   LEGACY_N8N_WEBHOOK_URL,
   PLATFORM_CAPABILITIES,
   RECOMMENDED_WORKFLOW,
+  SUPPORTED_PLATFORMS,
 } from './constants';
 import { VideoSummaryAPI } from './api/VideoSummaryAPI';
 import { VideoSummaryView, VIDEO_SUMMARY_VIEW_TYPE } from './views/VideoSummaryView';
@@ -38,6 +45,26 @@ import { VideoUtils } from './utils/VideoUtils';
 import { FileProcessor } from './utils/FileProcessor';
 import { RetryUtils } from './utils/RetryUtils';
 import { NoteProcessor } from './utils/NoteProcessor';
+import { JobStore } from './core/JobStore';
+import { JobService } from './core/JobService';
+import { NoteIndex } from './core/NoteIndex';
+import { ArtifactStore } from './core/ArtifactStore';
+import { CrossModalMemoryIndex } from './core/CrossModalMemory';
+import { KnowledgeLabModal } from './modals/KnowledgeLabModal';
+import { LearningProgressStore, learningItemsFromArtifact } from './core/LearningProgressStore';
+import { LearningReviewModal, selectReviewItems } from './views/LearningReviewModal';
+import {
+  CaptureInbox,
+  CaptureInboxEntry,
+  CaptureInboxRepositoryResult,
+  CaptureInboxAction,
+  CaptureNoteDraft,
+} from './core/CaptureInbox';
+import { normalizeVideoSummaryBaseFolder, upsertVideoSummaryBase } from './core/BasesGenerator';
+import { restoreReprocessPayload } from './core/ReproducibilityManifest';
+import { ReproducibilityStore } from './core/ReproducibilityStore';
+import { CourseStore } from './core/CourseStore';
+import { syncCourseIndexAtomic } from './core/CourseIndexWriter';
 import { Modal } from 'obsidian';
 
 export default class VideoSummaryPlugin extends Plugin {
@@ -45,6 +72,20 @@ export default class VideoSummaryPlugin extends Plugin {
   api: VideoSummaryAPI;
   fileProcessor: FileProcessor;
   noteProcessor: NoteProcessor;
+  /** 任务与索引挂在插件上，侧栏开关不影响它们 */
+  jobs: JobStore;
+  jobService: JobService;
+  noteIndex: NoteIndex;
+  artifactStore: ArtifactStore;
+  /** Rebuilt from versioned sidecars after restart; never scrapes arbitrary notes. */
+  memoryIndex: CrossModalMemoryIndex;
+  learningStore: LearningProgressStore;
+  reproducibilityStore: ReproducibilityStore;
+  courseStore: CourseStore;
+  captureInbox: CaptureInbox;
+  private readonly captureLocks = new Map<string, Promise<CaptureInboxRepositoryResult>>();
+  private readonly capturedEntries = new Map<string, CaptureInboxEntry>();
+  private readonly captureProcessingLocks = new Map<string, Promise<void>>();
 
   // history.json 延迟写入
   private historySaveTimer: number | null = null;
@@ -69,6 +110,44 @@ export default class VideoSummaryPlugin extends Plugin {
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = new NoteProcessor(this.app.vault);
+    const pluginDir =
+      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    this.artifactStore = new ArtifactStore(
+      this.app.vault.adapter,
+      `${pluginDir}/data/knowledge-artifacts`,
+    );
+    this.memoryIndex = new CrossModalMemoryIndex();
+    this.learningStore = new LearningProgressStore(
+      this.app.vault.adapter,
+      `${pluginDir}/data/learning-progress`,
+    );
+    this.reproducibilityStore = new ReproducibilityStore(
+      this.app.vault.adapter,
+      `${pluginDir}/data/reproducibility`,
+    );
+    this.courseStore = new CourseStore(
+      this.app.vault.adapter,
+      `${pluginDir}/data/course-manifests`,
+    );
+    this.captureInbox = new CaptureInbox({
+      putIfAbsent: (sourceHash, draft) => this.putCaptureIfAbsent(sourceHash, draft),
+    });
+
+    // 任务队列 + 视频笔记索引
+    this.jobs = new JobStore();
+    this.jobService = new JobService(this, this.jobs);
+    this.noteIndex = new NoteIndex(this.app);
+    this.app.workspace.onLayoutReady(() => this.noteIndex.build());
+    this.app.workspace.onLayoutReady(() => {
+      void this.memoryIndex.rebuildFromStore(this.artifactStore).catch((error) => {
+        console.warn('[Video Summary] 跨模态记忆索引重建失败', error);
+      });
+    });
+    this.app.workspace.onLayoutReady(() => {
+      void this.ensureVideoLibraryBase(false).catch((error) => {
+        console.warn('[Video Summary] 视频库 Base 初始化失败', error);
+      });
+    });
 
     // 注册视图类型
     this.registerView(
@@ -90,14 +169,31 @@ export default class VideoSummaryPlugin extends Plugin {
     // 注册设置页面
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
 
-    // 注册文件修改事件监听器
+    // 索引增量维护：以前是每次文件变动就整块重建侧栏 DOM，现在只更新受影响的那条记录
     this.registerEvent(
-      this.app.vault.on('modify', (file) => {
+      this.app.metadataCache.on('changed', (file) => {
         if (file instanceof TFile && file.extension === 'md') {
-          // 延迟刷新，避免频繁更新
-          setTimeout(() => {
-            this.refreshVideoSummaryView();
-          }, 500);
+          void this.noteIndex.refreshFile(file);
+        }
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on('delete', (file) => {
+        this.noteIndex.handleDelete(file);
+        if (file instanceof TFile && file.extension === 'md') {
+          void this.handleVideoNoteDeleted(file.path).catch((error) => {
+            console.warn('[Video Summary] 删除后的关联清理失败', error);
+          });
+        }
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on('rename', (file, oldPath) => {
+        this.noteIndex.handleRename(file, oldPath);
+        if (file instanceof TFile && file.extension === 'md') {
+          void this.handleVideoNoteRenamed(file, oldPath).catch((error) => {
+            console.warn('[Video Summary] 重命名后的关联更新失败', error);
+          });
         }
       }),
     );
@@ -211,6 +307,54 @@ export default class VideoSummaryPlugin extends Plugin {
       name: '📊 打开 Codex Worker 控制台',
       callback: () => {
         this.openCodexWorkerDashboard();
+      },
+    });
+
+    this.addCommand({
+      id: 'video-summary-memory-search',
+      name: '🔎 搜索跨模态视频记忆',
+      callback: () => {
+        new KnowledgeLabModal(this.app, this, 'memory').open();
+      },
+    });
+
+    this.addCommand({
+      id: 'video-summary-claim-lab',
+      name: '🧪 生成多视频论点实验室',
+      callback: () => {
+        new KnowledgeLabModal(this.app, this, 'claim-lab').open();
+      },
+    });
+
+    this.addCommand({
+      id: 'video-summary-learning-review',
+      name: '🧠 复习当前视频的学习卡',
+      editorCallback: (_editor: Editor, view: MarkdownView) => {
+        if (view.file) void this.openLearningReviewForFile(view.file);
+      },
+    });
+
+    this.addCommand({
+      id: 'video-summary-learning-review-due',
+      name: '🧠 复习所有到期的视频学习卡',
+      callback: () => {
+        void this.openGlobalLearningReview();
+      },
+    });
+
+    this.addCommand({
+      id: 'video-summary-reprocess-from-artifact',
+      name: '♻️ 用本地可复现工件重新处理',
+      editorCallback: (_editor: Editor, view: MarkdownView) => {
+        if (view.file) void this.reprocessFromPersistedArtifact(view.file);
+      },
+    });
+
+    this.addCommand({
+      id: 'video-summary-generate-base',
+      name: '🗂️ 生成或安全更新视频库 Base',
+      callback: () => {
+        void this.ensureVideoLibraryBase(true);
       },
     });
 
@@ -328,6 +472,7 @@ export default class VideoSummaryPlugin extends Plugin {
       }
 
       await this.noteProcessor.setProcessingStatus(file, 'running');
+      await this.jobService.updateCourseProgressForFile(file, 'processing', 10);
 
       const statusNotice = new Notice('正在获取视频信息...', 0);
 
@@ -339,15 +484,29 @@ export default class VideoSummaryPlugin extends Plugin {
           this.settings.defaultLanguage,
           this.settings.enableCache !== false,
         );
+        const artifactContext = {
+          title: file.basename,
+          notePath: file.path,
+          input: videoInput,
+          platform: result.video_platform,
+        };
+        await this.jobService.persistExternalResult(artifactContext, result);
 
         await this.noteProcessor.updateNote(file, result, 'info-only', {
           autoRename: forceRename,
           conflictStrategy: this.settings.renameConflictStrategy,
         });
+        await this.jobService.relinkExternalResult(artifactContext, result, file);
 
         await this.noteProcessor.setProcessingStatus(
           file,
           this.settings.successStatusValue ?? 'success',
+        );
+        await this.jobService.updateCourseProgressForFile(
+          file,
+          'complete',
+          100,
+          result.artifact?.artifact_id,
         );
         this.addToHistory(file.basename, 'success', 'info-only');
 
@@ -355,6 +514,7 @@ export default class VideoSummaryPlugin extends Plugin {
         setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
+        await this.jobService.updateCourseProgressForFile(file, 'error', 0);
         this.addToHistory(file.basename, 'error', 'info-only');
         statusNotice.setMessage(`更新失败: ${this.formatErrorForNotice(error)}`);
         setTimeout(() => statusNotice.hide(), 3000);
@@ -415,6 +575,8 @@ export default class VideoSummaryPlugin extends Plugin {
 
       // 显示处理状态
       const statusNotice = new Notice(`正在处理: ${this.getModeDisplayText(mode)}`, 0);
+      await this.noteProcessor.setProcessingStatus(file, 'running');
+      await this.jobService.updateCourseProgressForFile(file, 'processing', 10);
 
       // 检查是否为多文件合并场景 (localFileName 包含逗号)
       let isMerge = false;
@@ -432,6 +594,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
       try {
         let result: any;
+        let artifactInput: VideoInput = {};
 
         // ===== 多文件合并逻辑 =====
         if (isMerge) {
@@ -467,10 +630,13 @@ export default class VideoSummaryPlugin extends Plugin {
           statusNotice.setMessage(`正在以${langText}生成合并总结...`);
 
           // 构建新的输入，使用合并后的文稿
-          const mergedInput: any = {
+          const mergedInput: VideoInput = {
             transcript: combinedTranscript,
-            url: url,
+            url: url || undefined,
+            localFiles,
+            merge: true,
           };
+          artifactInput = mergedInput;
 
           // 调用主处理流程（重试逻辑）
           result = await RetryUtils.withSmartRetry(
@@ -493,13 +659,11 @@ export default class VideoSummaryPlugin extends Plugin {
           // ===== 单文件/常规逻辑 =====
 
           // 构建输入数据
-          const input: any = {};
+          const input: VideoInput = {};
           if (url) input.url = url;
           if (providedTranscript) input.transcript = providedTranscript;
           if (localFileName) input.localFile = localFileName; // 单文件情况
-
-          // 设置处理中状态
-          await this.noteProcessor.setProcessingStatus(file, 'running');
+          artifactInput = input;
 
           // 使用重试机制调用API处理
           result = await RetryUtils.withSmartRetry(
@@ -521,17 +685,31 @@ export default class VideoSummaryPlugin extends Plugin {
         }
 
         // ===== 处理结果 =====
+        const artifactContext = {
+          title: file.basename,
+          notePath: file.path,
+          input: artifactInput,
+          platform: result.video_platform,
+        };
+        await this.jobService.persistExternalResult(artifactContext, result);
 
         // 更新笔记内容（按设置控制自动重命名）
         await this.noteProcessor.updateNote(file, result, mode, {
           autoRename: this.settings.autoRenameEnabled,
           conflictStrategy: this.settings.renameConflictStrategy,
         });
+        await this.jobService.relinkExternalResult(artifactContext, result, file);
 
         // 更新状态（使用可配置的成功状态值）
         await this.noteProcessor.setProcessingStatus(
           file,
           this.settings.successStatusValue ?? 'success',
+        );
+        await this.jobService.updateCourseProgressForFile(
+          file,
+          'complete',
+          100,
+          result.artifact?.artifact_id,
         );
 
         // 添加到历史记录
@@ -542,6 +720,7 @@ export default class VideoSummaryPlugin extends Plugin {
       } catch (error) {
         // 更新状态为错误
         await this.noteProcessor.setProcessingError(file, error);
+        await this.jobService.updateCourseProgressForFile(file, 'error', 0);
 
         // 添加到历史记录
         this.addToHistory(file.basename, 'error', mode);
@@ -580,10 +759,11 @@ export default class VideoSummaryPlugin extends Plugin {
 
       // 设置处理中状态
       await this.noteProcessor.setProcessingStatus(file, 'running');
+      await this.jobService.updateCourseProgressForFile(file, 'processing', 10);
       const statusNotice = new Notice(`正在将全文发送处理...`, 0);
 
       try {
-        const input: any = {
+        const input: VideoInput = {
           transcript: fullText,
         };
 
@@ -604,15 +784,29 @@ export default class VideoSummaryPlugin extends Plugin {
             statusNotice.setMessage(`重试中 (${attempt}/2): ${error.message}`);
           },
         );
+        const artifactContext = {
+          title: file.basename,
+          notePath: file.path,
+          input,
+          platform: result.video_platform,
+        };
+        await this.jobService.persistExternalResult(artifactContext, result);
 
         // 更新笔记内容，强制开启 autoRename 以便此模式下总是应用由 n8n 生成的好的标题
         await this.noteProcessor.updateNote(file, result, mode, {
           autoRename: true,
           conflictStrategy: this.settings.renameConflictStrategy,
         });
+        await this.jobService.relinkExternalResult(artifactContext, result, file);
         await this.noteProcessor.setProcessingStatus(
           file,
           this.settings.successStatusValue ?? 'success',
+        );
+        await this.jobService.updateCourseProgressForFile(
+          file,
+          'complete',
+          100,
+          result.artifact?.artifact_id,
         );
         this.addToHistory(file.basename, 'success', mode);
 
@@ -620,6 +814,7 @@ export default class VideoSummaryPlugin extends Plugin {
         setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
+        await this.jobService.updateCourseProgressForFile(file, 'error', 0);
         this.addToHistory(file.basename, 'error', mode);
         statusNotice.setMessage(`处理失败: ${this.formatErrorForNotice(error)}`);
         setTimeout(() => statusNotice.hide(), 5000);
@@ -694,18 +889,12 @@ export default class VideoSummaryPlugin extends Plugin {
           // 更新进度
           progressNotice.setMessage(`处理中 (${i + 1}/${pendingFiles.length})`);
 
-          // 处理文件
+          // 处理文件（历史记录由 JobService 统一写，这里不再重复追加）
           await this.processFileWithMode(file, this.settings.defaultMode);
           successCount++;
-
-          // 添加成功记录到历史
-          this.addToHistory(file.basename, 'success', this.settings.defaultMode as string);
         } catch (error) {
           errorCount++;
           console.error(`处理文件失败: ${file.basename}`, error);
-
-          // 添加失败记录到历史
-          this.addToHistory(file.basename, 'error', this.settings.defaultMode as string);
         }
 
         // 添加延迟避免API限制
@@ -732,17 +921,27 @@ export default class VideoSummaryPlugin extends Plugin {
     });
   }
 
-  private addToHistory(fileName: string, result: 'success' | 'error', mode: string) {
+  addToHistory(
+    fileName: string,
+    result: 'success' | 'error',
+    mode: string,
+    meta?: { url?: string; platform?: string; error?: string; durationMs?: number },
+  ) {
     if (!this.settings.history) {
       this.settings.history = [];
     }
 
-    // 添加新记录
+    // 添加新记录（失败原因一并记下，界面上就能看到为什么挂了）
     this.settings.history.push({
       file: fileName,
       result: result,
       mode: mode as any,
       time: new Date().toLocaleString('zh-CN'),
+      language: this.settings.defaultLanguage,
+      url: meta?.url,
+      platform: meta?.platform,
+      error: meta?.error,
+      durationMs: meta?.durationMs,
     });
 
     // 限容并直接排队落盘（不依赖调用方随后是否 saveSettings）
@@ -750,7 +949,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.queueHistorySave();
   }
 
-  private async clearProcessingHistory() {
+  async clearProcessingHistory() {
     try {
       this.settings.history = [];
       await this.saveSettings();
@@ -851,7 +1050,7 @@ export default class VideoSummaryPlugin extends Plugin {
     await this.fileProcessor.processFile(file);
   }
 
-  private async activateView() {
+  private async activateView(): Promise<VideoSummaryView | null> {
     const { workspace } = this.app;
 
     let leaf: WorkspaceLeaf;
@@ -868,6 +1067,7 @@ export default class VideoSummaryPlugin extends Plugin {
     }
 
     workspace.revealLeaf(leaf);
+    return leaf.view instanceof VideoSummaryView ? leaf.view : null;
   }
 
   async loadSettings() {
@@ -875,6 +1075,17 @@ export default class VideoSummaryPlugin extends Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
 
     let shouldSave = false;
+    try {
+      const safeOutputFolder = normalizeVideoSummaryBaseFolder(this.settings.outputFolder);
+      if (safeOutputFolder !== this.settings.outputFolder) {
+        this.settings.outputFolder = safeOutputFolder;
+        shouldSave = true;
+      }
+    } catch {
+      console.warn('[Video Summary] 已忽略不安全的旧输出文件夹设置');
+      this.settings.outputFolder = '';
+      shouldSave = true;
+    }
 
     // ===== history 拆分存储（2.2.0）=====
     // history / webhookHistory 持久化在插件目录 history.json；
@@ -914,6 +1125,22 @@ export default class VideoSummaryPlugin extends Plugin {
       this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
       shouldSave = true;
     }
+    if (
+      this.settings.activeBackend !== 'codex-worker' &&
+      this.settings.defaultProcessingDepth === 'deep-visual'
+    ) {
+      this.settings.defaultProcessingDepth = 'evidence';
+      shouldSave = true;
+      new Notice('旧设置中的“深度视觉”已按 n8n 实际能力迁移为“证据”模式。', 7000);
+    }
+    const normalizedConcurrency = Math.max(
+      1,
+      Math.min(20, Math.floor(Number(this.settings.batchConcurrency) || 1)),
+    );
+    if (this.settings.batchConcurrency !== normalizedConcurrency) {
+      this.settings.batchConcurrency = normalizedConcurrency;
+      shouldSave = true;
+    }
 
     if (!this.settings.codexWorkerUrl) {
       this.settings.codexWorkerUrl = DEFAULT_SETTINGS.codexWorkerUrl;
@@ -922,6 +1149,12 @@ export default class VideoSummaryPlugin extends Plugin {
 
     if (this.settings.setupGuideDismissed === undefined) {
       this.settings.setupGuideDismissed = DEFAULT_SETTINGS.setupGuideDismissed;
+      shouldSave = true;
+    }
+
+    const normalizedSuccessStatus = normalizeSuccessStatusValue(this.settings.successStatusValue);
+    if (this.settings.successStatusValue !== normalizedSuccessStatus) {
+      this.settings.successStatusValue = normalizedSuccessStatus;
       shouldSave = true;
     }
 
@@ -940,11 +1173,13 @@ export default class VideoSummaryPlugin extends Plugin {
     }
 
     this.settings.webhookProfiles.forEach((profile) => {
+      const hasDefaultIdentity =
+        profile.id === 'default-webhook' ||
+        profile.name === 'Cyrus' ||
+        profile.name === '默认 Webhook';
       const isLegacyDefault =
-        profile.url === LEGACY_N8N_WEBHOOK_URL &&
-        (profile.id === 'default-webhook' ||
-          profile.name === 'Cyrus' ||
-          profile.name === '默认 Webhook');
+        hasDefaultIdentity &&
+        (profile.url === LEGACY_N8N_WEBHOOK_URL || profile.url === LEGACY_DEFAULT_N8N_WEBHOOK_URL);
       if (isLegacyDefault) {
         profile.name = profile.name === 'Cyrus' ? 'Local n8n' : profile.name;
         profile.url = DEFAULT_N8N_WEBHOOK_URL;
@@ -980,8 +1215,7 @@ export default class VideoSummaryPlugin extends Plugin {
   // ===== history.json 读写 =====
 
   private get historyFilePath(): string {
-    const dir =
-      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     return `${dir}/history.json`;
   }
 
@@ -1082,6 +1316,13 @@ export default class VideoSummaryPlugin extends Plugin {
     });
     this.api.setDebug(this.settings.enableDebugMode);
     this.api.setExpandShortLinks(this.settings.expandShortLinks !== false);
+    this.api.setAnalysisDefaults({
+      processingDepth: this.settings.defaultProcessingDepth,
+      contentType: this.settings.defaultContentType,
+      autoRoute: this.settings.autoRouteContent,
+      attentionAssessment: this.settings.attentionAssessmentEnabled,
+      generateLearning: this.settings.generateLearningArtifacts,
+    });
 
     if (this.settings.enableCache !== false) {
       this.api.setCacheConfig(1000, this.settings.cacheExpiryDays);
@@ -1108,6 +1349,12 @@ export default class VideoSummaryPlugin extends Plugin {
     this.settings.activeWebhookId = profileId;
     this.settings.activeBackend = 'n8n';
     this.settings.n8nWebhookUrl = profile.url;
+    if (this.settings.defaultProcessingDepth === 'deep-visual') {
+      this.settings.defaultProcessingDepth = 'evidence';
+      if (!options.silent) {
+        new Notice('n8n 暂不执行深度视觉，理解深度已改为“证据”。', 7000);
+      }
+    }
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
 
@@ -1124,6 +1371,10 @@ export default class VideoSummaryPlugin extends Plugin {
 
   async setActiveBackend(backend: ProcessingBackend) {
     this.settings.activeBackend = backend;
+    if (backend !== 'codex-worker' && this.settings.defaultProcessingDepth === 'deep-visual') {
+      this.settings.defaultProcessingDepth = 'evidence';
+      new Notice('n8n 暂不执行深度视觉，理解深度已改为“证据”。', 7000);
+    }
     this.initializeApiInstance();
     await this.saveSettings();
   }
@@ -1152,66 +1403,41 @@ export default class VideoSummaryPlugin extends Plugin {
     return VideoUtils.extractLocalFileName(content);
   }
 
+  /**
+   * 命令面板 / 右键菜单的处理入口。
+   * 自 2.3.0 起统一走任务队列，这样命令触发的处理也能在侧栏看到进度、取消和失败原因，
+   * 状态写回、历史记录、错误处理都由 JobService 统一负责（不再各写一份）。
+   */
   private async processFileWithMode(file: TFile, mode: ProcessingMode) {
-    try {
-      const content = await this.app.vault.read(file);
+    const job = await this.jobService.submitFile(file, {
+      mode,
+      language: this.settings.defaultLanguage,
+      useCache: this.settings.enableCache !== false,
+      previewBeforeWrite: this.settings.previewBeforeWrite === true,
+      processingDepth: this.settings.defaultProcessingDepth,
+      contentType: this.settings.defaultContentType,
+      autoRoute: this.settings.autoRouteContent,
+      attentionAssessment: this.settings.attentionAssessmentEnabled,
+      generateLearning: this.settings.generateLearningArtifacts,
+    });
+    if (!job) return;
 
-      // 提取所有可能的输入数据
-      const url = this.extractVideoUrl(content);
-      const providedTranscript = this.extractProvidedTranscript(content);
-      const localFileName = this.extractLocalFileName(content);
+    const finished = await this.jobs.waitFor(job.id);
+    if (!finished) return;
 
-      // 检查是否有任何输入数据
-      if (!url && !providedTranscript && !localFileName) {
-        throw new Error('笔记中没有找到视频链接、文稿内容或本地文件名');
-      }
-
-      // 后端自检（60s 内结果有缓存，批量场景不会反复 ping）
-      if (!(await this.ensureBackendReady())) {
-        return;
-      }
-
-      // 更新状态为处理中
-      await this.noteProcessor.setProcessingStatus(file, 'running');
-
-      // 构建输入数据
-      const input: any = {};
-      if (url) input.url = url;
-      if (providedTranscript) input.transcript = providedTranscript;
-      if (localFileName) input.localFile = localFileName;
-
-      // 调用API处理
-      const result = await this.api.processVideo(
-        file.basename,
-        input,
-        mode,
-        this.settings.defaultLanguage,
-        this.settings.enableCache !== false, // 根据设置决定是否使用缓存
-      );
-
-      // 更新文件内容（按设置控制自动重命名）
-      await this.noteProcessor.updateNote(file, result, mode, {
-        autoRename: this.settings.autoRenameEnabled,
-        conflictStrategy: this.settings.renameConflictStrategy,
-      });
-
-      // 更新状态为成功（使用可配置值）并记录历史
-      await this.noteProcessor.setProcessingStatus(
-        file,
-        this.settings.successStatusValue ?? 'success',
-      );
-      this.addToHistory(file.basename, 'success', mode);
-
-      new Notice(`✅ ${this.getModeDisplayText(mode)}完成`);
-    } catch (error) {
-      // 更新状态为错误
-      await this.noteProcessor.setProcessingError(file, error);
-
-      // 添加到历史记录
-      this.addToHistory(file.basename, 'error', mode);
-
-      new Notice(`处理失败: ${this.formatErrorForNotice(error)}`, 8000);
+    if (finished.state === 'error') {
+      new Notice(`处理失败: ${finished.error || '未知错误'}`, 8000);
+      throw new Error(finished.error || '处理失败');
     }
+    if (finished.state === 'cancelled') {
+      new Notice('处理已取消');
+      return;
+    }
+    if (finished.state === 'review') {
+      new Notice(`${this.getModeDisplayText(mode)}已就绪，去侧栏确认写入`, 6000);
+      return;
+    }
+    new Notice(`${this.getModeDisplayText(mode)}完成`);
   }
 
   /**
@@ -1226,18 +1452,6 @@ export default class VideoSummaryPlugin extends Plugin {
       default:
         return '视频信息';
     }
-  }
-
-  private refreshVideoSummaryView(): void {
-    // 查找所有视频总结视图并刷新
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view.getViewType() === 'video-summary-view') {
-        const view = leaf.view as any;
-        if (view.refreshView) {
-          view.refreshView();
-        }
-      }
-    });
   }
 
   /**
@@ -1347,92 +1561,509 @@ export default class VideoSummaryPlugin extends Plugin {
     }
   }
 
+  async openLearningReviewForFile(file: TFile): Promise<void> {
+    try {
+      const artifactId = await this.artifactIdForFile(file);
+      if (!artifactId) {
+        new Notice('当前笔记还没有持久化视频工件，请先处理一次。', 6000);
+        return;
+      }
+      const artifact = await this.artifactStore.load(artifactId);
+      const learningCount =
+        (artifact.learning?.flashcards?.length || 0) + (artifact.learning?.questions?.length || 0);
+      if (learningCount === 0) {
+        new Notice('这份工件没有学习卡；重新处理时开启“生成学习练习”。', 6000);
+        return;
+      }
+      new LearningReviewModal(this.app, {
+        store: this.learningStore,
+        artifact,
+        onOpenEvidence: async (_source, target) => {
+          if (target.start === null) {
+            new Notice('这条证据没有可靠时间点');
+            return;
+          }
+          const view = await this.activateView();
+          const notePath = artifact.source.note_path || file.path;
+          view?.openArtifact(notePath, artifact.artifact_id, target.start);
+        },
+      }).open();
+    } catch (error) {
+      new Notice(`打开学习复习失败：${this.formatErrorForNotice(error)}`, 8000);
+    }
+  }
+
+  private async openGlobalLearningReview(): Promise<void> {
+    try {
+      const now = new Date();
+      const candidates: Array<{
+        artifact: VideoKnowledgeArtifact;
+        dueCount: number;
+        firstDue: string;
+      }> = [];
+      for (const artifact of await this.artifactStore.list()) {
+        const items = learningItemsFromArtifact(artifact);
+        if (items.length === 0) continue;
+        const progress = await this.learningStore.getArtifactProgress(artifact.artifact_id);
+        const due = selectReviewItems(items, progress, 'due', now);
+        if (due.length === 0) continue;
+        const dueTimes = due
+          .map((item) => progress?.items[`${item.item_kind}:${item.item_id}`]?.due_at)
+          .filter((value): value is string => Boolean(value));
+        candidates.push({
+          artifact,
+          dueCount: due.length,
+          firstDue: dueTimes.sort()[0] || '',
+        });
+      }
+      candidates.sort(
+        (left, right) =>
+          left.firstDue.localeCompare(right.firstDue) ||
+          right.dueCount - left.dueCount ||
+          String(left.artifact.title || '').localeCompare(String(right.artifact.title || '')),
+      );
+      if (candidates.length === 0) {
+        new Notice('当前没有到期的视频学习卡。');
+        return;
+      }
+
+      const total = candidates.reduce((sum, item) => sum + item.dueCount, 0);
+      new Notice(`共有 ${candidates.length} 个视频、${total} 张学习卡到期。`, 5000);
+      const openAt = (index: number) => {
+        const candidate = candidates[index];
+        if (!candidate) {
+          new Notice('本轮到期复习已完成。');
+          return;
+        }
+        new LearningReviewModal(this.app, {
+          store: this.learningStore,
+          artifact: candidate.artifact,
+          mode: 'due',
+          onOpenEvidence: async (artifact, target) => {
+            if (target.start === null) {
+              new Notice('这条证据没有可靠时间点');
+              return;
+            }
+            const notePath = artifact.source.note_path;
+            const noteFile = notePath ? this.app.vault.getAbstractFileByPath(notePath) : null;
+            if (notePath && noteFile instanceof TFile) {
+              const view = await this.activateView();
+              view?.openArtifact(notePath, artifact.artifact_id, target.start);
+              return;
+            }
+            if (target.timestamp_url) {
+              window.open(target.timestamp_url, '_blank');
+              return;
+            }
+            new Notice('工件原笔记已不存在，无法定位播放器。');
+          },
+          ...(index + 1 < candidates.length
+            ? {
+                continueLabel: `继续下一个视频（还剩 ${candidates.length - index - 1} 个）`,
+                onContinue: () => openAt(index + 1),
+              }
+            : {}),
+        }).open();
+      };
+      openAt(0);
+    } catch (error) {
+      new Notice(`打开到期复习失败：${this.formatErrorForNotice(error)}`, 8000);
+    }
+  }
+
+  private async reprocessFromPersistedArtifact(file: TFile): Promise<void> {
+    try {
+      const artifactId = await this.artifactIdForFile(file);
+      if (!artifactId) {
+        new Notice('当前笔记没有可复现工件。', 6000);
+        return;
+      }
+      const manifest = await this.reproducibilityStore.load(artifactId);
+      const restored = await restoreReprocessPayload(manifest);
+      const depth =
+        restored.processing.depth === 'deep-visual' &&
+        this.settings.activeBackend !== 'codex-worker'
+          ? 'evidence'
+          : restored.processing.depth;
+      const job = await this.jobService.submitPreparedFile(
+        file,
+        {
+          sourceUrl: restored.source.url,
+          localFile: restored.source.local_file,
+          transcript: restored.transcript,
+          artifactId: restored.artifact_id,
+          processingDepth: depth,
+          skipSourceFetch: true,
+          persistedSegments: restored.video_segments,
+          persistedEvidenceClaims: restored.evidence_claims,
+          persistedVisualEvidence: restored.visual_evidence,
+          persistedRun: {
+            backend: restored.processing.backend,
+            model: restored.processing.model,
+            prompt: restored.processing.prompt,
+            version: restored.processing.version,
+          },
+        },
+        {
+          mode: 'summary',
+          language: this.settings.defaultLanguage,
+          useCache: false,
+          previewBeforeWrite: this.settings.previewBeforeWrite === true,
+          processingDepth: depth,
+          contentType: this.settings.defaultContentType,
+          autoRoute: this.settings.autoRouteContent,
+          attentionAssessment: this.settings.attentionAssessmentEnabled,
+          generateLearning: this.settings.generateLearningArtifacts,
+        },
+      );
+      if (!job) return;
+      new Notice(
+        '已提交无源重处理：本地文稿会重新总结，校验过的旧证据作为缺失回退；不会下载来源，结果使用当前后端配置。',
+        9000,
+      );
+      const finished = await this.jobs.waitFor(job.id);
+      if (finished?.state === 'error') {
+        throw new Error(finished.error || '可复现重处理失败');
+      }
+    } catch (error) {
+      new Notice(`可复现重处理失败：${this.formatErrorForNotice(error)}`, 8000);
+    }
+  }
+
+  private async artifactIdForFile(file: TFile): Promise<string | undefined> {
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const direct = String(frontmatter?.video_artifact_id || '').trim();
+    if (direct) return direct;
+    const artifact = (await this.artifactStore.list()).find(
+      (item) => item.source.note_path === file.path,
+    );
+    return artifact?.artifact_id;
+  }
+
+  private async ensureVideoLibraryBase(notify: boolean): Promise<void> {
+    const folder = normalizeVideoSummaryBaseFolder(this.settings.outputFolder);
+    await this.ensureVaultFolder(folder);
+    const path = folder ? `${folder}/Video Summary Library.base` : 'Video Summary Library.base';
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    const existingContent =
+      existing instanceof TFile ? await this.app.vault.read(existing) : undefined;
+    // The managed Base is stored beside generated notes, but its library query
+    // must also include offline captures in the separate `Video Inbox` folder.
+    // Metadata (`video_summary` + `source_type`) is the safe global boundary.
+    const result = upsertVideoSummaryBase(existingContent);
+    if (result.status === 'created') {
+      await this.app.vault.create(path, result.content);
+    } else if (result.status === 'updated' && existing instanceof TFile) {
+      await this.app.vault.modify(existing, result.content);
+    }
+    if (notify) {
+      const message =
+        result.status === 'preserved'
+          ? `已保留用户修改的 Base：${path}。如需新版，请先另存或手动删除该文件。`
+          : `${result.reason} ${path}`;
+      new Notice(message, 7000);
+    }
+  }
+
+  private async putCaptureIfAbsent(
+    sourceHash: string,
+    draft: CaptureNoteDraft,
+  ): Promise<CaptureInboxRepositoryResult> {
+    const active = this.captureLocks.get(sourceHash);
+    if (active) return active;
+    const operation = (async () => {
+      const remembered = this.capturedEntries.get(sourceHash);
+      if (remembered) {
+        const rememberedFile = this.app.vault.getAbstractFileByPath(remembered.path);
+        if (rememberedFile instanceof TFile) {
+          return { created: false, entry: { ...remembered } };
+        }
+        this.capturedEntries.delete(sourceHash);
+      }
+
+      const existing = await this.findCapturedEntry(sourceHash, draft.source.identity);
+      if (existing) {
+        this.capturedEntries.set(sourceHash, existing);
+        return { created: false, entry: existing };
+      }
+
+      const folder = draft.path.split('/').slice(0, -1).join('/');
+      await this.ensureVaultFolder(folder);
+      let path = draft.path;
+      let suffix = 2;
+      while (this.app.vault.getAbstractFileByPath(path)) {
+        path = draft.path.replace(/\.md$/i, ` (${suffix}).md`);
+        suffix += 1;
+      }
+      const file = await this.app.vault.create(path, draft.content);
+      const entry: CaptureInboxEntry = {
+        path: file.path,
+        source_hash: sourceHash,
+        source_identity: draft.source.identity,
+        status: String(draft.properties.video_summary_status || ''),
+      };
+      this.capturedEntries.set(sourceHash, entry);
+      return { created: true, entry };
+    })();
+    this.captureLocks.set(sourceHash, operation);
+    try {
+      return await operation;
+    } finally {
+      if (this.captureLocks.get(sourceHash) === operation) this.captureLocks.delete(sourceHash);
+    }
+  }
+
+  private async findCapturedEntry(
+    sourceHash: string,
+    sourceIdentity: string,
+  ): Promise<CaptureInboxEntry | undefined> {
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      let storedHash = String(frontmatter?.video_source_hash || '').trim();
+      let storedIdentity = String(frontmatter?.video_source_identity || '').trim();
+      let storedStatus = String(frontmatter?.video_summary_status || '').trim();
+      if (!storedHash) {
+        // MetadataCache can be empty during a cold Obsidian startup. Fall back
+        // to the persisted note so a second capture cannot create `(2).md`.
+        const content = await this.app.vault.cachedRead(file);
+        storedHash = frontmatterScalarValue(content, 'video_source_hash');
+        storedIdentity ||= frontmatterScalarValue(content, 'video_source_identity');
+        storedStatus ||= frontmatterScalarValue(content, 'video_summary_status');
+      }
+      if (storedHash !== sourceHash) continue;
+      return {
+        path: file.path,
+        source_hash: sourceHash,
+        source_identity: storedIdentity || sourceIdentity,
+        status: storedStatus,
+      };
+    }
+    const artifact = (await this.artifactStore.list()).find(
+      (item) => item.source.source_hash === sourceHash && item.source.note_path,
+    );
+    const artifactFile = artifact?.source.note_path
+      ? this.app.vault.getAbstractFileByPath(artifact.source.note_path)
+      : null;
+    return artifact?.source.note_path && artifactFile instanceof TFile
+      ? {
+          path: artifact.source.note_path,
+          source_hash: sourceHash,
+          source_identity: sourceIdentity,
+          status: 'success',
+        }
+      : undefined;
+  }
+
+  private async handleVideoNoteRenamed(file: TFile, oldPath: string): Promise<void> {
+    if (oldPath === file.path) return;
+    await this.relinkPersistedNotePath(oldPath, file.path);
+  }
+
+  private async handleVideoNoteDeleted(path: string): Promise<void> {
+    await this.relinkPersistedNotePath(path);
+  }
+
   /**
-   * obsidian://video-summary 协议入口：一步完成"建笔记 + 触发处理"。
-   *
-   * 支持参数：
-   * - url（必填）：视频链接
-   * - title：笔记标题（缺省用日期时间）
-   * - mode：summary | transcript-only | info-only（缺省用默认模式）
-   * - folder：保存目录（缺省用设置里的输出文件夹）
-   * - timestamp_link：带时间戳的链接（写入正文，便于回跳）
-   *
-   * 示例：obsidian://video-summary?vault=Ithaca&url=https%3A%2F%2Fb23.tv%2Fxxxx&title=xxx
+   * Keep durable sidecars, reviewed relations, course navigation, and the live
+   * memory index aligned with ordinary Obsidian rename/delete events.
+   */
+  private async relinkPersistedNotePath(oldPath: string, newPath?: string): Promise<void> {
+    const artifacts = await this.artifactStore.list();
+    for (const artifact of artifacts) {
+      let current = artifact;
+      const movedSource = artifact.source.note_path === oldPath;
+      if (movedSource) {
+        current = await this.artifactStore.save({
+          ...artifact,
+          source: {
+            ...artifact.source,
+            note_path: newPath,
+          },
+        });
+        try {
+          const manifest = await this.reproducibilityStore.load(current.artifact_id);
+          await this.reproducibilityStore.save({
+            ...manifest,
+            source: { ...manifest.source, note_path: newPath },
+          });
+        } catch (error) {
+          if ((error as Error)?.name !== 'ReproducibilityManifestNotFoundError') {
+            console.warn('[Video Summary] 可复现清单路径更新失败', error);
+          }
+        }
+      }
+
+      const hasRelatedPath = current.related_notes.some((item) => item.note_path === oldPath);
+      if (hasRelatedPath) {
+        current = await this.artifactStore.updateRelatedNotes(current.artifact_id, (relations) =>
+          newPath
+            ? relations.map((relation) =>
+                relation.note_path === oldPath ? { ...relation, note_path: newPath } : relation,
+              )
+            : relations.filter((relation) => relation.note_path !== oldPath),
+        );
+      }
+      if (movedSource || hasRelatedPath) this.memoryIndex.upsert(current);
+    }
+
+    for (const course of await this.courseStore.list()) {
+      const touchesLesson = course.items.some((item) => item.progress.note_path === oldPath);
+      const touchesIndex = course.index_note_path === oldPath;
+      if (!touchesLesson && !touchesIndex) continue;
+      const saved = await this.courseStore.update(course.course_id, (draft) => {
+        if (draft.index_note_path === oldPath) {
+          draft.index_note_path = newPath;
+        }
+        draft.items.forEach((item) => {
+          if (item.progress.note_path !== oldPath) return;
+          if (newPath) item.progress.note_path = newPath;
+          else delete item.progress.note_path;
+          item.progress.updated_at = new Date().toISOString();
+        });
+      });
+      if (saved?.index_note_path) {
+        await syncCourseIndexAtomic(this.app.vault, this.courseStore, saved.course_id, false);
+      }
+    }
+
+    for (const [sourceHash, entry] of this.capturedEntries) {
+      if (entry.path !== oldPath) continue;
+      if (newPath) this.capturedEntries.set(sourceHash, { ...entry, path: newPath });
+      else this.capturedEntries.delete(sourceHash);
+    }
+  }
+
+  private async ensureVaultFolder(folder: string): Promise<void> {
+    const parts = folder.split('/').filter(Boolean);
+    let current = '';
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      if (!this.app.vault.getAbstractFileByPath(current)) {
+        await this.app.vault.createFolder(current);
+      }
+    }
+  }
+
+  /**
+   * Global capture entry. Default is offline `capture-only`; processing must be
+   * requested explicitly with action=capture-and-process (or action=process).
    */
   private async handleProtocolRequest(params: Record<string, string>) {
     try {
       const rawUrl = (params.url || params.link || '').trim();
-      if (!rawUrl) {
-        new Notice('video-summary 协议调用缺少 url 参数', 6000);
+      const localFile = (params.local_file || params.localFile || '').trim();
+      if (!rawUrl && !localFile) {
+        new Notice('video-summary 协议调用缺少 url 或 local_file 参数', 6000);
         return;
       }
-
-      const url = VideoUtils.cleanVideoUrlKeepP(rawUrl);
-      if (!VideoUtils.isValidVideoUrl(url)) {
-        new Notice(`不是受支持的视频链接: ${url}`, 6000);
-        return;
-      }
-
-      // 标题与文件名
-      const fallbackTitle = `Video ${new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '-')}`;
-      const title = (params.title || '').trim() || fallbackTitle;
-      const cleanTitle = title.replace(/[<>:"/\\|?*#^[\]]/g, '_').trim() || fallbackTitle;
-
-      // 目录（参数优先，其次设置的输出文件夹）
-      const folder = ((params.folder ?? this.settings.outputFolder) || '')
+      const requestedAction = String(params.action || '')
         .trim()
-        .replace(/^\/+|\/+$/g, '');
-      if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
-        try {
-          await this.app.vault.createFolder(folder);
-        } catch {
-          // 目录已存在或创建失败——后面 create 时再报错
+        .toLowerCase();
+      const action: CaptureInboxAction = [
+        'capture-and-process',
+        'process',
+        'process-now',
+        '1',
+        'true',
+      ].includes(requestedAction)
+        ? 'capture-and-process'
+        : 'capture-only';
+      const result = await this.captureInbox.capture({
+        url: rawUrl || undefined,
+        local_file: localFile || undefined,
+        title: (params.title || '').trim() || undefined,
+        action,
+        output_folder: (params.folder || '').trim() || undefined,
+        captured_at: (params.captured_at || '').trim() || undefined,
+      });
+      const file = this.app.vault.getAbstractFileByPath(result.entry.path);
+      if (!(file instanceof TFile)) {
+        throw new Error(`捕获仓储返回的笔记不存在：${result.entry.path}`);
+      }
+      await this.app.workspace.getLeaf(true).openFile(file);
+      if (!result.should_process) {
+        new Notice(
+          result.status === 'created' ? '已离线加入视频收件箱' : '该来源已存在，已打开原笔记',
+        );
+        return;
+      }
+      if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
+        new Notice(
+          '已捕获到收件箱；当前自动处理只支持 YouTube、B站、抖音、TikTok 和小红书链接，通用 URL 未发送到后端。',
+          8000,
+        );
+        return;
+      }
+      if (localFile) {
+        if (!isSupportedLocalMediaPath(localFile)) {
+          new Notice('已捕获到收件箱；该本地路径不是受支持的音视频文件，未读取或发送。', 8000);
+          return;
+        }
+        if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== 'codex-worker') {
+          new Notice(
+            '已捕获到收件箱；bundled n8n 无法读取 URI 提供的主机绝对路径。请先复制到 docker/uploads 后用文件名提交，或切换到能访问该路径的 Worker。',
+            9000,
+          );
+          return;
+        }
+        const confirmed = await this.showConfirmDialog(
+          '允许处理本地媒体？',
+          `外部协议请求读取并发送这个本地文件到当前后端：\n${localFile}\n\n仅在你认识该来源时确认。`,
+        );
+        if (!confirmed) {
+          new Notice('已保留在视频收件箱；本地文件未读取或发送。', 6000);
+          return;
         }
       }
-
-      // 冲突时追加编号
-      const basePath = folder ? `${folder}/${cleanTitle}` : cleanTitle;
-      let notePath = `${basePath}.md`;
-      let suffix = 1;
-      while (this.app.vault.getAbstractFileByPath(notePath)) {
-        suffix += 1;
-        notePath = `${basePath} ${suffix}.md`;
-      }
-
-      const timestampLink = (params.timestamp_link || '').trim();
-      const bodyLink = timestampLink || rawUrl;
-      const content = [
-        '---',
-        `link: ${url}`,
-        'status: pending',
-        'source: protocol',
-        `captured_at: ${new Date().toISOString()}`,
-        '---',
-        `# ${title}`,
-        '',
-        bodyLink,
-        '',
-      ].join('\n');
-
-      const file = await this.app.vault.create(notePath, content);
-      new Notice(`已创建笔记，开始处理: ${file.basename}`);
-
-      // 打开笔记，便于观察处理进度
-      const leaf = this.app.workspace.getLeaf(true);
-      await leaf.openFile(file);
-
-      // 触发处理
+      new Notice(result.status === 'created' ? '已捕获，开始处理' : '该来源已存在，开始重新处理');
       const requestedMode = (params.mode || '').trim() as ProcessingMode;
       const mode: ProcessingMode = ['summary', 'transcript-only', 'info-only'].includes(
         requestedMode,
       )
         ? requestedMode
         : this.settings.defaultMode;
-      await this.processFileWithMode(file, mode);
+      const activeProcessing = this.captureProcessingLocks.get(result.entry.source_hash);
+      if (activeProcessing) {
+        new Notice('该来源已经在处理，本次没有重复提交。', 5000);
+        return;
+      }
+      const processing = this.processFileWithMode(file, mode).then(() => undefined);
+      this.captureProcessingLocks.set(result.entry.source_hash, processing);
+      try {
+        await processing;
+      } finally {
+        if (this.captureProcessingLocks.get(result.entry.source_hash) === processing) {
+          this.captureProcessingLocks.delete(result.entry.source_hash);
+        }
+      }
     } catch (error) {
       new Notice(`video-summary 协议处理失败: ${this.formatErrorForNotice(error)}`, 8000);
     }
   }
+}
+
+function normalizeSuccessStatusValue(value: unknown): string {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return DEFAULT_SETTINGS.successStatusValue;
+
+  const reservedStatuses = new Set([
+    'pending',
+    'running',
+    'error',
+    'excluded',
+    '📺',
+    '⏳',
+    '❌',
+    '⛔',
+    '⛔️',
+    '待处理',
+    '处理中',
+    '处理失败',
+    '非视频笔记',
+  ]);
+  return reservedStatuses.has(normalized.toLowerCase())
+    ? DEFAULT_SETTINGS.successStatusValue
+    : normalized;
 }
 
 class VideoSummarySettingTab extends PluginSettingTab {
@@ -1448,9 +2079,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass('video-summary-settings-tabs-container');
+    containerEl.addClass('vs-settings');
 
-    // 主标题
-    containerEl.createEl('h2', { text: '📺 视频总结插件设置' });
+    this.renderSettingsHeader(containerEl);
 
     // 渲染标签页切换按钮
     this.renderTabs(containerEl);
@@ -1461,12 +2092,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
     switch (this.activeTab) {
       case 'general':
         this.createSetupGuideSection(tabContent);
-        this.createPlatformMatrixSection(tabContent);
-        this.createCookiesSection(tabContent);
         this.createBasicSection(tabContent);
         break;
       case 'workflow':
         this.createApiSection(tabContent);
+        this.createCookiesSection(tabContent);
+        this.createPlatformMatrixSection(tabContent);
         break;
       case 'core':
         this.createQuickProcessingSection(tabContent);
@@ -1479,6 +2110,58 @@ class VideoSummarySettingTab extends PluginSettingTab {
     }
   }
 
+  /** 页头：渐变图标 + 标题 + 版本副行 + 后端状态胶囊（替代原来的 emoji h2） */
+  private renderSettingsHeader(containerEl: HTMLElement) {
+    const header = containerEl.createDiv({ cls: 'vs-settings-header' });
+    const badge = header.createDiv({ cls: 'vs-settings-badge' });
+    setIcon(badge, 'clapperboard');
+
+    const text = header.createDiv({ cls: 'vs-settings-heading' });
+    text.createDiv({ text: '视频总结', cls: 'vs-settings-title' });
+    const backendLabel =
+      this.plugin.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n webhook';
+    text.createDiv({
+      text: `v${this.plugin.manifest.version} · 连接 ${backendLabel} 处理视频、文稿与笔记`,
+      cls: 'vs-settings-sub',
+    });
+
+    const pill = header.createEl('button', {
+      cls: 'vs-settings-pill',
+      attr: { type: 'button', title: '点击测试后端连接' },
+    });
+    const dot = pill.createSpan({ cls: 'vs-backend-dot' });
+    const label = pill.createSpan({ text: '未检测' });
+    pill.addEventListener('click', async () => {
+      dot.className = 'vs-backend-dot is-checking';
+      label.setText('检测中…');
+      try {
+        const result = await this.plugin.api.testConnection();
+        dot.className = `vs-backend-dot ${result.success ? 'is-online' : 'is-offline'}`;
+        label.setText(result.success ? `后端在线 · ${result.durationMs ?? 0}ms` : '后端离线');
+      } catch {
+        dot.className = 'vs-backend-dot is-offline';
+        label.setText('后端离线');
+      }
+    });
+  }
+
+  /** 统一的分区卡片：lucide 图标 + 标题，取代各处 emoji h3 */
+  private sectionCard(
+    containerEl: HTMLElement,
+    icon: string,
+    title: string,
+    extraCls = '',
+  ): { section: HTMLElement; titleRow: HTMLElement } {
+    const section = containerEl.createDiv({
+      cls: `vs-settings-card ${extraCls}`.trim(),
+    });
+    const titleRow = section.createDiv({ cls: 'vs-settings-card-title' });
+    const iconEl = titleRow.createSpan({ cls: 'vs-settings-card-icon' });
+    setIcon(iconEl, icon);
+    titleRow.createSpan({ text: title, cls: 'vs-settings-card-text' });
+    return { section, titleRow };
+  }
+
   private renderTabs(containerEl: HTMLElement) {
     const tabsContainer = containerEl.createDiv({ cls: 'settings-tabs-bar' });
 
@@ -1489,14 +2172,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
       { id: 'advanced', label: '高级', icon: 'wrench' },
     ];
 
+    const seg = tabsContainer.createDiv({ cls: 'vs-seg' });
     tabs.forEach((tab) => {
-      const tabBtn = tabsContainer.createDiv({
-        cls: `settings-tab-btn ${this.activeTab === tab.id ? 'is-active' : ''}`,
+      const tabBtn = seg.createEl('button', {
+        cls: `vs-seg-item${this.activeTab === tab.id ? ' is-active' : ''}`,
+        attr: { type: 'button' },
       });
-      // 可以选择添加图标，根据 Obsidian 的 setIcon API
-      // setIcon(tabBtn, tab.icon);
+      const iconEl = tabBtn.createSpan({ cls: 'vs-seg-icon' });
+      setIcon(iconEl, tab.icon);
       tabBtn.createSpan({ text: tab.label });
-
       tabBtn.onclick = () => {
         this.activeTab = tab.id;
         this.display();
@@ -1505,10 +2189,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createSetupGuideSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section setup-guide-section' });
-
-    const titleRow = section.createDiv({ cls: 'setup-guide-title-row' });
-    titleRow.createEl('h3', { text: '安装检查' });
+    const { section, titleRow } = this.sectionCard(
+      containerEl,
+      'shield-check',
+      '安装检查',
+      'setup-guide-section',
+    );
+    titleRow.addClass('setup-guide-title-row');
 
     if (this.plugin.settings.setupGuideDismissed) {
       new Setting(section)
@@ -1716,8 +2403,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createPlatformMatrixSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section platform-matrix-section' });
-    section.createEl('h3', { text: '平台能力矩阵' });
+    const { section } = this.sectionCard(
+      containerEl,
+      'layout-grid',
+      '平台能力矩阵',
+      'platform-matrix-section',
+    );
     section.createEl('p', {
       text: '不同平台的可用性不一样。优先用本地文件、公开 YouTube/Bilibili 或已粘贴文稿；短视频平台通常需要 cookies。',
       cls: 'setting-item-description',
@@ -1756,8 +2447,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   private createCookiesSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '🍪 Cookies 管理' });
+    const { section } = this.sectionCard(containerEl, 'cookie', 'Cookies 管理');
     section.createEl('p', {
       text: '受限平台（Bilibili / 抖音 / 小红书 / TikTok）经常需要浏览器导出的 cookies。目录一般是 n8n docker 项目里的 docker/cookies；文件名如 bilibili_cookies.txt。',
       cls: 'setting-item-description',
@@ -1895,7 +2585,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
   private createWorkflowCompatibilityCard(containerEl: HTMLElement) {
     const card = containerEl.createDiv({ cls: 'workflow-compatibility-card' });
-    card.createEl('h4', { text: '推荐 workflow' });
+    card.createEl('div', { text: '推荐 workflow', cls: 'vs-subsection-title' });
     card.createEl('p', {
       text: '连接诊断会读取测试分支返回的 workflow 元数据，用来发现旧 workflow、path 不匹配或模型标签不一致。',
       cls: 'setting-item-description',
@@ -1927,8 +2617,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createApiSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '🔗 主入口与 API 配置' });
+    const { section } = this.sectionCard(containerEl, 'link', '主入口与 API 配置');
 
     this.createWorkflowCompatibilityCard(section);
 
@@ -2145,8 +2834,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createBasicSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '⚙️ 基础配置' });
+    const { section } = this.sectionCard(containerEl, 'sliders-horizontal', '基础配置');
 
     // 默认语言设置
     new Setting(section)
@@ -2164,8 +2852,82 @@ class VideoSummarySettingTab extends PluginSettingTab {
           }),
       );
 
-    const aiSection = section.createEl('div', { cls: 'setting-section' });
-    aiSection.createEl('h4', { text: '自定义处理模型', cls: 'setting-item-name' });
+    new Setting(section)
+      .setName('默认理解深度')
+      .setDesc(
+        this.plugin.settings.activeBackend === 'codex-worker'
+          ? '极速只读字幕；证据模式保留时间轴；深度视觉会分析关键画面。'
+          : '极速只读字幕；证据模式保留时间轴。深度视觉需要先切换到 Codex Worker。',
+      )
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('quick', '极速')
+          .addOption('evidence', '证据')
+          .addOption('deep-visual', '深度视觉')
+          .setValue(this.plugin.settings.defaultProcessingDepth)
+          .onChange(async (value) => {
+            const depth = value as ProcessingDepth;
+            if (depth === 'deep-visual' && this.plugin.settings.activeBackend !== 'codex-worker') {
+              dropdown.setValue('evidence');
+              new Notice('深度视觉只由 Codex Worker 执行；当前 n8n 后端可用到证据模式。', 7000);
+              return;
+            }
+            this.plugin.settings.defaultProcessingDepth = depth;
+            this.plugin.api.setAnalysisDefaults({ processingDepth: depth });
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName('默认内容类型')
+      .setDesc('自动识别会根据内容选择课程、访谈、教程、新闻、会议或评测结构。')
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('auto', '自动识别')
+          .addOption('course', '课程')
+          .addOption('interview', '访谈')
+          .addOption('tutorial', '教程')
+          .addOption('news', '新闻')
+          .addOption('meeting', '会议')
+          .addOption('review', '评测')
+          .addOption('general', '通用')
+          .setValue(this.plugin.settings.defaultContentType)
+          .onChange(async (value) => {
+            const contentType = value as RequestedContentType;
+            this.plugin.settings.defaultContentType = contentType;
+            this.plugin.settings.autoRouteContent = contentType === 'auto';
+            this.plugin.api.setAnalysisDefaults({
+              contentType,
+              autoRoute: this.plugin.settings.autoRouteContent,
+            });
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName('观看价值判断')
+      .setDesc('输出值得观看、建议略读或可以跳过，并给出高价值片段。')
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.attentionAssessmentEnabled).onChange(async (value) => {
+          this.plugin.settings.attentionAssessmentEnabled = value;
+          this.plugin.api.setAnalysisDefaults({ attentionAssessment: value });
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(section)
+      .setName('生成学习练习')
+      .setDesc('随结果生成闪卡、自测题和费曼解释题；默认关闭以节省处理成本。')
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.generateLearningArtifacts).onChange(async (value) => {
+          this.plugin.settings.generateLearningArtifacts = value;
+          this.plugin.api.setAnalysisDefaults({ generateLearning: value });
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    const aiSection = section.createDiv({ cls: 'vs-subsection' });
+    aiSection.createEl('div', { text: '自定义处理模型', cls: 'vs-subsection-title' });
     aiSection.createEl('p', {
       text: '添加你要在 n8n 中使用的模型名称（需与 n8n Switch 节点的值完全一致）。',
       cls: 'setting-item-description',
@@ -2297,25 +3059,30 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 输出文件夹设置
     new Setting(section)
       .setName('输出文件夹')
-      .setDesc('新建视频笔记的默认保存位置（留空则使用当前文件所在文件夹）')
+      .setDesc('新建视频笔记的 Vault 内相对路径；不允许 .、.. 或绝对路径。')
       .addText((text) =>
         text
           .setPlaceholder('例如: Videos/2024')
           .setValue(this.plugin.settings.outputFolder)
           .onChange(async (value) => {
-            this.plugin.settings.outputFolder = value;
-            await this.plugin.saveSettings();
+            try {
+              const normalized = normalizeVideoSummaryBaseFolder(value.trim());
+              this.plugin.settings.outputFolder = normalized;
+              await this.plugin.saveSettings();
+            } catch {
+              text.setValue(this.plugin.settings.outputFolder);
+              new Notice('输出文件夹必须是安全的 Vault 相对路径，不能包含 . 或 ..。', 6000);
+            }
           }),
       );
   }
 
   private createQuickProcessingSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '⚡ 一键处理配置' });
+    const { section } = this.sectionCard(containerEl, 'zap', '一键处理配置');
 
     // 一键总结配置
-    const summarySubsection = section.createEl('div', { cls: 'setting-subsection' });
-    summarySubsection.createEl('h4', { text: '一键总结配置' });
+    const summarySubsection = section.createEl('div', { cls: 'vs-subsection' });
+    summarySubsection.createEl('div', { text: '一键总结配置', cls: 'vs-subsection-title' });
 
     new Setting(summarySubsection)
       .setName('总结语言')
@@ -2347,8 +3114,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 一键提取文稿配置
-    const transcriptSubsection = section.createEl('div', { cls: 'setting-subsection' });
-    transcriptSubsection.createEl('h4', { text: '一键提取文稿配置' });
+    const transcriptSubsection = section.createEl('div', { cls: 'vs-subsection' });
+    transcriptSubsection.createEl('div', { text: '一键提取文稿配置', cls: 'vs-subsection-title' });
 
     new Setting(transcriptSubsection)
       .setName('文稿语言')
@@ -2381,8 +3148,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createFileProcessingSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '📁 文件处理配置' });
+    const { section } = this.sectionCard(containerEl, 'files', '文件处理配置');
 
     // 自动重命名开关
     new Setting(section)
@@ -2435,15 +3201,18 @@ class VideoSummarySettingTab extends PluginSettingTab {
           .setPlaceholder('success')
           .setValue(this.plugin.settings.successStatusValue ?? 'success')
           .onChange(async (value) => {
-            this.plugin.settings.successStatusValue = value ?? 'success';
+            const normalized = normalizeSuccessStatusValue(value);
+            if (normalized !== value.trim()) {
+              new Notice('成功状态不能使用待处理、处理中或失败标记，已恢复为 success');
+            }
+            this.plugin.settings.successStatusValue = normalized;
             await this.plugin.saveSettings();
           }),
       );
   }
 
   private createPayloadKeysSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '📡 Webhook Payload 键配置' });
+    const { section } = this.sectionCard(containerEl, 'radio', 'Webhook Payload 键配置');
     section.createEl('p', {
       text: '自定义发送到 n8n webhook 的 JSON 对象中的键名。这允许您适应不同的 n8n 工作流配置。',
       cls: 'setting-item-description',
@@ -2477,8 +3246,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createAdvancedSection(containerEl: HTMLElement) {
-    const section = containerEl.createEl('div', { cls: 'setting-section' });
-    section.createEl('h3', { text: '🔧 高级配置' });
+    const { section } = this.sectionCard(containerEl, 'wrench', '高级配置');
 
     // 调试模式
     new Setting(section)
@@ -2514,13 +3282,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
         '发送前把 b23.tv / v.douyin.com / xhslink.com 等短链展开成最终链接，减少后端下载失败（仅桌面端生效，失败时自动回退原链接）。',
       )
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.expandShortLinks !== false)
-          .onChange(async (value) => {
-            this.plugin.settings.expandShortLinks = value;
-            this.plugin.api.setExpandShortLinks(value);
-            await this.plugin.saveSettings();
-          }),
+        toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
+          this.plugin.settings.expandShortLinks = value;
+          this.plugin.api.setExpandShortLinks(value);
+          await this.plugin.saveSettings();
+        }),
       );
 
     // 历史记录上限
@@ -2544,8 +3310,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 缓存配置
-    const cacheSubsection = section.createEl('div', { cls: 'cache-subsection' });
-    cacheSubsection.createEl('h4', { text: '🗄️ 缓存配置' });
+    const cacheSubsection = section.createEl('div', { cls: 'vs-subsection' });
+    cacheSubsection.createEl('div', { text: '缓存配置', cls: 'vs-subsection-title' });
 
     // 缓存状态概览
     const cacheStatusSetting = new Setting(cacheSubsection)
@@ -2605,7 +3371,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     cacheSubsection.createEl('hr', { cls: 'cache-divider' });
 
     // 缓存管理操作
-    cacheSubsection.createEl('h5', { text: '🛠️ 缓存管理' });
+    cacheSubsection.createEl('div', { text: '缓存管理', cls: 'vs-subsection-title' });
 
     // 快速操作按钮组
     const quickActionsContainer = cacheSubsection.createEl('div', { cls: 'cache-quick-actions' });
@@ -2673,7 +3439,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 			<div class="cache-info-tip">
 				<strong>💡 缓存提示：</strong>
 				<ul>
-					<li>缓存文件存储在：<code>.obsidian/plugins/video-summary-plugin/data/cache/</code></li>
+					<li>缓存文件存储在：<code>&lt;插件目录&gt;/data/cache/</code></li>
 					<li>缓存会自动清理过期项</li>
 					<li>禁用缓存后，所有缓存操作将被忽略</li>
 					<li>建议定期清理过期缓存以节省空间</li>
@@ -2983,4 +3749,25 @@ class VideoSummarySettingTab extends PluginSettingTab {
     }
     return totalSize;
   }
+}
+
+function isSupportedProtocolVideoUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return SUPPORTED_PLATFORMS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+  } catch {
+    return false;
+  }
+}
+
+function isSupportedLocalMediaPath(value: string): boolean {
+  return /\.(?:mp4|m4v|mov|mkv|webm|avi|mp3|m4a|wav|flac|aac|ogg|opus)$/i.test(value.trim());
+}
+
+function frontmatterScalarValue(content: string, key: string): string {
+  const block = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
+  if (!block) return '';
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const raw = block.match(new RegExp(`^${escaped}:\\s*(.*?)\\s*$`, 'm'))?.[1] || '';
+  return raw.trim().replace(/^['"]|['"]$/g, '');
 }

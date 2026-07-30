@@ -1,57 +1,83 @@
 # 后端能力矩阵（Backend Capability Matrix）
 
-> 本系统有三个可选后端。它们能力差别很大，**选错后端会导致同一条视频在 A 后端正常出稿、在 B 后端静默失败**。
-> 本文是选择依据的单一来源。最后更新：2026-06-28。
+Video Summary 可以连接两类处理端点，也可以只用 Obsidian URI 做离线收件。
+能力取决于实际部署的端点；插件不会把不存在的阶段、画面分析或在线结果显示为成功。
 
-## TL;DR
+最后核对：2026-07-31，插件版本 2.4.1。
 
-- **默认用 `n8n`**：它是目前唯一能"下载音频 + 转写 + 看画面"的完整管线。
-- `codex-worker` 目前只能处理**已有字幕 / 已有文稿 / 本地文本**的视频，**不会下载音频、不会做语音转写、不会看画面**。对没有原生字幕的视频会返回 `needs_transcript` 而不是报错。
-- `obsidian-uri` 不做任何处理，只负责把链接/待办笔记送进 vault。
+## 一句话选择
+
+- **第一次安装或需要下载、字幕与转写**：使用仓库附带的 `n8n` 工作流。
+- **已经部署兼容的 Codex Worker，并需要任务进度、取消或深度视觉**：选择
+  `codex-worker`。Worker 不包含在本仓库或插件安装包中。
+- **只想先收进 Vault，稍后处理**：使用 `obsidian://video-summary` 的
+  `capture-only` 入口；它不要求后端在线。
 
 ## 能力对照
 
-| 能力 | n8n 工作流 | codex-worker（已加固） | obsidian-uri |
-|---|---|---|---|
-| 入口角色 | 重后端（完整处理） | 本地轻量后端 | 仅落地，不处理 |
-| 下载视频/音频（yt-dlp） | ✅ | ❌（只取字幕文件） | ❌ |
-| 原生字幕提取 | ✅ | ✅ | ❌ |
-| 语音转写（无字幕时） | ✅（下载音频→转写） | ❌（返回 needs_transcript） | ❌ |
-| 画面/帧分析（Gemini Vision） | ✅ | ❌（README 标注为"下一阶段"） | ❌ |
-| 已粘贴文稿 → 总结 | ✅ | ✅ | ❌ |
-| 本地文件 → 总结 | ✅（docker/uploads） | ✅（本地文本，5MB 上限） | ❌ |
-| 视频元数据（标题等） | ✅ | 部分（取决于字幕/yt-dlp） | ❌ |
-| 多模型（DeepSeek/Gemini/OpenAI 兼容） | ✅（10 个 agent） | ✅（codex CLI / gemini / openai 兼容 / n8n 透传 / 本地兜底） | — |
-| 总结质量门 + 自动重写 | 部分（解析重试） | ✅（note-quality + 1 次修复） | — |
-| 并发上限 / 队列 | n8n 自身调度 | ✅（WORKER_MAX_CONCURRENCY，默认 2，FIFO） | — |
-| 真正的取消（杀子进程） | n8n 控制台 | ✅（AbortController + SIGTERM/SIGKILL） | — |
-| 请求超时 | 工作流内 | ✅（WORKER_JOB_TIMEOUT_MS，默认 10 分钟） | — |
-| 鉴权 / CORS 收口 | 取决于部署 | ✅（loopback 白名单 + 可选 WORKER_AUTH_TOKEN） | n/a |
-| 离线可用（无外网模型） | 取决于配置 | ✅（local 兜底） | ✅ |
+| 能力                  | 附带的 n8n 工作流              | 兼容的 Codex Worker                          | Obsidian URI 收件   |
+| --------------------- | ------------------------------ | -------------------------------------------- | ------------------- |
+| 入口角色              | 默认处理后端                   | 可选外部处理后端                             | 收件与显式触发      |
+| URL / 文稿 / 本地文件 | 支持；只接受上传目录内相对路径 | 取决于 Worker 部署与主机路径可见性           | 先保存来源          |
+| `yt-dlp` 下载与元数据 | 支持                           | 取决于 Worker 部署                           | 不处理              |
+| 原生字幕              | 支持                           | 取决于 Worker 部署                           | 不处理              |
+| 无字幕时音频转写      | 需另行配置 ASR 子工作流        | 取决于 Worker 部署                           | 不处理              |
+| 语音时间轴与证据主张  | 支持 `evidence` 深度           | 支持兼容的 v3 响应                           | 不处理              |
+| 真实画面 / 关键帧分析 | **不支持**；会停在 `evidence`  | 仅在 Worker、ffmpeg 与视觉模型均已配置时支持 | 不处理              |
+| 任务阶段              | 单次 webhook，不伪造中间阶段   | 兼容端点可报告阶段                           | 不适用              |
+| 取消                  | 只能停止插件侧等待             | 兼容端点可取消轮询与任务                     | 不适用              |
+| 后端离线时收件        | 不适用                         | 不适用                                       | `capture-only` 可用 |
 
-## 怎么选
+## 重要边界
 
-- **YouTube / Bilibili 等线上视频，且不确定有没有字幕** → `n8n`。worker 目前没有音频转写，遇到无字幕会失败。
-- **你已经有文稿 / 字幕 / 本地文本，只想要总结** → `codex-worker` 完全够用，而且本地、快、可离线。
-- **只想先把链接存进 vault，稍后再处理** → `obsidian-uri`。
+### n8n
 
-## 当前默认 & 如何切换
+仓库里的 `Obsidian Video Summary.json` 是可导入的通用工作流，默认 webhook 为：
 
-- 代码默认（`constants.ts` `DEFAULT_SETTINGS.activeBackend`）：`n8n`。
-- 你的 live `data.json` 已于 2026-06-28 从 `codex-worker` 切回 `n8n`（备份：`data.json.bak-backend-switch-20260628`）。
-  **改动后需重启 Obsidian**（或在插件设置里的后端下拉框确认），否则运行中的实例可能仍用旧值。
-- 随时可在插件设置里把后端切回 `codex-worker`（处理纯文本/字幕任务时推荐）。
+```text
+http://127.0.0.1:5678/webhook/obsidian-video-summary
+```
 
-## 把 worker 补齐到能替代 n8n（路线）
+它可以生成时间化语音证据、主张、内容类型、注意力评估和学习材料。原生字幕和粘贴
+文稿无需 ASR；无字幕视频和本地音视频要求用户把两个 Transcript 子流程节点绑定到
+自己的 ASR 工作流。公开导出不会附带实例专属工作流 ID 或语音服务凭据，具体合同见
+[ASR_SUBWORKFLOW_CONTRACT.md](ASR_SUBWORKFLOW_CONTRACT.md)。
 
-worker 要真正取代 n8n，需要补上现在缺的三块（n8n 里已有现成实现可搬）：
+本地文件必须先复制到 `docker/uploads/`，请求里只发送该目录下的文件名或安全相对路径。
+任意 macOS/Windows 绝对路径不会映射进容器。工作流拒绝绝对路径、空路径段和 `..`
+穿越；`obsidian://` 的绝对本地文件只能离线收件，或交给确实能访问该主机路径的兼容
+Worker。
 
-1. **无字幕时的音频转写**：下载音频（yt-dlp）→ Whisper / faster-whisper（或调用云 STT）。
-2. **画面理解**：抽关键帧 → Gemini Vision（搬 n8n 的 `Code: Prepare Gemini Parts` / `Analyze video` 节点逻辑）。
-3. **元数据补全**：yt-dlp `--dump-json` 拿标题/作者/时长。
+工作流中的本地图片/PDF OCR 节点不等于视频画面理解；视频帧分析路径没有接入有效
+流程。因此插件会把 `deep-visual` 请求降级为 `evidence`，并在 provenance 中记录
+实际深度。
 
-在补齐之前，建议保留 **n8n 为默认**。
+### Codex Worker
 
-## 可选增强：自动回退
+插件包含兼容 Worker API 的客户端与本地媒体资产安全检查，但 **Worker 服务本身不在
+此仓库，也不在 GitHub Release 中**。只有你已经部署了兼容端点并配置 ffmpeg、
+视觉模型与相关凭据时，才能使用深度视觉。没有这些条件时不要选择
+`deep-visual`，也不要把普通摘要当成画面分析。
 
-更省心的做法（需要插件侧改一处）：默认走 `codex-worker`，当它返回 `needs_transcript` / 空转写时，**自动回退到 `n8n`** 重试一次。这样能兼顾"本地快"和"无字幕也能出稿"。目前未实现，作为后续选项。
+### Obsidian URI
+
+`obsidian://video-summary` 默认执行 `capture-only`：创建或复用一条待处理笔记，不调用
+AI。只有显式传入 `capture-and-process` 或 `process` 时，插件才会把条目送到当前活动
+后端。短链在离线收件阶段无法保证与展开后的长链绝对去重。
+
+URI 本地文件参数必须是绝对路径，以便稳定去重；因此 bundled n8n 后端会保留收件笔记
+但拒绝自动提交。要处理它，请复制到 `docker/uploads/` 后从侧栏/笔记用相对名称提交，
+或切换到能够访问同一绝对路径的 Worker。
+
+## 默认值与切换
+
+- 新安装默认后端是 `n8n`。
+- 在 `设置 → Video Summary → 工作流` 中切换后端和端点。
+- 设置页的连接检查会验证端点；它不会替你安装 Worker、填写凭据或启用 n8n 工作流。
+- 后端预检失败时，插件可以检查另一已配置后端并提示切换，但不会静默替你更换处理端。
+
+## 数据与凭据
+
+凭据、Cookie 和模型密钥应只保存在你自己的 n8n / Worker 部署或本地 Cookie 文件中，
+不要写入工作流导出或提交到 Git。插件会把结构化工件、学习进度与课程状态保存在
+插件数据目录；详见 [README 的隐私与数据边界](../README.md#privacy-and-data-boundary)。

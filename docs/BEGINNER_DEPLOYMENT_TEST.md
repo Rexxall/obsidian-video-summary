@@ -12,7 +12,7 @@ Environment used for the test:
 - npm `10.9.2`
 - Docker `29.4.0`
 - A clean temporary project copy without `.git`, `node_modules`, `data`, `data.json`, or local cache files
-- A clean temporary Obsidian vault at `/private/tmp/video-summary-newbie-20260607/vault`
+- A clean temporary Obsidian vault at `<temporary-test-root>/vault`
 
 Result:
 
@@ -58,16 +58,20 @@ http://localhost:5678
 ```
 
 6. Import `Obsidian Video Summary.json`.
-7. Activate the workflow.
-8. In Obsidian plugin settings, use:
+7. If you need no-subtitle or local-media ASR, select your own ASR workflow in both
+   `SubFlow: Transcript...` nodes as described in
+   [ASR_SUBWORKFLOW_CONTRACT.md](ASR_SUBWORKFLOW_CONTRACT.md). You can defer this when testing only
+   pasted transcripts or native subtitles.
+8. Activate the workflow.
+9. In Obsidian plugin settings, use:
 
 ```text
-http://localhost:5678/webhook/obsidian-video-summary
+http://127.0.0.1:5678/webhook/obsidian-video-summary
 ```
 
-9. Run the plugin setup check. The recommended workflow version is `2.1.4`, and the workflow path
-   should be `obsidian-video-summary`.
-10. Create a note with:
+10. Run the plugin setup check. The recommended workflow version is `2.1.4`, and the workflow path
+    should be `obsidian-video-summary`.
+11. Create a note with:
 
 ```yaml
 ---
@@ -76,7 +80,7 @@ status: pending
 ---
 ```
 
-11. Run `Video Summary: summarize current note`.
+12. Search the Obsidian command palette for `快速总结当前笔记` and run it.
 
 ## What Was Fixed During Testing
 
@@ -242,7 +246,7 @@ Fix:
 4. Use this URL in Obsidian:
 
 ```text
-http://localhost:5678/webhook/obsidian-video-summary
+http://127.0.0.1:5678/webhook/obsidian-video-summary
 ```
 
 Do not use `/webhook-test/...` unless you are manually testing inside n8n.

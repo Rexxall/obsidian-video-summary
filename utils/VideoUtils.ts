@@ -1,6 +1,35 @@
 import { SUPPORTED_PLATFORMS } from '../constants';
 import { normalizeStatus as sharedNormalizeStatus, canonicalizeVideoUrl } from '../shared';
 
+const VIDEO_STATUS_FIELDS = [
+  'video_summary_status',
+  'video_processing_status',
+  'video_status',
+] as const;
+const YAML_BLOCK_MARKERS = new Set(['|', '|-', '|+', '>', '>-', '>+']);
+const EMPTY_OUTPUT_VALUES = new Set([
+  '',
+  'null',
+  'undefined',
+  'n/a',
+  'none',
+  '（无）',
+  '暂无',
+  '待生成',
+]);
+const NON_VIDEO_CONTENT_TYPES = new Set([
+  'image',
+  'images',
+  'article',
+  'text',
+  'note',
+  'document',
+  'pdf',
+  'webpage',
+  'supplemental_handoff',
+  'system-design',
+]);
+
 /**
  * 视频处理工具类
  * 包含通用的视频URL处理、状态解析等逻辑
@@ -20,7 +49,7 @@ export class VideoUtils {
    */
   static extractVideoUrl(content: string): string | null {
     // 从frontmatter中提取
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (fmMatch) {
       const fmText = fmMatch[1];
 
@@ -31,7 +60,8 @@ export class VideoUtils {
         // 提取数组中的所有URL
         const urlMatches = arrayContent.match(/https?:\/\/[^\s\n]+/g);
         if (urlMatches) {
-          for (const url of urlMatches) {
+          for (const rawUrl of urlMatches) {
+            const url = this.trimExtractedUrl(rawUrl);
             if (this.isValidVideoUrl(url)) {
               return url;
             }
@@ -54,7 +84,8 @@ export class VideoUtils {
     const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
     const urls = content.match(urlRegex);
     if (urls) {
-      for (const url of urls) {
+      for (const rawUrl of urls) {
+        const url = this.trimExtractedUrl(rawUrl);
         if (this.isValidVideoUrl(url)) {
           return url;
         }
@@ -62,6 +93,27 @@ export class VideoUtils {
     }
 
     return null;
+  }
+
+  /**
+   * 提取正文中的所有视频链接，供旧笔记兜底索引判断是否是多链接聚合页。
+   * 同一视频的时间戳链接会折叠，但 B 站分 P 会保留为不同链接。
+   */
+  static extractVideoUrls(content: string): string[] {
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+    const urls = content.match(urlRegex) ?? [];
+    const unique = new Map<string, string>();
+    for (const rawUrl of urls) {
+      const url = this.trimExtractedUrl(rawUrl);
+      if (!this.isValidVideoUrl(url)) continue;
+      const canonical = this.cleanVideoUrlKeepP(url);
+      if (!unique.has(canonical)) unique.set(canonical, url);
+    }
+    return Array.from(unique.values());
+  }
+
+  private static trimExtractedUrl(value: string): string {
+    return value.replace(/[),.;:!?，。；：！？）】》]+$/g, '');
   }
 
   /**
@@ -82,24 +134,17 @@ export class VideoUtils {
    * 从内容中提取处理状态
    */
   static getProcessingStatus(content: string): string | null {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      const fmText = fmMatch[1];
-      // 按行分割，然后查找status行
-      const lines = fmText.split('\n');
-      for (const line of lines) {
-        if (line.startsWith('status:')) {
-          const status = line.substring(7).trim(); // 去掉'status: '（包括冒号和空格）
-          // 如果status为空或只包含空格，返回'pending'
-          if (!status || status === '') {
-            return 'pending';
-          }
-          return status;
-        }
-      }
-    }
-    // 如果没有找到status字段，返回'pending'
-    return 'pending';
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return 'pending';
+
+    const fmText = fmMatch[1];
+    const hasGeneratedOutput =
+      this.hasMeaningfulYamlField(fmText, 'summary') ||
+      this.hasMeaningfulYamlField(fmText, 'video_transcript');
+    return this.resolveProcessingStatus(
+      (field) => this.readYamlScalar(fmText, field),
+      hasGeneratedOutput,
+    );
   }
 
   /**
@@ -107,19 +152,12 @@ export class VideoUtils {
    * 如果status中有 '⛔️' 标志，则排除
    */
   static isVideoNote(content: string): boolean {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (fmMatch) {
       const fmText = fmMatch[1];
 
-      // 检查status字段是否为排除
-      const statusMatch = fmText.match(/^status:\s*(.+)$/m);
-      if (statusMatch) {
-        const status = statusMatch[1].trim();
-        const normalized = this.normalizeStatus(status);
-        if (normalized === 'excluded') {
-          return false;
-        }
-      }
+      if (this.isExplicitlyNonVideoFromRawFrontmatter(fmText)) return false;
+      if (this.hasExplicitVideoMarkerFromRawFrontmatter(fmText)) return true;
 
       // 检查是否有视频相关字段
       const videoUrl = this.extractVideoUrl(content);
@@ -216,16 +254,20 @@ export class VideoUtils {
   static isVideoNoteFromFrontmatter(frontmatter: any): boolean {
     if (!frontmatter || typeof frontmatter !== 'object') return false;
 
-    // 排除状态
-    const status = String(frontmatter.status ?? '').trim();
-    if (this.normalizeStatus(status) === 'excluded') return false;
+    if (this.isExplicitlyNonVideoFromFrontmatter(frontmatter)) return false;
+    if (this.hasExplicitVideoMarker(frontmatter)) return true;
 
     // 链接字段可能为字符串或数组
     const linkField = (frontmatter as any).link;
     if (Array.isArray(linkField)) {
+      const videoLinks = new Set<string>();
       for (const l of linkField) {
-        if (typeof l === 'string' && this.isValidVideoUrl(l)) return true;
+        if (typeof l === 'string' && this.isValidVideoUrl(l)) {
+          videoLinks.add(this.cleanVideoUrlKeepP(l));
+        }
       }
+      // 多个不同视频的 link 数组更像聚合页；若同时有文稿/产物，下面仍会纳入。
+      if (videoLinks.size === 1) return true;
     } else if (typeof linkField === 'string') {
       if (this.isValidVideoUrl(linkField)) return true;
     }
@@ -236,22 +278,16 @@ export class VideoUtils {
       (frontmatter as any).provided_transcript.trim()
     )
       return true;
+    if (this.hasLegacyMediaInputFromFrontmatter(frontmatter)) return true;
     if (
-      typeof (
-        (frontmatter as any).local_file ??
-        (frontmatter as any).localFileName ??
-        (frontmatter as any).localFile
-      ) === 'string' &&
-      (
-        (frontmatter as any).local_file ??
-        (frontmatter as any).localFileName ??
-        (frontmatter as any).localFile
-      ).trim()
+      typeof (frontmatter as any).video_transcript === 'string' &&
+      this.isMeaningfulOutputValue((frontmatter as any).video_transcript)
     )
       return true;
     if (
-      typeof (frontmatter as any).video_transcript === 'string' &&
-      (frontmatter as any).video_transcript.trim()
+      typeof (frontmatter as any).video_title === 'string' &&
+      (frontmatter as any).video_title.trim() &&
+      this.isMeaningfulOutputValue((frontmatter as any).summary)
     )
       return true;
 
@@ -259,12 +295,98 @@ export class VideoUtils {
   }
 
   /**
+   * 明确声明为非视频的来源优先于链接/正文兜底，避免图片和文章采集笔记混入媒体库。
+   */
+  static isExplicitlyNonVideoFromFrontmatter(frontmatter: any): boolean {
+    if (!frontmatter || typeof frontmatter !== 'object') return false;
+
+    const pluginStatus = this.readPluginStatusFromFrontmatter(frontmatter);
+    if (pluginStatus.present && pluginStatus.normalized === 'excluded') return true;
+
+    if (!pluginStatus.present) {
+      const genericStatus = this.normalizeStatus(String(frontmatter.status ?? '').trim());
+      if (genericStatus === 'excluded') return true;
+    }
+
+    const marker = (frontmatter as any).video_summary;
+    if (
+      marker === false ||
+      String(marker ?? '')
+        .trim()
+        .toLowerCase() === 'false'
+    )
+      return true;
+
+    for (const field of ['source_type', 'content_type', 'type']) {
+      const value = String((frontmatter as any)[field] ?? '')
+        .trim()
+        .toLowerCase();
+      if (NON_VIDEO_CONTENT_TYPES.has(value)) return true;
+    }
+
+    const transcriptStatus = String((frontmatter as any).video_transcript_status ?? '')
+      .trim()
+      .toLowerCase();
+    return transcriptStatus === 'not-applicable' || transcriptStatus === 'not_applicable';
+  }
+
+  /**
    * 基于 frontmatter 获取处理状态
    */
   static getProcessingStatusFromFrontmatter(frontmatter: any): string | null {
     if (!frontmatter || typeof frontmatter !== 'object') return 'pending';
-    const status = String(frontmatter.status ?? '').trim();
-    return status || 'pending';
+    const hasGeneratedOutput = this.hasGeneratedOutputFromFrontmatter(frontmatter);
+    return this.resolveProcessingStatus((field) => {
+      if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) {
+        return { present: false, value: '' };
+      }
+      return { present: true, value: String((frontmatter as any)[field] ?? '').trim() };
+    }, hasGeneratedOutput);
+  }
+
+  static hasGeneratedOutputFromFrontmatter(frontmatter: any): boolean {
+    if (!frontmatter || typeof frontmatter !== 'object') return false;
+    return (
+      this.isMeaningfulOutputValue((frontmatter as any).summary) ||
+      this.isMeaningfulOutputValue((frontmatter as any).video_transcript)
+    );
+  }
+
+  static hasGeneratedOutput(content: string): boolean {
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fmMatch) return false;
+    const fmText = fmMatch[1];
+    return (
+      this.hasMeaningfulYamlField(fmText, 'summary') ||
+      this.hasMeaningfulYamlField(fmText, 'video_transcript')
+    );
+  }
+
+  /**
+   * 小红书详情 URL 本身不能区分图文与视频；旧笔记必须有真实媒体证据才进入视频库。
+   */
+  static hasDirectVideoEvidence(content: string): boolean {
+    return (
+      /<video\b/i.test(content) ||
+      /(?:https?:\/\/|!?\[\[)[^\s\]<>"']+\.(?:mp4|m4v|mov|webm)(?:[?#][^\s\]<>"']*)?/i.test(content)
+    );
+  }
+
+  static isSupportedLocalMediaPath(value: string): boolean {
+    return /\.(?:mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i.test(value.trim());
+  }
+
+  static hasLegacyMediaInputFromFrontmatter(frontmatter: any): boolean {
+    if (!frontmatter || typeof frontmatter !== 'object') return false;
+    return [
+      (frontmatter as any).local_file,
+      (frontmatter as any).localFileName,
+      (frontmatter as any).localFile,
+      (frontmatter as any).source_file,
+      (frontmatter as any).audio_source,
+      (frontmatter as any).video_file,
+      (frontmatter as any).media_file,
+    ].some((value) => typeof value === 'string' && this.isSupportedLocalMediaPath(value));
   }
 
   /**
@@ -282,20 +404,196 @@ export class VideoUtils {
     }
 
     // 检查本地文件
-    if (this.extractLocalFileName(content)) {
+    const localFile = this.extractLocalFileName(content);
+    if (localFile && this.isSupportedLocalMediaPath(localFile)) {
       return true;
     }
 
     // 检查视频文稿（处理后的）
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (fmMatch) {
       const fmText = fmMatch[1];
-      if (fmText.match(/^video_transcript:/m)) {
+      if (this.hasMeaningfulYamlField(fmText, 'video_transcript')) {
         return true;
       }
     }
 
     return false;
+  }
+
+  private static resolveProcessingStatus(
+    readField: (field: string) => { present: boolean; value: string },
+    hasGeneratedOutput: boolean,
+  ): 'pending' | 'running' | 'success' | 'error' | 'excluded' {
+    for (const field of VIDEO_STATUS_FIELDS) {
+      const dedicated = readField(field);
+      if (!dedicated.present) continue;
+      const normalized = this.normalizeStatus(dedicated.value);
+      if (normalized !== 'other') return normalized;
+      // 专用字段存在时不再借用通用 status；未知/空值只能由真实产物推断。
+      return hasGeneratedOutput ? 'success' : 'pending';
+    }
+
+    const generic = readField('status');
+    if (generic.present) {
+      const normalized = this.normalizeStatus(generic.value);
+      if (normalized === 'error' && hasGeneratedOutput) {
+        const processingError = readField('processing_error');
+        if (!processingError.present || !this.isMeaningfulOutputValue(processingError.value)) {
+          return 'success';
+        }
+      }
+      if (normalized !== 'other') return normalized;
+    }
+
+    return hasGeneratedOutput ? 'success' : 'pending';
+  }
+
+  private static readPluginStatusFromFrontmatter(frontmatter: any): {
+    present: boolean;
+    normalized: ReturnType<typeof VideoUtils.normalizeStatus>;
+  } {
+    for (const field of VIDEO_STATUS_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) continue;
+      return {
+        present: true,
+        normalized: this.normalizeStatus(String((frontmatter as any)[field] ?? '').trim()),
+      };
+    }
+    return { present: false, normalized: 'other' };
+  }
+
+  private static hasExplicitVideoMarker(frontmatter: any): boolean {
+    const pluginStatus = this.readPluginStatusFromFrontmatter(frontmatter);
+    if (pluginStatus.present) return true;
+
+    const markerValues = [
+      (frontmatter as any).video_summary,
+      (frontmatter as any).video_summary_plugin,
+      (frontmatter as any).video_summary_managed,
+    ];
+    if (
+      markerValues.some(
+        (value) =>
+          value === true ||
+          ['true', 'yes', 'managed', 'video'].includes(
+            String(value ?? '')
+              .trim()
+              .toLowerCase(),
+          ),
+      )
+    ) {
+      return true;
+    }
+
+    const source = String((frontmatter as any).source ?? '')
+      .trim()
+      .toLowerCase();
+    const sourceType = String((frontmatter as any).source_type ?? '')
+      .trim()
+      .toLowerCase();
+    return (
+      ['video-summary', 'video_summary', 'obsidian-video-summary'].includes(source) ||
+      ['video', 'audio', 'media'].includes(sourceType)
+    );
+  }
+
+  private static hasExplicitVideoMarkerFromRawFrontmatter(fmText: string): boolean {
+    if (
+      VIDEO_STATUS_FIELDS.some((field) => {
+        return this.readYamlScalar(fmText, field).present;
+      })
+    ) {
+      return true;
+    }
+
+    for (const field of ['video_summary', 'video_summary_plugin', 'video_summary_managed']) {
+      const marker = this.readYamlScalar(fmText, field);
+      if (
+        marker.present &&
+        ['true', 'yes', 'managed', 'video'].includes(marker.value.toLowerCase())
+      ) {
+        return true;
+      }
+    }
+
+    const source = this.readYamlScalar(fmText, 'source');
+    const sourceType = this.readYamlScalar(fmText, 'source_type');
+    return (
+      (source.present &&
+        ['video-summary', 'video_summary', 'obsidian-video-summary'].includes(
+          source.value.toLowerCase(),
+        )) ||
+      (sourceType.present && ['video', 'audio', 'media'].includes(sourceType.value.toLowerCase()))
+    );
+  }
+
+  private static isExplicitlyNonVideoFromRawFrontmatter(fmText: string): boolean {
+    const pluginStatus = VIDEO_STATUS_FIELDS.map((field) =>
+      this.readYamlScalar(fmText, field),
+    ).find((value) => value.present);
+    if (pluginStatus && this.normalizeStatus(pluginStatus.value) === 'excluded') return true;
+
+    if (!pluginStatus) {
+      const status = this.readYamlScalar(fmText, 'status');
+      if (status.present && this.normalizeStatus(status.value) === 'excluded') return true;
+    }
+
+    const marker = this.readYamlScalar(fmText, 'video_summary');
+    if (marker.present && marker.value.toLowerCase() === 'false') return true;
+
+    for (const field of ['source_type', 'content_type', 'type']) {
+      const value = this.readYamlScalar(fmText, field);
+      if (value.present && NON_VIDEO_CONTENT_TYPES.has(value.value.toLowerCase())) return true;
+    }
+
+    const transcriptStatus = this.readYamlScalar(fmText, 'video_transcript_status');
+    if (!transcriptStatus.present) return false;
+    const normalized = transcriptStatus.value.toLowerCase();
+    return normalized === 'not-applicable' || normalized === 'not_applicable';
+  }
+
+  private static readYamlScalar(
+    fmText: string,
+    field: string,
+  ): { present: boolean; value: string } {
+    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = fmText.match(new RegExp(`^${escapedField}:\\s*(.*)$`, 'm'));
+    if (!match) return { present: false, value: '' };
+    return { present: true, value: this.stripYamlQuotes(match[1].trim()) };
+  }
+
+  private static hasMeaningfulYamlField(fmText: string, field: string): boolean {
+    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = fmText.match(new RegExp(`^${escapedField}:\\s*(.*)$`, 'm'));
+    if (!match) return false;
+
+    const inlineValue = this.stripYamlQuotes(match[1].trim());
+    if (!YAML_BLOCK_MARKERS.has(inlineValue)) {
+      return this.isMeaningfulOutputValue(inlineValue);
+    }
+
+    const fieldLineEnd = (match.index ?? 0) + match[0].length;
+    const followingLines = fmText
+      .slice(fieldLineEnd)
+      .replace(/^\r?\n/, '')
+      .split(/\r?\n/);
+    const blockLines: string[] = [];
+    for (const line of followingLines) {
+      if (!line.trim() || /^[ \t]+/.test(line)) {
+        blockLines.push(line);
+        continue;
+      }
+      break;
+    }
+    return this.isMeaningfulOutputValue(blockLines.join('\n'));
+  }
+
+  private static isMeaningfulOutputValue(value: unknown): boolean {
+    if (typeof value !== 'string') return false;
+    const normalized = value.trim();
+    if (EMPTY_OUTPUT_VALUES.has(normalized.toLowerCase())) return false;
+    return !/^<!--[\s\S]*-->$/.test(normalized);
   }
 
   /**

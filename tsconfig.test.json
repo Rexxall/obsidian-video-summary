@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "inlineSourceMap": false,
+    "inlineSources": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "core/AttentionEngine.ts",
+    "core/ArtifactFingerprint.ts",
+    "core/ArtifactStore.ts",
+    "core/BasesGenerator.ts",
+    "core/CaptureInbox.ts",
+    "core/ClaimLab.ts",
+    "core/CourseCompiler.ts",
+    "core/CourseStore.ts",
+    "core/CrossModalMemory.ts",
+    "core/KnowledgeModel.ts",
+    "core/LearningProgressStore.ts",
+    "core/ReproducibilityManifest.ts",
+    "core/ReproducibilityStore.ts",
+    "utils/CacheManager.ts",
+    "utils/PlaylistProcessor.ts",
+    "types.ts",
+    "tests/reproducibility-store.test.ts",
+    "tests/**/*.ts"
+  ]
+}

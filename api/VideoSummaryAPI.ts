@@ -9,16 +9,41 @@ import {
   WebhookHistoryEntry,
   ConnectionTestResult,
   WorkflowHealthInfo,
+  ProcessingDepth,
+  RequestedContentType,
 } from '../types';
 import { CacheManager } from '../utils/CacheManager';
 import { UrlResolver } from '../utils/UrlResolver';
-import { Vault } from 'obsidian';
+import type { Vault } from 'obsidian';
 import { RECOMMENDED_WORKFLOW } from '../constants';
+import { normalizeRichProcessingResult } from '../core/KnowledgeModel';
+import {
+  buildContentRoutingPromptContract,
+  CONTENT_ROUTER_CONTRACT_VERSION,
+} from '../core/ContentRouter';
+import {
+  buildArtifactFingerprint,
+  type ArtifactFingerprint,
+  type VisualFingerprintMode,
+} from '../core/ArtifactFingerprint';
+
+const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
+const CACHE_PROMPT_VERSION = 'video-knowledge-v3';
 
 export interface EndpointProbeResult {
   ok: boolean;
   error?: string;
 }
+
+/**
+ * 处理进度回调。只有会轮询任务状态的后端（codex-worker）能上报阶段；
+ * n8n 是一次性 POST，拿不到中间态，此时回调不会被调用，界面只显示计时。
+ */
+export type ProcessProgressReporter = (progress: {
+  stageLabel?: string;
+  progress?: number;
+  message?: string;
+}) => void;
 
 export class VideoSummaryAPI {
   private webhookUrl: string;
@@ -29,6 +54,19 @@ export class VideoSummaryAPI {
   private cacheManager: CacheManager;
   private payloadKeys: any;
   private expandShortLinksEnabled: boolean = false;
+  private analysisDefaults: {
+    processingDepth: ProcessingDepth;
+    contentType: RequestedContentType;
+    autoRoute: boolean;
+    attentionAssessment: boolean;
+    generateLearning: boolean;
+  } = {
+    processingDepth: 'evidence',
+    contentType: 'auto',
+    autoRoute: true,
+    attentionAssessment: true,
+    generateLearning: false,
+  };
 
   setAiModel(model: string) {
     this.aiModel = model;
@@ -44,6 +82,7 @@ export class VideoSummaryAPI {
   private webhookHistoryLimit = 50;
   private historyListener?: (history: WebhookHistoryEntry[]) => void;
   private controllers: Map<string, AbortController> = new Map();
+  private controllerSequence = 0;
   constructor(
     webhookUrl: string,
     vault: Vault,
@@ -82,6 +121,10 @@ export class VideoSummaryAPI {
   /** 是否在发送前自动展开短链 */
   setExpandShortLinks(enabled: boolean) {
     this.expandShortLinksEnabled = enabled;
+  }
+
+  setAnalysisDefaults(defaults: Partial<typeof this.analysisDefaults>) {
+    this.analysisDefaults = { ...this.analysisDefaults, ...defaults };
   }
 
   /**
@@ -124,17 +167,21 @@ export class VideoSummaryAPI {
     mode: ProcessingMode,
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
+    onProgress?: ProcessProgressReporter,
   ): Promise<ProcessingResult> {
+    input = this.withAnalysisDefaults(input);
     // 短链先展开再处理（缓存 key 也用展开后的链接）
     input = await this.resolveInputUrl(input);
+    const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
 
-    // 检查缓存（如果启用）
-    if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
-      const cachedResult = await this.cacheManager.get(input.url, mode, language);
+    // 富结果只按完整指纹读取，不回退到无法验证 provenance 的旧 URL key。
+    if (useCache) {
+      const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] 使用缓存结果: ${input.url}`);
+          console.log(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
+        onProgress?.({ stageLabel: '命中缓存', progress: 1, message: '命中缓存，未请求后端' });
         return cachedResult;
       }
     }
@@ -144,7 +191,10 @@ export class VideoSummaryAPI {
 
     if (this.backend === 'codex-worker') {
       try {
-        const result = await this.processCodexWorkerJob(payload);
+        const result = this.withCacheFingerprint(
+          await this.processCodexWorkerJob(noteName, payload, onProgress),
+          cacheFingerprint,
+        );
         this.recordWebhookResult(result, input, mode, language);
 
         this.lastWebhookResult = {
@@ -155,8 +205,12 @@ export class VideoSummaryAPI {
           timestamp: Date.now(),
         };
 
-        if (useCache && input.url && result) {
-          await this.cacheManager.set(input.url, mode, language, result);
+        if (useCache) {
+          await this.cacheManager.setByFingerprint(
+            cacheFingerprint,
+            result,
+            this.cacheSourceLabel(input),
+          );
         }
 
         return result;
@@ -195,7 +249,10 @@ export class VideoSummaryAPI {
       }
 
       const data = await this.readJsonResponse(response);
-      const result = this.parseSummaryResponse(data);
+      const result = this.withCacheFingerprint(
+        this.parseSummaryResponse(data, input),
+        cacheFingerprint,
+      );
 
       this.recordWebhookResult(result, input, mode, language);
 
@@ -209,8 +266,12 @@ export class VideoSummaryAPI {
       };
 
       // 将结果存入缓存
-      if (useCache && input.url && result) {
-        await this.cacheManager.set(input.url, mode, language, result);
+      if (useCache) {
+        await this.cacheManager.setByFingerprint(
+          cacheFingerprint,
+          result,
+          this.cacheSourceLabel(input),
+        );
       }
 
       return result;
@@ -241,15 +302,16 @@ export class VideoSummaryAPI {
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
   ): Promise<ProcessingResult> {
+    input = this.withAnalysisDefaults(input);
     // 短链先展开再处理（缓存 key 也用展开后的链接）
     input = await this.resolveInputUrl(input);
+    const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
 
-    // 检查缓存（如果启用）
-    if (useCache && input.url && this.cacheManager.has(input.url, mode, language)) {
-      const cachedResult = await this.cacheManager.get(input.url, mode, language);
+    if (useCache) {
+      const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] 使用缓存结果: ${input.url}`);
+          console.log(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
         return cachedResult;
       }
@@ -260,7 +322,10 @@ export class VideoSummaryAPI {
 
     if (this.backend === 'codex-worker') {
       try {
-        const result = await this.processCodexWorkerJob(payload);
+        const result = this.withCacheFingerprint(
+          await this.processCodexWorkerJob(this.nextControllerKey('simple'), payload),
+          cacheFingerprint,
+        );
         this.recordWebhookResult(result, input, mode, language);
 
         this.lastWebhookResult = {
@@ -271,8 +336,12 @@ export class VideoSummaryAPI {
           timestamp: Date.now(),
         };
 
-        if (useCache && input.url && result) {
-          await this.cacheManager.set(input.url, mode, language, result);
+        if (useCache) {
+          await this.cacheManager.setByFingerprint(
+            cacheFingerprint,
+            result,
+            this.cacheSourceLabel(input),
+          );
         }
 
         return result;
@@ -305,7 +374,10 @@ export class VideoSummaryAPI {
       }
 
       const data = await this.readJsonResponse(response);
-      const result = this.parseSummaryResponse(data);
+      const result = this.withCacheFingerprint(
+        this.parseSummaryResponse(data, input),
+        cacheFingerprint,
+      );
 
       this.recordWebhookResult(result, input, mode, language);
 
@@ -319,8 +391,12 @@ export class VideoSummaryAPI {
       };
 
       // 将结果存入缓存
-      if (useCache && input.url && result) {
-        await this.cacheManager.set(input.url, mode, language, result);
+      if (useCache) {
+        await this.cacheManager.setByFingerprint(
+          cacheFingerprint,
+          result,
+          this.cacheSourceLabel(input),
+        );
       }
 
       return result;
@@ -488,15 +564,16 @@ export class VideoSummaryAPI {
     }
 
     // 添加输入数据
-    if (input.url) {
+    if (input.url && !input.skipSourceFetch) {
       metadata[keys.link] = input.url;
     }
     if (input.transcript) {
       metadata[keys.provided_transcript] = input.transcript;
     }
-    if (input.localFile) {
+    if (input.localFile && !input.skipSourceFetch) {
       metadata[keys.local_file] = input.localFile;
     }
+    this.addAnalysisMetadata(metadata, input);
 
     return {
       name: noteName,
@@ -522,21 +599,26 @@ export class VideoSummaryAPI {
     if (mode === 'info-only') {
       metadata.info_only = true;
     }
-    if (input.url) {
+    if (input.url && !input.skipSourceFetch) {
       metadata.link = input.url;
     }
     if (input.transcript) {
       metadata.provided_transcript = input.transcript;
     }
-    if (input.localFile) {
+    if (input.localFile && !input.skipSourceFetch) {
       metadata.local_file = input.localFile;
     }
-    if (Array.isArray(input.localFiles) && input.localFiles.length > 0) {
+    if (!input.skipSourceFetch && Array.isArray(input.localFiles) && input.localFiles.length > 0) {
       metadata.local_files = input.localFiles;
     }
     if (input.merge !== undefined) {
       metadata.merge = input.merge;
     }
+    if (input.skipSourceFetch) {
+      metadata.skip_source_fetch = true;
+      if (input.sourceUrl) metadata.source_url_for_citation = input.sourceUrl;
+    }
+    this.addAnalysisMetadata(metadata, input);
 
     return {
       source: 'obsidian-plugin',
@@ -545,6 +627,124 @@ export class VideoSummaryAPI {
       metadata,
       content: '',
     };
+  }
+
+  private withAnalysisDefaults(input: VideoInput): VideoInput {
+    const requestedDepth = input.processingDepth || this.analysisDefaults.processingDepth;
+    return {
+      ...input,
+      processingDepth:
+        this.backend === 'n8n' && requestedDepth === 'deep-visual' ? 'evidence' : requestedDepth,
+      contentType: input.contentType || this.analysisDefaults.contentType,
+      autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
+      attentionAssessment: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
+      generateLearning: input.generateLearning ?? this.analysisDefaults.generateLearning,
+    };
+  }
+
+  private buildCacheFingerprint(
+    input: VideoInput,
+    mode: ProcessingMode,
+    language: SupportedLanguage,
+  ): ArtifactFingerprint {
+    const processingDepth = input.processingDepth || this.analysisDefaults.processingDepth;
+    let visual: VisualFingerprintMode = 'keyframes';
+    if (processingDepth === 'quick') visual = 'off';
+    if (processingDepth === 'deep-visual') visual = 'deep';
+
+    return buildArtifactFingerprint({
+      input,
+      mode,
+      language,
+      model: this.aiModel,
+      backend: this.backend,
+      schemaVersion: CACHE_ARTIFACT_SCHEMA_VERSION,
+      processingDepth,
+      requestedContentType: input.contentType || this.analysisDefaults.contentType,
+      autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
+      visual,
+      attention: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
+      learning: input.generateLearning ?? this.analysisDefaults.generateLearning,
+      promptVersion: CACHE_PROMPT_VERSION,
+    });
+  }
+
+  private withCacheFingerprint(
+    result: ProcessingResult,
+    fingerprint: ArtifactFingerprint,
+  ): ProcessingResult {
+    return {
+      ...result,
+      artifact: {
+        ...(result.artifact || {}),
+        schema_version: fingerprint.run.schema_version,
+        source_hash: fingerprint.source.source_hash,
+        transcript_hash: fingerprint.source.transcript_hash || result.artifact?.transcript_hash,
+        backend: fingerprint.run.backend,
+        model: fingerprint.run.model,
+        prompt_version: fingerprint.run.prompt_version,
+        processing_depth: fingerprint.run.processing_depth,
+        fingerprint_version: fingerprint.version,
+        fingerprint: fingerprint.key,
+        fingerprint_digest: fingerprint.digest,
+        run_hash: fingerprint.run_hash,
+      },
+    };
+  }
+
+  private cacheSourceLabel(input: VideoInput): string {
+    return (
+      input.url ||
+      input.sourceUrl ||
+      input.localFile ||
+      input.localFiles?.filter(Boolean).join(', ') ||
+      (input.transcript ? 'provided-transcript' : '')
+    );
+  }
+
+  private addAnalysisMetadata(metadata: Record<string, any>, input: VideoInput) {
+    metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
+    metadata.prompt_version = CACHE_PROMPT_VERSION;
+    metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
+    metadata.content_type = input.contentType || this.analysisDefaults.contentType;
+    metadata.auto_route = input.autoRoute ?? this.analysisDefaults.autoRoute;
+    metadata.content_router_contract = buildContentRoutingPromptContract(
+      metadata.content_type,
+      metadata.auto_route,
+    );
+    metadata.prompt_profile =
+      metadata.content_type === 'auto'
+        ? CONTENT_ROUTER_CONTRACT_VERSION
+        : metadata.content_router_contract.profiles[0]?.id;
+    metadata.attention_assessment =
+      input.attentionAssessment ?? this.analysisDefaults.attentionAssessment;
+    metadata.generate_learning = input.generateLearning ?? this.analysisDefaults.generateLearning;
+    if (input.skipSourceFetch) {
+      metadata.skip_source_fetch = true;
+      if (input.sourceUrl) metadata.source_url_for_citation = input.sourceUrl;
+      if (input.persistedSegments?.length) {
+        metadata.persisted_video_segments = input.persistedSegments;
+      }
+      if (input.persistedEvidenceClaims?.length) {
+        metadata.persisted_evidence_claims = input.persistedEvidenceClaims;
+      }
+      if (input.persistedVisualEvidence?.length) {
+        metadata.persisted_visual_evidence = input.persistedVisualEvidence;
+      }
+      if (input.persistedRun) metadata.persisted_run = input.persistedRun;
+    }
+    if (input.artifactId) metadata.artifact_id = input.artifactId;
+    if (input.highlightedSegmentIds?.length) {
+      metadata.highlighted_segment_ids = Array.from(new Set(input.highlightedSegmentIds));
+    }
+    metadata.requested_capabilities = [
+      'artifact-v3',
+      'timestamped-segments',
+      'evidence-claims',
+      ...(metadata.processing_depth === 'quick' ? [] : ['visual-evidence']),
+      ...(metadata.attention_assessment ? ['attention-assessment'] : []),
+      ...(metadata.generate_learning ? ['learning-package'] : []),
+    ];
   }
 
   private recordWebhookResult(
@@ -570,54 +770,105 @@ export class VideoSummaryAPI {
     }
   }
 
-  private async processCodexWorkerJob(payload: any): Promise<ProcessingResult> {
+  private async processCodexWorkerJob(
+    controllerKey: string,
+    payload: any,
+    onProgress?: ProcessProgressReporter,
+  ): Promise<ProcessingResult> {
+    const controller = new AbortController();
+    const previousController = this.controllers.get(controllerKey);
+    if (previousController) previousController.abort();
+    this.controllers.set(controllerKey, controller);
+
+    const timeoutMs = Math.max(1, Math.floor(Number(this.timeout) || 1));
+    const deadline = Date.now() + timeoutMs;
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     const jobsUrl = this.getCodexWorkerJobsUrl();
-    const response = await fetch(jobsUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch(jobsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Codex Worker HTTP ${response.status}: ${text || response.statusText}`);
-    }
-
-    const createdJob = await response.json();
-    if (!createdJob?.id) {
-      throw new Error('Codex Worker 没有返回任务 ID');
-    }
-
-    const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
-    const started = Date.now();
-    let latestJob = createdJob;
-
-    while (Date.now() - started < this.timeout) {
-      await this.sleep(1000);
-      const statusResponse = await fetch(statusUrl);
-      if (!statusResponse.ok) {
-        const text = await statusResponse.text();
-        throw new Error(
-          `Codex Worker job 状态读取失败: HTTP ${statusResponse.status} ${text || statusResponse.statusText}`,
-        );
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Codex Worker HTTP ${response.status}: ${text || response.statusText}`);
       }
 
-      latestJob = await statusResponse.json();
-      if (latestJob.status === 'success') {
-        return this.parseSummaryResponse(latestJob.result);
+      const createdJob = await response.json();
+      if (!createdJob?.id) {
+        throw new Error('Codex Worker 没有返回任务 ID');
       }
-      if (
-        latestJob.status === 'needs-review' ||
-        latestJob.status === 'error' ||
-        latestJob.status === 'cancelled'
-      ) {
-        throw new Error(this.formatCodexJobError(latestJob));
+
+      const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
+      let latestJob = createdJob;
+
+      while (Date.now() < deadline) {
+        await this.sleep(Math.min(1000, Math.max(1, deadline - Date.now())), controller.signal);
+        const statusResponse = await fetch(statusUrl, { signal: controller.signal });
+        if (!statusResponse.ok) {
+          const text = await statusResponse.text();
+          throw new Error(
+            `Codex Worker job 状态读取失败: HTTP ${statusResponse.status} ${text || statusResponse.statusText}`,
+          );
+        }
+
+        latestJob = await statusResponse.json();
+        if (onProgress) {
+          const stageLabel = pickString(latestJob, ['stage', 'step', 'phase', 'status']);
+          const message = pickString(latestJob, ['message', 'detail', 'lastLog']);
+          const progress = pickRatio(latestJob, ['progress', 'percent', 'percentage']);
+          if (stageLabel || message || progress !== undefined) {
+            onProgress({ stageLabel, message, progress });
+          }
+        }
+        if (latestJob.status === 'success') {
+          return this.parseSummaryResponse(latestJob.result, {
+            url: payload?.metadata?.link,
+            sourceUrl: payload?.metadata?.source_url_for_citation,
+            processingDepth: payload?.metadata?.processing_depth,
+            contentType: payload?.metadata?.content_type,
+            autoRoute: payload?.metadata?.auto_route,
+            attentionAssessment: payload?.metadata?.attention_assessment,
+            generateLearning: payload?.metadata?.generate_learning,
+          });
+        }
+        if (
+          latestJob.status === 'needs-review' ||
+          latestJob.status === 'error' ||
+          latestJob.status === 'cancelled'
+        ) {
+          throw new Error(this.formatCodexJobError(latestJob));
+        }
+      }
+
+      timedOut = true;
+      controller.abort();
+      throw this.abortError();
+    } catch (error) {
+      if (controller.signal.aborted || (error as Error)?.name === 'AbortError') {
+        if (timedOut || Date.now() >= deadline) {
+          throw new Error(
+            `Codex Worker 任务超时。可在控制台查看: ${this.getCodexWorkerDashboardUrl()}`,
+          );
+        }
+        throw new Error('请求被取消');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      if (this.controllers.get(controllerKey) === controller) {
+        this.controllers.delete(controllerKey);
       }
     }
-
-    throw new Error(`Codex Worker 任务超时。可在控制台查看: ${this.getCodexWorkerDashboardUrl()}`);
   }
 
   private getCodexWorkerJobsUrl(): string {
@@ -691,11 +942,34 @@ export class VideoSummaryAPI {
     return `${value.slice(0, max)}...`;
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return Promise.reject(this.abortError());
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onAbort);
+        reject(this.abortError());
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
-  private parseSummaryResponse(data: any): ProcessingResult {
+  private abortError(): Error {
+    const error = new Error('Aborted');
+    error.name = 'AbortError';
+    return error;
+  }
+
+  private nextControllerKey(prefix: string): string {
+    this.controllerSequence += 1;
+    return `${prefix}:${Date.now().toString(36)}:${this.controllerSequence.toString(36)}`;
+  }
+
+  private parseSummaryResponse(data: any, input: VideoInput = {}): ProcessingResult {
     // n8n 可能返回数组，需要合并所有对象的数据
     const preserveKeys = new Set(['summary', 'note', 'video_transcript']);
     let payload: any = Array.isArray(data) ? {} : data;
@@ -772,6 +1046,17 @@ export class VideoSummaryAPI {
       payload.video_duration = normalizedDuration;
     }
 
+    const normalizedCover = pickField([
+      'video_cover',
+      'cover',
+      'thumbnail',
+      'thumbnail_url',
+      'thumbnailUrl',
+    ]);
+    if (normalizedCover) {
+      payload.video_cover = normalizedCover;
+    }
+
     // 解析成功响应
     const result: ProcessingResult = {};
 
@@ -794,13 +1079,31 @@ export class VideoSummaryAPI {
     if (payload.video_duration && typeof payload.video_duration === 'string') {
       result.video_duration = payload.video_duration;
     }
+    if (payload.video_cover && typeof payload.video_cover === 'string') {
+      result.video_cover = payload.video_cover;
+    }
 
-    // 检查是否有任何有效数据
-    if (Object.keys(result).length === 0) {
+    const hasRichPayload = [
+      payload.video_segments,
+      payload.evidence_claims,
+      payload.visual_evidence,
+      payload.attention,
+      payload.learning,
+      payload.artifact,
+    ].some((value) => value !== undefined && value !== null);
+    if (Object.keys(result).length === 0 && !hasRichPayload) {
       throw new Error('服务器返回的数据中没有有效内容');
     }
 
-    return result;
+    return normalizeRichProcessingResult(result, payload, {
+      sourceUrl: input.sourceUrl || input.url,
+      backend: this.backend,
+      model: this.aiModel,
+      processingDepth: input.processingDepth,
+      promptVersion: CACHE_PROMPT_VERSION,
+      requestedContentType: input.contentType,
+      autoRoute: input.autoRoute,
+    });
   }
 
   private unwrapResponsePayload(payload: any): any {
@@ -819,6 +1122,17 @@ export class VideoSummaryAPI {
           'video_title',
           'video_author',
           'video_duration',
+          'video_cover',
+          'video_segments',
+          'evidence_claims',
+          'visual_evidence',
+          'content_type',
+          'content_routing',
+          'attention',
+          'learning',
+          'artifact',
+          'cover',
+          'thumbnail',
           'metadata',
           'info',
         ].some((field) => candidate[field] !== undefined);
@@ -846,7 +1160,7 @@ export class VideoSummaryAPI {
       error?: string;
       noteName: string;
       index: number;
-    }) => void,
+    }) => void | Promise<void>,
     useCache: boolean = true,
   ): Promise<
     Array<{ success: boolean; result?: ProcessingResult; error?: string; noteName: string }>
@@ -879,7 +1193,7 @@ export class VideoSummaryAPI {
 
           // 实时回调
           if (onProgress) {
-            onProgress({ ...resultObj, index: globalIndex });
+            await onProgress({ ...resultObj, index: globalIndex });
           }
 
           return resultObj;
@@ -892,7 +1206,7 @@ export class VideoSummaryAPI {
 
           // 实时回调
           if (onProgress) {
-            onProgress({ ...errorObj, index: globalIndex });
+            await onProgress({ ...errorObj, index: globalIndex });
           }
 
           return errorObj;
@@ -908,8 +1222,9 @@ export class VideoSummaryAPI {
 
   private chunkArray<T>(array: T[], size: number): T[][] {
     const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
+    const safeSize = Math.max(1, Math.floor(Number(size) || 1));
+    for (let i = 0; i < array.length; i += safeSize) {
+      chunks.push(array.slice(i, i + safeSize));
     }
     return chunks;
   }
@@ -1336,4 +1651,27 @@ export class VideoSummaryAPI {
       return String(error);
     }
   }
+}
+
+/** 从后端返回的 job JSON 里挑第一个非空字符串字段 */
+function pickString(source: any, keys: string[]): string | undefined {
+  if (!source || typeof source !== 'object') return undefined;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+/** 把 0-1 或 0-100 的进度字段统一成 0-1 */
+function pickRatio(source: any, keys: string[]): number | undefined {
+  if (!source || typeof source !== 'object') return undefined;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const ratio = value > 1 ? value / 100 : value;
+      return Math.min(1, Math.max(0, ratio));
+    }
+  }
+  return undefined;
 }

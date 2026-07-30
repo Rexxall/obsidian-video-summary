@@ -193,9 +193,11 @@ export class VideoSummaryModal extends Modal {
         new Notice(ERROR_MESSAGES.NO_INPUT);
         return;
       }
+      if (!(await this.plugin.ensureBackendReady())) return;
 
       // 设置处理状态
       await this.noteProcessor.setProcessingStatus(file, 'running');
+      await this.plugin.jobService.updateCourseProgressForFile(file, 'processing', 10);
 
       // 显示进度通知
       const langText = this.language === 'zh' ? '中文' : this.language === 'en' ? '英文' : '日文';
@@ -232,15 +234,30 @@ export class VideoSummaryModal extends Modal {
         },
       );
 
+      const artifactContext = {
+        title: file.basename,
+        notePath: file.path,
+        input: videoInput,
+        platform: result.video_platform,
+      };
+      await this.plugin.jobService.persistExternalResult(artifactContext, result);
+
       // 更新笔记（按设置控制自动重命名）
       await this.noteProcessor.updateNote(file, result, this.mode, {
         autoRename: this.plugin.settings.autoRenameEnabled,
         conflictStrategy: this.plugin.settings.renameConflictStrategy,
       });
+      await this.plugin.jobService.relinkExternalResult(artifactContext, result, file);
       // 设置成功状态（使用可配置值）
       await this.noteProcessor.setProcessingStatus(
         file,
         this.plugin.settings.successStatusValue ?? 'success',
+      );
+      await this.plugin.jobService.updateCourseProgressForFile(
+        file,
+        'complete',
+        100,
+        result.artifact?.artifact_id,
       );
 
       // 关闭进度通知
@@ -276,7 +293,8 @@ export class VideoSummaryModal extends Modal {
 
       // 设置错误状态
       if (file) {
-        await this.noteProcessor.setProcessingStatus(file, 'error');
+        await this.noteProcessor.setProcessingError(file, error);
+        await this.plugin.jobService.updateCourseProgressForFile(file, 'error', 0);
       }
 
       // 显示错误通知

@@ -5,12 +5,39 @@ This guide covers local installation, n8n setup, and the checks needed before sh
 ## Requirements
 
 - Obsidian desktop app
-- Node.js 16 or newer
+- Node.js 20 or newer when building from source
 - npm
-- n8n, either local, Docker, or hosted
-- A configured n8n workflow based on `Obsidian Video Summary.json`
+- The repository's custom self-hosted Docker environment for the bundled n8n processing path
+- A configured n8n workflow based on `Obsidian Video Summary.json`, or an already deployed
+  compatible Worker endpoint
 
-## 1. Build the plugin
+The included workflow uses Execute Command nodes, `/home/node/` mounts, `yt-dlp`, and ffmpeg. The
+repository's custom Docker image is the supported default. n8n Cloud, a standard n8n image, and a
+plain npm-only install are not drop-in replacements; an advanced self-hosted deployment must expose
+equivalent commands, tools, paths, and mounts.
+
+The optional Codex Worker service is not included in this repository or release. It is required
+only for Worker-specific progress/cancellation and `deep-visual` processing.
+
+The manifest minimum is Obsidian 1.4.0, and this release was exercised on Obsidian 1.12.7.
+Generated `.base` library views require Obsidian 1.9.10 or newer with the Bases core plugin
+enabled.
+
+## 1. Install the plugin
+
+### Release ZIP
+
+Download `video-summary-2.4.1.zip` from the
+[2.4.1 release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.1)
+and extract it into:
+
+```text
+<your-vault>/.obsidian/plugins/video-summary/
+```
+
+The folder must directly contain `main.js`, `manifest.json`, and `styles.css`.
+
+### Build from source
 
 ```bash
 git clone https://github.com/Rexxall/obsidian-video-summary-plugin.git
@@ -27,16 +54,18 @@ Create the plugin folder:
 <your-vault>/.obsidian/plugins/video-summary/
 ```
 
-Copy these release files into that folder:
+Copy these plugin files into that folder:
 
 ```text
 main.js
 manifest.json
 styles.css
-Obsidian Video Summary.json
 ```
 
 Restart Obsidian and enable `Video Summary` from `Settings -> Community plugins`.
+
+`Obsidian Video Summary.json` is a separate n8n workflow import. Do not copy it into the Obsidian
+plugin folder.
 
 ## 3. Start n8n
 
@@ -60,13 +89,6 @@ docker compose -f docker-compose.video-summary.yml up -d
 docker compose -f docker-compose.video-summary.yml exec n8n-video-summary yt-dlp --version
 ```
 
-npm-only n8n example:
-
-```bash
-npm install n8n -g
-n8n start
-```
-
 Open:
 
 ```text
@@ -79,20 +101,29 @@ http://localhost:5678
 2. Choose `Import from File`.
 3. Select `Obsidian Video Summary.json`.
 4. Review every credential field and replace placeholders with your own credentials.
-5. Save and activate the workflow.
+5. Create or select an ASR subworkflow that follows
+   [docs/ASR_SUBWORKFLOW_CONTRACT.md](docs/ASR_SUBWORKFLOW_CONTRACT.md).
+6. In the main workflow, open `SubFlow: Transcript` and
+   `SubFlow: Transcript from Local File`; replace `CONFIGURE_ASR_WORKFLOW_ID` by selecting your
+   saved ASR workflow.
+7. Save and activate the workflow.
+
+You can defer steps 5–6 if you only use pasted transcripts or videos with usable native subtitles.
+Without them, no-subtitle videos and local audio/video cannot use the ASR fallback.
 
 Default production webhook:
 
 ```text
-http://localhost:5678/webhook/obsidian-video-summary
+http://127.0.0.1:5678/webhook/obsidian-video-summary
 ```
 
 If port `5678` is already in use, change the Docker host port and update the Obsidian plugin URL.
 For a full list of beginner setup issues and fixes, see
 [docs/BEGINNER_DEPLOYMENT_TEST.md](docs/BEGINNER_DEPLOYMENT_TEST.md).
 
-The plugin and bundled workflow expect workflow version `2.1.4`, webhook path
-`obsidian-video-summary`, and model labels `Gemini 3.1` / `Gemini 3.0`.
+The bundled workflow's internal contract version is `2.1.4` (independent of the plugin release
+version), its webhook path is `obsidian-video-summary`, and its included model labels are
+`Gemini 3.1` / `Gemini 3.0`.
 
 ## 5. Configure the plugin
 
@@ -100,7 +131,7 @@ In Obsidian settings, open `Video Summary`.
 
 Required:
 
-- Webhook URL: `http://localhost:5678/webhook/obsidian-video-summary`
+- Webhook URL: `http://127.0.0.1:5678/webhook/obsidian-video-summary`
 
 Recommended:
 
@@ -111,6 +142,8 @@ Recommended:
 - Run the setup check in the plugin settings before sending a real video.
 - Native subtitle language: leave it automatic. The bundled n8n workflow chooses the video's original
   audio language and does not use the note output language for subtitle selection.
+- Processing depth: use `quick` or `evidence` with n8n. n8n does not perform real frame analysis and
+  will downgrade `deep-visual` to `evidence`.
 
 Optional:
 
@@ -124,6 +157,8 @@ Optional:
 
 For platform-specific expectations, see
 [docs/PLATFORM_CAPABILITY_MATRIX.md](docs/PLATFORM_CAPABILITY_MATRIX.md).
+For the exact n8n / Worker / capture boundary, see
+[docs/BACKEND_CAPABILITY_MATRIX.md](docs/BACKEND_CAPABILITY_MATRIX.md).
 
 ## 6. Create a note
 
@@ -145,6 +180,11 @@ status: pending
 ---
 ```
 
+For the bundled n8n workflow, first copy the file into `docker/uploads/`, then use only its file
+name or a safe relative path below that folder. Do not send a macOS/Windows absolute path: the n8n
+container cannot see it. An absolute path can be processed only by a separately configured Worker
+or compatible endpoint that can access that exact host path.
+
 Multiple local files:
 
 ```yaml
@@ -158,11 +198,30 @@ status: pending
 
 Open the command palette and run one of:
 
-- `Video Summary: summarize current note`
-- `Video Summary: extract transcript`
-- `Video Summary: update video information`
-- `Video Summary: batch process notes`
-- `Video Summary: open dashboard`
+- `快速总结当前笔记`
+- `快速提取文稿`
+- `更新视频信息（不改正文）`
+- `批量处理视频`
+- `搜索跨模态视频记忆`
+- `生成多视频论点实验室`
+- `复习当前视频的学习卡`
+- `复习所有到期的视频学习卡`
+- `用本地可复现工件重新处理`
+- `生成或安全更新视频库 Base`
+
+## Local knowledge data
+
+Version 2.4.1 stores structured state below the installed plugin folder:
+
+```text
+data/knowledge-artifacts/
+data/learning-progress/
+data/reproducibility/
+data/course-manifests/
+```
+
+This can include transcripts, evidence, claims, learning attempts, and course progress. Keep it in
+private backups if you need it, and do not publish it with a source checkout or release.
 
 ## Troubleshooting
 
@@ -191,10 +250,19 @@ Check:
 - The URL is publicly accessible or your workflow has the required cookies.
 - The platform is supported by your download step.
 - The note has `link`, `local_file`, or pasted transcript content.
+- Both transcript subflow nodes point to an existing ASR workflow when no native subtitle is
+  available.
 
 ### Output quality is poor
 
-Tune the generation prompt and model selection inside n8n. The plugin only passes the request and writes the response; content quality is controlled by the workflow.
+Tune the generation prompt and model selection inside n8n. The plugin validates and organizes the
+returned evidence, but generation quality still depends on the configured workflow and model.
+
+### Deep visual is unavailable
+
+The bundled n8n path supports `evidence`, not real frame analysis. Deep visual requires a separately
+deployed compatible Worker with ffmpeg and a configured visual model. The Worker is not included in
+this repository.
 
 ## Public release checklist
 
@@ -203,6 +271,8 @@ Before posting the project publicly:
 - Run `npm run build`.
 - Confirm `manifest.json` version matches the Git tag.
 - Confirm `main.js`, `manifest.json`, and `styles.css` are attached to the release.
+- Confirm the install ZIP contains only those three files at its root.
+- Confirm `SHA256SUMS` matches every uploaded custom asset.
 - Confirm `README.md`, `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, and `CONTRIBUTING.md` are committed.
 - Confirm ignored local files are not tracked by Git.
 - Confirm workflow exports contain no private credentials, cookies, local absolute vault paths, or personal transcripts.

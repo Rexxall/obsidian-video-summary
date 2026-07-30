@@ -6,14 +6,17 @@ This guide is for sharing Video Summary publicly while keeping the repository cl
 
 Short description:
 
-> Video Summary turns video links, local recordings, and pasted transcripts into structured Obsidian notes through your own n8n workflow.
+> Video Summary turns video links, local recordings, and pasted transcripts into evidence-linked
+> Obsidian knowledge through a processing endpoint you control.
 
 What to emphasize:
 
 - It is an Obsidian workflow plugin, not a hosted service.
 - The user controls the backend endpoint.
-- It supports URL notes, local media paths, pasted transcripts, batch processing, caching, and note renaming.
-- The output is Markdown designed for long-term vault use.
+- It supports URL notes, uploaded local media, pasted transcripts, batch processing, evidence
+  maps, synchronized reading, local search, learning review, caching, and note renaming.
+- The reader-facing output is Markdown; machine-oriented evidence and progress stay in local
+  plugin sidecars.
 
 Avoid overclaiming:
 
@@ -32,7 +35,7 @@ Body:
 
 > 之前每次看长视频、课程、讲座都要手动复制链接、找字幕、整理摘要，最后笔记格式还很乱。于是我做了 Video Summary：在 Obsidian 里选一条视频笔记，它会把链接、文稿或本地录音交给自己的 n8n 工作流处理，再把结构化 Markdown 写回笔记。
 >
-> 现在支持：当前笔记处理、仅提取文稿、仅更新视频信息、批量处理、缓存、Webhook 多配置、自动重命名。
+> 现在支持：当前笔记与批量处理、证据地图、同步陪读、跨视频检索与论点对比、学习复习、缓存、Webhook 多配置和自动重命名。公开 n8n 工作流优先使用原生字幕；无字幕/本地音频的 ASR 子流程需要自己配置。
 >
 > 适合用 Obsidian 学习课程、整理讲座、沉淀公开视频资料的人。项目已经开源，安装和 n8n 工作流导入步骤写在 README 里。
 
@@ -51,7 +54,7 @@ Body:
 Record a short demo with these steps:
 
 1. Show a note with a video URL.
-2. Run the summarize command.
+2. Run `快速总结当前笔记`.
 3. Show the n8n webhook receiving the request.
 4. Show the returned Markdown in Obsidian.
 5. Show the dashboard or batch panel.
@@ -67,12 +70,16 @@ Keep personal vault names, private URLs, cookies, and credential screens out of 
 - `manifest.json` uses a community-safe ID and a semantic version.
 - `versions.json` maps plugin versions to minimum Obsidian versions.
 - `.gitignore` excludes runtime data and cache files.
-- Release workflow attaches `main.js`, `manifest.json`, and `styles.css`.
+- Release workflow attaches the three required plugin files, an install ZIP, the optional n8n
+  workflow, and checksums.
 
 ## Release checklist
 
 ```bash
-npm install
+npm ci
+npm test
+npm run lint
+npm run format
 npm run build
 git status --short
 ```
@@ -81,7 +88,7 @@ Then:
 
 1. Commit the release-ready changes.
 2. Push the branch.
-3. Create and push a tag that matches `manifest.json`, for example `2.1.4`.
+3. Create and push a tag that matches `manifest.json`, for example `2.4.1`.
 4. Confirm GitHub Actions creates the release assets.
 5. Test manual install from release assets in a clean vault.
 

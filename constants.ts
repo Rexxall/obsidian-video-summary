@@ -16,7 +16,9 @@ export const SHORT_LINK_HOSTS = [
 export const DEFAULT_HISTORY_LIMIT = 300;
 
 export const DEFAULT_AI_MODELS: string[] = ['Gemini 3.1', 'Gemini 3.0'];
-export const DEFAULT_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/obsidian-video-summary';
+export const DEFAULT_N8N_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook/obsidian-video-summary';
+export const LEGACY_DEFAULT_N8N_WEBHOOK_URL =
+  'http://localhost:5678/webhook/obsidian-video-summary';
 export const LEGACY_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/cyrus';
 export const RECOMMENDED_WORKFLOW: Required<WorkflowHealthInfo> = {
   name: 'Video Summary Advanced Workflow',
@@ -47,8 +49,8 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     platform: 'Bilibili',
     status: 'supported',
     input: 'link',
-    requirements: '公开视频通常可用；HTTP 412 时通常需要更新 yt-dlp 或添加 cookies。',
-    notes: '只处理某一 P 时，建议复制当前分 P 的完整链接；cookie 文件名为 bilibili_cookies.txt。',
+    requirements: '公开视频通常可用；受限视频或部分分 P 仍可能需要 cookies。',
+    notes: 'yt-dlp 遇到 HTTP 412 时会回退到公开 API 读取元数据与音轨。',
   },
   {
     platform: '抖音',
@@ -95,6 +97,11 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   setupGuideDismissed: false,
   defaultLanguage: 'zh',
   defaultMode: 'summary',
+  defaultProcessingDepth: 'evidence',
+  defaultContentType: 'auto',
+  autoRouteContent: true,
+  attentionAssessmentEnabled: true,
+  generateLearningArtifacts: false,
   aiModel: 'Gemini 3.1',
   customAiModels: [...DEFAULT_AI_MODELS],
   timeoutMinutes: 10,
@@ -123,6 +130,8 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   fileListSortBy: 'ctime-desc', // 默认按创建时间（最新）排序
   historySortBy: 'time-desc', // 默认按时间（最新）排序
   statusFilterValue: 'all', // 默认显示全部状态
+  activePanelTab: 'jobs', // 侧栏默认停在任务流
+  previewBeforeWrite: false, // 默认沿用直接写入；打开后结果先预览再落笔记
   history: [],
   webhookHistory: [],
   historyLimit: DEFAULT_HISTORY_LIMIT,
