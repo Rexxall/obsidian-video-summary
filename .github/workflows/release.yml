@@ -67,13 +67,15 @@ jobs:
       - name: Package release assets
         run: |
           archive="video-summary-${GITHUB_REF_NAME}.zip"
+          workflow_asset="Obsidian.Video.Summary.json"
           zip -j "$archive" main.js manifest.json styles.css
           test "$(unzip -Z1 "$archive" | sort | tr '\n' ' ')" = "main.js manifest.json styles.css "
+          cp "Obsidian Video Summary.json" "$workflow_asset"
           sha256sum \
             main.js \
             manifest.json \
             styles.css \
-            "Obsidian Video Summary.json" \
+            "$workflow_asset" \
             "$archive" \
             > SHA256SUMS
 
@@ -92,7 +94,7 @@ jobs:
             manifest.json \
             styles.css \
             "video-summary-${GITHUB_REF_NAME}.zip" \
-            "Obsidian Video Summary.json" \
+            "Obsidian.Video.Summary.json" \
             SHA256SUMS \
             --title "$GITHUB_REF_NAME" \
             --verify-tag \
