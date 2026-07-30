@@ -182,7 +182,7 @@ export function renderCourseManagedBlock(manifest: CourseManifest): string {
     '',
     `进度：${manifest.progress.complete}/${active.length} 完成 · ${manifest.progress.pending} 待处理 · ${manifest.progress.error} 失败`,
     '',
-    '| # | 状态 | 课程 | 前置 | 缺失概念 |',
+    '| # | 状态 | 课程 | 相邻前课 | 来源缺课 |',
     '|---:|---|---|---|---|',
   );
   ordered.forEach((item, index) => {

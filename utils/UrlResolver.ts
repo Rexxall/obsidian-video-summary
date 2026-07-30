@@ -21,9 +21,7 @@ export class UrlResolver {
   static isShortLink(url: string): boolean {
     try {
       const hostname = new URL(url).hostname.toLowerCase();
-      return SHORT_LINK_HOSTS.some(
-        (host) => hostname === host || hostname.endsWith(`.${host}`),
-      );
+      return SHORT_LINK_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
     } catch {
       return false;
     }

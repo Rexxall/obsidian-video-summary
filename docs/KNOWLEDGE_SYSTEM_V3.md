@@ -1,8 +1,10 @@
 # Video Knowledge System v3
 
 This document is the implementation and acceptance contract for the ten product
-directions approved on 2026-07-29. A direction is complete only when its data,
-user interaction, durable output, and verification evidence all exist.
+directions approved on 2026-07-29. A direction is implemented only when its data,
+user interaction, durable output, and verification evidence all exist. Online
+platform, external Worker, and live model checks remain separate integration
+gates; see `TEN_DIRECTIONS_ACCEPTANCE.md` for the current verified status.
 
 ## Delivery order
 
@@ -32,7 +34,7 @@ reader-facing durable note; the sidecar contains machine-oriented evidence that
 would be unsafe or unwieldy to keep in YAML.
 
 ```text
-<plugin-data>/artifacts/<artifact-id>.json
+<plugin-dir>/data/knowledge-artifacts/<artifact-id>.json
 ```
 
 Every artifact records:
@@ -43,7 +45,7 @@ Every artifact records:
 - visual observations and keyframes;
 - evidence-backed claims;
 - content route and attention assessment;
-- learning cards, questions, attempts, and review schedule;
+- generated learning cards and questions;
 - user highlights;
 - playlist/course membership;
 - searchable text and visual descriptors.
@@ -51,6 +53,12 @@ Every artifact records:
 Markdown frontmatter stores only stable lookup and filter fields such as
 `video_artifact_id`, `video_content_type`, `video_attention_action`,
 `video_review_due`, and `video_summary_status`.
+
+Learning attempts, mastery, and review schedules are user-owned state stored separately in:
+
+```text
+<plugin-dir>/data/learning-progress/<artifact-id>.learning.json
+```
 
 ## Acceptance matrix
 
@@ -104,8 +112,9 @@ Markdown frontmatter stores only stable lookup and filter fields such as
 
 - YouTube playlists and Bilibili collections/favourites are supported.
 - Import is canonical-ID deduplicated and incremental.
-- A course note records source order, recommended order, prerequisites,
-  progress, duplicates, and missing concepts.
+- A course note records source order, recommended order, deterministic dependencies between
+  explicitly adjacent lesson numbers, progress, duplicates, and missing lesson-number gaps. It
+  does not infer semantic prerequisite concepts.
 - Newly discovered videos enter pending state and do not automatically spend
   model quota.
 
@@ -141,9 +150,11 @@ Markdown frontmatter stores only stable lookup and filter fields such as
   views over standard Properties.
 - Raw transcript/evidence can be reprocessed without reacquiring the video.
 
-## Final system acceptance
+## Release-gate acceptance target
 
-Completion requires all of the following:
+The complete online acceptance target includes all of the following. Items that
+cannot be exercised offline must stay visibly pending rather than being inferred
+from fixtures:
 
 1. TypeScript build, lint, targeted unit tests, and workflow contract tests pass.
 2. Plugin source, built assets, and installed runtime copies match.

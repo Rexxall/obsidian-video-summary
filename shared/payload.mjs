@@ -51,7 +51,10 @@ export function normalizeText(value) {
 export function buildUnifiedPayload(item = {}, opts = {}) {
   const action = opts.action || 'process';
   const source = opts.source || 'unknown';
-  const baseUrl = canonicalizeVideoUrl(item.url || item.link || '', { keepP: true, keepTimestamp: false });
+  const baseUrl = canonicalizeVideoUrl(item.url || item.link || '', {
+    keepP: true,
+    keepTimestamp: false,
+  });
   const timestampUrl =
     item.timestampUrl || (Number.isFinite(item.timestamp) ? null : item.url) || item.url || '';
   const mode = MODE_SET.has(item.mode) ? item.mode : 'summary';
@@ -104,7 +107,12 @@ export function normalizeRequest(payload = {}) {
     { keepP: true, keepTimestamp: false },
   );
   const title = safeTitle(
-    metadata.title || metadata.video_title || body.title || body.name || payload.name || 'Untitled Video',
+    metadata.title ||
+      metadata.video_title ||
+      body.title ||
+      body.name ||
+      payload.name ||
+      'Untitled Video',
   );
 
   return {

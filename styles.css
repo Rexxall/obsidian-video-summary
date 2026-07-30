@@ -486,7 +486,7 @@
 
 /* ================================================================
    Video summary — 「媒体库」界面 v2.4.0
-   设计稿：design_handoff_video_summary_ui（TURN 2 / 3 定稿）
+   Media-library design tokens
 
    两条硬规则：
    1) 控件选择器一律带 .video-summary-view / .vs-modal / .vs-settings 前缀。

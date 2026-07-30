@@ -18,6 +18,39 @@ const ACTIVE_AI_AGENT_NAMES = [
 
 const RICH_PROMPT_MARKER = 'VIDEO_KNOWLEDGE_V3_EVIDENCE_OUTPUT';
 const CONTENT_ROUTE_PROMPT_MARKER = 'VIDEO_CONTENT_ROUTE_V1';
+const ASR_WORKFLOW_PLACEHOLDER = 'CONFIGURE_ASR_WORKFLOW_ID';
+const SAFE_LOCAL_FILE_EXPRESSION =
+  '={{ (() => { const raw = String($json.body.metadata.local_file || "").trim(); const parts = raw.split("/"); if (!raw || raw.startsWith("/") || raw.includes("\\\\") || /^[A-Za-z]:/.test(raw) || parts.some((part) => !part || part === "." || part === "..")) { throw new Error("local_file must be a safe relative path under docker/uploads"); } return "/home/node/uploads/" + parts.join("/"); })() }}';
+const TRANSCRIPT_SUBFLOW_NODE_NAMES = [
+  'SubFlow: Transcript',
+  'SubFlow: Transcript from Local File',
+];
+const PRIVATE_PROFILE_PATTERNS = [
+  /\*\*用户画像\*\*/,
+  /针对[^\n]{0,80}定制/,
+  /我的背景契合度/,
+  /结合[^\n|]{0,80}背景分析/,
+];
+
+const PUBLIC_ACADEMIC_RULE = [
+  '**法则 1: 若涉及「学术科研 / 教育申请」**',
+  '- 顶部属性区：\\`机构:: \\` \\`负责人:: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`',
+  '- **研究项目与申请雷达表 (按需生成)**：',
+  '  | 核心评估维度 | 情报详情 (文稿提取) | 适用条件 / 风险 |',
+  '  | :--- | :--- | :--- |',
+  '  | **研究方向与技术栈** | (根据文稿提取) | (仅根据请求或文稿中明确提供的背景分析；未提供则标记无法评估) |',
+  '  | **申请与项目要求** | (语言、材料、流程和截止日期等) | |',
+  '  | **资金/奖学金** | (奖学金、RA/TA 或其他资助机会等) | |',
+  '- 整理负责人或作者的代表作摘要，以及可用于研究计划或后续沟通的素材，放入 \\`>[!quote]- 📝 核心文献与研究素材\\`。',
+  '- 自动生成 \\`- [ ] \\` 下一步行动清单。',
+].join('\n');
+
+const PUBLIC_MEDIA_ANALYSIS_RULE = [
+  '**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**',
+  '- 当前 n8n 路径不接收视频帧。只能整理文稿中讲者明确描述的场景、构图、动作、配乐或剪辑信息，不能把讲者描述改写成模型亲眼看见的事实。',
+  '- 可使用表格：| 文稿时间 / 段落 | 讲者明确描述的视听信息 | 讲者给出的解释 |。',
+  '- 文稿没有明确提供的镜头、画面、配乐或动作必须标记为“未提供”，不能补写逐帧分析。',
+].join('\n');
 
 const RICH_PROMPT_BLOCK = [
   `// ${RICH_PROMPT_MARKER}`,
@@ -231,6 +264,45 @@ export function runNativeSubtitleNode($input, $) {
 }
 
 /**
+ * Build upload paths without allowing an incoming webhook body to escape the
+ * mounted /home/node/uploads directory. This body is embedded into n8n.
+ */
+export function runSplitLocalFilesNode($input) {
+  const items = $input.all();
+  const newItems = [];
+
+  function safeUploadPath(value) {
+    const raw = String(value || '').trim();
+    const parts = raw.split('/');
+    if (
+      !raw ||
+      raw.startsWith('/') ||
+      raw.includes('\\') ||
+      /^[A-Za-z]:/.test(raw) ||
+      parts.some((part) => !part || part === '.' || part === '..')
+    ) {
+      throw new Error('local_file must be a safe relative path under docker/uploads');
+    }
+    return `/home/node/uploads/${parts.join('/')}`;
+  }
+
+  for (const item of items) {
+    const rawLocalFile = item.json.body.metadata.local_file;
+    if (!rawLocalFile) continue;
+    const files = String(rawLocalFile)
+      .split(',')
+      .map((file) => file.trim())
+      .filter(Boolean);
+    for (const file of files) {
+      const newItem = { json: JSON.parse(JSON.stringify(item.json)) };
+      newItem.json.audio_file_path_for_subflow = safeUploadPath(file);
+      newItems.push(newItem);
+    }
+  }
+  return newItems;
+}
+
+/**
  * This body is parameterized with the retry switch node name and then embedded
  * into both active n8n parser nodes.
  */
@@ -405,8 +477,46 @@ function insertRichPrompt(text) {
   return `${prefix}${RICH_PROMPT_BLOCK}\n\n${text.slice(returnIndex)}`;
 }
 
+function sanitizePublicPrompt(text) {
+  return text
+    .replace(
+      /\*\*用户画像\*\*：[^\n]*(?:\n|$)/g,
+      '**使用边界**：不得假设用户的教育背景、身份、研究方向或申请目标；仅使用请求元数据和文稿中明确提供的信息。\n',
+    )
+    .replace(/\*\*法则 1:[\s\S]*?(?=\n\*\*法则 2:)/g, PUBLIC_ACADEMIC_RULE)
+    .replace(/\*\*法则 3:[\s\S]*?(?=\n\*\*法则 4:)/g, PUBLIC_MEDIA_ANALYSIS_RULE);
+}
+
 export function upgradeWorkflow(workflow) {
   const upgraded = structuredClone(workflow);
+
+  for (const node of upgraded.nodes) {
+    if (typeof node.parameters?.text === 'string') {
+      node.parameters.text = sanitizePublicPrompt(node.parameters.text);
+    }
+    if (typeof node.parameters?.options?.systemMessage === 'string') {
+      node.parameters.options.systemMessage = sanitizePublicPrompt(
+        node.parameters.options.systemMessage,
+      );
+    }
+  }
+
+  for (const name of TRANSCRIPT_SUBFLOW_NODE_NAMES) {
+    getNode(upgraded, name).parameters.workflowId = {
+      __rl: true,
+      value: ASR_WORKFLOW_PLACEHOLDER,
+      mode: 'id',
+    };
+  }
+
+  const localAudioPath = getNode(upgraded, 'Set: Local Audio File Path');
+  upsertAssignment(localAudioPath, {
+    id: 'd9313039-9566-4dd6-8971-fe28da940b33',
+    name: 'audio_file_path_for_subflow',
+    value: SAFE_LOCAL_FILE_EXPRESSION,
+    type: 'string',
+  });
+  getNode(upgraded, 'Code: Split Files').parameters.jsCode = functionBody(runSplitLocalFilesNode);
 
   getNode(upgraded, 'Code: Parse Native Subtitles').parameters.jsCode =
     functionBody(runNativeSubtitleNode);
@@ -520,6 +630,13 @@ export function validateWorkflow(workflow) {
   const errors = [];
 
   try {
+    const serializedWorkflow = JSON.stringify(workflow);
+    for (const pattern of PRIVATE_PROFILE_PATTERNS) {
+      if (pattern.test(serializedWorkflow)) {
+        errors.push(`Workflow contains a private profile pattern: ${pattern.source}`);
+      }
+    }
+
     const nativeParser = getNode(workflow, 'Code: Parse Native Subtitles');
     if (!nativeParser.parameters.jsCode.includes("timing_quality: 'exact'")) {
       errors.push('Native subtitle parser does not emit exact timing quality.');
@@ -588,6 +705,31 @@ export function validateWorkflow(workflow) {
       if (!agent.parameters.text.includes('当前工作流没有接通视频画面理解')) {
         errors.push(`${name} does not disclose the visual-understanding limit.`);
       }
+      if (!agent.parameters.text.includes('当前 n8n 路径不接收视频帧')) {
+        errors.push(`${name} still has an ungrounded visual-analysis template.`);
+      }
+    }
+
+    for (const name of TRANSCRIPT_SUBFLOW_NODE_NAMES) {
+      const workflowId = getNode(workflow, name).parameters.workflowId;
+      if (workflowId?.value !== ASR_WORKFLOW_PLACEHOLDER || workflowId?.mode !== 'id') {
+        errors.push(`${name} contains an instance-specific ASR workflow id.`);
+      }
+    }
+
+    const localAudioPath = getNode(workflow, 'Set: Local Audio File Path');
+    const localAudioAssignment = localAudioPath.parameters.assignments.assignments.find(
+      (assignment) => assignment.name === 'audio_file_path_for_subflow',
+    );
+    if (localAudioAssignment?.value !== SAFE_LOCAL_FILE_EXPRESSION) {
+      errors.push('Local audio path does not enforce the uploads-directory boundary.');
+    }
+    const splitFiles = getNode(workflow, 'Code: Split Files');
+    if (
+      !splitFiles.parameters.jsCode.includes('safeUploadPath') ||
+      !splitFiles.parameters.jsCode.includes("part === '..'")
+    ) {
+      errors.push('Multiple local files do not enforce the uploads-directory boundary.');
     }
 
     const analyzeVideo = getNode(workflow, 'Analyze video');

@@ -25,6 +25,14 @@
     "knowledge-management"
   ],
   "author": "Rexx",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rexxall/obsidian-video-summary-plugin.git"
+  },
+  "homepage": "https://github.com/Rexxall/obsidian-video-summary-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/Rexxall/obsidian-video-summary-plugin/issues"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

@@ -16,8 +16,7 @@ export const SHORT_LINK_HOSTS = [
 export const DEFAULT_HISTORY_LIMIT = 300;
 
 export const DEFAULT_AI_MODELS: string[] = ['Gemini 3.1', 'Gemini 3.0'];
-export const DEFAULT_N8N_WEBHOOK_URL =
-  'http://127.0.0.1:5678/webhook/obsidian-video-summary';
+export const DEFAULT_N8N_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook/obsidian-video-summary';
 export const LEGACY_DEFAULT_N8N_WEBHOOK_URL =
   'http://localhost:5678/webhook/obsidian-video-summary';
 export const LEGACY_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/cyrus';

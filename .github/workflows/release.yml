@@ -25,15 +25,75 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Validate bundled workflow
+        run: node tools/upgrade-workflow-v3.mjs --check
+
       - name: Build
         run: npm run build
 
-      - name: Validate manifest version
+      - name: Validate versions and committed bundle
         run: |
-          node -e "const m=require('./manifest.json'); if (m.version !== process.env.GITHUB_REF_NAME) { throw new Error(`manifest version ${m.version} does not match tag ${process.env.GITHUB_REF_NAME}`); }"
+          node -e '
+            const manifest = require("./manifest.json");
+            const pkg = require("./package.json");
+            const lock = require("./package-lock.json");
+            const versions = require("./versions.json");
+            const tag = process.env.GITHUB_REF_NAME;
+            const values = {
+              manifest: manifest.version,
+              package: pkg.version,
+              lock: lock.version,
+              lockRoot: lock.packages?.[""]?.version,
+            };
+            for (const [name, version] of Object.entries(values)) {
+              if (version !== tag) {
+                throw new Error(`${name} version ${version} does not match tag ${tag}`);
+              }
+            }
+            if (versions[tag] !== manifest.minAppVersion) {
+              throw new Error(
+                `versions.json maps ${tag} to ${versions[tag]}, expected ${manifest.minAppVersion}`,
+              );
+            }
+          '
+          git diff --exit-code -- main.js
+
+      - name: Package release assets
+        run: |
+          archive="video-summary-${GITHUB_REF_NAME}.zip"
+          zip -j "$archive" main.js manifest.json styles.css
+          test "$(unzip -Z1 "$archive" | sort | tr '\n' ' ')" = "main.js manifest.json styles.css "
+          sha256sum \
+            main.js \
+            manifest.json \
+            styles.css \
+            "Obsidian Video Summary.json" \
+            "$archive" \
+            > SHA256SUMS
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" main.js manifest.json styles.css "Obsidian Video Summary.json" --title "$GITHUB_REF_NAME" --generate-notes
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          notes_args=(--generate-notes)
+          if [[ -f "$notes_file" ]]; then
+            notes_args=(--notes-file "$notes_file")
+          fi
+          gh release create \
+            "$GITHUB_REF_NAME" \
+            main.js \
+            manifest.json \
+            styles.css \
+            "video-summary-${GITHUB_REF_NAME}.zip" \
+            "Obsidian Video Summary.json" \
+            SHA256SUMS \
+            --title "$GITHUB_REF_NAME" \
+            --verify-tag \
+            "${notes_args[@]}"

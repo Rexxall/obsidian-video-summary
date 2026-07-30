@@ -1999,6 +1999,13 @@ export default class VideoSummaryPlugin extends Plugin {
           new Notice('已捕获到收件箱；该本地路径不是受支持的音视频文件，未读取或发送。', 8000);
           return;
         }
+        if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== 'codex-worker') {
+          new Notice(
+            '已捕获到收件箱；bundled n8n 无法读取 URI 提供的主机绝对路径。请先复制到 docker/uploads 后用文件名提交，或切换到能访问该路径的 Worker。',
+            9000,
+          );
+          return;
+        }
         const confirmed = await this.showConfirmDialog(
           '允许处理本地媒体？',
           `外部协议请求读取并发送这个本地文件到当前后端：\n${localFile}\n\n仅在你认识该来源时确认。`,
@@ -3432,7 +3439,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 			<div class="cache-info-tip">
 				<strong>💡 缓存提示：</strong>
 				<ul>
-					<li>缓存文件存储在：<code>.obsidian/plugins/video-summary-plugin/data/cache/</code></li>
+					<li>缓存文件存储在：<code>&lt;插件目录&gt;/data/cache/</code></li>
 					<li>缓存会自动清理过期项</li>
 					<li>禁用缓存后，所有缓存操作将被忽略</li>
 					<li>建议定期清理过期缓存以节省空间</li>

@@ -2,9 +2,47 @@
 
 All notable changes to this project are documented here.
 
+## 2.4.1
+
+Turns the sidebar redesign into an evidence-aware video knowledge workflow.
+
+- Added versioned local knowledge artifacts with timed transcript segments, evidence-backed claims,
+  visual references, provenance, stable identifiers, and managed Markdown blocks that preserve
+  user-authored content.
+- Added a synchronized reader for local media and YouTube, transcript-to-time seeking, persistent
+  highlights, and accessible keyboard controls. Bilibili supports click-to-seek but does not claim
+  automatic playback tracking.
+- Added `quick`, `evidence`, and `deep-visual` processing depths with truthful backend degradation.
+  The bundled n8n workflow supports evidence depth; deep visual requires a separately deployed
+  compatible Worker, ffmpeg, and a configured visual model.
+- Added automatic and manual routing for course, interview, tutorial, news, meeting, review, and
+  general content, with route-specific output contracts.
+- Added transparent watch / skim / skip attention assessment, bounded must-watch and skippable
+  ranges, and explicit limitations when Vault relevance or timed evidence is unavailable.
+- Added incremental YouTube playlist and Bilibili collection course manifests with deduplication,
+  ordering, deterministic adjacent-lesson dependencies, missing lesson-number gaps, retained
+  progress, and pending-note import without automatic model calls. This does not infer semantic
+  prerequisite concepts.
+- Added a review-gated multi-video Claim Lab and a local cross-modal search index over transcripts,
+  OCR, screen text, visual descriptions, metadata, and claims.
+- Added local flashcard and question review with attempts, confidence, mastery, due scheduling, and
+  links back to source evidence.
+- Added offline-first `obsidian://video-summary` capture, managed Obsidian Base views, and validated
+  reprocessing from local reproducibility manifests without reacquiring the source.
+- Declared desktop-only support for the file and local-backend workflow. The core plugin can load
+  from Obsidian 1.4.0; generated `.base` views require Obsidian 1.9.10 or newer with Bases enabled.
+- Added platform-cover loading and metadata/status reconciliation so newly added supported links can
+  populate library covers after metadata is available.
+- Generalized the public n8n prompts so the distributed workflow contains no private user profile
+  or unsupported frame-analysis instruction. Instance-specific ASR workflow IDs are replaced by an
+  explicit setup placeholder and public subworkflow contract.
+- Expanded automated coverage to 143 plugin/workflow tests and added release packaging/version
+  validation. Local Obsidian UI acceptance was performed offline; online platform playback,
+  playlist import, n8n end-to-end processing, and live visual-model calls remain integration checks.
+
 ## 2.4.0
 
-Implements the「媒体库」design handoff (design_handoff_video_summary_ui, TURN 2/3).
+Implements the media-library sidebar design.
 
 - Sidebar: video thumbnails (76×44 job cards, 44×26 rows) with a platform colour bar and duration
   badge, placeholder stripes when no cover is available. `NoteIndex` now reads `cover` / `image` /

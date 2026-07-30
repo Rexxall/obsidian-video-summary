@@ -6,6 +6,7 @@ import {
   CONTENT_ROUTE_PROMPT_MARKER,
   DEFAULT_WORKFLOW_PATH,
   executeNodeCode,
+  runSplitLocalFilesNode,
   upgradeWorkflow,
   validateWorkflow,
 } from '../tools/upgrade-workflow-v3.mjs';
@@ -93,6 +94,15 @@ test('workflow upgrade is idempotent and passes structural validation', () => {
   assert.deepEqual(validateWorkflow(workflow), []);
 });
 
+test('public workflow does not embed a private user profile', () => {
+  const serialized = JSON.stringify(upgradeWorkflow(loadWorkflow()));
+  assert.doesNotMatch(serialized, /\*\*用户画像\*\*/);
+  assert.doesNotMatch(serialized, /针对[^\n]{0,80}定制/);
+  assert.doesNotMatch(serialized, /我的背景契合度/);
+  assert.doesNotMatch(serialized, /结合[^\n|]{0,80}背景分析/);
+  assert.match(serialized, /不得假设用户的教育背景、身份、研究方向或申请目标/);
+});
+
 test('active AI prompt expressions remain syntactically executable', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
   for (const name of [
@@ -134,7 +144,81 @@ test('all active AI prompts carry every durable content route contract', () => {
     ]) {
       assert.match(node.parameters.text, new RegExp(`- ${route}：`), `${name}.${route}`);
     }
+    assert.match(node.parameters.text, /当前 n8n 路径不接收视频帧/);
+    assert.doesNotMatch(node.parameters.text, /逐帧拉片原案|光影构图/);
   }
+});
+
+test('public workflow requires an explicit local ASR subworkflow selection', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  for (const name of ['SubFlow: Transcript', 'SubFlow: Transcript from Local File']) {
+    const node = workflow.nodes.find((candidate) => candidate.name === name);
+    assert.ok(node, `Missing node: ${name}`);
+    assert.deepEqual(node.parameters.workflowId, {
+      __rl: true,
+      value: 'CONFIGURE_ASR_WORKFLOW_ID',
+      mode: 'id',
+    });
+  }
+});
+
+test('local-file workflow paths remain inside the mounted uploads directory', () => {
+  const valid = runSplitLocalFilesNode({
+    all: () => [
+      {
+        json: {
+          body: {
+            metadata: {
+              local_file: 'course/lecture-01.mp4, interview.mp3',
+            },
+          },
+        },
+      },
+    ],
+  });
+  assert.deepEqual(
+    valid.map((item) => item.json.audio_file_path_for_subflow),
+    ['/home/node/uploads/course/lecture-01.mp4', '/home/node/uploads/interview.mp3'],
+  );
+
+  for (const localFile of [
+    '/etc/passwd',
+    '../cookies/token.txt',
+    'course/../../cookies/token.txt',
+    'C:\\Users\\example\\video.mp4',
+    'course//video.mp4',
+  ]) {
+    assert.throws(
+      () =>
+        runSplitLocalFilesNode({
+          all: () => [
+            {
+              json: {
+                body: { metadata: { local_file: localFile } },
+              },
+            },
+          ],
+        }),
+      /safe relative path/,
+      localFile,
+    );
+  }
+
+  const workflow = upgradeWorkflow(loadWorkflow());
+  const pathNode = workflow.nodes.find(
+    (candidate) => candidate.name === 'Set: Local Audio File Path',
+  );
+  const assignment = pathNode.parameters.assignments.assignments.find(
+    (candidate) => candidate.name === 'audio_file_path_for_subflow',
+  );
+  const expression = assignment.value.slice(3, -2).trim();
+  const evaluate = (localFile) =>
+    new Function('$json', `return (${expression});`)({
+      body: { metadata: { local_file: localFile } },
+    });
+  assert.equal(evaluate('course/lecture-01.mp4'), '/home/node/uploads/course/lecture-01.mp4');
+  assert.throws(() => evaluate('../cookies/token.txt'), /safe relative path/);
+  assert.throws(() => evaluate('/etc/passwd'), /safe relative path/);
 });
 
 test('rich Set node expressions evaluate with representative context', () => {
