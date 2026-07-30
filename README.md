@@ -91,9 +91,22 @@ status: pending
 
 ### Install a release
 
-Download `video-summary-2.4.1.zip` from the
-[2.4.1 release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.1)
-and extract its three files into:
+Download `video-summary-2.4.1.zip` from either official channel:
+
+- [GitHub release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.1)
+  — canonical source and Obsidian community-plugin channel.
+- [Gitee domestic release](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/releases#release-2.4.1)
+  — mainland-China manual-install mirror.
+- [Gitee direct ZIP](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/video-summary-2.4.1.zip)
+  and its [SHA256SUMS](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/SHA256SUMS).
+
+Both channels publish the same verified files. To check only the ZIP on macOS or Linux:
+
+```bash
+grep 'video-summary-2.4.1.zip' SHA256SUMS | shasum -a 256 -c -
+```
+
+Extract its three files into:
 
 ```text
 <your-vault>/.obsidian/plugins/video-summary/
@@ -285,6 +298,23 @@ The release workflow also publishes:
 
 The included GitHub Actions workflow tests and builds the plugin, validates all version files, and
 publishes the assets when you push a semantic version tag such as `2.4.1`.
+
+GitHub remains the canonical source because Obsidian's community-plugin installer downloads from
+GitHub Releases. The
+[Gitee mirror](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin) is a one-way source
+mirror and manual-install fallback for mainland China. Gitee release files live on the dedicated
+`gitee-release-assets` branch so the mirrored source branches remain identical to GitHub.
+
+For automatic dual publication, add a narrowly scoped Gitee personal access token as the GitHub
+Actions secret `GITEE_TOKEN`. The release workflow is retryable from **Run workflow** with an
+existing version tag; it updates the Gitee Release and replaces same-name attachments
+idempotently. Without the secret, the GitHub release still succeeds and the workflow reports that
+Gitee publication was skipped. Maintainers with an existing local Gitee Git credential can
+publish the direct-download branch manually:
+
+```bash
+npm run release:gitee -- --version 2.4.1 --asset-dir /path/to/release-assets
+```
 
 ## Community submission
 

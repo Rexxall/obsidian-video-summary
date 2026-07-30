@@ -4,9 +4,22 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing semantic-version tag to publish or retry
+        required: true
+        type: string
+
+concurrency:
+  group: video-summary-release-${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
+
+env:
+  RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
   release:
@@ -15,6 +28,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_VERSION }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -39,12 +55,24 @@ jobs:
 
       - name: Validate versions and committed bundle
         run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid semantic version: $RELEASE_VERSION" >&2
+            exit 1
+          fi
+
+          tag_commit="$(git rev-parse "refs/tags/${RELEASE_VERSION}^{commit}")"
+          head_commit="$(git rev-parse "HEAD^{commit}")"
+          if [[ "$head_commit" != "$tag_commit" ]]; then
+            echo "Checked-out ref is not tag $RELEASE_VERSION" >&2
+            exit 1
+          fi
+
           node -e '
             const manifest = require("./manifest.json");
             const pkg = require("./package.json");
             const lock = require("./package-lock.json");
             const versions = require("./versions.json");
-            const tag = process.env.GITHUB_REF_NAME;
+            const tag = process.env.RELEASE_VERSION;
             const values = {
               manifest: manifest.version,
               package: pkg.version,
@@ -66,7 +94,7 @@ jobs:
 
       - name: Package release assets
         run: |
-          archive="video-summary-${GITHUB_REF_NAME}.zip"
+          archive="video-summary-${RELEASE_VERSION}.zip"
           workflow_asset="Obsidian.Video.Summary.json"
           zip -j "$archive" main.js manifest.json styles.css
           test "$(unzip -Z1 "$archive" | sort | tr '\n' ' ')" = "main.js manifest.json styles.css "
@@ -79,23 +107,58 @@ jobs:
             "$archive" \
             > SHA256SUMS
 
-      - name: Create GitHub release
+      - name: Checkout current release publisher
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          notes_file=".release-tooling/docs/releases/${RELEASE_VERSION}.md"
+          if [[ ! -f "$notes_file" ]]; then
+            notes_file="docs/releases/${RELEASE_VERSION}.md"
+          fi
+          assets=(
+            main.js
+            manifest.json
+            styles.css
+            "video-summary-${RELEASE_VERSION}.zip"
+            "Obsidian.Video.Summary.json"
+            SHA256SUMS
+          )
           notes_args=(--generate-notes)
           if [[ -f "$notes_file" ]]; then
             notes_args=(--notes-file "$notes_file")
           fi
-          gh release create \
-            "$GITHUB_REF_NAME" \
-            main.js \
-            manifest.json \
-            styles.css \
-            "video-summary-${GITHUB_REF_NAME}.zip" \
-            "Obsidian.Video.Summary.json" \
-            SHA256SUMS \
-            --title "$GITHUB_REF_NAME" \
-            --verify-tag \
-            "${notes_args[@]}"
+
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            edit_args=(--title "$RELEASE_VERSION")
+            if [[ -f "$notes_file" ]]; then
+              edit_args+=(--notes-file "$notes_file")
+            fi
+            gh release edit "$RELEASE_VERSION" --verify-tag "${edit_args[@]}"
+            gh release upload "$RELEASE_VERSION" "${assets[@]}" --clobber
+          else
+            gh release create \
+              "$RELEASE_VERSION" \
+              "${assets[@]}" \
+              --title "$RELEASE_VERSION" \
+              --verify-tag \
+              "${notes_args[@]}"
+          fi
+
+      - name: Publish Gitee domestic assets
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_USERNAME: roronoazoro35
+        run: |
+          if [[ -z "$GITEE_TOKEN" ]]; then
+            echo "::notice::GITEE_TOKEN is not configured; skipping Gitee asset publication."
+            exit 0
+          fi
+          node "$GITHUB_WORKSPACE/.release-tooling/tools/publish-gitee-assets.mjs" \
+            --version "$RELEASE_VERSION" \
+            --asset-dir "$GITHUB_WORKSPACE"

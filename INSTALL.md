@@ -27,9 +27,20 @@ enabled.
 
 ### Release ZIP
 
-Download `video-summary-2.4.1.zip` from the
-[2.4.1 release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.1)
-and extract it into:
+Download `video-summary-2.4.1.zip` from either:
+
+- [GitHub 2.4.1 release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.1)
+- [Gitee domestic release](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/releases#release-2.4.1)
+- [Gitee direct ZIP](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/video-summary-2.4.1.zip)
+  with [SHA256SUMS](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/SHA256SUMS)
+
+Both channels publish the same verified files. On macOS or Linux, verify the ZIP with:
+
+```bash
+grep 'video-summary-2.4.1.zip' SHA256SUMS | shasum -a 256 -c -
+```
+
+Then extract it into:
 
 ```text
 <your-vault>/.obsidian/plugins/video-summary/
