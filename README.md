@@ -24,6 +24,9 @@ reproducibility metadata as local plugin sidecars.
 
 - A new look that follows your Obsidian theme and light/dark mode, with an optional **Paper & ink
   style** in settings.
+
+  <img src="docs/screenshots/paper-panel.jpg" width="860">
+
 - The side panel starts with one add box: paste links, drop audio/video files or paste a
   transcript, pick 只要文稿 / 总结 / 证据, and start. Everything else is one click away in
   **更多选项** or the **···** menu.
