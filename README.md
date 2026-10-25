@@ -8,6 +8,11 @@
 
 [What's new](#whats-new-in-260) · [Install](#install) · [n8n workflow](#n8n-workflow) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/panel-dark.jpg">
+  <img src="docs/screenshots/panel.jpg" width="860">
+</picture>
+
 </div>
 
 Video Summary connects Obsidian to a processing endpoint you control. The repository includes a
