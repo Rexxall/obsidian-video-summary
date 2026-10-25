@@ -1,474 +1,421 @@
 <!doctype html>
-<html>
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>Obsidian Video Capture</title>
+    <title>Video Summary Capture</title>
     <style>
+      /* 默认跟随系统深浅色；设置里打开纸墨风格后 html 带 .paper */
       :root {
-        color-scheme: dark;
-        --bg: #17191f;
-        --panel: #20232b;
-        --panel-2: #282c36;
-        --line: #343a46;
-        --text: #f2f5f8;
-        --muted: #9aa4b2;
-        --soft: #c7d0dc;
-        --accent: #6ee7b7;
-        --accent-2: #8aa0ff;
-        --danger: #fb7185;
-        --warning: #fbbf24;
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --surface: #f7f7f8;
+        --ink: #222327;
+        --ink-2: #5d6068;
+        --mute: #9a9da5;
+        --line: #e4e4e7;
+        --hover: rgba(0, 0, 0, 0.05);
+        --accent: #7b6cd9;
+        --accent-hover: #6a5bc9;
+        --accent-ink: #ffffff;
+        --ok: #2f8a57;
+        --warn: #b5651d;
+        --err: #c0392b;
+        --radius: 6px;
+        --pill: 6px;
+        --head: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans", "Segoe UI", sans-serif;
+        --shadow: none;
+        --sep: solid;
+        --frame: var(--line);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1e1e1e;
+          --surface: #262626;
+          --ink: #dadada;
+          --ink-2: #a8a8a8;
+          --mute: #767676;
+          --line: #363636;
+          --hover: rgba(255, 255, 255, 0.06);
+          --accent: #8f82e8;
+          --accent-hover: #a094ee;
+          --accent-ink: #16151f;
+          --ok: #6cc08b;
+          --warn: #e2a15c;
+          --err: #ef7b6e;
+        }
+      }
+      :root.paper {
+        --bg: #f6f1e6;
+        --surface: #fffdf7;
+        --ink: #1f1d1a;
+        --ink-2: #55514a;
+        --mute: #958f83;
+        --line: rgba(42, 39, 34, 0.2);
+        --hover: rgba(42, 39, 34, 0.06);
+        --accent: #1f1d1a;
+        --accent-hover: #55514a;
+        --accent-ink: #fbf8f1;
+        --ok: #2f6f6a;
+        --warn: #9b6a2a;
+        --err: #9b2f2a;
+        --radius: 3px;
+        --pill: 999px;
+        --head: "Songti SC", "Hiragino Mincho ProN", "Noto Serif CJK SC", serif;
+        --shadow: 3px 3px 0 rgba(42, 39, 34, 0.12);
+        --sep: dashed;
+        --frame: #1f1d1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root.paper {
+          --bg: #211e18;
+          --surface: #26231c;
+          --ink: #ece4d4;
+          --ink-2: #bdb4a2;
+          --mute: #857d6e;
+          --line: rgba(236, 228, 212, 0.18);
+          --hover: rgba(236, 228, 212, 0.06);
+          --accent: #ece4d4;
+          --accent-hover: #bdb4a2;
+          --accent-ink: #16140f;
+          --ok: #6fb3aa;
+          --warn: #d6a35e;
+          --err: #e07b72;
+          --shadow: 3px 3px 0 rgba(0, 0, 0, 0.35);
+          --frame: #ece4d4;
+        }
       }
 
-      * {
-        box-sizing: border-box;
-      }
-
+      * { box-sizing: border-box; }
       body {
-        width: 430px;
-        min-height: 560px;
+        width: 380px;
+        min-height: 420px;
         margin: 0;
         background: var(--bg);
-        color: var(--text);
-        font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans", "Segoe UI", sans-serif;
+      }
+      :root.paper body {
+        background-image: radial-gradient(rgba(60, 50, 30, 0.05) 1px, transparent 1px);
+        background-size: 3px 3px;
       }
 
-      header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 16px 12px;
-        border-bottom: 1px solid var(--line);
-        background: #1d2028;
-      }
+      header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 14px 16px 4px; }
+      h1 { margin: 0; font: 600 15px/1.3 var(--head); letter-spacing: 0; }
+      .subtle { color: var(--mute); font-size: 11px; }
+      main { padding: 6px 16px 14px; }
 
-      h1 {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 650;
-        letter-spacing: 0;
-      }
+      .view { display: none; }
+      .view.active { display: block; }
 
-      .subtle {
-        color: var(--muted);
-        font-size: 11px;
-      }
-
-      .tabs {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        border-bottom: 1px solid var(--line);
-        background: #1d2028;
-      }
-
-      .tab {
+      /* 文字链接、返回 */
+      .link, .tab {
         appearance: none;
+        width: auto;
+        padding: 0;
         border: 0;
-        border-bottom: 2px solid transparent;
-        border-radius: 0;
-        background: transparent;
-        color: var(--muted);
+        background: none;
+        color: var(--ink-2);
         cursor: pointer;
-        font: 600 12px/1.2 inherit;
-        padding: 10px 5px 9px;
+        font: inherit;
+        font-size: 12px;
       }
+      .link:hover, .tab:hover { color: var(--ink); }
+      .back { display: inline-block; margin-bottom: 10px; }
+      .back::before { content: "← "; }
 
-      .tab.active {
-        border-bottom-color: var(--accent);
-        color: var(--text);
-        background: rgba(110, 231, 183, 0.07);
+      /* 当前视频 */
+      .card {
+        padding: 12px 13px;
+        border: 1px solid var(--frame);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow);
       }
+      .title { margin-bottom: 6px; font: 600 14px/1.4 var(--head); color: var(--ink); overflow-wrap: anywhere; }
+      .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--mute); font-size: 11px; }
+      .meta .time { color: var(--ink); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
 
-      main {
-        padding: 14px;
-      }
-
-      .view {
-        display: none;
-      }
-
-      .view.active {
+      button.primary {
         display: block;
-      }
-
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 12px;
-      }
-
-      .title {
-        font-size: 14px;
-        font-weight: 650;
-        line-height: 1.35;
-        margin-bottom: 8px;
-        color: var(--text);
-      }
-
-      .meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-
-      .chip {
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        color: var(--soft);
-        background: #1b1e25;
-        font-size: 11px;
-        padding: 3px 7px;
-      }
-
-      .chip.warning {
-        color: #ffe6a3;
-        border-color: rgba(251, 191, 36, 0.28);
-        background: rgba(251, 191, 36, 0.13);
-      }
-
-      .chip.danger {
-        color: #ffc0ca;
-        border-color: rgba(251, 113, 133, 0.28);
-        background: rgba(251, 113, 133, 0.13);
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-      }
-
-      button {
         width: 100%;
-        border: 1px solid transparent;
-        border-radius: 7px;
-        padding: 10px 11px;
+        margin-top: 12px;
+        padding: 9px 12px;
+        border: 0;
+        border-radius: var(--pill);
         background: var(--accent);
-        color: #061511;
+        color: var(--accent-ink);
         cursor: pointer;
-        font: 700 12px/1.2 inherit;
+        font: 600 13px/1.2 inherit;
       }
+      button.primary:hover { background: var(--accent-hover); }
+      button:disabled { cursor: default; opacity: 0.5; }
 
-      button.secondary {
-        background: var(--panel-2);
-        color: var(--text);
-        border-color: var(--line);
-      }
-
-      button.warning {
-        background: rgba(251, 191, 36, 0.16);
-        color: #ffe6a3;
-        border-color: rgba(251, 191, 36, 0.28);
-      }
-
-      button.danger {
-        background: rgba(251, 113, 133, 0.13);
-        color: #ffc0ca;
-        border-color: rgba(251, 113, 133, 0.28);
-      }
-
-      button:disabled {
-        cursor: default;
-        opacity: 0.48;
-      }
-
-      .list {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        overflow: hidden;
-        max-height: 285px;
-        overflow-y: auto;
-        background: #1b1e25;
-      }
-
-      .row {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-        gap: 9px;
-        padding: 9px 10px;
-        border-bottom: 1px solid var(--line);
-      }
-
-      .row:last-child {
-        border-bottom: 0;
-      }
-
-      .row-title {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: 12px;
-        color: var(--text);
-      }
-
-      .row-meta {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: 10px;
-        color: var(--muted);
-      }
-
-      .row button {
+      .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .actions button, button.secondary {
+        flex: 1 1 auto;
         width: auto;
-        padding: 5px 8px;
-        font-size: 11px;
+        padding: 6px 9px;
+        border: 1px solid var(--line);
+        border-radius: var(--pill);
+        background: transparent;
+        color: var(--ink);
+        cursor: pointer;
+        font: 12px/1.2 inherit;
+        white-space: nowrap;
       }
+      .actions button:hover, button.secondary:hover { background: var(--hover); }
+      button.danger { color: var(--err); }
 
-      input,
-      select {
+      details.more { margin-top: 10px; }
+      details.more > summary { list-style: none; cursor: pointer; color: var(--ink-2); font-size: 12px; }
+      details.more > summary::-webkit-details-marker { display: none; }
+      details.more > summary::before { content: "▸ "; }
+      details.more[open] > summary::before { content: "▾ "; }
+      details.more .actions { margin-top: 6px; }
+
+      /* 区块标题与列表 */
+      .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 16px 0 4px; }
+      .section-title { color: var(--mute); font-size: 11px; letter-spacing: 0.06em; }
+      .list { max-height: 230px; overflow-y: auto; border-top: 1px var(--sep) var(--line); }
+      .row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+      .row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+      .row-meta { color: var(--mute); font-size: 11px; }
+      .row button { width: auto; padding: 0; border: 0; background: none; color: var(--ink-2); cursor: pointer; font: 12px/1.2 inherit; }
+      .row button:hover { color: var(--ink); }
+      .row button.danger { color: var(--mute); }
+      .row button.danger:hover { color: var(--err); }
+      .platform { color: var(--ink-2); font-size: 11px; }
+      .platform.error { color: var(--err); }
+      .platform.warning { color: var(--warn); }
+      .empty { padding: 14px 0; color: var(--mute); font-size: 12px; text-align: center; }
+      .toolbar { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+      .toolbar button { flex: none; }
+
+      /* 设置 */
+      .field { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+      .field label { color: var(--ink-2); font-size: 12px; }
+      .field.check { grid-template-columns: 1fr auto; }
+      input, select {
         width: 100%;
+        min-width: 0;
+        padding: 5px 7px;
         border: 1px solid var(--line);
-        border-radius: 7px;
-        background: #151820;
-        color: var(--text);
-        padding: 9px 10px;
-        outline: none;
-        font: 12px/1.25 inherit;
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--ink);
+        font: 12px/1.3 inherit;
       }
+      input[type="checkbox"] { width: auto; }
+      input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+      .group-title { margin: 14px 0 2px; color: var(--ink); font: 600 13px/1.3 var(--head); }
+      .group-title:first-of-type { margin-top: 2px; }
 
-      input:focus,
-      select:focus {
-        border-color: var(--accent-2);
-      }
-
-      label {
-        display: block;
-        color: var(--soft);
-        font-size: 11px;
-        font-weight: 650;
-        margin: 0 0 5px;
-      }
-
-      .field {
-        margin-bottom: 10px;
-      }
-
-      .empty {
-        color: var(--muted);
-        padding: 18px;
-        text-align: center;
-      }
-
-      .status {
-        min-height: 18px;
-        color: var(--muted);
-        font-size: 12px;
-        margin-top: 9px;
-      }
-
-      .status.success {
-        color: var(--accent);
-      }
-
-      .status.error {
-        color: var(--danger);
-      }
-
-      .status.warning {
-        color: var(--warning);
-      }
-
-      .toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 8px;
-      }
-
-      .toolbar button {
-        width: auto;
-        min-width: 96px;
-      }
-
-      .stack {
-        display: grid;
-        gap: 8px;
-      }
-
-      .footer-note {
-        margin-top: 8px;
-        color: var(--muted);
-        font-size: 11px;
-      }
+      /* 底部 */
+      footer { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 16px; padding: 10px 0 12px; border-top: 1px var(--sep) var(--line); }
+      footer .links { display: flex; gap: 12px; }
+      .status { min-height: 18px; margin-top: 10px; color: var(--ink-2); font-size: 12px; overflow-wrap: anywhere; }
+      .status.success { color: var(--ok); }
+      .status.warning { color: var(--warn); }
+      .status.error { color: var(--err); }
     </style>
   </head>
   <body>
     <header>
-      <div>
-        <h1>Obsidian Video Capture</h1>
-        <div class="subtle">Obsidian · n8n · Worker</div>
-      </div>
-      <div class="subtle" id="route-label">Loading</div>
+      <h1>Video Summary Capture</h1>
+      <span class="subtle" id="route-label"></span>
     </header>
-
-    <nav class="tabs">
-      <button class="tab active" data-view="current">Current</button>
-      <button class="tab" data-view="batch">Batch</button>
-      <button class="tab" data-view="queue">Queue</button>
-      <button class="tab" data-view="history">History</button>
-      <button class="tab" data-view="settings">Settings</button>
-    </nav>
 
     <main>
       <section class="view active" id="view-current">
-        <div class="panel">
-          <div class="title" id="current-title">Detecting current tab...</div>
+        <div class="card">
+          <div class="title" id="current-title">正在识别当前页面…</div>
           <div class="meta">
-            <span class="chip" id="current-platform">platform</span>
-            <span class="chip" id="current-time">--:--</span>
-            <span class="chip" id="current-url">url</span>
+            <span id="current-platform"></span>
+            <span class="time" id="current-time">--:--</span>
+            <span id="current-url"></span>
+          </div>
+          <button class="primary" id="btn-current-quick">送去总结</button>
+          <div class="actions">
+            <button id="btn-current-pending">存为待看笔记</button>
+            <button id="btn-current-copy">复制时间戳链接</button>
+            <button id="btn-current-queue">加入队列</button>
           </div>
         </div>
-        <div class="grid">
-          <button id="btn-current-quick">Quick Action</button>
-          <button class="secondary" id="btn-current-queue">Add to Queue</button>
-          <button class="secondary" id="btn-current-pending">Pending Note</button>
-          <button class="secondary" id="btn-current-rest">REST Note</button>
-          <button class="secondary" id="btn-current-append">Append Link</button>
-          <button class="secondary" id="btn-current-copy">Copy Timestamp</button>
-          <button class="warning" id="btn-current-codex">Send to Worker</button>
-          <button class="secondary" id="btn-current-n8n">Send to n8n</button>
+        <details class="more">
+          <summary>其他发送方式</summary>
+          <div class="actions">
+            <button id="btn-current-rest">经 REST 建笔记</button>
+            <button id="btn-current-append">追加到链接清单</button>
+            <button id="btn-current-n8n">直接发给 n8n</button>
+            <button id="btn-current-codex">发给 Worker</button>
+          </div>
+        </details>
+
+        <div class="section-head">
+          <span class="section-title">队列 <span id="queue-count">0</span></span>
+          <button class="tab link" data-view="queue">全部 →</button>
         </div>
-        <div class="footer-note">Quick Action uses the route configured in Settings.</div>
+        <div class="list" id="queue-preview">
+          <div class="empty">队列是空的。</div>
+        </div>
       </section>
 
       <section class="view" id="view-batch">
+        <button class="tab link back" data-view="current">返回</button>
         <div class="toolbar">
-          <div class="subtle"><span id="batch-count">0</span> links found</div>
-          <button class="secondary" id="btn-scan">Scan Page</button>
+          <div class="subtle">本页找到 <span id="batch-count">0</span> 个视频链接</div>
+          <button class="secondary" id="btn-scan">重新扫描</button>
         </div>
         <div class="list" id="batch-list">
-          <div class="empty">Scan the current page for video links.</div>
+          <div class="empty">扫描当前页面里的视频链接。</div>
         </div>
-        <div class="grid" style="margin-top: 10px;">
-          <button id="btn-batch-queue">Queue Selected</button>
-          <button class="secondary" id="btn-batch-pending">Pending Notes</button>
-          <button class="secondary" id="btn-batch-append">Append Links</button>
-          <button class="warning" id="btn-batch-codex">Send to Worker</button>
-          <button class="secondary" id="btn-batch-n8n">Send to n8n</button>
-          <button class="secondary" id="btn-batch-copy">Copy Selected</button>
+        <button class="primary" id="btn-batch-quick">选中的送去总结</button>
+        <div class="actions">
+          <button id="btn-batch-queue">加入队列</button>
+          <button id="btn-batch-pending">存为待看笔记</button>
+          <button id="btn-batch-copy">复制链接</button>
         </div>
+        <details class="more">
+          <summary>其他发送方式</summary>
+          <div class="actions">
+            <button id="btn-batch-append">追加到链接清单</button>
+            <button id="btn-batch-n8n">直接发给 n8n</button>
+            <button id="btn-batch-codex">发给 Worker</button>
+          </div>
+        </details>
       </section>
 
       <section class="view" id="view-queue">
+        <button class="tab link back" data-view="current">返回</button>
         <div class="toolbar">
-          <div class="subtle"><span id="queue-count">0</span> queued</div>
-          <button class="danger" id="btn-queue-clear">Clear</button>
+          <div class="subtle">队列里有 <span id="queue-count-full">0</span> 个视频</div>
+          <button class="secondary danger" id="btn-queue-clear">清空</button>
         </div>
         <div class="list" id="queue-list">
-          <div class="empty">Queue is empty.</div>
+          <div class="empty">队列是空的。</div>
         </div>
-        <div class="grid" style="margin-top: 10px;">
-          <button id="btn-queue-pending">Pending Notes</button>
-          <button class="secondary" id="btn-queue-append">Append Links</button>
-          <button class="warning" id="btn-queue-codex">Send to Worker</button>
-          <button class="secondary" id="btn-queue-n8n">Send to n8n</button>
-          <button class="secondary" id="btn-queue-copy">Copy All</button>
+        <button class="primary" id="btn-queue-quick">全部送去总结</button>
+        <div class="actions">
+          <button id="btn-queue-pending">存为待看笔记</button>
+          <button id="btn-queue-copy">复制全部链接</button>
         </div>
+        <details class="more">
+          <summary>其他发送方式</summary>
+          <div class="actions">
+            <button id="btn-queue-append">追加到链接清单</button>
+            <button id="btn-queue-n8n">直接发给 n8n</button>
+            <button id="btn-queue-codex">发给 Worker</button>
+          </div>
+        </details>
       </section>
 
       <section class="view" id="view-history">
+        <button class="tab link back" data-view="current">返回</button>
         <div class="toolbar">
-          <div class="subtle">Recent actions</div>
-          <button class="danger" id="btn-history-clear">Clear</button>
+          <div class="subtle">最近的操作</div>
+          <button class="secondary danger" id="btn-history-clear">清空</button>
         </div>
         <div class="list" id="history-list">
-          <div class="empty">History is empty.</div>
+          <div class="empty">还没有记录。</div>
         </div>
       </section>
 
       <section class="view" id="view-settings">
-        <div class="panel">
-          <div class="field">
-            <label for="setting-vault">Obsidian Vault Name</label>
-            <input id="setting-vault" placeholder="Ithaca" />
-          </div>
-          <div class="field">
-            <label for="setting-folder">New Note Folder</label>
-            <input id="setting-folder" placeholder="99 - ToDo" />
-          </div>
-          <div class="field">
-            <label for="setting-append">Append File Path</label>
-            <input id="setting-append" placeholder="Inbox/VideoLinks.md" />
-          </div>
-          <div class="field">
-            <label for="setting-quick">Quick Action</label>
-            <select id="setting-quick">
-              <option value="create-pending-note">Create pending note via Obsidian URI</option>
-              <option value="process-via-plugin">Create note + process via plugin (direct)</option>
-              <option value="create-pending-rest">Create pending note via REST</option>
-              <option value="append-link">Append timestamp link</option>
-              <option value="send-to-codex-worker">Send to Worker</option>
-              <option value="send-to-n8n">Send to n8n webhook</option>
-              <option value="queue">Add to queue</option>
-            </select>
-          </div>
+        <button class="tab link back" data-view="current">返回</button>
+        <div class="group-title">送到哪里</div>
+        <div class="field">
+          <label for="setting-quick">“送去总结”</label>
+          <select id="setting-quick">
+            <option value="process-via-plugin">建笔记并交给插件处理</option>
+            <option value="create-pending-note">只建待处理笔记（URI）</option>
+            <option value="create-pending-rest">只建待处理笔记（REST）</option>
+            <option value="send-to-n8n">直接发给 n8n</option>
+            <option value="send-to-codex-worker">发给 Worker</option>
+            <option value="append-link">追加时间戳链接</option>
+            <option value="queue">加入队列</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="setting-vault">库名</label>
+          <input id="setting-vault" placeholder="Ithaca" />
+        </div>
+        <div class="field">
+          <label for="setting-folder">新笔记文件夹</label>
+          <input id="setting-folder" placeholder="Videos" />
+        </div>
+        <div class="field">
+          <label for="setting-append">链接清单文件</label>
+          <input id="setting-append" placeholder="Inbox/VideoLinks.md" />
         </div>
 
-        <div class="panel">
-          <div class="field">
-            <label for="setting-codex">Worker URL</label>
-            <input id="setting-codex" />
-          </div>
-          <div class="field">
-            <label for="setting-n8n">n8n Webhook URL</label>
-            <input id="setting-n8n" />
-          </div>
-          <div class="field">
-            <label for="setting-webhook-format">n8n Payload Format</label>
-            <select id="setting-webhook-format">
-              <option value="unified">Unified video payload</option>
-              <option value="legacy">Legacy bridge payload</option>
-            </select>
-          </div>
+        <div class="group-title">处理</div>
+        <div class="field">
+          <label for="setting-mode">处理方式</label>
+          <select id="setting-mode">
+            <option value="summary">完整总结</option>
+            <option value="transcript-only">只要文稿</option>
+            <option value="info-only">只要信息</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="setting-language">输出语言</label>
+          <select id="setting-language">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
         </div>
 
-        <div class="panel">
-          <div class="grid">
-            <div class="field">
-              <label for="setting-mode">Default Mode</label>
-              <select id="setting-mode">
-                <option value="summary">summary</option>
-                <option value="transcript-only">transcript-only</option>
-                <option value="info-only">info-only</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="setting-language">Language</label>
-              <select id="setting-language">
-                <option value="zh">zh</option>
-                <option value="en">en</option>
-                <option value="ja">ja</option>
-              </select>
-            </div>
-          </div>
-          <div class="grid">
-            <div class="field">
-              <label for="setting-rest-protocol">REST Protocol</label>
-              <select id="setting-rest-protocol">
-                <option value="https">https</option>
-                <option value="http">http</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="setting-rest-port">REST Port</label>
-              <input id="setting-rest-port" type="number" />
-            </div>
-          </div>
-          <div class="field">
-            <label for="setting-rest-token">Obsidian REST Token</label>
-            <input id="setting-rest-token" type="password" placeholder="Only stored in Chrome sync storage" />
-          </div>
-          <button id="btn-save-settings">Save Settings</button>
+        <div class="group-title">连接</div>
+        <div class="field">
+          <label for="setting-n8n">n8n Webhook</label>
+          <input id="setting-n8n" />
         </div>
+        <div class="field">
+          <label for="setting-webhook-format">请求格式</label>
+          <select id="setting-webhook-format">
+            <option value="unified">统一格式</option>
+            <option value="legacy">旧版 Bridge</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="setting-codex">Worker 地址</label>
+          <input id="setting-codex" />
+        </div>
+        <div class="field">
+          <label for="setting-rest-protocol">REST 协议</label>
+          <select id="setting-rest-protocol">
+            <option value="https">https</option>
+            <option value="http">http</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="setting-rest-port">REST 端口</label>
+          <input id="setting-rest-port" type="number" />
+        </div>
+        <div class="field">
+          <label for="setting-rest-token">REST 令牌</label>
+          <input id="setting-rest-token" type="password" placeholder="只存在这台电脑上" />
+        </div>
+
+        <div class="group-title">外观</div>
+        <div class="field check">
+          <label for="setting-paper">Paper &amp; ink style</label>
+          <input id="setting-paper" type="checkbox" />
+        </div>
+        <button class="primary" id="btn-save-settings">保存</button>
       </section>
 
       <div class="status" id="status"></div>
     </main>
+
+    <footer>
+      <button class="link" id="btn-open-batch">扫描本页视频链接</button>
+      <span class="links">
+        <button class="tab link" data-view="history">记录</button>
+        <button class="tab link" data-view="settings">设置</button>
+      </span>
+    </footer>
 
     <script src="vendor/shared.global.js"></script>
     <script src="utils.js"></script>

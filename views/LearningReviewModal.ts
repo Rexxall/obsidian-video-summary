@@ -69,7 +69,7 @@ export class LearningReviewModal extends Modal {
 
   onOpen(): void {
     this.setTitle('视频学习复习');
-    this.contentEl.addClass('vs-learning-review-modal');
+    this.contentEl.addClass('vs-modal', 'vs-learning-review-modal');
     this.renderLoading();
     void this.refreshQueue();
   }

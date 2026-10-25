@@ -17,6 +17,7 @@ import {
   thumbnail,
 } from '../ui';
 import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
+import { openSettings } from './ActionBar';
 
 const RECENT_HISTORY_LIMIT = 3;
 let historyExpanded = false;
@@ -30,6 +31,9 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
     (job) => job.state === 'success' || job.state === 'error' || job.state === 'cancelled',
   );
 
+  if (active.length + review.length > 0) {
+    section(container, `进行中 ${active.length + review.length}`);
+  }
   if (active.length > 0) {
     active.forEach((job) => renderActiveJob(container, ctx, job));
   }
@@ -327,6 +331,8 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
         });
   statePill.addClass('vs-row-status');
 
+  if (row.state === 'error' && row.error) renderNextStep(container, ctx, row);
+
   const actions = item.createDiv({ cls: 'vs-row-actions' });
   iconButton(actions, 'more-horizontal', '更多操作', (event) => {
     showMenu(event, [
@@ -352,6 +358,45 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
     ]);
   });
 }
+
+/** 失败行下面给一个能直接做的下一步；认不出原因时不加 */
+function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRow) {
+  const kind = failureKind(row.error || '');
+  if (!kind) return;
+  const strip = container.createDiv({ cls: 'vs-next-step' });
+  if (kind === 'no-transcript') {
+    strip.createSpan({ text: '可以补一份文稿再总结' });
+    textButton(strip, '粘贴文稿 →', () => {
+      const url = row.job?.input.url || row.record?.url || '';
+      ctx.state.inputDraft = url;
+      ctx.state.advancedOpen = true;
+      ctx.renderAll();
+      window.setTimeout(() => {
+        (document.querySelector('.vs-fold .vs-transcript-input') as HTMLTextAreaElement | null)?.focus();
+      }, 0);
+    });
+  } else if (kind === 'login') {
+    strip.createSpan({ text: '登录状态失效，更新 Cookies 后重试' });
+    textButton(strip, '打开设置 →', () => openSettings(ctx));
+  } else {
+    strip.createSpan({ text: '处理服务没有连上' });
+    textButton(strip, '重新检测 →', () => {
+      (document.querySelector('.vs-backend-line') as HTMLButtonElement | null)?.click();
+    });
+  }
+}
+
+function failureKind(raw: string): 'no-transcript' | 'login' | 'backend' | null {
+  const error = raw.toLowerCase();
+  if (NO_TRANSCRIPT.test(error)) return 'no-transcript';
+  if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) return 'login';
+  if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败|timeout|timed out|超时/.test(error)) {
+    return 'backend';
+  }
+  return null;
+}
+
+const NO_TRANSCRIPT = /无字幕|没有字幕|未找到字幕|字幕不可用|no subtitles?|no captions?|subtitles? not (?:found|available)|transcript (?:not available|unavailable)|没有文稿/;
 
 /** 历史里保留原始文件名用于重跑；列表只隐藏时间戳和机器式前缀。 */
 function displayTaskTitle(raw: string): string {
@@ -389,6 +434,9 @@ function safeCoverUrl(value: unknown): string | undefined {
 function summarizeError(raw: string): string {
   const error = raw.toLowerCase();
 
+  if (NO_TRANSCRIPT.test(error)) {
+    return '没有字幕';
+  }
   if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) {
     return '登录状态已失效 · 更新凭证后重试';
   }

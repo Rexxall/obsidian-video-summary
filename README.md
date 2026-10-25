@@ -6,7 +6,7 @@
 
 把视频链接、本地录音录像和现成文稿，整理成带时间戳出处、可检索的 Obsidian 笔记。
 
-[What's new](#whats-new-in-250) · [Install](#install) · [n8n workflow](#n8n-workflow) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
+[What's new](#whats-new-in-260) · [Install](#install) · [n8n workflow](#n8n-workflow) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
 
 </div>
 
@@ -15,7 +15,19 @@ general-purpose n8n workflow; the plugin can also talk to a compatible external 
 It keeps the reader-facing result in Markdown and stores structured evidence, learning state, and
 reproducibility metadata as local plugin sidecars.
 
-## What's new in 2.5.0
+## What's new in 2.6.0
+
+- A new look that follows your Obsidian theme and light/dark mode, with an optional **Paper & ink
+  style** in settings.
+- The side panel starts with one add box: paste links, drop audio/video files or paste a
+  transcript, pick 只要文稿 / 总结 / 证据, and start. Everything else is one click away in
+  **更多选项** or the **···** menu.
+- A failed job tells you what to do next, for example paste a transcript when a video has no
+  subtitles.
+- Settings fit on one page: 连接, 输出, 处理, and a folded 高级 section.
+- The browser extension opens on the current video with one main button.
+
+Also included from 2.5.0, which was not published separately:
 
 - The processing time limit follows your **Timeout** setting (default 30 minutes), so long lectures
   are no longer cut off at a hidden 10-minute limit.
@@ -110,15 +122,15 @@ status: pending
 
 ### Install a release
 
-Download `video-summary-2.5.0.zip` from the canonical GitHub release:
+Download `video-summary-2.6.0.zip` from the canonical GitHub release:
 
-- [GitHub release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.5.0)
+- [GitHub release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.6.0)
   — canonical source and Obsidian community-plugin channel.
 
 Download `SHA256SUMS` from the same release. To check the ZIP on macOS or Linux:
 
 ```bash
-grep 'video-summary-2.5.0.zip' SHA256SUMS | shasum -a 256 -c -
+grep 'video-summary-2.6.0.zip' SHA256SUMS | shasum -a 256 -c -
 ```
 
 Extract its three files into:
@@ -232,7 +244,7 @@ The command labels are currently Chinese. Common entries include:
 - `生成或安全更新视频库 Base`
 - `标记为非视频笔记`
 
-Since 2.5.0 the internal command IDs follow the Obsidian community-directory rules. If you
+Since 2.6.0 the internal command IDs follow the Obsidian community-directory rules. If you
 assigned custom hotkeys while using a manually installed 2.4.1 build, open Obsidian's Hotkeys
 settings and assign those shortcuts once more after updating.
 
@@ -389,7 +401,7 @@ The release workflow also publishes:
 - `SHA256SUMS` for downloaded-asset verification
 
 The included GitHub Actions workflow tests and builds the plugin, validates all version files, and
-publishes the assets when you push a semantic version tag such as `2.5.0`.
+publishes the assets when you push a semantic version tag such as `2.6.0`.
 
 GitHub remains the canonical source because Obsidian's community-plugin installer downloads from
 GitHub Releases. It is the only configured publication channel. The workflow is retryable from
@@ -419,7 +431,7 @@ Before submitting to the Obsidian community directory, confirm:
 - 重新处理时只替换插件自己的区块，你写在笔记里的内容不会被覆盖；处理期间你改过笔记，插件会停下来，不会覆盖。
 - 侧栏可以看任务进度、取消任务、跟着时间戳阅读文稿。
 
-**安装：** 从 Releases 下载 `video-summary-2.5.0.zip`，把三个文件解压到 `<库>/.obsidian/plugins/video-summary/`，在“第三方插件”里启用；再按上面 n8n 一节导入工作流。
+**安装：** 从 Releases 下载 `video-summary-2.6.0.zip`，把三个文件解压到 `<库>/.obsidian/plugins/video-summary/`，在“第三方插件”里启用；再按上面 n8n 一节导入工作流。
 
 ## 日本語
 

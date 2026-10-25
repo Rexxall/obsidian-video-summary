@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here.
 
+## 2.6.0
+
+Interface release. 2.5.0 was never published on its own; its fixes ship here.
+
+- New look. The stylesheet was rewritten from scratch. By default it uses only Obsidian theme
+  variables, so it follows your theme and light/dark mode; the old hard-coded "Morning/Nightfall"
+  colours are gone. An optional **Paper & ink style** (Settings → 输出) adds a paper texture, thin
+  ink lines, serif headings and a dark-red accent, in light and dark.
+- Side panel: one add box for links, dropped audio/video files or pasted transcripts, a three-way
+  switch (只要文稿 / 总结 / 证据), a 学习卡 checkbox and 开始. Language, content type, model,
+  save folder, preview-before-write, watch-value assessment, skip-cache, manual transcript, local
+  files and part ranges moved into a folded **更多选项**. Less-used commands are in the **···**
+  menu; review, cross-video search and settings are links at the bottom.
+- Jobs show a 进行中 count; a failed job gets a next step under it (no subtitles → paste a
+  transcript; expired login → open settings; service not reachable → test again).
+- The current-note strip has **陪读** for processed notes.
+- Settings are one page in three parts (连接 / 输出 / 处理); Cookies, platform notes, request field
+  names, cache and debug options are folded under **高级**.
+- Browser extension 0.4.0: one home screen with the current video and its timestamp, a main button
+  that names what it will do (for example 送去总结), three secondary actions, other routes folded,
+  and a queue preview. Batch, history and settings are sub-pages. Follows the system light/dark
+  mode; the same Paper & ink style can be turned on in its settings.
+
 ## 2.5.0
 
 Reliability release. Brings the source back in line with the build that has been in daily use since

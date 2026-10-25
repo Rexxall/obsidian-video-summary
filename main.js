@@ -272,6 +272,7 @@ var DEFAULT_SETTINGS = {
   autoRouteContent: true,
   attentionAssessmentEnabled: true,
   generateLearningArtifacts: false,
+  paperStyle: false,
   aiModel: "Gemini 3.1",
   customAiModels: [...DEFAULT_AI_MODELS],
   timeoutMinutes: 30,
@@ -349,7 +350,7 @@ var ERROR_MESSAGES = {
   NETWORK_ERROR: "\u7F51\u7EDC\u8FDE\u63A5\u9519\u8BEF"
 };
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../video-summary-plugin/node_modules/js-yaml/dist/js-yaml.mjs
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -5254,7 +5255,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
     cancelButton.addEventListener("click", () => {
       this.close();
     });
-    contentEl.addClass("video-summary-modal");
+    contentEl.addClass("vs-modal", "video-summary-modal");
   }
   async processVideo() {
     const file = this.view.file;
@@ -11473,7 +11474,7 @@ var FolderSelectModal = class extends import_obsidian7.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.addClass("vs-folder-modal");
+    contentEl.addClass("vs-modal", "vs-folder-modal");
     contentEl.createEl("h3", { text: "\u9009\u62E9\u8F93\u51FA\u6587\u4EF6\u5939" });
     const searchInput = contentEl.createEl("input", {
       cls: "vs-folder-search",
@@ -11534,20 +11535,37 @@ var BACKEND_PROBE_TIMEOUT_MS = 8e3;
 var BACKEND_ONLINE_TTL_MS = 5 * 6e4;
 var BACKEND_OFFLINE_TTL_MS = 6e4;
 var backendProbeCaches = /* @__PURE__ */ new WeakMap();
+function currentQuickMode(ctx) {
+  const settings = ctx.plugin.settings;
+  if (settings.defaultMode === "transcript-only") return "transcript";
+  if (settings.defaultMode !== "summary") return null;
+  return settings.defaultProcessingDepth === "quick" ? "summary" : "evidence";
+}
+async function setQuickMode(ctx, mode) {
+  const { plugin } = ctx;
+  if (mode === "transcript") {
+    plugin.settings.defaultMode = "transcript-only";
+  } else {
+    plugin.settings.defaultMode = "summary";
+    const depth = mode === "summary" ? "quick" : "evidence";
+    plugin.settings.defaultProcessingDepth = depth;
+    plugin.api.setAnalysisDefaults({ processingDepth: depth });
+  }
+  await plugin.saveSettings();
+  ctx.renderAll();
+}
 function renderActionBar(container, ctx) {
   const { state } = ctx;
   const root = container.createDiv({ cls: "vs-action-bar" });
   renderHeader(root, ctx);
   renderContextStrip(root, ctx);
-  const inputCard = root.createDiv({ cls: "vs-input-card" });
-  const inputRow = inputCard.createDiv({ cls: "vs-input-row" });
-  const inputIcon = inputRow.createDiv({ cls: "vs-input-icon" });
-  (0, import_obsidian8.setIcon)(inputIcon, "clipboard-paste");
-  const input = inputRow.createEl("textarea", {
+  const box = root.createDiv({ cls: "vs-add" });
+  const input = box.createEl("textarea", {
     cls: "vs-input",
     attr: {
-      rows: "1",
-      placeholder: "\u7C98\u8D34\u89C6\u9891\u94FE\u63A5\uFF0C\u591A\u884C\u5373\u6279\u91CF\u2026"
+      rows: "2",
+      placeholder: "\u7C98\u8D34\u94FE\u63A5\u3001\u62D6\u5165\u97F3\u89C6\u9891\uFF0C\u6216\u76F4\u63A5\u7C98\u8D34\u6587\u7A3F",
+      "aria-label": "\u6DFB\u52A0\u89C6\u9891"
     }
   });
   input.value = state.inputDraft;
@@ -11555,49 +11573,51 @@ function renderActionBar(container, ctx) {
     state.inputDraft = input.value;
   });
   autoGrow(input);
-  iconButton(
-    inputRow,
-    "folder-open",
-    "\u9009\u62E9\u672C\u673A\u6587\u4EF6",
-    () => pickLocalFiles(ctx, input),
-    "vs-input-action"
-  );
-  const chips = inputCard.createDiv({ cls: "vs-chip-row" });
-  renderChips(chips, ctx);
-  const advanced = root.createDiv({ cls: "vs-advanced" });
-  const advancedFields = renderAdvanced(advanced, ctx, input);
-  const actions = root.createDiv({ cls: "vs-action-row" });
-  const submitBtn = actions.createEl("button", {
-    text: "\u5F00\u59CB\u5904\u7406",
+  iconButton(box, "folder-open", "\u9009\u62E9\u672C\u673A\u97F3\u89C6\u9891", () => pickLocalFiles(ctx, input), "vs-add-file");
+  bindFileDrop(box, ctx, input);
+  const controls = root.createDiv({ cls: "vs-add-controls" });
+  const quick = currentQuickMode(ctx);
+  segmented(
+    controls,
+    [
+      { value: "transcript", label: "\u53EA\u8981\u6587\u7A3F" },
+      { value: "summary", label: "\u603B\u7ED3" },
+      { value: "evidence", label: "\u8BC1\u636E" }
+    ],
+    quick ?? "",
+    (value) => void setQuickMode(ctx, value)
+  ).addClass("vs-mode-seg");
+  const learn = controls.createEl("label", { cls: "vs-check" });
+  const learnBox = learn.createEl("input", { attr: { type: "checkbox" } });
+  learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
+  learn.createSpan({ text: "\u5B66\u4E60\u5361" });
+  learnBox.addEventListener("change", async () => {
+    ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
+    ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
+    await ctx.plugin.saveSettings();
+  });
+  const submitBtn = controls.createEl("button", {
+    text: "\u5F00\u59CB",
     cls: "vs-primary-btn",
     attr: { type: "button" }
   });
-  const cacheBtn = iconButton(
-    actions,
-    "refresh-cw",
-    state.ignoreCache ? "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5F00\uFF08\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF09" : "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5173",
-    () => {
-      state.ignoreCache = !state.ignoreCache;
-      cacheBtn.toggleClass("is-active", state.ignoreCache);
-      cacheBtn.setAttr(
-        "aria-label",
-        state.ignoreCache ? "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5F00\uFF08\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF09" : "\u5FFD\u7565\u7F13\u5B58\uFF1A\u5173"
-      );
-    },
-    "vs-toggle-btn"
-  );
-  cacheBtn.toggleClass("is-active", state.ignoreCache);
-  iconButton(
-    actions,
-    "sliders-horizontal",
-    state.advancedOpen ? "\u6536\u8D77\u9AD8\u7EA7\u9009\u9879" : "\u5C55\u5F00\u9AD8\u7EA7\u9009\u9879",
-    () => {
-      state.advancedOpen = !state.advancedOpen;
-      ctx.renderAll();
-    },
-    state.advancedOpen ? "is-active" : void 0
-  );
-  advanced.toggleClass("is-open", state.advancedOpen);
+  root.createDiv({
+    cls: "vs-add-hint",
+    text: quick === null ? `\u5F53\u524D\uFF1A${modeLabel(ctx.plugin.settings.defaultMode)}\uFF08\u5728\u66F4\u591A\u9009\u9879\u91CC\u6539\uFF09\xB7 \u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB` : "\u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB"
+  });
+  const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? " is-open" : ""}` });
+  const foldToggle = fold.createEl("button", {
+    text: "\u66F4\u591A\u9009\u9879",
+    cls: "vs-fold-toggle",
+    attr: { type: "button", "aria-expanded": state.advancedOpen ? "true" : "false" }
+  });
+  foldToggle.addEventListener("click", () => {
+    state.advancedOpen = !state.advancedOpen;
+    ctx.renderAll();
+  });
+  const foldBody = fold.createDiv({ cls: "vs-fold-body" });
+  renderOptions(foldBody, ctx);
+  const advancedFields = renderAdvanced(foldBody, ctx, input);
   submitBtn.addEventListener("click", async () => {
     submitBtn.disabled = true;
     try {
@@ -11613,29 +11633,44 @@ function renderActionBar(container, ctx) {
     }
   });
 }
+function bindFileDrop(box, ctx, input) {
+  box.addEventListener("dragover", (event) => {
+    if (!event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault();
+    box.addClass("is-drop");
+  });
+  box.addEventListener("dragleave", () => box.removeClass("is-drop"));
+  box.addEventListener("drop", (event) => {
+    box.removeClass("is-drop");
+    const names = Array.from(event.dataTransfer?.files || []).map((file) => file.name).filter(Boolean);
+    if (names.length === 0) return;
+    event.preventDefault();
+    appendFileNames(ctx, input, names);
+  });
+}
 function renderHeader(root, ctx) {
   const header = root.createDiv({ cls: "vs-header" });
   header.createSpan({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-header-title" });
-  const actions = header.createDiv({ cls: "vs-header-actions" });
+  iconButton(header, "more-horizontal", "\u66F4\u591A", (event) => showMoreMenu(ctx, event), "vs-header-more");
   const backend = activeBackendInfo(ctx);
   const cachedResult = freshProbeResult(ctx, backend);
   const cachedEntry = backendProbeCaches.get(ctx.plugin);
   const initialState = cachedEntry?.key === backend.key && cachedEntry.pending ? "is-checking" : cachedResult?.state || "is-unknown";
   ctx.setBackendState(initialState);
-  const statusPillEl = actions.createEl("button", {
-    cls: "vs-backend-pill",
+  const statusLine = root.createEl("button", {
+    cls: "vs-backend-line",
     attr: { type: "button" }
   });
-  const dot = statusPillEl.createSpan({ cls: "vs-backend-dot" });
-  const label = statusPillEl.createSpan();
-  updateBackendPill(statusPillEl, dot, label, backend, initialState, cachedResult);
-  statusPillEl.addEventListener("click", async (event) => {
+  const dot = statusLine.createSpan({ cls: "vs-backend-dot" });
+  const label = statusLine.createSpan();
+  updateBackendPill(statusLine, dot, label, backend, initialState, cachedResult);
+  statusLine.addEventListener("click", async (event) => {
     event.preventDefault();
     if (ctx.backendState() === "is-checking") return;
     ctx.setBackendState("is-checking");
-    updateBackendPill(statusPillEl, dot, label, backend, "is-checking");
+    updateBackendPill(statusLine, dot, label, backend, "is-checking");
     const result = await probeBackend(ctx, backend, true);
-    updateBackendPill(statusPillEl, dot, label, backend, result.state, result);
+    updateBackendPill(statusLine, dot, label, backend, result.state, result);
     new import_obsidian8.Notice(
       result.state === "is-online" ? `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend.label} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.reason || "\u672A\u77E5\u539F\u56E0"}`,
       result.state === "is-online" ? 3e3 : 6e3
@@ -11644,19 +11679,41 @@ function renderHeader(root, ctx) {
   });
   if (initialState === "is-unknown" || initialState === "is-checking") {
     ctx.setBackendState("is-checking");
-    updateBackendPill(statusPillEl, dot, label, backend, "is-checking");
+    updateBackendPill(statusLine, dot, label, backend, "is-checking");
     void probeBackend(ctx, backend).then((result) => {
       ctx.setBackendState(result.state);
       ctx.renderAll();
     });
   }
-  actions.createEl("button", { text: "\u63D2\u4EF6\u8BBE\u7F6E", cls: "plugin-settings-entry", attr: { type: "button" } }).addEventListener("click", () => {
-    const settingApi = ctx.plugin.app.setting;
-    if (settingApi?.open) {
-      settingApi.open();
-      settingApi.openTabById?.(ctx.plugin.manifest.id);
-    }
-  });
+}
+function showMoreMenu(ctx, event) {
+  const run = (id) => {
+    const commands = ctx.plugin.app.commands;
+    commands?.executeCommandById?.(`${ctx.plugin.manifest.id}:${id}`);
+  };
+  showMenu(event, [
+    { title: "\u6279\u91CF\u5904\u7406\u89C6\u9891", icon: "list-plus", onClick: () => run("batch") },
+    { title: "\u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891", icon: "zap", onClick: () => run("process-all-pending") },
+    { title: "\u590D\u4E60\u5230\u671F\u7684\u5B66\u4E60\u5361", icon: "brain", onClick: () => run("learning-review-due") },
+    { title: "\u641C\u7D22\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6", icon: "search", onClick: () => run("memory-search") },
+    { title: "\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4", icon: "flask-conical", onClick: () => run("claim-lab") },
+    { title: "\u751F\u6210\u6216\u66F4\u65B0\u89C6\u9891\u5E93 Base", icon: "table", onClick: () => run("generate-base") },
+    { title: "\u6D4B\u8BD5\u5904\u7406\u540E\u7AEF", icon: "plug", onClick: () => run("test-connection") },
+    {
+      title: "\u6253\u5F00 Codex Worker \u63A7\u5236\u53F0",
+      icon: "gauge",
+      disabled: ctx.plugin.settings.activeBackend !== "codex-worker",
+      onClick: () => run("open-worker-dashboard")
+    },
+    { title: "\u63D2\u4EF6\u8BBE\u7F6E", icon: "settings", onClick: () => openSettings(ctx) }
+  ]);
+}
+function openSettings(ctx) {
+  const settingApi = ctx.plugin.app.setting;
+  if (settingApi?.open) {
+    settingApi.open();
+    settingApi.openTabById?.(ctx.plugin.manifest.id);
+  }
 }
 function activeBackendInfo(ctx) {
   const isWorker = ctx.plugin.settings.activeBackend === "codex-worker";
@@ -11745,13 +11802,13 @@ async function withTimeout2(promise, timeoutMs) {
 function updateBackendPill(pill, dot, label, backend, state, result) {
   dot.className = `vs-backend-dot ${state}`;
   if (state === "is-checking") {
-    label.setText(`${backend.label} \u68C0\u6D4B\u4E2D\u2026`);
+    label.setText(`\u6B63\u5728\u68C0\u6D4B ${backend.label}\u2026`);
     pill.setAttr("title", `${backend.label}\uFF1A\u6B63\u5728\u68C0\u6D4B\u8FDE\u63A5`);
     return;
   }
   if (state === "is-online") {
     const reachabilityOnly = result?.verified === false;
-    label.setText(`${backend.label} ${reachabilityOnly ? "\u53EF\u8FBE" : "\u5728\u7EBF"}`);
+    label.setText(`${backend.label} \u5DF2\u8FDE\u63A5`);
     pill.setAttr(
       "title",
       `${backend.label} ${reachabilityOnly ? "\u7AEF\u70B9\u53EF\u8FBE\uFF0C\u5C1A\u672A\u9A8C\u8BC1\u5B8C\u6574\u54CD\u5E94" : "\u5728\u7EBF"}${result?.durationMs !== void 0 ? ` \xB7 ${result.durationMs}ms` : ""}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u8FD0\u884C\u5B8C\u6574\u68C0\u6D4B`
@@ -11760,14 +11817,14 @@ function updateBackendPill(pill, dot, label, backend, state, result) {
   }
   if (state === "is-offline") {
     const reason = result?.reason || "\u65E0\u6CD5\u8FDE\u63A5";
-    label.setText(`${backend.label} \u79BB\u7EBF \xB7 ${reason}`);
+    label.setText(`${backend.label} \u672A\u8FDE\u63A5 \xB7 ${reason}`);
     pill.setAttr(
       "title",
       `${backend.label} \u79BB\u7EBF\uFF1A${reason}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u91CD\u65B0\u68C0\u6D4B`
     );
     return;
   }
-  label.setText(`${backend.label} \u672A\u68C0\u6D4B`);
+  label.setText(`${backend.label} \u672A\u68C0\u6D4B \xB7 \u70B9\u6B64\u6D4B\u8BD5`);
   pill.setAttr("title", `${backend.label}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5`);
 }
 function formatProbeTime(timestamp) {
@@ -11818,6 +11875,15 @@ function renderContextStrip(root, ctx) {
     platformText(sub, entry.platform, platformLabel(entry.platform));
   }
   const liveJob = entry ? liveJobForNote(ctx.plugin.jobs, entry.path) : void 0;
+  if (entry?.artifactId && status === "success") {
+    const artifactId = entry.artifactId;
+    textButton(
+      strip,
+      "\u966A\u8BFB",
+      () => ctx.openDetail({ kind: "note", path: entry.path, artifactId }),
+      "vs-context-action"
+    );
+  }
   if (status === "review" && liveJob) {
     textButton(
       strip,
@@ -11838,57 +11904,63 @@ function renderContextStrip(root, ctx) {
     );
   }
 }
-function renderChips(chips, ctx) {
+function renderOptions(container, ctx) {
   const { plugin } = ctx;
   const settings = plugin.settings;
-  configChip(
-    chips,
-    "\u5904\u7406\u6A21\u5F0F",
-    modeLabel(settings.defaultMode),
+  const row = (label) => {
+    const el = container.createDiv({ cls: "vs-opt" });
+    el.createSpan({ text: label, cls: "vs-opt-label" });
+    return el.createDiv({ cls: "vs-opt-value" });
+  };
+  const modeHost = row("\u5904\u7406\u65B9\u5F0F");
+  segmented(
+    modeHost,
     ["summary", "transcript-only", "info-only"].map((mode) => ({
-      title: modeLabel(mode),
-      onClick: async () => {
-        settings.defaultMode = mode;
-        await plugin.saveSettings();
-        ctx.renderAll();
-      }
-    }))
-  );
-  configChip(
-    chips,
-    "\u8F93\u51FA\u8BED\u8A00",
-    languageLabel(settings.defaultLanguage),
-    ["zh", "en", "ja"].map((language) => ({
-      title: languageLabel(language),
-      onClick: async () => {
-        settings.defaultLanguage = language;
-        await plugin.saveSettings();
-        ctx.renderAll();
-      }
-    }))
+      value: mode,
+      label: modeLabel(mode)
+    })),
+    settings.defaultMode,
+    async (mode) => {
+      settings.defaultMode = mode;
+      await plugin.saveSettings();
+      ctx.renderAll();
+    }
   );
   const depthLabels = {
     quick: "\u6781\u901F",
     evidence: "\u8BC1\u636E",
     "deep-visual": "\u6DF1\u5EA6\u89C6\u89C9"
   };
-  configChip(
-    chips,
-    "\u7406\u89E3\u6DF1\u5EA6",
-    depthLabels[settings.defaultProcessingDepth],
+  segmented(
+    row("\u7406\u89E3\u6DF1\u5EA6"),
     ["quick", "evidence", "deep-visual"].map((depth) => ({
-      title: depthLabels[depth],
-      onClick: async () => {
-        if (depth === "deep-visual" && settings.activeBackend !== "codex-worker") {
-          new import_obsidian8.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u7531 Codex Worker \u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u53EF\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
-          return;
-        }
-        settings.defaultProcessingDepth = depth;
-        plugin.api.setAnalysisDefaults({ processingDepth: depth });
-        await plugin.saveSettings();
-        ctx.renderAll();
+      value: depth,
+      label: depthLabels[depth]
+    })),
+    settings.defaultProcessingDepth,
+    async (depth) => {
+      if (depth === "deep-visual" && settings.activeBackend !== "codex-worker") {
+        new import_obsidian8.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u7531 Codex Worker \u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u53EF\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
+        return;
       }
-    }))
+      settings.defaultProcessingDepth = depth;
+      plugin.api.setAnalysisDefaults({ processingDepth: depth });
+      await plugin.saveSettings();
+      ctx.renderAll();
+    }
+  );
+  segmented(
+    row("\u8F93\u51FA\u8BED\u8A00"),
+    ["zh", "en", "ja"].map((language) => ({
+      value: language,
+      label: languageLabel(language)
+    })),
+    settings.defaultLanguage,
+    async (language) => {
+      settings.defaultLanguage = language;
+      await plugin.saveSettings();
+      ctx.renderAll();
+    }
   );
   const contentLabels = {
     auto: "\u81EA\u52A8\u8BC6\u522B",
@@ -11900,60 +11972,33 @@ function renderChips(chips, ctx) {
     review: "\u8BC4\u6D4B",
     general: "\u901A\u7528"
   };
-  const contentTypes = [
-    "auto",
-    "course",
-    "interview",
-    "tutorial",
-    "news",
-    "meeting",
-    "review",
-    "general"
-  ];
-  configChip(
-    chips,
-    "\u5185\u5BB9\u7C7B\u578B",
-    contentLabels[settings.defaultContentType],
-    contentTypes.map((contentType) => ({
-      title: contentLabels[contentType],
-      onClick: async () => {
-        settings.defaultContentType = contentType;
-        settings.autoRouteContent = contentType === "auto";
-        plugin.api.setAnalysisDefaults({
-          contentType,
-          autoRoute: settings.autoRouteContent
-        });
-        await plugin.saveSettings();
-        ctx.renderAll();
-      }
-    }))
+  const contentSelect = row("\u5185\u5BB9\u7C7B\u578B").createEl("select", { cls: "dropdown" });
+  Object.keys(contentLabels).forEach(
+    (value) => contentSelect.createEl("option", { text: contentLabels[value], attr: { value } })
   );
-  const models = settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel];
-  configChip(
-    chips,
-    "\u5904\u7406\u6A21\u578B",
-    settings.aiModel || models[0] || "\u9ED8\u8BA4",
-    models.filter(Boolean).map((model) => ({
-      title: model,
-      onClick: async () => {
-        settings.aiModel = model;
-        plugin.api.setAiModel(model);
-        await plugin.saveSettings();
-        ctx.renderAll();
-      }
-    }))
-  );
-  const folderChip = chips.createEl("button", {
-    cls: "vs-chip",
-    attr: { type: "button", title: `\u4FDD\u5B58\u4F4D\u7F6E\uFF1A${settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"}` }
+  contentSelect.value = settings.defaultContentType;
+  contentSelect.addEventListener("change", async () => {
+    const contentType = contentSelect.value;
+    settings.defaultContentType = contentType;
+    settings.autoRouteContent = contentType === "auto";
+    plugin.api.setAnalysisDefaults({ contentType, autoRoute: settings.autoRouteContent });
+    await plugin.saveSettings();
   });
-  const folderCaret = folderChip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian8.setIcon)(folderCaret, "folder");
-  folderChip.createSpan({
+  const models = (settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]).filter(Boolean);
+  const modelSelect = row("\u5904\u7406\u6A21\u578B").createEl("select", { cls: "dropdown" });
+  models.forEach((model) => modelSelect.createEl("option", { text: model, attr: { value: model } }));
+  modelSelect.value = settings.aiModel || models[0] || "";
+  modelSelect.addEventListener("change", async () => {
+    settings.aiModel = modelSelect.value;
+    plugin.api.setAiModel(modelSelect.value);
+    await plugin.saveSettings();
+  });
+  const folderBtn = row("\u4FDD\u5B58\u4F4D\u7F6E").createEl("button", {
     text: shortenPath(settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"),
-    cls: "vs-chip-value"
+    cls: "vs-link-btn",
+    attr: { type: "button", title: settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939" }
   });
-  folderChip.addEventListener("click", (event) => {
+  folderBtn.addEventListener("click", (event) => {
     event.preventDefault();
     const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian8.TFolder).map((folder) => folder.path).sort();
     new FolderSelectModal(plugin.app, folders, async (selected) => {
@@ -11962,57 +12007,25 @@ function renderChips(chips, ctx) {
       ctx.renderAll();
     }).open();
   });
-  const previewChip = chips.createEl("button", {
-    cls: `vs-chip vs-chip-toggle${settings.previewBeforeWrite ? " is-active" : ""}`,
-    attr: {
-      type: "button",
-      title: settings.previewBeforeWrite ? "\u7ED3\u679C\u5148\u9884\u89C8\uFF0C\u786E\u8BA4\u540E\u624D\u5199\u5165\u7B14\u8BB0" : "\u7ED3\u679C\u76F4\u63A5\u5199\u5165\u7B14\u8BB0\uFF08\u70B9\u51FB\u6539\u4E3A\u5148\u9884\u89C8\uFF09"
-    }
-  });
-  const previewIcon = previewChip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian8.setIcon)(previewIcon, settings.previewBeforeWrite ? "eye" : "eye-off");
-  previewChip.createSpan({ text: "\u5148\u9884\u89C8", cls: "vs-chip-value" });
-  previewChip.addEventListener("click", async (event) => {
-    event.preventDefault();
-    settings.previewBeforeWrite = !settings.previewBeforeWrite;
+  const toggles = container.createDiv({ cls: "vs-opt-checks" });
+  const check = (label, title, value, onChange) => {
+    const el = toggles.createEl("label", { cls: "vs-check", attr: { title } });
+    const box = el.createEl("input", { attr: { type: "checkbox" } });
+    box.checked = value;
+    el.createSpan({ text: label });
+    box.addEventListener("change", () => void onChange(box.checked));
+  };
+  check("\u5148\u9884\u89C8\u518D\u5199\u5165", "\u7ED3\u679C\u5148\u9884\u89C8\uFF0C\u786E\u8BA4\u540E\u624D\u5199\u5165\u7B14\u8BB0", settings.previewBeforeWrite === true, async (value) => {
+    settings.previewBeforeWrite = value;
     await plugin.saveSettings();
-    ctx.renderAll();
   });
-  const attentionChip = chips.createEl("button", {
-    cls: `vs-chip vs-chip-toggle${settings.attentionAssessmentEnabled ? " is-active" : ""}`,
-    attr: {
-      type: "button",
-      title: settings.attentionAssessmentEnabled ? "\u5DF2\u751F\u6210\u89C2\u770B/\u7565\u8BFB/\u8DF3\u8FC7\u5224\u65AD" : "\u70B9\u51FB\u542F\u7528\u89C2\u770B\u4EF7\u503C\u5224\u65AD"
-    }
-  });
-  const attentionIcon = attentionChip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian8.setIcon)(attentionIcon, "gauge");
-  attentionChip.createSpan({ text: "\u89C2\u770B\u5224\u65AD", cls: "vs-chip-value" });
-  attentionChip.addEventListener("click", async () => {
-    settings.attentionAssessmentEnabled = !settings.attentionAssessmentEnabled;
-    plugin.api.setAnalysisDefaults({
-      attentionAssessment: settings.attentionAssessmentEnabled
-    });
+  check("\u89C2\u770B\u5224\u65AD", "\u8F93\u51FA\u503C\u5F97\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7", settings.attentionAssessmentEnabled, async (value) => {
+    settings.attentionAssessmentEnabled = value;
+    plugin.api.setAnalysisDefaults({ attentionAssessment: value });
     await plugin.saveSettings();
-    ctx.renderAll();
   });
-  const learningChip = chips.createEl("button", {
-    cls: `vs-chip vs-chip-toggle${settings.generateLearningArtifacts ? " is-active" : ""}`,
-    attr: {
-      type: "button",
-      title: settings.generateLearningArtifacts ? "\u5DF2\u751F\u6210\u5B66\u4E60\u7EC3\u4E60" : "\u70B9\u51FB\u542F\u7528\u5B66\u4E60\u7EC3\u4E60"
-    }
-  });
-  const learningIcon = learningChip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian8.setIcon)(learningIcon, "graduation-cap");
-  learningChip.createSpan({ text: "\u5B66\u4E60\u7EC3\u4E60", cls: "vs-chip-value" });
-  learningChip.addEventListener("click", async () => {
-    settings.generateLearningArtifacts = !settings.generateLearningArtifacts;
-    plugin.api.setAnalysisDefaults({
-      generateLearning: settings.generateLearningArtifacts
-    });
-    await plugin.saveSettings();
-    ctx.renderAll();
+  check("\u8FD9\u6B21\u8DF3\u8FC7\u7F13\u5B58", "\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF0C\u53EA\u5BF9\u672C\u6B21\u6253\u5F00\u7684\u4FA7\u680F\u6709\u6548", ctx.state.ignoreCache, async (value) => {
+    ctx.state.ignoreCache = value;
   });
 }
 function renderAdvanced(container, ctx, mainInput) {
@@ -12037,7 +12050,7 @@ function renderAdvanced(container, ctx, mainInput) {
   const transcriptRow = container.createDiv({ cls: "vs-field" });
   transcriptRow.createEl("label", { text: "\u624B\u52A8\u6587\u7A3F", cls: "vs-field-label" });
   const transcript = transcriptRow.createEl("textarea", {
-    cls: "vs-field-input",
+    cls: "vs-field-input vs-transcript-input",
     attr: { rows: "3", placeholder: "\u89C6\u9891\u6CA1\u6709\u5B57\u5E55\u65F6\uFF0C\u5728\u8FD9\u91CC\u8D34\u6587\u7A3F" }
   });
   transcript.value = ctx.state.transcriptDraft;
@@ -12164,15 +12177,17 @@ function pickLocalFiles(ctx, input) {
   picker.multiple = true;
   picker.addEventListener("change", () => {
     const names = Array.from(picker.files || []).map((file) => file.name).filter(Boolean);
-    if (names.length === 0) return;
-    const current = input.value.trim();
-    input.value = current ? `${current}
-${names.join("\n")}` : names.join("\n");
-    ctx.state.inputDraft = input.value;
-    input.dispatchEvent(new Event("input"));
-    new import_obsidian8.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
+    if (names.length > 0) appendFileNames(ctx, input, names);
   });
   picker.click();
+}
+function appendFileNames(ctx, input, names) {
+  const current = input.value.trim();
+  input.value = current ? `${current}
+${names.join("\n")}` : names.join("\n");
+  ctx.state.inputDraft = input.value;
+  input.dispatchEvent(new Event("input"));
+  new import_obsidian8.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
 }
 function autoGrow(input) {
   const resize = () => {
@@ -12198,6 +12213,9 @@ function renderJobsPanel(container, ctx) {
   const finished = jobs.filter(
     (job) => job.state === "success" || job.state === "error" || job.state === "cancelled"
   );
+  if (active.length + review.length > 0) {
+    section2(container, `\u8FDB\u884C\u4E2D ${active.length + review.length}`);
+  }
   if (active.length > 0) {
     active.forEach((job) => renderActiveJob(container, ctx, job));
   }
@@ -12442,6 +12460,7 @@ function renderHistoryRow(container, ctx, row) {
     label: row.state === "success" ? "\u5B8C\u6210" : "\u5DF2\u53D6\u6D88"
   });
   statePill.addClass("vs-row-status");
+  if (row.state === "error" && row.error) renderNextStep(container, ctx, row);
   const actions = item.createDiv({ cls: "vs-row-actions" });
   iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
     showMenu(event, [
@@ -12467,6 +12486,41 @@ function renderHistoryRow(container, ctx, row) {
     ]);
   });
 }
+function renderNextStep(container, ctx, row) {
+  const kind = failureKind(row.error || "");
+  if (!kind) return;
+  const strip = container.createDiv({ cls: "vs-next-step" });
+  if (kind === "no-transcript") {
+    strip.createSpan({ text: "\u53EF\u4EE5\u8865\u4E00\u4EFD\u6587\u7A3F\u518D\u603B\u7ED3" });
+    textButton(strip, "\u7C98\u8D34\u6587\u7A3F \u2192", () => {
+      const url = row.job?.input.url || row.record?.url || "";
+      ctx.state.inputDraft = url;
+      ctx.state.advancedOpen = true;
+      ctx.renderAll();
+      window.setTimeout(() => {
+        document.querySelector(".vs-fold .vs-transcript-input")?.focus();
+      }, 0);
+    });
+  } else if (kind === "login") {
+    strip.createSpan({ text: "\u767B\u5F55\u72B6\u6001\u5931\u6548\uFF0C\u66F4\u65B0 Cookies \u540E\u91CD\u8BD5" });
+    textButton(strip, "\u6253\u5F00\u8BBE\u7F6E \u2192", () => openSettings(ctx));
+  } else {
+    strip.createSpan({ text: "\u5904\u7406\u670D\u52A1\u6CA1\u6709\u8FDE\u4E0A" });
+    textButton(strip, "\u91CD\u65B0\u68C0\u6D4B \u2192", () => {
+      document.querySelector(".vs-backend-line")?.click();
+    });
+  }
+}
+function failureKind(raw) {
+  const error = raw.toLowerCase();
+  if (NO_TRANSCRIPT.test(error)) return "no-transcript";
+  if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) return "login";
+  if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败|timeout|timed out|超时/.test(error)) {
+    return "backend";
+  }
+  return null;
+}
+var NO_TRANSCRIPT = /无字幕|没有字幕|未找到字幕|字幕不可用|no subtitles?|no captions?|subtitles? not (?:found|available)|transcript (?:not available|unavailable)|没有文稿/;
 function displayTaskTitle(raw) {
   const match = raw.match(/^(文稿(?:处理)?|本地文件|YouTube视频|B站视频)_(?:\d{8}_\d{6}_)?(.+)$/);
   if (!match) return raw;
@@ -12492,6 +12546,9 @@ function safeCoverUrl(value) {
 }
 function summarizeError(raw) {
   const error = raw.toLowerCase();
+  if (NO_TRANSCRIPT.test(error)) {
+    return "\u6CA1\u6709\u5B57\u5E55";
+  }
   if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) {
     return "\u767B\u5F55\u72B6\u6001\u5DF2\u5931\u6548 \xB7 \u66F4\u65B0\u51ED\u8BC1\u540E\u91CD\u8BD5";
   }
@@ -14205,6 +14262,7 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
       renderLibraryPanel(body, this.context());
     } else {
       renderJobsPanel(body, this.context());
+      this.renderFooter(panel);
     }
     panel.scrollTop = scrollTop;
   }
@@ -14228,6 +14286,18 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
         this.renderPanels();
       }
     );
+  }
+  /** 任务页底部：不常去但要找得到的入口，一行安静的文字 */
+  renderFooter(panel) {
+    const foot = panel.createDiv({ cls: "vs-foot-links" });
+    const link = (text, onClick) => {
+      const button = foot.createEl("button", { text, cls: "vs-link-btn", attr: { type: "button" } });
+      button.addEventListener("click", onClick);
+    };
+    const run = (id) => this.app.commands?.executeCommandById?.(`${this.plugin.manifest.id}:${id}`);
+    link("\u590D\u4E60\u5B66\u4E60\u5361", () => run("learning-review-due"));
+    link("\u8DE8\u89C6\u9891\u641C\u7D22", () => run("memory-search"));
+    link("\u8BBE\u7F6E", () => openSettings(this.context()));
   }
   async openNote(path) {
     let file = this.app.vault.getAbstractFileByPath(path);
@@ -18498,7 +18568,7 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
   }
   onOpen() {
     this.contentEl.empty();
-    this.contentEl.addClass("vs-knowledge-lab");
+    this.contentEl.addClass("vs-modal", "vs-knowledge-lab");
     this.contentEl.createEl("h2", {
       text: this.mode === "memory" ? "\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6\u641C\u7D22" : "\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4"
     });
@@ -19420,7 +19490,7 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
   }
   onOpen() {
     this.setTitle("\u89C6\u9891\u5B66\u4E60\u590D\u4E60");
-    this.contentEl.addClass("vs-learning-review-modal");
+    this.contentEl.addClass("vs-modal", "vs-learning-review-modal");
     this.renderLoading();
     void this.refreshQueue();
   }
@@ -20503,6 +20573,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       void this.handleProtocolRequest(params);
     });
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
+    this.applyPaperStyle();
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (file instanceof import_obsidian18.TFile && file.extension === "md") {
@@ -20532,7 +20603,12 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       })
     );
   }
+  /** 纸墨风格只是 body 上的一个类，样式表在它下面叠加细节。 */
+  applyPaperStyle() {
+    document.body.toggleClass("vs-paper", this.settings.paperStyle === true);
+  }
   onunload() {
+    document.body.removeClass("vs-paper");
     if (this.historySaveTimer !== null) {
       window.clearTimeout(this.historySaveTimer);
       this.historySaveTimer = null;
@@ -21348,6 +21424,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     this.trimHistory();
     await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
     this.queueHistorySave();
+    this.applyPaperStyle();
   }
   // ===== history.json 读写 =====
   get historyFilePath() {
@@ -22082,42 +22159,38 @@ function normalizeSuccessStatusValue(value) {
 var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
-    this.activeTab = "general";
     this.plugin = plugin;
   }
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.addClass("video-summary-settings-tabs-container");
     containerEl.addClass("vs-settings");
     this.renderSettingsHeader(containerEl);
-    this.renderTabs(containerEl);
-    const tabContent = containerEl.createDiv({ cls: "tab-content-container" });
-    switch (this.activeTab) {
-      case "general":
-        this.createSetupGuideSection(tabContent);
-        this.createBasicSection(tabContent);
-        break;
-      case "workflow":
-        this.createApiSection(tabContent);
-        this.createCookiesSection(tabContent);
-        this.createPlatformMatrixSection(tabContent);
-        break;
-      case "core":
-        this.createQuickProcessingSection(tabContent);
-        this.createFileProcessingSection(tabContent);
-        break;
-      case "advanced":
-        this.createPayloadKeysSection(tabContent);
-        this.createAdvancedSection(tabContent);
-        break;
-    }
+    this.group(containerEl, "\u8FDE\u63A5", "\u5904\u7406\u670D\u52A1\u5728\u54EA\u91CC\uFF0C\u4EE5\u53CA\u7B2C\u4E00\u6B21\u4F7F\u7528\u65F6\u7684\u68C0\u67E5\u3002");
+    this.createSetupGuideSection(containerEl);
+    this.createApiSection(containerEl);
+    this.group(containerEl, "\u8F93\u51FA", "\u7B14\u8BB0\u5199\u5230\u54EA\u3001\u53EB\u4EC0\u4E48\u3001\u957F\u4EC0\u4E48\u6837\u3002");
+    this.createOutputSection(containerEl);
+    this.createFileProcessingSection(containerEl);
+    this.group(containerEl, "\u5904\u7406", "\u9ED8\u8BA4\u600E\u4E48\u7406\u89E3\u4E00\u4E2A\u89C6\u9891\uFF1B\u4FA7\u680F\u91CC\u4E5F\u53EF\u4EE5\u9010\u6B21\u6539\u3002");
+    this.createBasicSection(containerEl);
+    this.createQuickProcessingSection(containerEl);
+    const advanced = containerEl.createEl("details", { cls: "vs-settings-advanced" });
+    advanced.createEl("summary", { text: "\u9AD8\u7EA7\uFF1ACookies\u3001\u5E73\u53F0\u8BF4\u660E\u3001\u8BF7\u6C42\u5B57\u6BB5\u540D\u3001\u7F13\u5B58\u3001\u8C03\u8BD5\u65E5\u5FD7" });
+    this.createCookiesSection(advanced);
+    this.createPlatformMatrixSection(advanced);
+    this.createPayloadKeysSection(advanced);
+    this.createAdvancedSection(advanced);
   }
-  /** 页头：渐变图标 + 标题 + 版本副行 + 后端状态胶囊（替代原来的 emoji h2） */
+  /** 一段的标题与一句说明 */
+  group(containerEl, title, desc) {
+    const head = containerEl.createDiv({ cls: "vs-settings-group" });
+    head.createEl("h3", { text: title });
+    head.createDiv({ text: desc, cls: "vs-settings-group-desc" });
+  }
+  /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
   renderSettingsHeader(containerEl) {
     const header = containerEl.createDiv({ cls: "vs-settings-header" });
-    const badge = header.createDiv({ cls: "vs-settings-badge" });
-    (0, import_obsidian18.setIcon)(badge, "clapperboard");
     const text = header.createDiv({ cls: "vs-settings-heading" });
     text.createDiv({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-settings-title" });
     const backendLabel = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n webhook";
@@ -22144,39 +22217,14 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       }
     });
   }
-  /** 统一的分区卡片：lucide 图标 + 标题，取代各处 emoji h3 */
-  sectionCard(containerEl, icon, title, extraCls = "") {
+  /** 段内小节：一行小标题，不画卡片框 */
+  sectionCard(containerEl, _icon, title, extraCls = "") {
     const section3 = containerEl.createDiv({
-      cls: `vs-settings-card ${extraCls}`.trim()
+      cls: `vs-settings-section ${extraCls}`.trim()
     });
-    const titleRow = section3.createDiv({ cls: "vs-settings-card-title" });
-    const iconEl = titleRow.createSpan({ cls: "vs-settings-card-icon" });
-    (0, import_obsidian18.setIcon)(iconEl, icon);
-    titleRow.createSpan({ text: title, cls: "vs-settings-card-text" });
+    const titleRow = section3.createDiv({ cls: "vs-settings-section-title" });
+    titleRow.createSpan({ text: title });
     return { section: section3, titleRow };
-  }
-  renderTabs(containerEl) {
-    const tabsContainer = containerEl.createDiv({ cls: "settings-tabs-bar" });
-    const tabs = [
-      { id: "general", label: "\u57FA\u7840\u4E0E\u4FDD\u5B58", icon: "settings" },
-      { id: "workflow", label: "\u540E\u7AEF\u4E0E\u8FDE\u63A5", icon: "link" },
-      { id: "core", label: "\u5904\u7406\u884C\u4E3A", icon: "zap" },
-      { id: "advanced", label: "\u9AD8\u7EA7\u53C2\u6570", icon: "wrench" }
-    ];
-    const seg = tabsContainer.createDiv({ cls: "vs-seg" });
-    tabs.forEach((tab) => {
-      const tabBtn = seg.createEl("button", {
-        cls: `vs-seg-item${this.activeTab === tab.id ? " is-active" : ""}`,
-        attr: { type: "button" }
-      });
-      const iconEl = tabBtn.createSpan({ cls: "vs-seg-icon" });
-      (0, import_obsidian18.setIcon)(iconEl, tab.icon);
-      tabBtn.createSpan({ text: tab.label });
-      tabBtn.onclick = () => {
-        this.activeTab = tab.id;
-        this.display();
-      };
-    });
   }
   createSetupGuideSection(containerEl) {
     const { section: section3, titleRow } = this.sectionCard(
@@ -22353,7 +22401,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     const { section: section3 } = this.sectionCard(
       containerEl,
       "layout-grid",
-      "\u5E73\u53F0\u80FD\u529B\u77E9\u9635",
+      "\u5404\u5E73\u53F0\u8BF4\u660E",
       "platform-matrix-section"
     );
     section3.createEl("p", {
@@ -22528,7 +22576,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     });
   }
   createApiSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "link", "\u4E3B\u5165\u53E3\u4E0E API \u914D\u7F6E");
+    const { section: section3 } = this.sectionCard(containerEl, "link", "\u5904\u7406\u670D\u52A1");
     this.createWorkflowCompatibilityCard(section3);
     new import_obsidian18.Setting(section3).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
       "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u5F53\u524D\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8981\u8C03\u7528 n8n \u8FD8\u662F\u672C\u5730 Codex worker\u3002"
@@ -22689,7 +22737,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         const actions = row.createDiv({ cls: "webhook-profile-actions" });
         const isActive = profile.id === this.plugin.settings.activeWebhookId;
         const defaultBtn = actions.createEl("button", {
-          text: isActive ? "\u2705 \u9ED8\u8BA4" : "\u8BBE\u4E3A\u9ED8\u8BA4",
+          text: isActive ? "\u9ED8\u8BA4" : "\u8BBE\u4E3A\u9ED8\u8BA4",
           cls: "action-btn secondary webhook-default-btn"
         });
         defaultBtn.onclick = async () => {
@@ -22738,13 +22786,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     );
   }
   createBasicSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "sliders-horizontal", "\u57FA\u7840\u914D\u7F6E");
-    new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
-      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
-        this.plugin.settings.defaultLanguage = value;
-        await this.plugin.saveSettings();
-      })
-    );
+    const { section: section3 } = this.sectionCard(containerEl, "sliders-horizontal", "\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F");
     new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6").setDesc(
       this.plugin.settings.activeBackend === "codex-worker" ? "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF1B\u6DF1\u5EA6\u89C6\u89C9\u4F1A\u5206\u6790\u5173\u952E\u753B\u9762\u3002" : "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\u3002\u6DF1\u5EA6\u89C6\u89C9\u9700\u8981\u5148\u5207\u6362\u5230 Codex Worker\u3002"
     ).addDropdown(
@@ -22874,6 +22916,15 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+  }
+  createOutputSection(containerEl) {
+    const { section: section3 } = this.sectionCard(containerEl, "folder", "\u7B14\u8BB0");
+    new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
+      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
+        this.plugin.settings.defaultLanguage = value;
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian18.Setting(section3).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
@@ -22892,9 +22943,15 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         }
       })
     );
+    new import_obsidian18.Setting(section3).setName("Paper & ink style").setDesc("\u7EB8\u58A8\u98CE\u683C\uFF1A\u7EB8\u611F\u5E95\u7EB9\u3001\u7EC6\u58A8\u7EBF\u3001\u886C\u7EBF\u6807\u9898\u3002\u5173\u95ED\u65F6\u5B8C\u5168\u8DDF\u968F\u5F53\u524D Obsidian \u4E3B\u9898\u3002").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.paperStyle === true).onChange(async (value) => {
+        this.plugin.settings.paperStyle = value;
+        await this.plugin.saveSettings();
+      })
+    );
   }
   createQuickProcessingSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "zap", "\u4E00\u952E\u5904\u7406\u914D\u7F6E");
+    const { section: section3 } = this.sectionCard(containerEl, "zap", "\u547D\u4EE4\u9762\u677F\u91CC\u7684\u4E00\u952E\u5904\u7406");
     const summarySubsection = section3.createEl("div", { cls: "vs-subsection" });
     summarySubsection.createEl("div", { text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", cls: "vs-subsection-title" });
     new import_obsidian18.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
@@ -22925,7 +22982,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     );
   }
   createFileProcessingSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "files", "\u6587\u4EF6\u5904\u7406\u914D\u7F6E");
+    const { section: section3 } = this.sectionCard(containerEl, "files", "\u6587\u4EF6\u4E0E\u547D\u540D");
     new import_obsidian18.Setting(section3).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
@@ -22956,7 +23013,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     );
   }
   createPayloadKeysSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "radio", "Webhook Payload \u952E\u914D\u7F6E");
+    const { section: section3 } = this.sectionCard(containerEl, "radio", "\u8BF7\u6C42\u5B57\u6BB5\u540D");
     section3.createEl("p", {
       text: "\u81EA\u5B9A\u4E49\u53D1\u9001\u5230 n8n webhook \u7684 JSON \u5BF9\u8C61\u4E2D\u7684\u952E\u540D\u3002\u8FD9\u5141\u8BB8\u60A8\u9002\u5E94\u4E0D\u540C\u7684 n8n \u5DE5\u4F5C\u6D41\u914D\u7F6E\u3002",
       cls: "setting-item-description"
@@ -22980,7 +23037,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     createKeySetting("\u672C\u5730\u6587\u4EF6\u952E", "\u53D1\u9001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u7684\u952E\u540D", "local_file");
   }
   createAdvancedSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "wrench", "\u9AD8\u7EA7\u914D\u7F6E");
+    const { section: section3 } = this.sectionCard(containerEl, "wrench", "\u7F13\u5B58\u4E0E\u8C03\u8BD5");
     new import_obsidian18.Setting(section3).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
@@ -23030,7 +23087,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian18.Setting(cacheSubsection).setName("\u2705 \u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
+    const enableCacheSetting = new import_obsidian18.Setting(cacheSubsection).setName("\u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
@@ -23039,7 +23096,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian18.Setting(cacheSubsection).setName("\u23F0 \u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
+    const expirySetting = new import_obsidian18.Setting(cacheSubsection).setName("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
       (slider) => slider.setLimits(1, 365, 1).setValue(this.plugin.settings.cacheExpiryDays ?? 30).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.cacheExpiryDays = value;
         this.plugin.api.setCacheConfig(1e3, value);
@@ -23064,7 +23121,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       }
     };
     const cleanupBtn = quickActionsContainer.createEl("button", {
-      text: "\u{1F9F9} \u6E05\u7406\u8FC7\u671F",
+      text: "\u6E05\u7406\u8FC7\u671F",
       cls: "cache-quick-btn"
     });
     cleanupBtn.onclick = async () => {
@@ -23078,7 +23135,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       }
     };
     const clearBtn = quickActionsContainer.createEl("button", {
-      text: "\u{1F5D1}\uFE0F \u6E05\u7A7A\u6240\u6709",
+      text: "\u6E05\u7A7A\u6240\u6709",
       cls: "cache-quick-btn cache-danger-btn"
     });
     clearBtn.onclick = async () => {
@@ -23162,11 +23219,11 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       }
       const actionsSection = container.createEl("div", { cls: "cache-preview-actions" });
       actionsSection.createEl("button", {
-        text: "\u{1F504} \u5237\u65B0",
+        text: "\u5237\u65B0",
         cls: "cache-action-btn"
       }).onclick = refreshModalContent;
       actionsSection.createEl("button", {
-        text: "\u274C \u5173\u95ED",
+        text: "\u5173\u95ED",
         cls: "cache-action-btn"
       }).onclick = () => {
         modal.close();

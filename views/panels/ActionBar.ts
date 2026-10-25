@@ -1,11 +1,12 @@
 import { Notice, TFile, TFolder, setIcon } from 'obsidian';
 import { ViewContext } from '../context';
 import {
-  configChip,
   iconButton,
   languageLabel,
   modeLabel,
   platformText,
+  segmented,
+  showMenu,
   statusMeta,
   textButton,
 } from '../ui';
@@ -49,9 +50,33 @@ interface BackendProbeCache {
 /** 探测缓存跟随插件实例；视图重绘或关闭重开都不会重复请求。 */
 const backendProbeCaches = new WeakMap<object, BackendProbeCache>();
 
+/** 侧栏首屏三档：只要文稿 / 总结（极速）/ 证据（保留时间轴）。其余组合在“更多选项”里。 */
+type QuickMode = 'transcript' | 'summary' | 'evidence';
+
+function currentQuickMode(ctx: ViewContext): QuickMode | null {
+  const settings = ctx.plugin.settings;
+  if (settings.defaultMode === 'transcript-only') return 'transcript';
+  if (settings.defaultMode !== 'summary') return null;
+  return settings.defaultProcessingDepth === 'quick' ? 'summary' : 'evidence';
+}
+
+async function setQuickMode(ctx: ViewContext, mode: QuickMode) {
+  const { plugin } = ctx;
+  if (mode === 'transcript') {
+    plugin.settings.defaultMode = 'transcript-only';
+  } else {
+    plugin.settings.defaultMode = 'summary';
+    const depth: ProcessingDepth = mode === 'summary' ? 'quick' : 'evidence';
+    plugin.settings.defaultProcessingDepth = depth;
+    plugin.api.setAnalysisDefaults({ processingDepth: depth });
+  }
+  await plugin.saveSettings();
+  ctx.renderAll();
+}
+
 /**
- * 顶部行动区：当前笔记上下文 + 一个智能输入框 + 配置 chip + 主按钮。
- * 旧版这里是三个 radio、四个 select、两个额外输入框和一个折叠面板。
+ * 顶部：标题、后端状态、当前笔记，然后只有一个添加框。
+ * 模式只露三档，学习卡一个勾；语言、模型、保存位置等收进“更多选项”，少用的命令在“···”。
  */
 export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   const { state } = ctx;
@@ -60,16 +85,13 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   renderHeader(root, ctx);
   renderContextStrip(root, ctx);
 
-  const inputCard = root.createDiv({ cls: 'vs-input-card' });
-  const inputRow = inputCard.createDiv({ cls: 'vs-input-row' });
-  const inputIcon = inputRow.createDiv({ cls: 'vs-input-icon' });
-  setIcon(inputIcon, 'clipboard-paste');
-
-  const input = inputRow.createEl('textarea', {
+  const box = root.createDiv({ cls: 'vs-add' });
+  const input = box.createEl('textarea', {
     cls: 'vs-input',
     attr: {
-      rows: '1',
-      placeholder: '粘贴视频链接，多行即批量…',
+      rows: '2',
+      placeholder: '粘贴链接、拖入音视频，或直接粘贴文稿',
+      'aria-label': '添加视频',
     },
   });
   input.value = state.inputDraft;
@@ -77,56 +99,56 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     state.inputDraft = input.value;
   });
   autoGrow(input);
+  iconButton(box, 'folder-open', '选择本机音视频', () => pickLocalFiles(ctx, input), 'vs-add-file');
+  bindFileDrop(box, ctx, input);
 
-  iconButton(
-    inputRow,
-    'folder-open',
-    '选择本机文件',
-    () => pickLocalFiles(ctx, input),
-    'vs-input-action',
-  );
+  const controls = root.createDiv({ cls: 'vs-add-controls' });
+  const quick = currentQuickMode(ctx);
+  segmented<QuickMode>(
+    controls,
+    [
+      { value: 'transcript', label: '只要文稿' },
+      { value: 'summary', label: '总结' },
+      { value: 'evidence', label: '证据' },
+    ],
+    quick ?? ('' as QuickMode),
+    (value) => void setQuickMode(ctx, value),
+  ).addClass('vs-mode-seg');
 
-  const chips = inputCard.createDiv({ cls: 'vs-chip-row' });
-  renderChips(chips, ctx);
+  const learn = controls.createEl('label', { cls: 'vs-check' });
+  const learnBox = learn.createEl('input', { attr: { type: 'checkbox' } });
+  learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
+  learn.createSpan({ text: '学习卡' });
+  learnBox.addEventListener('change', async () => {
+    ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
+    ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
+    await ctx.plugin.saveSettings();
+  });
 
-  const advanced = root.createDiv({ cls: 'vs-advanced' });
-  const advancedFields = renderAdvanced(advanced, ctx, input);
-
-  const actions = root.createDiv({ cls: 'vs-action-row' });
-  const submitBtn = actions.createEl('button', {
-    text: '开始处理',
+  const submitBtn = controls.createEl('button', {
+    text: '开始',
     cls: 'vs-primary-btn',
     attr: { type: 'button' },
   });
 
-  const cacheBtn = iconButton(
-    actions,
-    'refresh-cw',
-    state.ignoreCache ? '忽略缓存：开（强制重新处理）' : '忽略缓存：关',
-    () => {
-      state.ignoreCache = !state.ignoreCache;
-      cacheBtn.toggleClass('is-active', state.ignoreCache);
-      cacheBtn.setAttr(
-        'aria-label',
-        state.ignoreCache ? '忽略缓存：开（强制重新处理）' : '忽略缓存：关',
-      );
-    },
-    'vs-toggle-btn',
-  );
-  cacheBtn.toggleClass('is-active', state.ignoreCache);
+  root.createDiv({
+    cls: 'vs-add-hint',
+    text: quick === null ? `当前：${modeLabel(ctx.plugin.settings.defaultMode)}（在更多选项里改）· 多行即批量 · ⌘ Enter 开始` : '多行即批量 · ⌘ Enter 开始',
+  });
 
-  iconButton(
-    actions,
-    'sliders-horizontal',
-    state.advancedOpen ? '收起高级选项' : '展开高级选项',
-    () => {
-      state.advancedOpen = !state.advancedOpen;
-      ctx.renderAll();
-    },
-    state.advancedOpen ? 'is-active' : undefined,
-  );
-
-  advanced.toggleClass('is-open', state.advancedOpen);
+  const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? ' is-open' : ''}` });
+  const foldToggle = fold.createEl('button', {
+    text: '更多选项',
+    cls: 'vs-fold-toggle',
+    attr: { type: 'button', 'aria-expanded': state.advancedOpen ? 'true' : 'false' },
+  });
+  foldToggle.addEventListener('click', () => {
+    state.advancedOpen = !state.advancedOpen;
+    ctx.renderAll();
+  });
+  const foldBody = fold.createDiv({ cls: 'vs-fold-body' });
+  renderOptions(foldBody, ctx);
+  const advancedFields = renderAdvanced(foldBody, ctx, input);
 
   submitBtn.addEventListener('click', async () => {
     submitBtn.disabled = true;
@@ -145,10 +167,29 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   });
 }
 
+/** 拖进来的本机文件只取文件名：后端（docker/n8n）只认 uploads 目录里的文件名 */
+function bindFileDrop(box: HTMLElement, ctx: ViewContext, input: HTMLTextAreaElement) {
+  box.addEventListener('dragover', (event) => {
+    if (!event.dataTransfer?.types.includes('Files')) return;
+    event.preventDefault();
+    box.addClass('is-drop');
+  });
+  box.addEventListener('dragleave', () => box.removeClass('is-drop'));
+  box.addEventListener('drop', (event) => {
+    box.removeClass('is-drop');
+    const names = Array.from(event.dataTransfer?.files || [])
+      .map((file) => file.name)
+      .filter(Boolean);
+    if (names.length === 0) return;
+    event.preventDefault();
+    appendFileNames(ctx, input, names);
+  });
+}
+
 function renderHeader(root: HTMLElement, ctx: ViewContext) {
   const header = root.createDiv({ cls: 'vs-header' });
   header.createSpan({ text: '视频总结', cls: 'vs-header-title' });
-  const actions = header.createDiv({ cls: 'vs-header-actions' });
+  iconButton(header, 'more-horizontal', '更多', (event) => showMoreMenu(ctx, event), 'vs-header-more');
 
   const backend = activeBackendInfo(ctx);
   const cachedResult = freshProbeResult(ctx, backend);
@@ -159,22 +200,22 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
       : cachedResult?.state || 'is-unknown';
   ctx.setBackendState(initialState);
 
-  const statusPillEl = actions.createEl('button', {
-    cls: 'vs-backend-pill',
+  const statusLine = root.createEl('button', {
+    cls: 'vs-backend-line',
     attr: { type: 'button' },
   });
-  const dot = statusPillEl.createSpan({ cls: 'vs-backend-dot' });
-  const label = statusPillEl.createSpan();
-  updateBackendPill(statusPillEl, dot, label, backend, initialState, cachedResult);
+  const dot = statusLine.createSpan({ cls: 'vs-backend-dot' });
+  const label = statusLine.createSpan();
+  updateBackendPill(statusLine, dot, label, backend, initialState, cachedResult);
 
-  statusPillEl.addEventListener('click', async (event) => {
+  statusLine.addEventListener('click', async (event) => {
     event.preventDefault();
     if (ctx.backendState() === 'is-checking') return;
 
     ctx.setBackendState('is-checking');
-    updateBackendPill(statusPillEl, dot, label, backend, 'is-checking');
+    updateBackendPill(statusLine, dot, label, backend, 'is-checking');
     const result = await probeBackend(ctx, backend, true);
-    updateBackendPill(statusPillEl, dot, label, backend, result.state, result);
+    updateBackendPill(statusLine, dot, label, backend, result.state, result);
     new Notice(
       result.state === 'is-online'
         ? `${backend.label} 连接正常（${result.durationMs ?? 0}ms）`
@@ -187,20 +228,44 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
   // 首次打开或缓存过期时才自动检测；重绘会复用 pending/result，不重复发请求。
   if (initialState === 'is-unknown' || initialState === 'is-checking') {
     ctx.setBackendState('is-checking');
-    updateBackendPill(statusPillEl, dot, label, backend, 'is-checking');
+    updateBackendPill(statusLine, dot, label, backend, 'is-checking');
     void probeBackend(ctx, backend).then((result) => {
       ctx.setBackendState(result.state);
       ctx.renderAll();
     });
   }
+}
 
-  actions.createEl('button', { text: '插件设置', cls: 'plugin-settings-entry', attr: { type: 'button' } }).addEventListener('click', () => {
-    const settingApi = (ctx.plugin.app as any).setting;
-    if (settingApi?.open) {
-      settingApi.open();
-      settingApi.openTabById?.(ctx.plugin.manifest.id);
-    }
-  });
+/** “···”：不常用但保留的入口，都转给已有命令 */
+function showMoreMenu(ctx: ViewContext, event: MouseEvent) {
+  const run = (id: string) => {
+    const commands = (ctx.plugin.app as any).commands;
+    commands?.executeCommandById?.(`${ctx.plugin.manifest.id}:${id}`);
+  };
+  showMenu(event, [
+    { title: '批量处理视频', icon: 'list-plus', onClick: () => run('batch') },
+    { title: '处理所有待处理视频', icon: 'zap', onClick: () => run('process-all-pending') },
+    { title: '复习到期的学习卡', icon: 'brain', onClick: () => run('learning-review-due') },
+    { title: '搜索跨模态视频记忆', icon: 'search', onClick: () => run('memory-search') },
+    { title: '多视频论点实验室', icon: 'flask-conical', onClick: () => run('claim-lab') },
+    { title: '生成或更新视频库 Base', icon: 'table', onClick: () => run('generate-base') },
+    { title: '测试处理后端', icon: 'plug', onClick: () => run('test-connection') },
+    {
+      title: '打开 Codex Worker 控制台',
+      icon: 'gauge',
+      disabled: ctx.plugin.settings.activeBackend !== 'codex-worker',
+      onClick: () => run('open-worker-dashboard'),
+    },
+    { title: '插件设置', icon: 'settings', onClick: () => openSettings(ctx) },
+  ]);
+}
+
+export function openSettings(ctx: ViewContext) {
+  const settingApi = (ctx.plugin.app as any).setting;
+  if (settingApi?.open) {
+    settingApi.open();
+    settingApi.openTabById?.(ctx.plugin.manifest.id);
+  }
 }
 
 function activeBackendInfo(ctx: ViewContext): BackendInfo {
@@ -318,13 +383,13 @@ function updateBackendPill(
 ) {
   dot.className = `vs-backend-dot ${state}`;
   if (state === 'is-checking') {
-    label.setText(`${backend.label} 检测中…`);
+    label.setText(`正在检测 ${backend.label}…`);
     pill.setAttr('title', `${backend.label}：正在检测连接`);
     return;
   }
   if (state === 'is-online') {
     const reachabilityOnly = result?.verified === false;
-    label.setText(`${backend.label} ${reachabilityOnly ? '可达' : '在线'}`);
+    label.setText(`${backend.label} 已连接`);
     pill.setAttr(
       'title',
       `${backend.label} ${
@@ -337,7 +402,7 @@ function updateBackendPill(
   }
   if (state === 'is-offline') {
     const reason = result?.reason || '无法连接';
-    label.setText(`${backend.label} 离线 · ${reason}`);
+    label.setText(`${backend.label} 未连接 · ${reason}`);
     pill.setAttr(
       'title',
       `${backend.label} 离线：${reason}${
@@ -346,7 +411,7 @@ function updateBackendPill(
     );
     return;
   }
-  label.setText(`${backend.label} 未检测`);
+  label.setText(`${backend.label} 未检测 · 点此测试`);
   pill.setAttr('title', `${backend.label}：点击测试连接`);
 }
 
@@ -406,6 +471,15 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   }
 
   const liveJob = entry ? liveJobForNote(ctx.plugin.jobs, entry.path) : undefined;
+  if (entry?.artifactId && status === 'success') {
+    const artifactId = entry.artifactId;
+    textButton(
+      strip,
+      '陪读',
+      () => ctx.openDetail({ kind: 'note', path: entry.path, artifactId }),
+      'vs-context-action',
+    );
+  }
   if (status === 'review' && liveJob) {
     textButton(
       strip,
@@ -427,36 +501,29 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   }
 }
 
-function renderChips(chips: HTMLElement, ctx: ViewContext) {
+/** “更多选项”里的默认值：一行一个，标签在左，当前值在右 */
+function renderOptions(container: HTMLElement, ctx: ViewContext) {
   const { plugin } = ctx;
   const settings = plugin.settings;
+  const row = (label: string) => {
+    const el = container.createDiv({ cls: 'vs-opt' });
+    el.createSpan({ text: label, cls: 'vs-opt-label' });
+    return el.createDiv({ cls: 'vs-opt-value' });
+  };
 
-  configChip(
-    chips,
-    '处理模式',
-    modeLabel(settings.defaultMode),
+  const modeHost = row('处理方式');
+  segmented<ProcessingMode>(
+    modeHost,
     (['summary', 'transcript-only', 'info-only'] as ProcessingMode[]).map((mode) => ({
-      title: modeLabel(mode),
-      onClick: async () => {
-        settings.defaultMode = mode;
-        await plugin.saveSettings();
-        ctx.renderAll();
-      },
+      value: mode,
+      label: modeLabel(mode),
     })),
-  );
-
-  configChip(
-    chips,
-    '输出语言',
-    languageLabel(settings.defaultLanguage),
-    (['zh', 'en', 'ja'] as SupportedLanguage[]).map((language) => ({
-      title: languageLabel(language),
-      onClick: async () => {
-        settings.defaultLanguage = language;
-        await plugin.saveSettings();
-        ctx.renderAll();
-      },
-    })),
+    settings.defaultMode,
+    async (mode) => {
+      settings.defaultMode = mode;
+      await plugin.saveSettings();
+      ctx.renderAll();
+    },
   );
 
   const depthLabels: Record<ProcessingDepth, string> = {
@@ -464,23 +531,37 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
     evidence: '证据',
     'deep-visual': '深度视觉',
   };
-  configChip(
-    chips,
-    '理解深度',
-    depthLabels[settings.defaultProcessingDepth],
+  segmented<ProcessingDepth>(
+    row('理解深度'),
     (['quick', 'evidence', 'deep-visual'] as ProcessingDepth[]).map((depth) => ({
-      title: depthLabels[depth],
-      onClick: async () => {
-        if (depth === 'deep-visual' && settings.activeBackend !== 'codex-worker') {
-          new Notice('深度视觉只由 Codex Worker 执行；当前 n8n 后端可用到证据模式。', 7000);
-          return;
-        }
-        settings.defaultProcessingDepth = depth;
-        plugin.api.setAnalysisDefaults({ processingDepth: depth });
-        await plugin.saveSettings();
-        ctx.renderAll();
-      },
+      value: depth,
+      label: depthLabels[depth],
     })),
+    settings.defaultProcessingDepth,
+    async (depth) => {
+      if (depth === 'deep-visual' && settings.activeBackend !== 'codex-worker') {
+        new Notice('深度视觉只由 Codex Worker 执行；当前 n8n 后端可用到证据模式。', 7000);
+        return;
+      }
+      settings.defaultProcessingDepth = depth;
+      plugin.api.setAnalysisDefaults({ processingDepth: depth });
+      await plugin.saveSettings();
+      ctx.renderAll();
+    },
+  );
+
+  segmented<SupportedLanguage>(
+    row('输出语言'),
+    (['zh', 'en', 'ja'] as SupportedLanguage[]).map((language) => ({
+      value: language,
+      label: languageLabel(language),
+    })),
+    settings.defaultLanguage,
+    async (language) => {
+      settings.defaultLanguage = language;
+      await plugin.saveSettings();
+      ctx.renderAll();
+    },
   );
 
   const contentLabels: Record<RequestedContentType, string> = {
@@ -493,62 +574,35 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
     review: '评测',
     general: '通用',
   };
-  const contentTypes: RequestedContentType[] = [
-    'auto',
-    'course',
-    'interview',
-    'tutorial',
-    'news',
-    'meeting',
-    'review',
-    'general',
-  ];
-  configChip(
-    chips,
-    '内容类型',
-    contentLabels[settings.defaultContentType],
-    contentTypes.map((contentType) => ({
-      title: contentLabels[contentType],
-      onClick: async () => {
-        settings.defaultContentType = contentType;
-        settings.autoRouteContent = contentType === 'auto';
-        plugin.api.setAnalysisDefaults({
-          contentType,
-          autoRoute: settings.autoRouteContent,
-        });
-        await plugin.saveSettings();
-        ctx.renderAll();
-      },
-    })),
+  const contentSelect = row('内容类型').createEl('select', { cls: 'dropdown' });
+  (Object.keys(contentLabels) as RequestedContentType[]).forEach((value) =>
+    contentSelect.createEl('option', { text: contentLabels[value], attr: { value } }),
   );
-
-  const models = settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel];
-  configChip(
-    chips,
-    '处理模型',
-    settings.aiModel || models[0] || '默认',
-    models.filter(Boolean).map((model) => ({
-      title: model,
-      onClick: async () => {
-        settings.aiModel = model;
-        plugin.api.setAiModel(model);
-        await plugin.saveSettings();
-        ctx.renderAll();
-      },
-    })),
-  );
-
-  const folderChip = chips.createEl('button', {
-    cls: 'vs-chip',
-    attr: { type: 'button', title: `保存位置：${settings.outputFolder || '当前文件夹'}` },
+  contentSelect.value = settings.defaultContentType;
+  contentSelect.addEventListener('change', async () => {
+    const contentType = contentSelect.value as RequestedContentType;
+    settings.defaultContentType = contentType;
+    settings.autoRouteContent = contentType === 'auto';
+    plugin.api.setAnalysisDefaults({ contentType, autoRoute: settings.autoRouteContent });
+    await plugin.saveSettings();
   });
-  const folderCaret = folderChip.createSpan({ cls: 'vs-chip-caret' });
-  setIcon(folderCaret, 'folder');
-  folderChip.createSpan({
+
+  const models = (settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]).filter(Boolean);
+  const modelSelect = row('处理模型').createEl('select', { cls: 'dropdown' });
+  models.forEach((model) => modelSelect.createEl('option', { text: model, attr: { value: model } }));
+  modelSelect.value = settings.aiModel || models[0] || '';
+  modelSelect.addEventListener('change', async () => {
+    settings.aiModel = modelSelect.value;
+    plugin.api.setAiModel(modelSelect.value);
+    await plugin.saveSettings();
+  });
+
+  const folderBtn = row('保存位置').createEl('button', {
     text: shortenPath(settings.outputFolder || '当前文件夹'),
-    cls: 'vs-chip-value',
+    cls: 'vs-link-btn',
+    attr: { type: 'button', title: settings.outputFolder || '当前文件夹' },
   });
-  folderChip.addEventListener('click', (event) => {
+  folderBtn.addEventListener('click', (event) => {
     event.preventDefault();
     const folders = plugin.app.vault
       .getAllLoadedFiles()
@@ -562,63 +616,25 @@ function renderChips(chips: HTMLElement, ctx: ViewContext) {
     }).open();
   });
 
-  const previewChip = chips.createEl('button', {
-    cls: `vs-chip vs-chip-toggle${settings.previewBeforeWrite ? ' is-active' : ''}`,
-    attr: {
-      type: 'button',
-      title: settings.previewBeforeWrite
-        ? '结果先预览，确认后才写入笔记'
-        : '结果直接写入笔记（点击改为先预览）',
-    },
-  });
-  const previewIcon = previewChip.createSpan({ cls: 'vs-chip-caret' });
-  setIcon(previewIcon, settings.previewBeforeWrite ? 'eye' : 'eye-off');
-  previewChip.createSpan({ text: '先预览', cls: 'vs-chip-value' });
-  previewChip.addEventListener('click', async (event) => {
-    event.preventDefault();
-    settings.previewBeforeWrite = !settings.previewBeforeWrite;
+  const toggles = container.createDiv({ cls: 'vs-opt-checks' });
+  const check = (label: string, title: string, value: boolean, onChange: (value: boolean) => Promise<void>) => {
+    const el = toggles.createEl('label', { cls: 'vs-check', attr: { title } });
+    const box = el.createEl('input', { attr: { type: 'checkbox' } });
+    box.checked = value;
+    el.createSpan({ text: label });
+    box.addEventListener('change', () => void onChange(box.checked));
+  };
+  check('先预览再写入', '结果先预览，确认后才写入笔记', settings.previewBeforeWrite === true, async (value) => {
+    settings.previewBeforeWrite = value;
     await plugin.saveSettings();
-    ctx.renderAll();
   });
-
-  const attentionChip = chips.createEl('button', {
-    cls: `vs-chip vs-chip-toggle${settings.attentionAssessmentEnabled ? ' is-active' : ''}`,
-    attr: {
-      type: 'button',
-      title: settings.attentionAssessmentEnabled
-        ? '已生成观看/略读/跳过判断'
-        : '点击启用观看价值判断',
-    },
-  });
-  const attentionIcon = attentionChip.createSpan({ cls: 'vs-chip-caret' });
-  setIcon(attentionIcon, 'gauge');
-  attentionChip.createSpan({ text: '观看判断', cls: 'vs-chip-value' });
-  attentionChip.addEventListener('click', async () => {
-    settings.attentionAssessmentEnabled = !settings.attentionAssessmentEnabled;
-    plugin.api.setAnalysisDefaults({
-      attentionAssessment: settings.attentionAssessmentEnabled,
-    });
+  check('观看判断', '输出值得看、建议略读或可以跳过', settings.attentionAssessmentEnabled, async (value) => {
+    settings.attentionAssessmentEnabled = value;
+    plugin.api.setAnalysisDefaults({ attentionAssessment: value });
     await plugin.saveSettings();
-    ctx.renderAll();
   });
-
-  const learningChip = chips.createEl('button', {
-    cls: `vs-chip vs-chip-toggle${settings.generateLearningArtifacts ? ' is-active' : ''}`,
-    attr: {
-      type: 'button',
-      title: settings.generateLearningArtifacts ? '已生成学习练习' : '点击启用学习练习',
-    },
-  });
-  const learningIcon = learningChip.createSpan({ cls: 'vs-chip-caret' });
-  setIcon(learningIcon, 'graduation-cap');
-  learningChip.createSpan({ text: '学习练习', cls: 'vs-chip-value' });
-  learningChip.addEventListener('click', async () => {
-    settings.generateLearningArtifacts = !settings.generateLearningArtifacts;
-    plugin.api.setAnalysisDefaults({
-      generateLearning: settings.generateLearningArtifacts,
-    });
-    await plugin.saveSettings();
-    ctx.renderAll();
+  check('这次跳过缓存', '强制重新处理，只对本次打开的侧栏有效', ctx.state.ignoreCache, async (value) => {
+    ctx.state.ignoreCache = value;
   });
 }
 
@@ -657,7 +673,7 @@ function renderAdvanced(
   const transcriptRow = container.createDiv({ cls: 'vs-field' });
   transcriptRow.createEl('label', { text: '手动文稿', cls: 'vs-field-label' });
   const transcript = transcriptRow.createEl('textarea', {
-    cls: 'vs-field-input',
+    cls: 'vs-field-input vs-transcript-input',
     attr: { rows: '3', placeholder: '视频没有字幕时，在这里贴文稿' },
   });
   transcript.value = ctx.state.transcriptDraft;
@@ -806,15 +822,18 @@ function pickLocalFiles(ctx: ViewContext, input: HTMLTextAreaElement) {
     const names = Array.from(picker.files || [])
       .map((file) => file.name)
       .filter(Boolean);
-    if (names.length === 0) return;
-    // 浏览器只给得到文件名，不给完整路径；n8n/docker 场景本来也只认 uploads 里的文件名
-    const current = input.value.trim();
-    input.value = current ? `${current}\n${names.join('\n')}` : names.join('\n');
-    ctx.state.inputDraft = input.value;
-    input.dispatchEvent(new Event('input'));
-    new Notice(`已填入 ${names.length} 个文件名，确认它们在后端可访问的目录里`);
+    if (names.length > 0) appendFileNames(ctx, input, names);
   });
   picker.click();
+}
+
+// 浏览器只给得到文件名，不给完整路径；n8n/docker 场景本来也只认 uploads 里的文件名
+function appendFileNames(ctx: ViewContext, input: HTMLTextAreaElement, names: string[]) {
+  const current = input.value.trim();
+  input.value = current ? `${current}\n${names.join('\n')}` : names.join('\n');
+  ctx.state.inputDraft = input.value;
+  input.dispatchEvent(new Event('input'));
+  new Notice(`已填入 ${names.length} 个文件名，确认它们在后端可访问的目录里`);
 }
 
 function autoGrow(input: HTMLTextAreaElement) {

@@ -294,6 +294,8 @@ export interface VideoSummarySettings {
   autoRouteContent: boolean;
   attentionAssessmentEnabled: boolean;
   generateLearningArtifacts: boolean;
+  /** 纸墨风格：默认关，打开后在 body 上加 vs-paper，叠加纸感和细墨线 */
+  paperStyle: boolean;
   aiModel: string;
   customAiModels: string[];
   timeoutMinutes: number;

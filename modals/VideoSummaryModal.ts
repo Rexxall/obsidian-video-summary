@@ -152,7 +152,7 @@ export class VideoSummaryModal extends Modal {
     });
 
     // 添加样式
-    contentEl.addClass('video-summary-modal');
+    contentEl.addClass('vs-modal', 'video-summary-modal');
   }
 
   async processVideo() {

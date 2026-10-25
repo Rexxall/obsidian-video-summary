@@ -36,7 +36,7 @@ export class KnowledgeLabModal extends Modal {
 
   onOpen(): void {
     this.contentEl.empty();
-    this.contentEl.addClass('vs-knowledge-lab');
+    this.contentEl.addClass('vs-modal', 'vs-knowledge-lab');
     this.contentEl.createEl('h2', {
       text: this.mode === 'memory' ? '跨模态视频记忆搜索' : '多视频论点实验室',
     });

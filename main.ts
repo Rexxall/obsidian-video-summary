@@ -167,6 +167,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 注册设置页面
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
+    this.applyPaperStyle();
 
     // 索引增量维护：以前是每次文件变动就整块重建侧栏 DOM，现在只更新受影响的那条记录
     this.registerEvent(
@@ -199,7 +200,13 @@ export default class VideoSummaryPlugin extends Plugin {
     );
   }
 
+  /** 纸墨风格只是 body 上的一个类，样式表在它下面叠加细节。 */
+  applyPaperStyle() {
+    document.body.toggleClass('vs-paper', this.settings.paperStyle === true);
+  }
+
   onunload() {
+    document.body.removeClass('vs-paper');
     // 卸载前把待写入的历史落盘
     if (this.historySaveTimer !== null) {
       window.clearTimeout(this.historySaveTimer);
@@ -1249,6 +1256,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // data.json 只存配置；history / webhookHistory 落在 history.json（见 queueHistorySave）
     await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
     this.queueHistorySave();
+    this.applyPaperStyle();
   }
 
   // ===== history.json 读写 =====
@@ -2112,7 +2120,6 @@ function normalizeSuccessStatusValue(value: unknown): string {
 
 class VideoSummarySettingTab extends PluginSettingTab {
   plugin: VideoSummaryPlugin;
-  private activeTab: 'general' | 'workflow' | 'core' | 'advanced' = 'general';
 
   constructor(app: App, plugin: VideoSummaryPlugin) {
     super(app, plugin);
@@ -2122,43 +2129,41 @@ class VideoSummarySettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.addClass('video-summary-settings-tabs-container');
     containerEl.addClass('vs-settings');
 
     this.renderSettingsHeader(containerEl);
 
-    // 渲染标签页切换按钮
-    this.renderTabs(containerEl);
+    // 一页三段：先连上后端，再定写到哪，最后是怎么处理；不常动的收进“高级”
+    this.group(containerEl, '连接', '处理服务在哪里，以及第一次使用时的检查。');
+    this.createSetupGuideSection(containerEl);
+    this.createApiSection(containerEl);
 
-    const tabContent = containerEl.createDiv({ cls: 'tab-content-container' });
+    this.group(containerEl, '输出', '笔记写到哪、叫什么、长什么样。');
+    this.createOutputSection(containerEl);
+    this.createFileProcessingSection(containerEl);
 
-    // 根据当前选中的标签渲染内容
-    switch (this.activeTab) {
-      case 'general':
-        this.createSetupGuideSection(tabContent);
-        this.createBasicSection(tabContent);
-        break;
-      case 'workflow':
-        this.createApiSection(tabContent);
-        this.createCookiesSection(tabContent);
-        this.createPlatformMatrixSection(tabContent);
-        break;
-      case 'core':
-        this.createQuickProcessingSection(tabContent);
-        this.createFileProcessingSection(tabContent);
-        break;
-      case 'advanced':
-        this.createPayloadKeysSection(tabContent);
-        this.createAdvancedSection(tabContent);
-        break;
-    }
+    this.group(containerEl, '处理', '默认怎么理解一个视频；侧栏里也可以逐次改。');
+    this.createBasicSection(containerEl);
+    this.createQuickProcessingSection(containerEl);
+
+    const advanced = containerEl.createEl('details', { cls: 'vs-settings-advanced' });
+    advanced.createEl('summary', { text: '高级：Cookies、平台说明、请求字段名、缓存、调试日志' });
+    this.createCookiesSection(advanced);
+    this.createPlatformMatrixSection(advanced);
+    this.createPayloadKeysSection(advanced);
+    this.createAdvancedSection(advanced);
   }
 
-  /** 页头：渐变图标 + 标题 + 版本副行 + 后端状态胶囊（替代原来的 emoji h2） */
+  /** 一段的标题与一句说明 */
+  private group(containerEl: HTMLElement, title: string, desc: string) {
+    const head = containerEl.createDiv({ cls: 'vs-settings-group' });
+    head.createEl('h3', { text: title });
+    head.createDiv({ text: desc, cls: 'vs-settings-group-desc' });
+  }
+
+  /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
   private renderSettingsHeader(containerEl: HTMLElement) {
     const header = containerEl.createDiv({ cls: 'vs-settings-header' });
-    const badge = header.createDiv({ cls: 'vs-settings-badge' });
-    setIcon(badge, 'clapperboard');
 
     const text = header.createDiv({ cls: 'vs-settings-heading' });
     text.createDiv({ text: '视频总结', cls: 'vs-settings-title' });
@@ -2189,47 +2194,19 @@ class VideoSummarySettingTab extends PluginSettingTab {
     });
   }
 
-  /** 统一的分区卡片：lucide 图标 + 标题，取代各处 emoji h3 */
+  /** 段内小节：一行小标题，不画卡片框 */
   private sectionCard(
     containerEl: HTMLElement,
-    icon: string,
+    _icon: string,
     title: string,
     extraCls = '',
   ): { section: HTMLElement; titleRow: HTMLElement } {
     const section = containerEl.createDiv({
-      cls: `vs-settings-card ${extraCls}`.trim(),
+      cls: `vs-settings-section ${extraCls}`.trim(),
     });
-    const titleRow = section.createDiv({ cls: 'vs-settings-card-title' });
-    const iconEl = titleRow.createSpan({ cls: 'vs-settings-card-icon' });
-    setIcon(iconEl, icon);
-    titleRow.createSpan({ text: title, cls: 'vs-settings-card-text' });
+    const titleRow = section.createDiv({ cls: 'vs-settings-section-title' });
+    titleRow.createSpan({ text: title });
     return { section, titleRow };
-  }
-
-  private renderTabs(containerEl: HTMLElement) {
-    const tabsContainer = containerEl.createDiv({ cls: 'settings-tabs-bar' });
-
-    const tabs: { id: typeof this.activeTab; label: string; icon: string }[] = [
-      { id: 'general', label: '基础与保存', icon: 'settings' },
-      { id: 'workflow', label: '后端与连接', icon: 'link' },
-      { id: 'core', label: '处理行为', icon: 'zap' },
-      { id: 'advanced', label: '高级参数', icon: 'wrench' },
-    ];
-
-    const seg = tabsContainer.createDiv({ cls: 'vs-seg' });
-    tabs.forEach((tab) => {
-      const tabBtn = seg.createEl('button', {
-        cls: `vs-seg-item${this.activeTab === tab.id ? ' is-active' : ''}`,
-        attr: { type: 'button' },
-      });
-      const iconEl = tabBtn.createSpan({ cls: 'vs-seg-icon' });
-      setIcon(iconEl, tab.icon);
-      tabBtn.createSpan({ text: tab.label });
-      tabBtn.onclick = () => {
-        this.activeTab = tab.id;
-        this.display();
-      };
-    });
   }
 
   private createSetupGuideSection(containerEl: HTMLElement) {
@@ -2450,7 +2427,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { section } = this.sectionCard(
       containerEl,
       'layout-grid',
-      '平台能力矩阵',
+      '各平台说明',
       'platform-matrix-section',
     );
     section.createEl('p', {
@@ -2661,7 +2638,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createApiSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'link', '主入口与 API 配置');
+    const { section } = this.sectionCard(containerEl, 'link', '处理服务');
 
     this.createWorkflowCompatibilityCard(section);
 
@@ -2870,7 +2847,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
         const isActive = profile.id === this.plugin.settings.activeWebhookId;
         const defaultBtn = actions.createEl('button', {
-          text: isActive ? '✅ 默认' : '设为默认',
+          text: isActive ? '默认' : '设为默认',
           cls: 'action-btn secondary webhook-default-btn',
         });
         defaultBtn.onclick = async () => {
@@ -2929,23 +2906,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createBasicSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'sliders-horizontal', '基础配置');
-
-    // 默认语言设置
-    new Setting(section)
-      .setName('默认语言')
-      .setDesc('生成总结的默认语言')
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption('zh', '中文')
-          .addOption('en', '英文')
-          .addOption('ja', '日文')
-          .setValue(this.plugin.settings.defaultLanguage)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultLanguage = value as 'zh' | 'en' | 'ja';
-            await this.plugin.saveSettings();
-          }),
-      );
+    const { section } = this.sectionCard(containerEl, 'sliders-horizontal', '默认处理方式');
 
     new Setting(section)
       .setName('默认理解深度')
@@ -3140,6 +3101,27 @@ class VideoSummarySettingTab extends PluginSettingTab {
           }),
       );
 
+  }
+
+  private createOutputSection(containerEl: HTMLElement) {
+    const { section } = this.sectionCard(containerEl, 'folder', '笔记');
+
+    // 默认语言设置
+    new Setting(section)
+      .setName('默认语言')
+      .setDesc('生成总结的默认语言')
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('zh', '中文')
+          .addOption('en', '英文')
+          .addOption('ja', '日文')
+          .setValue(this.plugin.settings.defaultLanguage)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultLanguage = value as 'zh' | 'en' | 'ja';
+            await this.plugin.saveSettings();
+          }),
+      );
+
     // 自动保存设置
     new Setting(section)
       .setName('自动保存')
@@ -3170,10 +3152,20 @@ class VideoSummarySettingTab extends PluginSettingTab {
             }
           }),
       );
+
+    new Setting(section)
+      .setName('Paper & ink style')
+      .setDesc('纸墨风格：纸感底纹、细墨线、衬线标题。关闭时完全跟随当前 Obsidian 主题。')
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.paperStyle === true).onChange(async (value) => {
+          this.plugin.settings.paperStyle = value;
+          await this.plugin.saveSettings();
+        }),
+      );
   }
 
   private createQuickProcessingSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'zap', '一键处理配置');
+    const { section } = this.sectionCard(containerEl, 'zap', '命令面板里的一键处理');
 
     // 一键总结配置
     const summarySubsection = section.createEl('div', { cls: 'vs-subsection' });
@@ -3243,7 +3235,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createFileProcessingSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'files', '文件处理配置');
+    const { section } = this.sectionCard(containerEl, 'files', '文件与命名');
 
     // 自动重命名开关
     new Setting(section)
@@ -3307,7 +3299,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createPayloadKeysSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'radio', 'Webhook Payload 键配置');
+    const { section } = this.sectionCard(containerEl, 'radio', '请求字段名');
     section.createEl('p', {
       text: '自定义发送到 n8n webhook 的 JSON 对象中的键名。这允许您适应不同的 n8n 工作流配置。',
       cls: 'setting-item-description',
@@ -3341,7 +3333,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createAdvancedSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'wrench', '高级配置');
+    const { section } = this.sectionCard(containerEl, 'wrench', '缓存与调试');
 
     // 调试模式
     new Setting(section)
@@ -3430,7 +3422,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 启用缓存
     const enableCacheSetting = new Setting(cacheSubsection)
-      .setName('✅ 启用缓存')
+      .setName('启用缓存')
       .setDesc('缓存已处理的视频结果，避免重复调用API（节省费用）')
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
@@ -3444,7 +3436,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 缓存过期时间
     const expirySetting = new Setting(cacheSubsection)
-      .setName('⏰ 缓存过期时间')
+      .setName('缓存过期时间')
       .setDesc(`缓存结果的有效期（当前：${this.plugin.settings.cacheExpiryDays ?? 30} 天）`)
       .addSlider((slider) =>
         slider
@@ -3486,7 +3478,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 清理过期
     const cleanupBtn = quickActionsContainer.createEl('button', {
-      text: '🧹 清理过期',
+      text: '清理过期',
       cls: 'cache-quick-btn',
     });
     cleanupBtn.onclick = async () => {
@@ -3502,7 +3494,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 清空所有
     const clearBtn = quickActionsContainer.createEl('button', {
-      text: '🗑️ 清空所有',
+      text: '清空所有',
       cls: 'cache-quick-btn cache-danger-btn',
     });
     clearBtn.onclick = async () => {
@@ -3610,13 +3602,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       // 刷新按钮
       actionsSection.createEl('button', {
-        text: '🔄 刷新',
+        text: '刷新',
         cls: 'cache-action-btn',
       }).onclick = refreshModalContent;
 
       // 关闭按钮
       actionsSection.createEl('button', {
-        text: '❌ 关闭',
+        text: '关闭',
         cls: 'cache-action-btn',
       }).onclick = () => {
         modal.close();

@@ -13,7 +13,7 @@ export class FolderSelectModal extends Modal {
 
   onOpen() {
     const { contentEl } = this;
-    contentEl.addClass('vs-folder-modal');
+    contentEl.addClass('vs-modal', 'vs-folder-modal');
     contentEl.createEl('h3', { text: '选择输出文件夹' });
 
     const searchInput = contentEl.createEl('input', {
