@@ -106,12 +106,17 @@ jobs:
           zip -j "$archive" main.js manifest.json styles.css
           test "$(unzip -Z1 "$archive" | sort | tr '\n' ' ')" = "main.js manifest.json styles.css "
           cp "Obsidian Video Summary.json" "$workflow_asset"
+          extension_version="$(node -p "require('./browser-extension/manifest.json').version")"
+          extension_archive="video-summary-capture-${extension_version}.zip"
+          (cd browser-extension && zip -qr "../$extension_archive" . -x 'README.md')
+          echo "EXTENSION_ARCHIVE=$extension_archive" >> "$GITHUB_ENV"
           sha256sum \
             main.js \
             manifest.json \
             styles.css \
             "$workflow_asset" \
             "$archive" \
+            "$extension_archive" \
             > SHA256SUMS
 
       - name: Checkout current release publisher
@@ -134,6 +139,7 @@ jobs:
             styles.css
             "video-summary-${RELEASE_VERSION}.zip"
             "Obsidian.Video.Summary.json"
+            "$EXTENSION_ARCHIVE"
             SHA256SUMS
           )
           notes_args=(--generate-notes)

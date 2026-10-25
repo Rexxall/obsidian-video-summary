@@ -22,6 +22,10 @@ September, so the plugin can be rebuilt from this repository without losing fixe
 - The side panel has a labelled **插件设置** button; settings tabs are renamed by purpose.
 - Fixed the sidebar header so Hover Editor and similar plugins keep working.
 - Cached results from before this release are not reused, because the note format changed.
+- Added the **Video Summary Capture** browser extension (`browser-extension/`, 0.3.0). It replaces
+  the earlier Video Bridge and Video Capture extensions. The Obsidian REST token now stays on the
+  device instead of syncing with the browser profile, and notes saved through the REST API into a
+  subfolder keep the folder path.
 
 ## 2.4.2
 

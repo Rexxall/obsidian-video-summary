@@ -23,6 +23,7 @@ reproducibility metadata as local plugin sidecars.
 - The plugin never overwrites a note you edited while it was processing.
 - Notes stay clean by default: summary and a folded transcript; diagnostics only on request.
 - Renamed notes stay linked to their tasks.
+- New: the **Video Summary Capture** browser extension ships in the same release.
 
 Full list in [CHANGELOG.md](CHANGELOG.md).
 
@@ -206,6 +207,13 @@ real clean-environment install issues and fixes, including Docker, n8n, webhook 
 files, cookies, and credentials.
 
 For a publishing-ready walkthrough, see the sample notes and scripts in [demo/](demo/).
+
+## Browser extension
+
+`browser-extension/` contains **Video Summary Capture**, a Chromium extension that sends the video you
+are watching — with its timestamp — to Obsidian or to the same backend the plugin uses. It can scan a
+page for video links, keep a queue, and copy timestamped Markdown links. See
+[browser-extension/README.md](browser-extension/README.md).
 
 ## Commands
 

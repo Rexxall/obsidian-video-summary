@@ -1,0 +1,477 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Obsidian Video Capture</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #17191f;
+        --panel: #20232b;
+        --panel-2: #282c36;
+        --line: #343a46;
+        --text: #f2f5f8;
+        --muted: #9aa4b2;
+        --soft: #c7d0dc;
+        --accent: #6ee7b7;
+        --accent-2: #8aa0ff;
+        --danger: #fb7185;
+        --warning: #fbbf24;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 430px;
+        min-height: 560px;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--line);
+        background: #1d2028;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 650;
+        letter-spacing: 0;
+      }
+
+      .subtle {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        border-bottom: 1px solid var(--line);
+        background: #1d2028;
+      }
+
+      .tab {
+        appearance: none;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font: 600 12px/1.2 inherit;
+        padding: 10px 5px 9px;
+      }
+
+      .tab.active {
+        border-bottom-color: var(--accent);
+        color: var(--text);
+        background: rgba(110, 231, 183, 0.07);
+      }
+
+      main {
+        padding: 14px;
+      }
+
+      .view {
+        display: none;
+      }
+
+      .view.active {
+        display: block;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .title {
+        font-size: 14px;
+        font-weight: 650;
+        line-height: 1.35;
+        margin-bottom: 8px;
+        color: var(--text);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .chip {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--soft);
+        background: #1b1e25;
+        font-size: 11px;
+        padding: 3px 7px;
+      }
+
+      .chip.warning {
+        color: #ffe6a3;
+        border-color: rgba(251, 191, 36, 0.28);
+        background: rgba(251, 191, 36, 0.13);
+      }
+
+      .chip.danger {
+        color: #ffc0ca;
+        border-color: rgba(251, 113, 133, 0.28);
+        background: rgba(251, 113, 133, 0.13);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      button {
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        padding: 10px 11px;
+        background: var(--accent);
+        color: #061511;
+        cursor: pointer;
+        font: 700 12px/1.2 inherit;
+      }
+
+      button.secondary {
+        background: var(--panel-2);
+        color: var(--text);
+        border-color: var(--line);
+      }
+
+      button.warning {
+        background: rgba(251, 191, 36, 0.16);
+        color: #ffe6a3;
+        border-color: rgba(251, 191, 36, 0.28);
+      }
+
+      button.danger {
+        background: rgba(251, 113, 133, 0.13);
+        color: #ffc0ca;
+        border-color: rgba(251, 113, 133, 0.28);
+      }
+
+      button:disabled {
+        cursor: default;
+        opacity: 0.48;
+      }
+
+      .list {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        max-height: 285px;
+        overflow-y: auto;
+        background: #1b1e25;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .row:last-child {
+        border-bottom: 0;
+      }
+
+      .row-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        color: var(--text);
+      }
+
+      .row-meta {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 10px;
+        color: var(--muted);
+      }
+
+      .row button {
+        width: auto;
+        padding: 5px 8px;
+        font-size: 11px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #151820;
+        color: var(--text);
+        padding: 9px 10px;
+        outline: none;
+        font: 12px/1.25 inherit;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: var(--accent-2);
+      }
+
+      label {
+        display: block;
+        color: var(--soft);
+        font-size: 11px;
+        font-weight: 650;
+        margin: 0 0 5px;
+      }
+
+      .field {
+        margin-bottom: 10px;
+      }
+
+      .empty {
+        color: var(--muted);
+        padding: 18px;
+        text-align: center;
+      }
+
+      .status {
+        min-height: 18px;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 9px;
+      }
+
+      .status.success {
+        color: var(--accent);
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      .status.warning {
+        color: var(--warning);
+      }
+
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .toolbar button {
+        width: auto;
+        min-width: 96px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .footer-note {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Obsidian Video Capture</h1>
+        <div class="subtle">Obsidian · n8n · Worker</div>
+      </div>
+      <div class="subtle" id="route-label">Loading</div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-view="current">Current</button>
+      <button class="tab" data-view="batch">Batch</button>
+      <button class="tab" data-view="queue">Queue</button>
+      <button class="tab" data-view="history">History</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+
+    <main>
+      <section class="view active" id="view-current">
+        <div class="panel">
+          <div class="title" id="current-title">Detecting current tab...</div>
+          <div class="meta">
+            <span class="chip" id="current-platform">platform</span>
+            <span class="chip" id="current-time">--:--</span>
+            <span class="chip" id="current-url">url</span>
+          </div>
+        </div>
+        <div class="grid">
+          <button id="btn-current-quick">Quick Action</button>
+          <button class="secondary" id="btn-current-queue">Add to Queue</button>
+          <button class="secondary" id="btn-current-pending">Pending Note</button>
+          <button class="secondary" id="btn-current-rest">REST Note</button>
+          <button class="secondary" id="btn-current-append">Append Link</button>
+          <button class="secondary" id="btn-current-copy">Copy Timestamp</button>
+          <button class="warning" id="btn-current-codex">Send to Worker</button>
+          <button class="secondary" id="btn-current-n8n">Send to n8n</button>
+        </div>
+        <div class="footer-note">Quick Action uses the route configured in Settings.</div>
+      </section>
+
+      <section class="view" id="view-batch">
+        <div class="toolbar">
+          <div class="subtle"><span id="batch-count">0</span> links found</div>
+          <button class="secondary" id="btn-scan">Scan Page</button>
+        </div>
+        <div class="list" id="batch-list">
+          <div class="empty">Scan the current page for video links.</div>
+        </div>
+        <div class="grid" style="margin-top: 10px;">
+          <button id="btn-batch-queue">Queue Selected</button>
+          <button class="secondary" id="btn-batch-pending">Pending Notes</button>
+          <button class="secondary" id="btn-batch-append">Append Links</button>
+          <button class="warning" id="btn-batch-codex">Send to Worker</button>
+          <button class="secondary" id="btn-batch-n8n">Send to n8n</button>
+          <button class="secondary" id="btn-batch-copy">Copy Selected</button>
+        </div>
+      </section>
+
+      <section class="view" id="view-queue">
+        <div class="toolbar">
+          <div class="subtle"><span id="queue-count">0</span> queued</div>
+          <button class="danger" id="btn-queue-clear">Clear</button>
+        </div>
+        <div class="list" id="queue-list">
+          <div class="empty">Queue is empty.</div>
+        </div>
+        <div class="grid" style="margin-top: 10px;">
+          <button id="btn-queue-pending">Pending Notes</button>
+          <button class="secondary" id="btn-queue-append">Append Links</button>
+          <button class="warning" id="btn-queue-codex">Send to Worker</button>
+          <button class="secondary" id="btn-queue-n8n">Send to n8n</button>
+          <button class="secondary" id="btn-queue-copy">Copy All</button>
+        </div>
+      </section>
+
+      <section class="view" id="view-history">
+        <div class="toolbar">
+          <div class="subtle">Recent actions</div>
+          <button class="danger" id="btn-history-clear">Clear</button>
+        </div>
+        <div class="list" id="history-list">
+          <div class="empty">History is empty.</div>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="panel">
+          <div class="field">
+            <label for="setting-vault">Obsidian Vault Name</label>
+            <input id="setting-vault" placeholder="Ithaca" />
+          </div>
+          <div class="field">
+            <label for="setting-folder">New Note Folder</label>
+            <input id="setting-folder" placeholder="99 - ToDo" />
+          </div>
+          <div class="field">
+            <label for="setting-append">Append File Path</label>
+            <input id="setting-append" placeholder="Inbox/VideoLinks.md" />
+          </div>
+          <div class="field">
+            <label for="setting-quick">Quick Action</label>
+            <select id="setting-quick">
+              <option value="create-pending-note">Create pending note via Obsidian URI</option>
+              <option value="process-via-plugin">Create note + process via plugin (direct)</option>
+              <option value="create-pending-rest">Create pending note via REST</option>
+              <option value="append-link">Append timestamp link</option>
+              <option value="send-to-codex-worker">Send to Worker</option>
+              <option value="send-to-n8n">Send to n8n webhook</option>
+              <option value="queue">Add to queue</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="field">
+            <label for="setting-codex">Worker URL</label>
+            <input id="setting-codex" />
+          </div>
+          <div class="field">
+            <label for="setting-n8n">n8n Webhook URL</label>
+            <input id="setting-n8n" />
+          </div>
+          <div class="field">
+            <label for="setting-webhook-format">n8n Payload Format</label>
+            <select id="setting-webhook-format">
+              <option value="unified">Unified video payload</option>
+              <option value="legacy">Legacy bridge payload</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="grid">
+            <div class="field">
+              <label for="setting-mode">Default Mode</label>
+              <select id="setting-mode">
+                <option value="summary">summary</option>
+                <option value="transcript-only">transcript-only</option>
+                <option value="info-only">info-only</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="setting-language">Language</label>
+              <select id="setting-language">
+                <option value="zh">zh</option>
+                <option value="en">en</option>
+                <option value="ja">ja</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="field">
+              <label for="setting-rest-protocol">REST Protocol</label>
+              <select id="setting-rest-protocol">
+                <option value="https">https</option>
+                <option value="http">http</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="setting-rest-port">REST Port</label>
+              <input id="setting-rest-port" type="number" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="setting-rest-token">Obsidian REST Token</label>
+            <input id="setting-rest-token" type="password" placeholder="Only stored in Chrome sync storage" />
+          </div>
+          <button id="btn-save-settings">Save Settings</button>
+        </div>
+      </section>
+
+      <div class="status" id="status"></div>
+    </main>
+
+    <script src="vendor/shared.global.js"></script>
+    <script src="utils.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
