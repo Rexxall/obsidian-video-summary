@@ -1,7 +1,13 @@
-// agent: codex (2026-05-21)
 import { TFile } from 'obsidian';
 
-export interface WebhookProfile {
+export interface WebhookAuthConfig {
+  /** HTTP header name used by an authenticated n8n Webhook. */
+  headerName: string;
+  /** Secret header value. An empty string disables webhook authentication. */
+  secret: string;
+}
+
+export interface WebhookProfile extends WebhookAuthConfig {
   id: string;
   name: string;
   url: string;
@@ -216,6 +222,8 @@ export interface ArtifactProvenance {
   };
   generated_at?: string;
   transcript_source?: string;
+  /** Exact Vault-relative root used by the plugin's verified media localizer. */
+  media_asset_root?: string;
   warnings?: string[];
 }
 

@@ -2,6 +2,11 @@ import { Notice, TFile, setIcon } from 'obsidian';
 import { Job } from '../../core/JobStore';
 import { buildTimestampUrl, formatTimestamp } from '../../core/KnowledgeModel';
 import { UserHighlight, VideoSegment } from '../../types';
+import {
+  isExactHostOrSubdomain,
+  safeExternalHttpUrl,
+  safeVaultRelativeMediaPath,
+} from '../../utils/SafeExternalUrl';
 import { ViewContext } from '../context';
 
 interface PlayerController {
@@ -186,7 +191,7 @@ function createPlayer(
   const youtubeId = extractYouTubeId(sourceUrl);
   if (youtubeId) return createYouTubePlayer(container, youtubeId);
 
-  const bilibiliId = sourceUrl.match(/\/video\/(BV[a-zA-Z0-9]+)/)?.[1];
+  const bilibiliId = extractBilibiliId(sourceUrl);
   if (bilibiliId) return createBilibiliPlayer(container, bilibiliId);
 
   const fallback = container.createDiv({ cls: 'vs-reader-player-fallback' });
@@ -200,8 +205,8 @@ function createPlayer(
   let listener: ((seconds: number) => void) | null = null;
   return {
     seek(seconds) {
-      const url = buildTimestampUrl(sourceUrl, seconds) || sourceUrl;
-      if (url) window.open(url, '_blank');
+      const url = safeExternalHttpUrl(buildTimestampUrl(sourceUrl, seconds) || sourceUrl);
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
       listener?.(seconds);
     },
     onTimeChange(next) {
@@ -338,19 +343,20 @@ function createBilibiliPlayer(container: HTMLElement, bvid: string): PlayerContr
 }
 
 function resolveLocalSource(ctx: ViewContext, localFile?: string): string {
-  if (!localFile) return '';
-  const direct = ctx.plugin.app.vault.getAbstractFileByPath(localFile);
+  const vaultPath = safeVaultRelativeMediaPath(localFile);
+  if (!vaultPath) return '';
+  const direct = ctx.plugin.app.vault.getAbstractFileByPath(vaultPath);
   if (direct instanceof TFile) return ctx.plugin.app.vault.getResourcePath(direct);
-  if (/^(app:|file:|https?:)/i.test(localFile)) return localFile;
-  if (localFile.startsWith('/')) return encodeURI(`file://${localFile}`);
   return '';
 }
 
 function extractYouTubeId(sourceUrl: string): string {
   try {
-    const url = new URL(sourceUrl);
-    if (url.hostname.includes('youtu.be')) return url.pathname.split('/').filter(Boolean)[0] || '';
-    if (url.hostname.includes('youtube.com')) {
+    const safeSource = safeExternalHttpUrl(sourceUrl);
+    if (!safeSource) return '';
+    const url = new URL(safeSource);
+    if (url.hostname === 'youtu.be') return url.pathname.split('/').filter(Boolean)[0] || '';
+    if (isExactHostOrSubdomain(url.hostname, 'youtube.com')) {
       if (url.pathname.startsWith('/shorts/')) {
         return url.pathname.split('/').filter(Boolean)[1] || '';
       }
@@ -360,6 +366,18 @@ function extractYouTubeId(sourceUrl: string): string {
     return '';
   }
   return '';
+}
+
+function extractBilibiliId(sourceUrl: string): string {
+  try {
+    const safeSource = safeExternalHttpUrl(sourceUrl);
+    if (!safeSource) return '';
+    const url = new URL(safeSource);
+    if (!isExactHostOrSubdomain(url.hostname, 'bilibili.com')) return '';
+    return url.pathname.match(/^\/video\/(BV[a-zA-Z0-9]{10})(?:\/|$)/)?.[1] || '';
+  } catch {
+    return '';
+  }
 }
 
 function activeSegmentAt(segments: VideoSegment[], seconds: number): VideoSegment | undefined {

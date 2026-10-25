@@ -30,6 +30,7 @@ test('loopback keyframes are hash-checked, deduplicated, and stored as Vault-rel
   const adapter = new MemoryBinaryAdapter();
   let fetches = 0;
   const localizer = new MediaAssetLocalizer(adapter, 'Video Notes/_video-summary-assets', {
+    workerEndpoint: 'http://127.0.0.1:8787/video-summary/process-sync',
     fetchBinary: async () => {
       fetches += 1;
       return { data: JPEG, contentType: 'image/jpeg' };
@@ -82,6 +83,7 @@ test('loopback keyframes are hash-checked, deduplicated, and stored as Vault-rel
 test('untrusted origins and digest mismatches remain remote with explicit warnings', async () => {
   const adapter = new MemoryBinaryAdapter();
   const localizer = new MediaAssetLocalizer(adapter, '_video-summary-assets', {
+    workerEndpoint: 'http://127.0.0.1:8787/video-summary/process-sync',
     fetchBinary: async () => ({ data: JPEG, contentType: 'image/jpeg' }),
   });
   const result: ProcessingResult = {
@@ -101,7 +103,7 @@ test('untrusted origins and digest mismatches remain remote with explicit warnin
         description: '哈希错误',
         keyframe: {
           id: 'mismatch',
-          url: 'http://localhost:8787/video-summary/assets/visual-abc/frame-000002000.jpg',
+          url: 'http://127.0.0.1:8787/video-summary/assets/visual-abc/frame-000002000.jpg',
           sha256: '0'.repeat(64),
         },
       },
@@ -118,6 +120,43 @@ test('untrusted origins and digest mismatches remain remote with explicit warnin
   );
   assert.ok(localized.warnings.some((warning) => warning.includes('untrusted_origin')));
   assert.ok(localized.warnings.some((warning) => warning.includes('sha256 mismatch')));
+});
+
+test('asset fetches require the configured Worker origin and fixed asset path', async () => {
+  const adapter = new MemoryBinaryAdapter();
+  let fetches = 0;
+  const localizer = new MediaAssetLocalizer(adapter, '_video-summary-assets', {
+    workerEndpoint: 'http://127.0.0.1:8787/video-summary/process-sync',
+    fetchBinary: async () => {
+      fetches += 1;
+      return { data: JPEG, contentType: 'image/jpeg' };
+    },
+  });
+  const urls = [
+    'http://127.0.0.1:8788/video-summary/assets/visual-abc/frame.jpg',
+    'http://localhost:8787/video-summary/assets/visual-abc/frame.jpg',
+    'http://127.0.0.1:8787/admin',
+    'http://127.0.0.1:8787/video-summary/assets/visual-abc/frame.jpg?redirect=/admin',
+    'http://127.0.0.1:8787/video-summary/assets/../admin/frame.jpg',
+  ];
+  const localized = await localizer.localizeResult(
+    {
+      visual_evidence: urls.map((url, index) => ({
+        id: `visual-${index}`,
+        start: index,
+        description: '不应请求',
+        keyframe: { id: `frame-${index}`, url },
+      })),
+    },
+    'artifact-origin-test',
+  );
+
+  assert.equal(fetches, 0);
+  assert.equal(localized.localized, 0);
+  assert.equal(
+    localized.warnings.filter((warning) => warning.includes('untrusted_origin')).length,
+    urls.length,
+  );
 });
 
 test('media asset roots stay Vault-relative and reject traversal-shaped settings', () => {

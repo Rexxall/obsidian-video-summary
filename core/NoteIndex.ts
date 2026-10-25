@@ -1,6 +1,6 @@
-// agent: claude (2026-07-26)
 import { App, requestUrl, TAbstractFile, TFile } from 'obsidian';
 import { VideoUtils } from '../utils/VideoUtils';
+import { safeInlineRasterDataUrl, safeRemoteImageUrl } from '../utils/SafeExternalUrl';
 
 export interface VideoNoteEntry {
   path: string;
@@ -297,13 +297,14 @@ export class NoteIndex {
     };
   }
 
-  /** 封面：外链直接用；库内图片（cover: xx.png 或 ![[xx.png]]）转成 app:// 资源地址 */
+  /** 封面：受信平台外链或安全 raster data URL；库内图片转成 app:// 资源地址。 */
   private resolveCover(frontmatter: any, file: TFile): string | undefined {
     const raw = readCover(frontmatter);
     if (!raw) return undefined;
     const remote = normalizeRemoteCoverUrl(raw);
     if (remote) return remote;
-    if (/^data:image\//i.test(raw)) return raw;
+    const inlineRaster = safeInlineRasterDataUrl(raw);
+    if (inlineRaster) return inlineRaster;
 
     const linkpath = raw
       .replace(/^!?\[\[/, '')
@@ -559,13 +560,11 @@ async function fetchBilibiliCover(value: string): Promise<string | undefined> {
 }
 
 export function normalizeRemoteCoverUrl(value: string): string | undefined {
-  const normalized = value.trim().replace(/^\/\//, 'https://');
-  try {
-    const url = new URL(normalized);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
-  } catch {
-    return undefined;
-  }
+  const normalized = value
+    .trim()
+    .replace(/^\/\//, 'https://')
+    .replace(/^http:\/\//i, 'https://');
+  return safeRemoteImageUrl(normalized);
 }
 
 function normalizeBilibiliCoverUrl(value: string): string | undefined {

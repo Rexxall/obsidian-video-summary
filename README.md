@@ -1,16 +1,34 @@
+<div align="center">
+
 # Video Summary
 
-Turn videos, local recordings, and rough transcripts into evidence-linked, searchable Obsidian
-knowledge.
+**Turn videos, local recordings, and rough transcripts into evidence-linked, searchable Obsidian knowledge.**
+
+把视频链接、本地录音录像和现成文稿，整理成带时间戳出处、可检索的 Obsidian 笔记。
+
+[What's new](#whats-new-in-250) · [Install](#install) · [n8n workflow](#n8n-workflow) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
+
+</div>
 
 Video Summary connects Obsidian to a processing endpoint you control. The repository includes a
 general-purpose n8n workflow; the plugin can also talk to a compatible external Worker endpoint.
 It keeps the reader-facing result in Markdown and stores structured evidence, learning state, and
 reproducibility metadata as local plugin sidecars.
 
+## What's new in 2.5.0
+
+- The processing time limit follows your **Timeout** setting (default 30 minutes), so long lectures
+  are no longer cut off at a hidden 10-minute limit.
+- Cancelling a task also cancels it on the Worker.
+- The plugin never overwrites a note you edited while it was processing.
+- Notes stay clean by default: summary and a folded transcript; diagnostics only on request.
+- Renamed notes stay linked to their tasks.
+
+Full list in [CHANGELOG.md](CHANGELOG.md).
+
 ## What it does
 
-- Accept one URL, multiple URLs, n8n upload-relative local media names, pasted transcripts, or
+- Accept one URL, multiple URLs, n8n upload-root local media filenames, pasted transcripts, or
   webhook JSON in the sidebar. Commands operate on the current note or batch selection;
   `obsidian://video-summary` captures a URL or validated absolute local media path.
 - Generate Markdown notes plus timestamped transcript segments, evidence-backed claims,
@@ -30,7 +48,7 @@ reproducibility metadata as local plugin sidecars.
 - Switch between endpoint profiles, reuse cached results, and reprocess from verified local
   artifacts without reacquiring the source.
 
-## Video knowledge workflow in 2.4.1
+## Video knowledge workflow
 
 | Direction                 | Durable result                                                           | Requirement or boundary                                                                  |
 | ------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
@@ -91,19 +109,15 @@ status: pending
 
 ### Install a release
 
-Download `video-summary-2.4.1.zip` from either official channel:
+Download `video-summary-2.5.0.zip` from the canonical GitHub release:
 
-- [GitHub release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.1)
+- [GitHub release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.5.0)
   — canonical source and Obsidian community-plugin channel.
-- [Gitee domestic release](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/releases#release-2.4.1)
-  — mainland-China manual-install mirror.
-- [Gitee direct ZIP](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/video-summary-2.4.1.zip)
-  and its [SHA256SUMS](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/SHA256SUMS).
 
-Both channels publish the same verified files. To check only the ZIP on macOS or Linux:
+Download `SHA256SUMS` from the same release. To check the ZIP on macOS or Linux:
 
 ```bash
-grep 'video-summary-2.4.1.zip' SHA256SUMS | shasum -a 256 -c -
+grep 'video-summary-2.5.0.zip' SHA256SUMS | shasum -a 256 -c -
 ```
 
 Extract its three files into:
@@ -155,7 +169,8 @@ Recommended folder:
 
 ### n8n workflow
 
-Import `Obsidian Video Summary.json` into n8n and configure your own service credentials inside n8n. The repository never includes private credentials, cookies, personal cache files, or vault data.
+Import `Obsidian Video Summary.json` into n8n and configure your own service credentials inside n8n.
+The repository never includes private credentials, cookies, personal cache files, or vault data.
 
 Default webhook:
 
@@ -163,16 +178,25 @@ Default webhook:
 http://127.0.0.1:5678/webhook/obsidian-video-summary
 ```
 
+The public workflow requires n8n Header Auth even on localhost. Create a Header Auth credential
+with a random value (recommended header name `X-Video-Summary-Token`), select it on the `Webhook`
+node, and enter the same header name and secret in the active Obsidian Webhook profile. The workflow
+cannot be activated safely until that credential is selected.
+
+Model credentials stay in n8n. The optional `Gemini Vision` OCR node uses an unbound Header Auth
+credential: set its header name to `x-goog-api-key`, its value to your Gemini API key, and select it
+on that node. Never paste a model key into a URL, node parameter, workflow export, or support chat.
+
 The public workflow deliberately leaves both ASR subworkflow selectors at
 `CONFIGURE_ASR_WORKFLOW_ID`. Native subtitles and pasted transcripts work without that integration;
 videos with no usable subtitle and local audio/video require your own ASR subworkflow. Configure the
 two `SubFlow: Transcript...` nodes using the
 [ASR subworkflow contract](docs/ASR_SUBWORKFLOW_CONTRACT.md).
 
-For bundled n8n local-file processing, copy media into `docker/uploads/` and submit only the file
-name or a safe relative path below that folder. Do not send a host absolute path; the container
-cannot see it. URI capture can still save an absolute local path offline, but automatic processing
-requires a Worker that can access that exact path.
+For bundled n8n local-file processing, copy media directly into `docker/uploads/` and submit only
+the basename. Subdirectories and host absolute paths are rejected. URI capture can still save an
+absolute local path offline, but automatic processing requires a Worker configured with an explicit
+media root that contains that file.
 
 For a full setup guide, see [INSTALL.md](INSTALL.md).
 
@@ -185,7 +209,7 @@ For a publishing-ready walkthrough, see the sample notes and scripts in [demo/](
 
 ## Commands
 
-The 2.4.1 command labels are currently Chinese. Common entries include:
+The command labels are currently Chinese. Common entries include:
 
 - `快速总结当前笔记`
 - `将当前笔记全文作为文稿总结`
@@ -200,10 +224,16 @@ The 2.4.1 command labels are currently Chinese. Common entries include:
 - `生成或安全更新视频库 Base`
 - `标记为非视频笔记`
 
+Since 2.5.0 the internal command IDs follow the Obsidian community-directory rules. If you
+assigned custom hotkeys while using a manually installed 2.4.1 build, open Obsidian's Hotkeys
+settings and assign those shortcuts once more after updating.
+
 ## Settings
 
 - Backend: n8n webhook or compatible worker endpoint.
-- Webhook profiles: save and switch multiple endpoints.
+- Webhook profiles: save and switch endpoints with a per-profile Header Auth name and secret. The
+  bundled n8n workflow requires this credential; the secret is stored locally in Obsidian plugin
+  settings and redacted from diagnostics.
 - Setup check: run a connection diagnostic from Obsidian settings before processing a real video.
 - Processing mode: full note, transcript only, or metadata only.
 - Language: Chinese, English, or Japanese.
@@ -238,6 +268,60 @@ The plugin only sends the data required for the selected operation to the endpoi
 Depending on mode, that can include the note name, video URL, pasted transcript, local file name or
 path,
 language, processing mode, model label, user highlights, or a validated local evidence snapshot.
+
+### Network use
+
+- Processing requests go to the n8n webhook or compatible Worker endpoint that you configure. That
+  backend may then contact video platforms, transcription services, and AI providers according to
+  your own deployment.
+- Playlist import, metadata lookup, short-link expansion, and cover loading can contact the source
+  platform or its media host, including YouTube and Bilibili. Loading a remote cover exposes the
+  usual request metadata, such as your IP address, to that host.
+- Opening Reader can load an embedded YouTube or Bilibili player directly from that platform.
+  Backend-returned covers render inline only when they use HTTPS on the plugin's explicit
+  platform-media allowlist. Remote keyframes are not embedded until a compatible Worker asset has
+  passed the loopback hash/root localizer. Arbitrary hosts, localhost/private endpoints, and SVG
+  data URLs are ignored.
+- Model-authored Markdown is treated as untrusted: image/embed syntax and active HTML resource tags
+  are neutralized before preview or managed-note insertion. Ordinary clickable links remain for
+  explicit user review.
+- A compatible loopback Worker can serve visual assets to the plugin. Downloads are enabled only
+  for the active `codex-worker` backend, must match that configured Worker's exact loopback origin
+  and `/video-summary/assets/<artifact>/<file>` path contract, and never follow redirects. After
+  image-signature, size, optional hash, and root checks, approved assets are written into the
+  configured folder inside the vault. Fresh backend payloads cannot declare a Vault path as already
+  trusted; the plugin removes those paths and records its own exact media root after localization.
+- The plugin does not include client-side telemetry, analytics, advertising, or a self-update
+  mechanism. It does not send vault data to the plugin author. The bundled Docker configuration
+  disables n8n diagnostics.
+
+The plugin itself is free and does not require a Video Summary account. Your chosen n8n host,
+Worker, video platform, transcription service, or AI provider may require its own account, API key,
+or usage payment.
+
+### Files outside the vault
+
+- If you configure a cookies directory, the desktop plugin lists matching cookie filenames and
+  reads file size and modification time so it can report whether files exist or may be stale. It
+  does not read cookie contents. The "open directory" action asks Electron to reveal that folder.
+  When you mount cookies into the bundled backend, n8n/yt-dlp can read their contents to authenticate
+  platform requests.
+- A local-media input can include a path that is sent as text to your configured backend. The
+  backend, not the plugin, decides whether it can read that file. The bundled n8n setup accepts only
+  safe basenames placed directly in `docker/uploads/`; a compatible Worker must define and enforce
+  its own allowed media root.
+- Reader auto-plays only media files that resolve to an existing file inside the current vault.
+  Absolute paths and `http:`, `https:`, `file:`, or `app:` values in `local_file` are never assigned
+  to the media element. A vault-external local path may still be sent as text to a separately
+  configured Worker for processing, but Reader will not open it automatically.
+- Knowledge sidecars are written below this plugin's local `data/` directory. Localized Worker
+  media assets are written to `<outputFolder>/_video-summary-assets` inside the vault (or
+  `<vault>/_video-summary-assets` when no output folder is configured). A configured backend may
+  write to its own separately documented storage locations.
+
+The per-profile Webhook Header Auth secret is stored in this plugin's local `data.json` settings
+file and is not encrypted by the plugin. Protect the vault configuration directory, do not sync the
+secret to an untrusted location, and rotate it if the settings file is exposed.
 
 Rich results are stored below the plugin folder in local sidecars:
 
@@ -297,24 +381,12 @@ The release workflow also publishes:
 - `SHA256SUMS` for downloaded-asset verification
 
 The included GitHub Actions workflow tests and builds the plugin, validates all version files, and
-publishes the assets when you push a semantic version tag such as `2.4.1`.
+publishes the assets when you push a semantic version tag such as `2.5.0`.
 
 GitHub remains the canonical source because Obsidian's community-plugin installer downloads from
-GitHub Releases. The
-[Gitee mirror](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin) is a one-way source
-mirror and manual-install fallback for mainland China. Gitee release files live on the dedicated
-`gitee-release-assets` branch so the mirrored source branches remain identical to GitHub.
-
-For automatic dual publication, add a narrowly scoped Gitee personal access token as the GitHub
-Actions secret `GITEE_TOKEN`. The release workflow is retryable from **Run workflow** with an
-existing version tag; it updates the Gitee Release and replaces same-name attachments
-idempotently. Without the secret, the GitHub release still succeeds and the workflow reports that
-Gitee publication was skipped. Maintainers with an existing local Gitee Git credential can
-publish the direct-download branch manually:
-
-```bash
-npm run release:gitee -- --version 2.4.1 --asset-dir /path/to/release-assets
-```
+GitHub Releases. It is the only configured publication channel. The workflow is retryable from
+**Run workflow** with an existing version tag; it updates the GitHub Release and replaces same-name
+assets idempotently.
 
 ## Community submission
 
@@ -329,7 +401,23 @@ Before submitting to the Obsidian community directory, confirm:
 ## Support
 
 - Issues: https://github.com/Rexxall/obsidian-video-summary-plugin/issues
-- Discussions: https://github.com/Rexxall/obsidian-video-summary-plugin/discussions
+
+## 中文说明
+
+**是什么：** 一个 Obsidian 插件。贴一个视频链接（YouTube、B 站、抖音、TikTok、小红书等）、选一个本地音视频文件，或者直接粘贴文稿，它会交给你自己部署的处理服务（仓库附带 n8n 工作流），拿回结构化的总结和带时间戳的文稿，写成 Obsidian 笔记。
+
+**特点：**
+- 处理服务由你自己掌控，插件本身没有账号、不收集数据。
+- 重新处理时只替换插件自己的区块，你写在笔记里的内容不会被覆盖；处理期间你改过笔记，插件会停下来，不会覆盖。
+- 侧栏可以看任务进度、取消任务、跟着时间戳阅读文稿。
+
+**安装：** 从 Releases 下载 `video-summary-2.5.0.zip`，把三个文件解压到 `<库>/.obsidian/plugins/video-summary/`，在“第三方插件”里启用；再按上面 n8n 一节导入工作流。
+
+## 日本語
+
+**概要：** 動画のリンク、手元の音声・動画ファイル、または文字起こしを、出典のタイムスタンプ付きで検索できる Obsidian ノートにまとめるプラグインです。処理は自分で用意したサーバー（同梱の n8n ワークフローなど）で行い、プラグイン自体はアカウント不要でデータを集めません。
+
+**特長：** 再処理ではプラグインが管理するブロックだけを置き換え、自分で書いた部分は残ります。処理中にノートを編集した場合は上書きせずに止まります。
 
 ## License
 

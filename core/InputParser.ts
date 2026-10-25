@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { VideoInput } from '../types';
 import { VideoUtils } from '../utils/VideoUtils';
 import { detectPlatform } from './NoteIndex';

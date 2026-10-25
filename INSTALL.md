@@ -27,17 +27,12 @@ enabled.
 
 ### Release ZIP
 
-Download `video-summary-2.4.1.zip` from either:
-
-- [GitHub 2.4.1 release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.1)
-- [Gitee domestic release](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/releases#release-2.4.1)
-- [Gitee direct ZIP](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/video-summary-2.4.1.zip)
-  with [SHA256SUMS](https://gitee.com/roronoazoro35/obsidian-video-summary-plugin/raw/gitee-release-assets/releases/2.4.1/SHA256SUMS)
-
-Both channels publish the same verified files. On macOS or Linux, verify the ZIP with:
+Download `video-summary-2.4.2.zip` and its matching `SHA256SUMS` from the canonical
+[GitHub 2.4.2 release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.2).
+On macOS or Linux, verify the ZIP with:
 
 ```bash
-grep 'video-summary-2.4.1.zip' SHA256SUMS | shasum -a 256 -c -
+grep 'video-summary-2.4.2.zip' SHA256SUMS | shasum -a 256 -c -
 ```
 
 Then extract it into:
@@ -111,15 +106,20 @@ http://localhost:5678
 1. In n8n, create a new workflow.
 2. Choose `Import from File`.
 3. Select `Obsidian Video Summary.json`.
-4. Review every credential field and replace placeholders with your own credentials.
-5. Create or select an ASR subworkflow that follows
+4. Create an n8n **Header Auth** credential with a random value. Use
+   `X-Video-Summary-Token` as the recommended header name, then select it on the `Webhook` node.
+5. Configure the Google Gemini model nodes with your own n8n credentials. For the optional
+   `Gemini Vision` OCR node, create a separate Header Auth credential whose name is
+   `x-goog-api-key` and whose value is your Gemini API key; select it on that node. Do not put the
+   key in a URL or ordinary node parameter.
+6. Create or select an ASR subworkflow that follows
    [docs/ASR_SUBWORKFLOW_CONTRACT.md](docs/ASR_SUBWORKFLOW_CONTRACT.md).
-6. In the main workflow, open `SubFlow: Transcript` and
+7. In the main workflow, open `SubFlow: Transcript` and
    `SubFlow: Transcript from Local File`; replace `CONFIGURE_ASR_WORKFLOW_ID` by selecting your
    saved ASR workflow.
-7. Save and activate the workflow.
+8. Save and activate the workflow.
 
-You can defer steps 5–6 if you only use pasted transcripts or videos with usable native subtitles.
+You can defer steps 6–7 if you only use pasted transcripts or videos with usable native subtitles.
 Without them, no-subtitle videos and local audio/video cannot use the ASR fallback.
 
 Default production webhook:
@@ -132,7 +132,7 @@ If port `5678` is already in use, change the Docker host port and update the Obs
 For a full list of beginner setup issues and fixes, see
 [docs/BEGINNER_DEPLOYMENT_TEST.md](docs/BEGINNER_DEPLOYMENT_TEST.md).
 
-The bundled workflow's internal contract version is `2.1.4` (independent of the plugin release
+The bundled workflow's internal contract version is `2.1.5` (independent of the plugin release
 version), its webhook path is `obsidian-video-summary`, and its included model labels are
 `Gemini 3.1` / `Gemini 3.0`.
 
@@ -143,6 +143,10 @@ In Obsidian settings, open `Video Summary`.
 Required:
 
 - Webhook URL: `http://127.0.0.1:5678/webhook/obsidian-video-summary`
+- Webhook Header: the same header name selected in n8n (recommended
+  `X-Video-Summary-Token`).
+- Webhook Secret: the same random Header Auth value. It is stored locally in the plugin settings;
+  do not reuse a model API key or account password.
 
 Recommended:
 
@@ -162,7 +166,9 @@ Optional:
 - Expected cookie filenames: `youtube_cookies.txt`, `bilibili_cookies.txt`,
   `douyin_cookies.txt`, `tiktok_cookies.txt`, and `xiaohongshu_cookies.txt`.
 
-- Add more webhook profiles for local, remote, and staging workflows.
+- Add more profiles for local or staging endpoints. The bundled n8n 2.4.2 setup supports only the
+  same-machine endpoint; use a remote profile only with a separately hardened compatible service
+  protected by TLS, authentication, rate limiting, and its own security review.
 - Change payload key names if your n8n workflow uses different field names.
 - Add more processing model labels if your n8n switch node supports them.
 
@@ -191,10 +197,10 @@ status: pending
 ---
 ```
 
-For the bundled n8n workflow, first copy the file into `docker/uploads/`, then use only its file
-name or a safe relative path below that folder. Do not send a macOS/Windows absolute path: the n8n
-container cannot see it. An absolute path can be processed only by a separately configured Worker
-or compatible endpoint that can access that exact host path.
+For the bundled n8n workflow, first copy the file directly into `docker/uploads/`, then use only its
+basename. Subdirectories and macOS/Windows absolute paths are rejected. An absolute path can be
+processed only by a separately configured Worker or compatible endpoint that confines access to an
+explicit media root.
 
 Multiple local files:
 
@@ -220,9 +226,13 @@ Open the command palette and run one of:
 - `用本地可复现工件重新处理`
 - `生成或安全更新视频库 Base`
 
+If you upgrade from a manually installed 2.4.1 build, reassign any custom Video Summary shortcuts
+in Obsidian's Hotkeys settings. Version 2.4.2 changes the internal command IDs to comply with the
+community-directory requirements; command labels and behavior are unchanged.
+
 ## Local knowledge data
 
-Version 2.4.1 stores structured state below the installed plugin folder:
+Since version 2.4.1, structured state is stored below the installed plugin folder:
 
 ```text
 data/knowledge-artifacts/

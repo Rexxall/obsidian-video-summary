@@ -1,3 +1,4 @@
+
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -5,8 +6,12 @@ import test from 'node:test';
 import {
   CONTENT_ROUTE_PROMPT_MARKER,
   DEFAULT_WORKFLOW_PATH,
+  MEDIA_RUNNER_PROGRAM,
+  PUBLIC_WORKFLOW_VERSION,
+  VIDEO_URL_SECURITY_MARKER,
   executeNodeCode,
   runSplitLocalFilesNode,
+  runValidateVideoUrlNode,
   upgradeWorkflow,
   validateWorkflow,
 } from '../tools/upgrade-workflow-v3.mjs';
@@ -94,6 +99,19 @@ test('workflow upgrade is idempotent and passes structural validation', () => {
   assert.deepEqual(validateWorkflow(workflow), []);
 });
 
+test('public workflow security revision is consistently versioned', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  const testResponseNode = workflow.nodes.find(
+    (candidate) => candidate.name === 'Respond to Webhook: Test',
+  );
+  const testResponse = JSON.parse(testResponseNode.parameters.responseBody);
+
+  assert.equal(PUBLIC_WORKFLOW_VERSION, '2.1.5');
+  assert.equal(workflow.version, PUBLIC_WORKFLOW_VERSION);
+  assert.equal(workflow.meta.videoSummaryWorkflow.version, PUBLIC_WORKFLOW_VERSION);
+  assert.equal(testResponse.workflow.version, PUBLIC_WORKFLOW_VERSION);
+});
+
 test('public workflow does not embed a private user profile', () => {
   const serialized = JSON.stringify(upgradeWorkflow(loadWorkflow()));
   assert.doesNotMatch(serialized, /\*\*用户画像\*\*/);
@@ -162,6 +180,149 @@ test('public workflow requires an explicit local ASR subworkflow selection', () 
   }
 });
 
+test('incoming video URLs require HTTPS and an exact supported hostname', () => {
+  for (const link of [
+    'https://www.youtube.com/watch?v=abc123',
+    'https://youtu.be/abc123',
+    'https://www.bilibili.com/video/BV1xx411c7mD',
+    'https://b23.tv/example',
+    'https://v.douyin.com/example/',
+    'https://vm.tiktok.com/example/',
+    'https://www.xiaohongshu.com/explore/64abcdef0123456789abcdef',
+  ]) {
+    const [item] = runValidateVideoUrlNode({
+      all: () => [{ json: { body: { metadata: { link } } } }],
+    });
+    assert.match(item.json.validated_video_url, /^https:\/\//);
+    assert.match(item.json.video_url_token, /^[A-Za-z0-9_-]+$/);
+    assert.equal(
+      Buffer.from(item.json.video_url_token, 'base64url').toString('utf8'),
+      item.json.validated_video_url,
+    );
+  }
+
+  for (const link of [
+    'http://www.youtube.com/watch?v=abc123',
+    'https://youtube.com.evil.example/watch?v=abc123',
+    'https://user:password@www.youtube.com/watch?v=abc123',
+    'https://www.youtube.com:8443/watch?v=abc123',
+    'https://127.0.0.1/video',
+    'file:///etc/passwd',
+    ' https://www.youtube.com/watch?v=abc123',
+    'https://www.youtube.com/watch?v=abc123\n',
+    'https://www.youtube.com/watch?v=abc123\0ignored',
+    'https://www.youtube.com/redirect?q=https://127.0.0.1/',
+    'https://www.bilibili.com/account/history',
+    'https://www.douyin.com/user/example',
+    'https://www.tiktok.com/login',
+    'https://www.xiaohongshu.com/user/profile/example',
+  ]) {
+    assert.throws(
+      () =>
+        runValidateVideoUrlNode({
+          all: () => [
+            {
+              json: { body: { metadata: { link } } },
+            },
+          ],
+        }),
+      /Video URL|YouTube|Bilibili|Douyin|TikTok|Xiaohongshu/,
+      link,
+    );
+  }
+});
+
+test('download commands contain only a URL token and fixed runner arguments', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  assert.throws(
+    () =>
+      executeNodeCode(nodeCode(workflow, 'Code: Detect Platform & Prepare Download'), [
+        {
+          json: {
+            video_link: 'https://www.youtube.com/watch?v=$(touch%20/tmp/video-summary-pwned)',
+          },
+        },
+      ]),
+    /video id/,
+  );
+  const [item] = executeNodeCode(nodeCode(workflow, 'Code: Detect Platform & Prepare Download'), [
+    { json: { video_link: 'https://www.youtube.com/watch?v=abc123' } },
+  ]);
+
+  assert.match(item.json.video_url_token, /^[A-Za-z0-9_-]+$/);
+  assert.match(item.json.ytdlp_command, /^node -e /);
+  assert.match(item.json.native_subtitle_command, /^node -e /);
+  assert.doesNotMatch(item.json.ytdlp_command, /video-summary-pwned/);
+  assert.doesNotMatch(item.json.native_subtitle_command, /video-summary-pwned/);
+  assert.doesNotMatch(item.json.ytdlp_command, /--no-check-certificate/);
+  assert.match(item.json.ytdlp_command, /spawnSync/);
+  assert.doesNotThrow(() => new Function(MEDIA_RUNNER_PROGRAM));
+});
+
+test('public workflow requires unbound n8n credentials instead of inline secrets', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  const webhook = workflow.nodes.find((candidate) => candidate.name === 'Webhook');
+  const geminiVision = workflow.nodes.find((candidate) => candidate.name === 'Gemini Vision');
+
+  assert.equal(webhook.parameters.authentication, 'headerAuth');
+  assert.equal(webhook.credentials, undefined);
+  assert.equal(geminiVision.parameters.authentication, 'genericCredentialType');
+  assert.equal(geminiVision.parameters.genericAuthType, 'httpHeaderAuth');
+  assert.equal(geminiVision.parameters.sendQuery, undefined);
+  assert.equal(geminiVision.parameters.queryParameters, undefined);
+  assert.equal(geminiVision.credentials, undefined);
+
+  const serialized = JSON.stringify(workflow);
+  assert.doesNotMatch(serialized, /YOUR_GEMINI_API_KEY/i);
+  assert.doesNotMatch(serialized, /[?&]key=/i);
+});
+
+test('workflow command nodes never interpolate the raw webhook link', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  const validationNode = workflow.nodes.find(
+    (candidate) => candidate.name === 'Code: Validate Video URL',
+  );
+  assert.ok(validationNode);
+  assert.match(validationNode.parameters.jsCode, new RegExp(VIDEO_URL_SECURITY_MARKER));
+
+  const commandNodes = workflow.nodes.filter(
+    (candidate) => candidate.type === 'n8n-nodes-base.executeCommand',
+  );
+  for (const node of commandNodes) {
+    const command = String(node.parameters.command || '');
+    assert.doesNotMatch(command, /metadata\.link/, node.name);
+    assert.doesNotMatch(command, /--no-check-certificate/, node.name);
+  }
+
+  const metadataNode = workflow.nodes.find(
+    (candidate) => candidate.name === 'CMD: Get Video Metadata1',
+  );
+  assert.match(metadataNode.parameters.command, /\$json\.video_url_token/);
+  assert.match(metadataNode.parameters.command, /spawnSync/);
+});
+
+test('bundled n8n is pinned and published on localhost only', () => {
+  const dockerfile = readFileSync(
+    new URL('../docker/n8n-video-summary.Dockerfile', import.meta.url),
+    'utf8',
+  );
+  const compose = readFileSync(
+    new URL('../docker/docker-compose.video-summary.yml', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(dockerfile, /^ARG N8N_VERSION=2\.35\.7$/m);
+  assert.match(dockerfile, /^ARG YT_DLP_VERSION=2026\.8\.19$/m);
+  assert.match(compose, /127\.0\.0\.1:5678:5678/);
+  assert.doesNotMatch(compose, /^\s*- ['"]?5678:5678['"]?\s*$/m);
+  assert.match(
+    compose,
+    /N8N_RESTRICT_FILE_ACCESS_TO=\/home\/node\/uploads;\/home\/node\/files;\/home\/node\/cookies/,
+  );
+  assert.match(compose, /N8N_BLOCK_ENV_ACCESS_IN_NODE=true/);
+  assert.match(compose, /N8N_DIAGNOSTICS_ENABLED=false/);
+});
+
 test('local-file workflow paths remain inside the mounted uploads directory', () => {
   const valid = runSplitLocalFilesNode({
     all: () => [
@@ -169,7 +330,7 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
         json: {
           body: {
             metadata: {
-              local_file: 'course/lecture-01.mp4, interview.mp3',
+              local_file: '课程 01.mp4, interview.mp3',
             },
           },
         },
@@ -178,7 +339,7 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
   });
   assert.deepEqual(
     valid.map((item) => item.json.audio_file_path_for_subflow),
-    ['/home/node/uploads/course/lecture-01.mp4', '/home/node/uploads/interview.mp3'],
+    ['/home/node/uploads/课程 01.mp4', '/home/node/uploads/interview.mp3'],
   );
 
   for (const localFile of [
@@ -187,6 +348,15 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
     'course/../../cookies/token.txt',
     'C:\\Users\\example\\video.mp4',
     'course//video.mp4',
+    'course/notes.txt',
+    'course/video.mp3\0ignored',
+    '$(touch hacked).mp3',
+    '`touch hacked`.mp3',
+    'quote"name.mp3',
+    "quote'name.mp3",
+    'semi;colon.mp3',
+    'amp&ersand.mp3',
+    'pipe|name.mp3',
   ]) {
     assert.throws(
       () =>
@@ -199,7 +369,7 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
             },
           ],
         }),
-      /safe relative path/,
+      /safe filenames/,
       localFile,
     );
   }
@@ -216,9 +386,15 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
     new Function('$json', `return (${expression});`)({
       body: { metadata: { local_file: localFile } },
     });
-  assert.equal(evaluate('course/lecture-01.mp4'), '/home/node/uploads/course/lecture-01.mp4');
-  assert.throws(() => evaluate('../cookies/token.txt'), /safe relative path/);
-  assert.throws(() => evaluate('/etc/passwd'), /safe relative path/);
+  assert.equal(evaluate('课程 01.mp4'), '/home/node/uploads/课程 01.mp4');
+  assert.throws(() => evaluate('../cookies/token.txt'), /safe filenames/);
+  assert.throws(() => evaluate('/etc/passwd'), /safe filenames/);
+  assert.throws(() => evaluate('$(touch hacked).mp3'), /safe filenames/);
+  assert.throws(() => evaluate('`touch hacked`.mp3'), /safe filenames/);
+  assert.throws(() => evaluate('quote"name.mp3'), /safe filenames/);
+  assert.throws(() => evaluate('semi;colon.mp3'), /safe filenames/);
+  assert.throws(() => evaluate('amp&ersand.mp3'), /safe filenames/);
+  assert.throws(() => evaluate('pipe|name.mp3'), /safe filenames/);
 });
 
 test('rich Set node expressions evaluate with representative context', () => {

@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { MarkdownRenderer, Notice, TFile, setIcon } from 'obsidian';
 import { DetailTab, ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
@@ -19,7 +18,10 @@ import {
   textButton,
 } from '../ui';
 import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
-import { renderEvidenceMarkdown } from '../../core/KnowledgeMarkdown';
+import {
+  renderEvidenceMarkdown,
+  sanitizeGeneratedMarkdownActiveResources,
+} from '../../core/KnowledgeMarkdown';
 import { renderReaderPanel } from './ReaderPanel';
 
 /** 详情层：结果预览 + 写入方式 + 失败日志。写入笔记前能先看到要写什么。 */
@@ -634,12 +636,14 @@ function renderPreview(body: HTMLElement, ctx: ViewContext, job: Job) {
     }`,
   });
 
-  const markdown = [
-    result.summary ? `## 总结\n\n${result.summary}` : '',
-    result.note ? `## 笔记\n\n${result.note}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+  const markdown = sanitizeGeneratedMarkdownActiveResources(
+    [
+      result.summary ? `## 总结\n\n${result.summary}` : '',
+      result.note ? `## 笔记\n\n${result.note}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  );
 
   const markdownEl = body.createDiv({ cls: 'vs-markdown' });
   if (!markdown) {
@@ -717,9 +721,7 @@ function safeCoverUrl(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const cover = value.trim();
   if (!cover) return undefined;
-  const remote = normalizeRemoteCoverUrl(cover);
-  if (remote) return remote;
-  return /^(app:|data:image\/)/i.test(cover) ? cover : undefined;
+  return normalizeRemoteCoverUrl(cover);
 }
 
 function renderLogs(container: HTMLElement, job: Job) {

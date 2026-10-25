@@ -1065,11 +1065,18 @@ export class BatchProcessingModal extends Modal {
         const processedCount = this.progress.completed + this.progress.failed;
         if (processedCount > 0) {
           const statusSummary = statusListEl.createEl('div', { cls: 'status-summary' });
-          statusSummary.innerHTML = `
-						<div class="status-item success">✅ 已完成: ${this.progress.completed} 个</div>
-						<div class="status-item error">❌ 失败: ${this.progress.failed} 个</div>
-						<div class="status-item pending">⏳ 待处理: ${this.progress.total - processedCount} 个</div>
-					`;
+          statusSummary.createEl('div', {
+            cls: 'status-item success',
+            text: `✅ 已完成: ${this.progress.completed} 个`,
+          });
+          statusSummary.createEl('div', {
+            cls: 'status-item error',
+            text: `❌ 失败: ${this.progress.failed} 个`,
+          });
+          statusSummary.createEl('div', {
+            cls: 'status-item pending',
+            text: `⏳ 待处理: ${this.progress.total - processedCount} 个`,
+          });
         }
       }
     }

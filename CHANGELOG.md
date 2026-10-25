@@ -2,6 +2,55 @@
 
 All notable changes to this project are documented here.
 
+## 2.5.0
+
+Reliability release. Brings the source back in line with the build that has been in daily use since
+September, so the plugin can be rebuilt from this repository without losing fixes.
+
+- Processing time limit now follows the **Timeout (minutes)** setting; it was fixed at 10 minutes
+  before. The default is 30 minutes so long lectures are not cut off.
+- Worker requests go through Obsidian's native network layer instead of the browser `fetch`, so a
+  loopback Worker with an Origin check no longer rejects them. Cancel now also cancels the job on the
+  Worker, including a cancel pressed before the job ID came back.
+- Note writes check that the note has not changed since it was read; if you typed in it meanwhile,
+  the write stops and your text is kept.
+- Generated notes stay clean by default: summary and folded transcript only. Evidence and attention
+  diagnostics are written only when requested.
+- Renaming a video note keeps its task linked; opening a task finished before a rename finds the note
+  through its artifact.
+- Pasted captions such as `[00:00]first[00:02]second` on one line are split into timed segments.
+- The side panel has a labelled **插件设置** button; settings tabs are renamed by purpose.
+- Fixed the sidebar header so Hover Editor and similar plugins keep working.
+- Cached results from before this release are not reused, because the note format changed.
+
+## 2.4.2
+
+Security and community-directory readiness release.
+
+- Hardened the bundled n8n path against untrusted URL and local-file input, removed shell command
+  interpolation of webhook fields, canonicalized supported video paths, confined uploads to safe
+  root-level filenames, and removed disabled TLS verification from media commands.
+- Required unbound n8n Header Auth credentials for the public webhook and optional Gemini Vision
+  request; added matching per-profile plugin headers and removed API keys from URL parameters.
+- Bound the bundled Docker service to the host loopback interface and updated its pinned n8n image
+  from 2.23.4 to 2.35.7 after upstream security advisories. Pinned yt-dlp to 2026.8.19, restricted
+  n8n file roots, blocked node environment access, and disabled n8n diagnostics.
+- Removed dynamic `innerHTML` rendering, rejected unsafe backend evidence links, restricted inline
+  covers to trusted platform media hosts, and neutralized model-authored Markdown embeds before
+  preview or managed-note insertion.
+- Bound Worker asset downloads to the active configured loopback origin and fixed asset path with
+  redirects disabled; backend-asserted Vault asset paths are discarded and trusted paths are bound
+  to the plugin-recorded media root. Reader now auto-loads only existing media files inside the
+  current vault.
+- Corrected command IDs so Obsidian can apply its own plugin prefix. Users who assigned hotkeys in a
+  manually installed 2.4.1 build need to assign those shortcuts once more after updating.
+- Removed unpublished versions from `versions.json`, preventing Obsidian from selecting a release
+  tag that does not exist when resolving compatibility.
+- Added explicit network, external-file, account, and payment-boundary disclosures; redacted
+  Webhook secrets from diagnostics and stopped URL-expansion debug output from printing source URLs.
+- Added pull-request CI and automated checks for manifest alignment, command IDs, release tags, and
+  policy disclosures.
+
 ## 2.4.1
 
 Turns the sidebar redesign into an evidence-aware video knowledge workflow.

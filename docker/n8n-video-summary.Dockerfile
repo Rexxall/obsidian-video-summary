@@ -1,6 +1,7 @@
 FROM node:24-alpine
 
-ARG N8N_VERSION=2.23.4
+ARG N8N_VERSION=2.35.7
+ARG YT_DLP_VERSION=2026.8.19
 
 USER root
 
@@ -10,7 +11,8 @@ RUN apk add --no-cache \
 		python3 \
 		py3-pip \
 		tini \
-	&& python3 -m pip install --break-system-packages --no-cache-dir --upgrade pip yt-dlp \
+	&& python3 -m pip install --break-system-packages --no-cache-dir --upgrade pip \
+	&& python3 -m pip install --break-system-packages --no-cache-dir "yt-dlp==${YT_DLP_VERSION}" \
 	&& npm install -g "n8n@${N8N_VERSION}" \
 	&& mkdir -p /home/node/.n8n /home/node/files /home/node/uploads /home/node/cookies \
 	&& chown -R node:node /home/node

@@ -1,4 +1,3 @@
-// agent: codex (2026-07-29)
 import * as assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';

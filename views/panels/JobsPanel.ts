@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { Notice, TFile } from 'obsidian';
 import { ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
@@ -377,15 +376,13 @@ function findEntry(ctx: ViewContext, basename: string) {
   return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
 }
 
-/** 后端封面必须是可显示的图片 URL；拒绝任意协议和本机绝对路径。 */
+/** 后端封面只允许受信平台的 HTTPS 图片；本机/私网资源必须先本地化。 */
 function safeCoverUrl(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const cover = value.trim();
   if (!cover) return undefined;
   const remote = normalizeRemoteCoverUrl(cover);
-  if (remote) return remote;
-  if (/^(app:|data:image\/)/i.test(cover)) return cover;
-  return undefined;
+  return remote;
 }
 
 /** 把可能包含 URL、路径和服务端原文的错误压成稳定、安全的一句话。 */

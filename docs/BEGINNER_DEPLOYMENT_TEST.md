@@ -58,20 +58,25 @@ http://localhost:5678
 ```
 
 6. Import `Obsidian Video Summary.json`.
-7. If you need no-subtitle or local-media ASR, select your own ASR workflow in both
+7. Create a random n8n Header Auth credential (recommended name
+   `X-Video-Summary-Token`), select it on the imported `Webhook` node, and enter the same name/value
+   in the plugin's active Webhook profile.
+8. Configure your model credentials in n8n. The optional `Gemini Vision` node requires a Header
+   Auth credential named `x-goog-api-key`; never put a Gemini key in the URL.
+9. If you need no-subtitle or local-media ASR, select your own ASR workflow in both
    `SubFlow: Transcript...` nodes as described in
    [ASR_SUBWORKFLOW_CONTRACT.md](ASR_SUBWORKFLOW_CONTRACT.md). You can defer this when testing only
    pasted transcripts or native subtitles.
-8. Activate the workflow.
-9. In Obsidian plugin settings, use:
+10. Activate the workflow.
+11. In Obsidian plugin settings, use:
 
 ```text
 http://127.0.0.1:5678/webhook/obsidian-video-summary
 ```
 
-10. Run the plugin setup check. The recommended workflow version is `2.1.4`, and the workflow path
+12. Run the plugin setup check. The recommended workflow version is `2.1.5`, and the workflow path
     should be `obsidian-video-summary`.
-11. Create a note with:
+13. Create a note with:
 
 ```yaml
 ---
@@ -80,7 +85,7 @@ status: pending
 ---
 ```
 
-12. Search the Obsidian command palette for `快速总结当前笔记` and run it.
+14. Search the Obsidian command palette for `快速总结当前笔记` and run it.
 
 ## What Was Fixed During Testing
 
@@ -284,13 +289,16 @@ The workflow downloaded media but cannot convert audio.
 
 Fix:
 
-Use the provided custom Docker image. It was verified with:
+Use the provided custom Docker image. The current release candidate pins:
 
 ```text
-n8n=2.23.4
-yt_dlp=2026.03.17
-ffmpeg=ffmpeg version 8.0.1
+n8n=2.35.7
+yt-dlp=2026.8.19
+ffmpeg=Alpine package available when the image is built
 ```
+
+The 2.4.2 candidate has passed static workflow tests, but this exact image pin still requires a
+clean Docker build, workflow import, and local smoke test before the release tag is published.
 
 ### Problem: local file processing cannot find the file
 
@@ -394,10 +402,12 @@ Fix:
 
 1. Open n8n.
 2. Open the imported workflow.
-3. Find the model/provider nodes.
-4. Create your own credentials in n8n.
-5. Replace the placeholder value `YOUR_GEMINI_API_KEY_HERE` where it appears.
-6. Save and activate the workflow.
+3. On `Webhook`, select a Header Auth credential and configure the matching name/value in the
+   Obsidian Webhook profile.
+4. Create your own model/provider credentials in n8n and select them on the relevant nodes.
+5. For optional `Gemini Vision` OCR, create Header Auth with name `x-goog-api-key` and your key as
+   its value. The public workflow deliberately contains no key placeholder.
+6. Save and activate the workflow only after every required credential is selected.
 
 This part cannot be solved by the plugin because each user must use their own service account and key.
 
@@ -465,6 +475,10 @@ The project can provide the plugin, workflow template, Docker image, and trouble
 
 ## Evidence From This Test
 
+The version output below is historical evidence from the 2026-06-07 test, not a current deployment
+recommendation. Do not deploy n8n 2.23.4; the 2.4.2 candidate pins n8n 2.35.7 and requires the fresh
+Docker smoke test described above before release.
+
 Clean Node path:
 
 ```text
@@ -484,7 +498,7 @@ styles.css: present
 manifest id: video-summary
 ```
 
-Official n8n image check:
+Historical official n8n image check (2026-06-07; do not use this version):
 
 ```text
 n8nio/n8n:latest
@@ -493,7 +507,7 @@ yt-dlp: missing
 ffmpeg: missing
 ```
 
-Custom image check:
+Historical custom image check (2026-06-07; not the 2.4.2 candidate image):
 
 ```text
 n8n=2.23.4

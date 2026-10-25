@@ -1,4 +1,3 @@
-// agent: codex (2026-07-29)
 import type { Vault } from 'obsidian';
 import type { ProcessingMode, ProcessingResult, SupportedLanguage } from '../types';
 import type { ArtifactFingerprint } from '../core/ArtifactFingerprint';

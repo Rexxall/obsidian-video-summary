@@ -206,17 +206,32 @@ test('reproducible reprocessing sends stored transcript without any source fetch
   }
 });
 
+function useFetchTransport() {
+  const original = VideoSummaryAPI.transport;
+  VideoSummaryAPI.transport = async (request) => {
+    const response = await fetch(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body as string | undefined,
+    });
+    const text = await response.text();
+    return { status: response.status, text, headers: {}, json: null, arrayBuffer: new ArrayBuffer(0) } as never;
+  };
+  return () => {
+    VideoSummaryAPI.transport = original;
+  };
+}
+
 test('cancelling a Codex Worker task aborts its task-level wait immediately', async () => {
   const originalFetch = globalThis.fetch;
   let signalFetchStarted = () => {};
   const fetchStarted = new Promise<void>((resolve) => {
     signalFetchStarted = resolve;
   });
-  let postSignal: AbortSignal | undefined;
-  let requests = 0;
-  globalThis.fetch = async (_input, init) => {
-    requests += 1;
-    postSignal = init?.signal || undefined;
+  const calls: string[] = [];
+  const restoreTransport = useFetchTransport();
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method || 'GET'} ${String(input)}`);
     signalFetchStarted();
     return new Response(JSON.stringify({ id: 'worker-cancel-fixture', status: 'queued' }), {
       status: 202,
@@ -249,33 +264,20 @@ test('cancelling a Codex Worker task aborts its task-level wait immediately', as
     api.cancelByNoteName('cancel-me');
     await rejected;
 
-    assert.equal(requests, 1, 'cancellation should interrupt the poll sleep before another fetch');
-    assert.equal(postSignal?.aborted, true);
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    assert.equal(calls.filter((call) => call.startsWith('GET')).length, 0, 'cancellation should interrupt the poll sleep before a status request');
+    assert.ok(calls.some((call) => call.startsWith('POST') && call.includes('cancel')), 'the job is cancelled on the Worker too');
     assert.ok(Date.now() - cancelledAt < 250, 'cancellation should not wait for the poll interval');
   } finally {
     globalThis.fetch = originalFetch;
+    restoreTransport();
   }
 });
 
-test('Codex Worker deadline aborts a hanging fetch instead of overrunning the timeout', async () => {
+test('Codex Worker deadline stops waiting on a hanging request instead of overrunning the timeout', async () => {
   const originalFetch = globalThis.fetch;
-  let hangingSignal: AbortSignal | undefined;
-  globalThis.fetch = async (_input, init) =>
-    new Promise<Response>((_resolve, reject) => {
-      hangingSignal = init?.signal || undefined;
-      const signal = hangingSignal;
-      if (!signal) {
-        reject(new Error('missing AbortSignal'));
-        return;
-      }
-      const rejectAbort = () => {
-        const error = new Error('Aborted');
-        error.name = 'AbortError';
-        reject(error);
-      };
-      if (signal.aborted) rejectAbort();
-      else signal.addEventListener('abort', rejectAbort, { once: true });
-    });
+  const restoreTransport = useFetchTransport();
+  globalThis.fetch = async () => new Promise<Response>(() => {});
 
   try {
     const adapter = new MemoryAdapter();
@@ -301,13 +303,13 @@ test('Codex Worker deadline aborts a hanging fetch instead of overrunning the ti
       /Codex Worker 任务超时/,
     );
 
-    assert.equal(hangingSignal?.aborted, true);
     assert.ok(
       Date.now() - startedAt < 500,
       'a hanging fetch must be bounded by the total deadline',
     );
   } finally {
     globalThis.fetch = originalFetch;
+    restoreTransport();
   }
 });
 

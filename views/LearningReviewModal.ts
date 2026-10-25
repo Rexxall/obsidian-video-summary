@@ -14,6 +14,7 @@ import {
   resolveLearningEvidence,
 } from '../core/LearningProgressStore';
 import { formatTimestamp } from '../core/KnowledgeModel';
+import { safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 
 export type LearningReviewMode = 'due' | 'mistakes' | 'all';
 
@@ -434,8 +435,9 @@ export class LearningReviewModal extends Modal {
       await this.options.onOpenEvidence(this.options.artifact, target);
       return;
     }
-    if (target.timestamp_url) {
-      window.open(target.timestamp_url, '_blank');
+    const externalUrl = safeExternalHttpUrl(target.timestamp_url);
+    if (externalUrl) {
+      window.open(externalUrl, '_blank', 'noopener,noreferrer');
       return;
     }
     new Notice('证据有时间点，但当前入口没有播放器定位回调');

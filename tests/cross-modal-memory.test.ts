@@ -18,6 +18,7 @@ test('cross-modal memory searches title, transcript, segment visual text, OCR, v
   assert.equal(ocr.evidence_type, 'ocr');
   assert.equal(ocr.timestamp, 42);
   assert.equal(ocr.keyframe?.path, 'assets/frame-42.jpg');
+  assert.equal(ocr.media_asset_root, 'Videos/_video-summary-assets');
   assert.match(ocr.timestamp_url || '', /t=42s/);
   assert.ok(ocr.highlights.length > 0);
   assert.ok(ocr.score_explanation.some((component) => component.name === 'field'));
@@ -213,6 +214,7 @@ function richArtifact(id: string): VideoKnowledgeArtifact {
     provenance: {
       schema_version: 3,
       generated_at: '2026-07-20T00:00:00Z',
+      media_asset_root: 'Videos/_video-summary-assets',
     },
     created_at: '2026-07-20T00:00:00Z',
     updated_at: '2026-07-21T00:00:00Z',

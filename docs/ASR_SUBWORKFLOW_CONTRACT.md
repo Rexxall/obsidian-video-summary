@@ -55,5 +55,14 @@ If your provider processes chunks, merge them in source order before returning.
 - Keep provider tokens and account identifiers in n8n credentials, not node parameters or exports.
 - Review any ASR workflow export before sharing it.
 - Do not expose n8n or media directories publicly without authentication and network controls.
+- Treat `audio_file_path` as untrusted even though it came from the main workflow. Resolve the real
+  path and accept only a regular file below `/home/node/files/` or `/home/node/uploads/`; reject
+  symlinks, traversal, control characters, and any other root.
+- Never interpolate `audio_file_path` into an Execute Command string, shell variable assignment, or
+  `bash -c` fragment. Use a fixed executable with a real argument array, or use n8n's binary-file
+  nodes without a shell.
+- Give every execution its own working directory and delete only files created by that execution.
+  Never use a global wildcard such as `/home/node/files/*.mp3`, which can delete another concurrent
+  job's input.
 - If you do not want an ASR integration, use native subtitles or paste a transcript; do not treat an
   empty fallback as a successful transcription.

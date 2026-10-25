@@ -1,5 +1,5 @@
-// agent: claude (2026-07-26) — v2.3.0 侧栏重构：行动区 / 任务流 / 笔记库 / 详情四层
-import { ItemView, TFile, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, TFile, WorkspaceLeaf } from 'obsidian';
+import { relinkVideoJobs } from '../utils/NoteOutput';
 import VideoSummaryPlugin from '../main';
 import { SubmitOptions } from '../core/JobService';
 import { BackendState, DetailRef, PanelTab, ViewContext, ViewState } from './context';
@@ -18,7 +18,7 @@ export const VIDEO_SUMMARY_VIEW_TYPE = 'video-summary-view';
 export class VideoSummaryView extends ItemView {
   private plugin: VideoSummaryPlugin;
   private state: ViewState;
-  private headerEl: HTMLElement | null = null;
+  private actionHeaderEl: HTMLElement | null = null;
   private panelEl: HTMLElement | null = null;
   private unsubscribe: Array<() => void> = [];
   private renderQueued = false;
@@ -75,7 +75,7 @@ export class VideoSummaryView extends ItemView {
     container.toggleClass('is-narrow', container.clientWidth <= 520);
     container.toggleClass('is-tiny', container.clientWidth <= 260);
 
-    this.headerEl = container.createDiv({ cls: 'vs-top' });
+    this.actionHeaderEl = container.createDiv({ cls: 'vs-top' });
     this.panelEl = container.createDiv({ cls: 'vs-panels' });
 
     this.unsubscribe.push(this.plugin.jobs.subscribe(() => this.schedulePanelRender()));
@@ -172,9 +172,9 @@ export class VideoSummaryView extends ItemView {
   }
 
   private renderAll() {
-    if (!this.headerEl) return;
-    this.headerEl.empty();
-    renderActionBar(this.headerEl, this.context());
+    if (!this.actionHeaderEl) return;
+    this.actionHeaderEl.empty();
+    renderActionBar(this.actionHeaderEl, this.context());
     this.renderPanels();
   }
 
@@ -197,7 +197,7 @@ export class VideoSummaryView extends ItemView {
 
     // 设计稿的笔记库与详情都是独立页面：只在任务页保留顶部输入区。
     // 旧实现把 ActionBar 永久钉在三种页面上方，实际运行时会比 2b/2c 多出半屏内容。
-    this.headerEl?.toggleAttribute(
+    this.actionHeaderEl?.toggleAttribute(
       'hidden',
       this.state.tab === 'library' || this.state.detail !== null,
     );
@@ -242,10 +242,33 @@ export class VideoSummaryView extends ItemView {
     );
   }
 
-  private openNote(path: string) {
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof TFile) {
-      void this.app.workspace.getLeaf(false).openFile(file);
+  private async openNote(path: string) {
+    let file = this.app.vault.getAbstractFileByPath(path);
+    // A task finished before a rename can still point at the old filename.
+    if (!(file instanceof TFile)) {
+      const job = this.plugin.jobs.getAll().find((item) => item.notePath === path);
+      const artifactId = job?.result?.artifact?.artifact_id || job?.input?.artifactId;
+      if (artifactId) {
+        try {
+          const artifact = await this.plugin.artifactStore.load(artifactId);
+          const resolved = artifact?.source?.note_path;
+          if (resolved) file = this.app.vault.getAbstractFileByPath(resolved);
+          if (file instanceof TFile) relinkVideoJobs(this.plugin.jobs, path, file);
+        } catch {
+          // Missing artifact: fall through to the notice below.
+        }
+      }
+    }
+    if (!(file instanceof TFile)) {
+      new Notice('笔记已移动或重命名，请从笔记库打开。');
+      return;
+    }
+    try {
+      const leaf = this.app.workspace.getLeaf(false);
+      await leaf.openFile(file, { active: true });
+      await this.app.workspace.revealLeaf(leaf);
+    } catch (error) {
+      new Notice(`打开笔记失败：${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

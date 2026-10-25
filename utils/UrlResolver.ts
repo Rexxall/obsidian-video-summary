@@ -1,4 +1,3 @@
-// agent: claude (2026-07-02)
 import { SHORT_LINK_HOSTS } from '../constants';
 
 /**

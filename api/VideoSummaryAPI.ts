@@ -1,5 +1,3 @@
-// agent: codex (2026-05-21)
-// agent: claude (2026-07-02) — 短链自动展开 + quickHealthCheck/probeEndpoint
 import {
   ProcessingBackend,
   ProcessingMode,
@@ -11,11 +9,12 @@ import {
   WorkflowHealthInfo,
   ProcessingDepth,
   RequestedContentType,
+  WebhookAuthConfig,
 } from '../types';
 import { CacheManager } from '../utils/CacheManager';
 import { UrlResolver } from '../utils/UrlResolver';
-import type { Vault } from 'obsidian';
-import { RECOMMENDED_WORKFLOW } from '../constants';
+import type { RequestUrlParam, RequestUrlResponse, Vault } from 'obsidian';
+import { DEFAULT_WEBHOOK_AUTH_HEADER, RECOMMENDED_WORKFLOW } from '../constants';
 import { normalizeRichProcessingResult } from '../core/KnowledgeModel';
 import {
   buildContentRoutingPromptContract,
@@ -28,11 +27,13 @@ import {
 } from '../core/ArtifactFingerprint';
 
 const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
-const CACHE_PROMPT_VERSION = 'video-knowledge-v3';
+const CACHE_PROMPT_VERSION = 'video-knowledge-v3-clean-note-1';
 
 export interface EndpointProbeResult {
   ok: boolean;
   error?: string;
+  status?: number;
+  bodySnippet?: string;
 }
 
 /**
@@ -51,6 +52,10 @@ export class VideoSummaryAPI {
   private debugMode: boolean = false;
   private aiModel: string = 'Gemini 3.1';
   private backend: ProcessingBackend = 'n8n';
+  private webhookAuth: WebhookAuthConfig = {
+    headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
+    secret: '',
+  };
   private cacheManager: CacheManager;
   private payloadKeys: any;
   private expandShortLinksEnabled: boolean = false;
@@ -82,6 +87,8 @@ export class VideoSummaryAPI {
   private webhookHistoryLimit = 50;
   private historyListener?: (history: WebhookHistoryEntry[]) => void;
   private controllers: Map<string, AbortController> = new Map();
+  private workerControllers: Set<AbortController> = new Set();
+  private workerCancelUrls: Map<AbortController, string> = new Map();
   private controllerSequence = 0;
   constructor(
     webhookUrl: string,
@@ -89,10 +96,15 @@ export class VideoSummaryAPI {
     pluginDataPath?: string,
     payloadKeys?: any,
     backend?: ProcessingBackend,
+    webhookAuth?: Partial<WebhookAuthConfig>,
+    timeoutMinutes: number = 30,
   ) {
     this.webhookUrl = webhookUrl;
-    this.timeout = 10 * 60 * 1000; // Codex Worker 需要等待下载字幕/总结，默认 10 分钟
+    const normalizedTimeoutMinutes =
+      Number.isFinite(timeoutMinutes) && timeoutMinutes > 0 ? timeoutMinutes : 30;
+    this.timeout = normalizedTimeoutMinutes * 60 * 1000;
     this.backend = backend || 'n8n';
+    this.setWebhookAuth(webhookAuth);
     this.cacheManager = new CacheManager(vault, pluginDataPath);
     this.payloadKeys = payloadKeys || {
       mode: 'mode',
@@ -109,13 +121,54 @@ export class VideoSummaryAPI {
     this.payloadKeys = keys;
   }
 
-  setEndpoint(url: string, backend: ProcessingBackend = this.backend) {
+  setEndpoint(
+    url: string,
+    backend: ProcessingBackend = this.backend,
+    webhookAuth?: Partial<WebhookAuthConfig>,
+  ) {
     this.webhookUrl = url;
     this.backend = backend;
+    if (webhookAuth !== undefined) {
+      this.setWebhookAuth(webhookAuth);
+    }
   }
 
   setBackend(backend: ProcessingBackend) {
     this.backend = backend;
+  }
+
+  setWebhookAuth(auth?: Partial<WebhookAuthConfig>) {
+    this.webhookAuth = {
+      headerName: auth?.headerName?.trim() || DEFAULT_WEBHOOK_AUTH_HEADER,
+      secret: typeof auth?.secret === 'string' ? auth.secret : '',
+    };
+  }
+
+  private buildN8nHeaders(): Record<string, string> {
+    return VideoSummaryAPI.buildN8nHeaders(this.webhookAuth);
+  }
+
+  private static buildN8nHeaders(auth?: Partial<WebhookAuthConfig>): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const secret = typeof auth?.secret === 'string' ? auth.secret : '';
+    if (!secret) return headers;
+
+    const headerName = auth?.headerName?.trim() || DEFAULT_WEBHOOK_AUTH_HEADER;
+    if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(headerName)) {
+      throw new Error('Webhook 鉴权 Header 名称无效。');
+    }
+    if (/[\0\r\n]/.test(secret)) {
+      throw new Error('Webhook 鉴权 Secret 不能包含换行符或空字符。');
+    }
+    headers[headerName] = secret;
+    return headers;
+  }
+
+  private redactWebhookSecret(value: string): string {
+    const secret = this.webhookAuth.secret;
+    return secret && value.includes(secret) ? value.split(secret).join('[REDACTED]') : value;
   }
 
   /** 是否在发送前自动展开短链 */
@@ -138,14 +191,11 @@ export class VideoSummaryAPI {
     try {
       const expanded = await UrlResolver.expandShortUrl(input.url);
       if (expanded && expanded !== input.url) {
-        if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] 短链已展开: ${input.url} -> ${expanded}`);
-        }
         return { ...input, url: expanded };
       }
-    } catch (error) {
+    } catch {
       if (this.debugMode) {
-        console.warn('[VideoSummaryAPI] 短链展开失败，使用原链接', error);
+        console.warn('[VideoSummaryAPI] 短链展开失败，使用原链接');
       }
     }
     return input;
@@ -168,6 +218,7 @@ export class VideoSummaryAPI {
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
     onProgress?: ProcessProgressReporter,
+    timeoutMinutes?: number,
   ): Promise<ProcessingResult> {
     input = this.withAnalysisDefaults(input);
     // 短链先展开再处理（缓存 key 也用展开后的链接）
@@ -188,11 +239,12 @@ export class VideoSummaryAPI {
 
     // 构建请求负载
     const payload = this.buildPayload(noteName, input, mode, language);
+    const requestTimeoutMs = this.resolveTimeoutMs(timeoutMinutes);
 
     if (this.backend === 'codex-worker') {
       try {
         const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(noteName, payload, onProgress),
+          await this.processCodexWorkerJob(noteName, payload, onProgress, requestTimeoutMs),
           cacheFingerprint,
         );
         this.recordWebhookResult(result, input, mode, language);
@@ -232,14 +284,12 @@ export class VideoSummaryAPI {
     const timeoutId = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, this.timeout);
+    }, requestTimeoutMs);
 
     try {
       const response = await fetch(this.webhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.buildN8nHeaders(),
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -279,7 +329,7 @@ export class VideoSummaryAPI {
       if ((error as Error).name === 'AbortError') {
         throw new Error(
           timedOut
-            ? `请求超时（超过 ${Math.round(this.timeout / 60000)} 分钟未响应）`
+            ? `请求超时（超过 ${Math.round(requestTimeoutMs / 60000)} 分钟未响应）`
             : '请求被取消',
         );
       }
@@ -301,6 +351,7 @@ export class VideoSummaryAPI {
     mode: ProcessingMode,
     language: SupportedLanguage = 'zh',
     useCache: boolean = true,
+    timeoutMinutes?: number,
   ): Promise<ProcessingResult> {
     input = this.withAnalysisDefaults(input);
     // 短链先展开再处理（缓存 key 也用展开后的链接）
@@ -319,11 +370,12 @@ export class VideoSummaryAPI {
 
     // 构建请求负载
     const payload = this.buildPayload('temp', input, mode, language);
+    const requestTimeoutMs = this.resolveTimeoutMs(timeoutMinutes);
 
     if (this.backend === 'codex-worker') {
       try {
         const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(this.nextControllerKey('simple'), payload),
+          await this.processCodexWorkerJob(this.nextControllerKey('simple'), payload, undefined, requestTimeoutMs),
           cacheFingerprint,
         );
         this.recordWebhookResult(result, input, mode, language);
@@ -356,15 +408,13 @@ export class VideoSummaryAPI {
     const timeoutId = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, this.timeout);
+    }, requestTimeoutMs);
 
     try {
       // 发送请求
       const response = await fetch(this.webhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.buildN8nHeaders(),
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -404,7 +454,7 @@ export class VideoSummaryAPI {
       if ((error as Error).name === 'AbortError') {
         throw new Error(
           timedOut
-            ? `请求超时（超过 ${Math.round(this.timeout / 60000)} 分钟未响应）`
+            ? `请求超时（超过 ${Math.round(requestTimeoutMs / 60000)} 分钟未响应）`
             : '请求被取消',
         );
       }
@@ -444,11 +494,15 @@ export class VideoSummaryAPI {
     this.historyListener = listener;
   }
 
-  // 取消指定笔记的请求
-  cancelByNoteName(noteName: string) {
+  // 取消指定笔记的请求。Worker 同时调用后端 cancel，不只停止本地轮询。
+  async cancelByNoteName(noteName: string): Promise<void> {
     const controller = this.controllers.get(noteName);
-    if (controller) {
-      controller.abort();
+    if (!controller) return;
+
+    controller.abort();
+    if (this.workerControllers.has(controller)) {
+      await this.cancelCodexWorkerJob(controller);
+    } else {
       this.controllers.delete(noteName);
     }
   }
@@ -536,11 +590,17 @@ export class VideoSummaryAPI {
   }
 
   // 取消所有正在进行的请求
-  cancelAll() {
+  async cancelAll(): Promise<void> {
+    const workerCancellations: Promise<void>[] = [];
     for (const [key, controller] of this.controllers.entries()) {
       controller.abort();
-      this.controllers.delete(key);
+      if (this.workerControllers.has(controller)) {
+        workerCancellations.push(this.cancelCodexWorkerJob(controller));
+      } else {
+        this.controllers.delete(key);
+      }
     }
+    await Promise.all(workerCancellations);
   }
 
   private buildPayload(
@@ -774,13 +834,20 @@ export class VideoSummaryAPI {
     controllerKey: string,
     payload: any,
     onProgress?: ProcessProgressReporter,
+    requestTimeoutMs: number = this.timeout,
   ): Promise<ProcessingResult> {
     const controller = new AbortController();
     const previousController = this.controllers.get(controllerKey);
-    if (previousController) previousController.abort();
+    if (previousController) {
+      previousController.abort();
+      if (this.workerControllers.has(previousController)) {
+        void this.cancelCodexWorkerJob(previousController);
+      }
+    }
     this.controllers.set(controllerKey, controller);
+    this.workerControllers.add(controller);
 
-    const timeoutMs = Math.max(1, Math.floor(Number(this.timeout) || 1));
+    const timeoutMs = Math.max(1, Math.floor(Number(requestTimeoutMs) || 1));
     const deadline = Date.now() + timeoutMs;
     let timedOut = false;
     const timeoutId = setTimeout(() => {
@@ -789,42 +856,65 @@ export class VideoSummaryAPI {
     }, timeoutMs);
     const jobsUrl = this.getCodexWorkerJobsUrl();
     try {
-      const response = await fetch(jobsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // requestUrl 由 Obsidian 原生网络层发送，不携带 Electron/browser Origin，
+      // 因此不会被 loopback worker 的 Origin 守卫误拒。
+      const response = await VideoSummaryAPI.nativeRequest(
+        {
+          url: jobsUrl,
+          method: 'POST',
+          contentType: 'application/json',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
+        Math.max(1, deadline - Date.now()),
+      );
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Codex Worker HTTP ${response.status}: ${text || response.statusText}`);
+      if (!VideoSummaryAPI.isSuccessfulStatus(response.status)) {
+        throw new Error(this.formatNativeHttpError('Codex Worker', response));
       }
 
-      const createdJob = await response.json();
+      const createdJob = this.readNativeJsonResponse(response, 'Codex Worker 创建任务');
       if (!createdJob?.id) {
         throw new Error('Codex Worker 没有返回任务 ID');
       }
 
       const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
-      let latestJob = createdJob;
+      this.workerCancelUrls.set(controller, this.getCodexWorkerJobCancelUrl(statusUrl));
 
+      // 如果用户在创建请求返回前就点了取消，拿到 job ID 后立即补发 cancel。
+      if (controller.signal.aborted) {
+        await this.cancelCodexWorkerJob(controller);
+        throw this.abortError();
+      }
+
+      let latestJob = createdJob;
+      let lastProgressLogMarker: string | undefined;
       while (Date.now() < deadline) {
         await this.sleep(Math.min(1000, Math.max(1, deadline - Date.now())), controller.signal);
-        const statusResponse = await fetch(statusUrl, { signal: controller.signal });
-        if (!statusResponse.ok) {
-          const text = await statusResponse.text();
+        const statusResponse = await VideoSummaryAPI.nativeRequest(
+          { url: statusUrl, method: 'GET' },
+          Math.max(1, deadline - Date.now()),
+          controller.signal,
+        );
+        if (!VideoSummaryAPI.isSuccessfulStatus(statusResponse.status)) {
           throw new Error(
-            `Codex Worker job 状态读取失败: HTTP ${statusResponse.status} ${text || statusResponse.statusText}`,
+            this.formatNativeHttpError('Codex Worker job 状态读取失败', statusResponse),
           );
         }
 
-        latestJob = await statusResponse.json();
+        latestJob = this.readNativeJsonResponse(statusResponse, 'Codex Worker job 状态');
         if (onProgress) {
-          const stageLabel = pickString(latestJob, ['stage', 'step', 'phase', 'status']);
-          const message = pickString(latestJob, ['message', 'detail', 'lastLog']);
+          const latestLog = latestJob?.latestLog ?? latestJob?.lastLog;
+          const stageLabel =
+            pickString(latestLog, ['stage', 'step', 'phase']) ||
+            pickString(latestJob, ['stage', 'step', 'phase', 'status']);
+          const logMarker = progressLogMarker(latestLog);
+          const message =
+            pickString(latestJob, ['message', 'detail']) ||
+            (logMarker && logMarker !== lastProgressLogMarker
+              ? formatProgressLog(latestLog)
+              : undefined);
+          if (logMarker) lastProgressLogMarker = logMarker;
           const progress = pickRatio(latestJob, ['progress', 'percent', 'percentage']);
           if (stageLabel || message || progress !== undefined) {
             onProgress({ stageLabel, message, progress });
@@ -854,8 +944,13 @@ export class VideoSummaryAPI {
       controller.abort();
       throw this.abortError();
     } catch (error) {
-      if (controller.signal.aborted || (error as Error)?.name === 'AbortError') {
-        if (timedOut || Date.now() >= deadline) {
+      if (
+        controller.signal.aborted ||
+        (error as Error)?.name === 'AbortError' ||
+        (error as Error)?.name === 'TimeoutError'
+      ) {
+        await this.cancelCodexWorkerJob(controller);
+        if (timedOut || Date.now() >= deadline || (error as Error)?.name === 'TimeoutError') {
           throw new Error(
             `Codex Worker 任务超时。可在控制台查看: ${this.getCodexWorkerDashboardUrl()}`,
           );
@@ -865,6 +960,8 @@ export class VideoSummaryAPI {
       throw error;
     } finally {
       clearTimeout(timeoutId);
+      this.workerCancelUrls.delete(controller);
+      this.workerControllers.delete(controller);
       if (this.controllers.get(controllerKey) === controller) {
         this.controllers.delete(controllerKey);
       }
@@ -905,6 +1002,43 @@ export class VideoSummaryAPI {
       return base.toString();
     } catch {
       return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(job.id)}`;
+    }
+  }
+
+  private getCodexWorkerJobCancelUrl(statusUrl: string): string {
+    try {
+      const url = new URL(statusUrl);
+      url.pathname = `${url.pathname.replace(/\/+$/, '')}/cancel`;
+      url.hash = '';
+      return url.toString();
+    } catch {
+      return `${statusUrl.replace(/\/+$/, '')}/cancel`;
+    }
+  }
+
+  private async cancelCodexWorkerJob(controller: AbortController): Promise<void> {
+    const cancelUrl = this.workerCancelUrls.get(controller);
+    if (!cancelUrl) return;
+
+    try {
+      const response = await VideoSummaryAPI.nativeRequest(
+        {
+          url: cancelUrl,
+          method: 'POST',
+          contentType: 'application/json',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        },
+        4000,
+      );
+      if (!VideoSummaryAPI.isSuccessfulStatus(response.status) && response.status !== 404) {
+        throw new Error(this.formatNativeHttpError('Codex Worker 取消失败', response));
+      }
+    } catch (error) {
+      // 本地任务已停止轮询；后端 cancel 失败不应让 UI 的取消操作变成新错误。
+      if (this.debugMode) {
+        console.warn('[VideoSummaryAPI] Codex Worker 取消请求失败', error);
+      }
     }
   }
 
@@ -967,6 +1101,86 @@ export class VideoSummaryAPI {
   private nextControllerKey(prefix: string): string {
     this.controllerSequence += 1;
     return `${prefix}:${Date.now().toString(36)}:${this.controllerSequence.toString(36)}`;
+  }
+
+  private resolveTimeoutMs(timeoutMinutes?: number): number {
+    const normalizedMinutes = Number(timeoutMinutes);
+    if (!Number.isFinite(normalizedMinutes) || normalizedMinutes <= 0) {
+      return this.timeout;
+    }
+    return normalizedMinutes * 60 * 1000;
+  }
+
+  private readNativeJsonResponse(response: RequestUrlResponse, label: string): any {
+    const text = response.text || '';
+    if (!text.trim()) {
+      throw new Error(`${label}返回空响应`);
+    }
+    const parsed = this.tryParseJson(text);
+    if (!parsed) {
+      throw new Error(`${label}返回的不是 JSON。响应片段: ${this.truncateError(text, 180)}`);
+    }
+    return parsed;
+  }
+
+  private formatNativeHttpError(label: string, response: RequestUrlResponse): string {
+    const text = response.text || '';
+    const snippet = text ? `。响应片段: ${this.truncateError(text, 180)}` : '';
+    return `${label}: HTTP ${response.status}${snippet}`;
+  }
+
+  private static isSuccessfulStatus(status: number): boolean {
+    return status >= 200 && status < 300;
+  }
+
+  /** Network layer for Worker calls; Obsidian's requestUrl by default, replaceable in tests. */
+  static transport: (request: RequestUrlParam) => Promise<RequestUrlResponse> = (request) =>
+    import('obsidian').then(({ requestUrl }) => requestUrl(request));
+
+  private static async nativeRequest(
+    request: RequestUrlParam,
+    timeoutMs: number,
+    signal?: AbortSignal,
+  ): Promise<RequestUrlResponse> {
+    const safeTimeoutMs = Math.max(1, Math.floor(Number(timeoutMs) || 1));
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        const error = new Error(`${safeTimeoutMs}ms 内无响应（服务可能未启动）`);
+        error.name = 'TimeoutError';
+        reject(error);
+      }, safeTimeoutMs);
+    });
+    const requests: Array<Promise<RequestUrlResponse> | Promise<never>> = [
+      VideoSummaryAPI.transport({ ...request, throw: false }),
+      timeoutPromise,
+    ];
+
+    if (signal) {
+      requests.push(
+        new Promise<never>((_, reject) => {
+          onAbort = () => {
+            const error = new Error('Aborted');
+            error.name = 'AbortError';
+            reject(error);
+          };
+          if (signal.aborted) {
+            onAbort();
+          } else {
+            signal.addEventListener('abort', onAbort, { once: true });
+          }
+        }),
+      );
+    }
+
+    try {
+      return await Promise.race(requests);
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+    }
   }
 
   private parseSummaryResponse(data: any, input: VideoInput = {}): ProcessingResult {
@@ -1239,59 +1453,87 @@ export class VideoSummaryAPI {
       this.backend,
       timeoutMs,
       this.backend === 'n8n' ? this.buildConnectionTestPayload() : undefined,
+      this.backend === 'n8n' ? this.webhookAuth : undefined,
     );
   }
 
   /**
    * 探测任意后端端点是否可用（静态方法，供"另一个后端是否可用"的检查复用）。
-   * - n8n: POST 测试 payload；连接被拒/超时 = 不可达；HTTP 404 = webhook 未激活。
-   * - codex-worker: GET /health（回退 /dashboard）；只要有 HTTP 响应就算可达。
+   * - n8n: 保持 fetch POST 测试 payload，仅 2xx 算可用。
+   * - codex-worker: 用 Obsidian requestUrl GET /health，必须是 2xx 且返回有效 worker health JSON。
    */
   static async probeEndpoint(
     url: string,
     backend: ProcessingBackend,
     timeoutMs = 4000,
     n8nBody?: any,
+    n8nAuth?: Partial<WebhookAuthConfig>,
   ): Promise<EndpointProbeResult> {
     if (!url || !url.trim()) {
       return { ok: false, error: '服务 URL 未配置' };
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      if (backend === 'codex-worker') {
-        let probeUrl: string;
-        try {
-          const parsed = new URL(url);
-          parsed.pathname = '/health';
-          parsed.search = '';
-          parsed.hash = '';
-          probeUrl = parsed.toString();
-        } catch {
-          probeUrl = 'http://127.0.0.1:8787/health';
-        }
-
-        let response = await fetch(probeUrl, {
-          method: 'GET',
-          signal: controller.signal,
-        }).catch(() => null);
-
-        if (!response) {
-          const parsed = new URL(url);
-          parsed.pathname = '/dashboard';
-          parsed.search = '';
-          parsed.hash = '';
-          response = await fetch(parsed.toString(), {
-            method: 'GET',
-            signal: controller.signal,
-          });
-        }
-        // 只要拿到任意 HTTP 响应就说明 worker 进程在线
-        return { ok: true };
+    if (backend === 'codex-worker') {
+      let probeUrl: string;
+      try {
+        const parsed = new URL(url);
+        parsed.pathname = '/health';
+        parsed.search = '';
+        parsed.hash = '';
+        probeUrl = parsed.toString();
+      } catch {
+        probeUrl = 'http://127.0.0.1:8787/health';
       }
 
+      try {
+        const response = await VideoSummaryAPI.nativeRequest(
+          { url: probeUrl, method: 'GET' },
+          timeoutMs,
+        );
+        const bodySnippet = (response.text || '').slice(0, 180);
+        if (!VideoSummaryAPI.isSuccessfulStatus(response.status)) {
+          return {
+            ok: false,
+            status: response.status,
+            bodySnippet,
+            error: `HTTP ${response.status} — Codex Worker health 请求失败`,
+          };
+        }
+
+        let health: any;
+        try {
+          health = JSON.parse(response.text || '');
+        } catch {
+          return {
+            ok: false,
+            status: response.status,
+            bodySnippet,
+            error: 'Codex Worker /health 未返回有效 JSON',
+          };
+        }
+        if (health?.ok !== true || health?.service !== 'codex-video-worker') {
+          return {
+            ok: false,
+            status: response.status,
+            bodySnippet,
+            error: 'Codex Worker /health 响应缺少有效的 ok/service 标识',
+          };
+        }
+        return { ok: true, status: response.status, bodySnippet };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            (error as Error)?.name === 'TimeoutError'
+              ? `${timeoutMs}ms 内无响应（服务可能未启动）`
+              : (error as Error)?.message || String(error),
+        };
+      }
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
       const body =
         n8nBody ??
         ({
@@ -1301,12 +1543,15 @@ export class VideoSummaryAPI {
         } as any);
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: VideoSummaryAPI.buildN8nHeaders(n8nAuth),
         body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (response.status === 404) {
         return { ok: false, error: 'HTTP 404 — webhook 不存在或 workflow 未激活' };
+      }
+      if (!response.ok) {
+        return { ok: false, error: `HTTP ${response.status} — webhook 健康检查失败` };
       }
       return { ok: true };
     } catch (error) {
@@ -1323,16 +1568,39 @@ export class VideoSummaryAPI {
   // 测试连接（返回耗时、响应片段和下一步建议，便于诊断）
   async testConnection(): Promise<ConnectionTestResult> {
     const started = Date.now();
+
+    if (this.backend === 'codex-worker') {
+      const probe = await VideoSummaryAPI.probeEndpoint(this.webhookUrl, 'codex-worker', 4000);
+      const durationMs = Date.now() - started;
+      if (probe.ok) {
+        return {
+          success: true,
+          durationMs,
+          status: probe.status,
+          bodySnippet: probe.bodySnippet,
+        };
+      }
+      const error = this.formatUserFacingError(new Error(probe.error || 'Codex Worker 健康检查失败'));
+      return {
+        success: false,
+        durationMs,
+        status: probe.status,
+        bodySnippet: probe.bodySnippet,
+        error,
+        hint: this.getConnectionHint(error),
+      };
+    }
+
     try {
       const response = await fetch(this.webhookUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.buildN8nHeaders(),
         body: JSON.stringify(this.buildConnectionTestPayload()),
       });
 
       const durationMs = Date.now() - started;
       const text = await response.text();
-      const snippet = (text || '').slice(0, 180);
+      const snippet = this.redactWebhookSecret((text || '').slice(0, 180));
 
       if (!response.ok) {
         const error = await this.formatHttpError(response, text);
@@ -1381,7 +1649,7 @@ export class VideoSummaryAPI {
       }
 
       if (parsed?.error) {
-        const error = this.errorToString(parsed.error);
+        const error = this.redactWebhookSecret(this.errorToString(parsed.error));
         return {
           success: false,
           durationMs,
@@ -1390,22 +1658,6 @@ export class VideoSummaryAPI {
           error,
           hint: this.getConnectionHint(error),
         };
-      }
-
-      if (this.backend === 'codex-worker') {
-        try {
-          this.parseSummaryResponse(parsed);
-        } catch (error) {
-          const message = this.formatUserFacingError(error);
-          return {
-            success: false,
-            durationMs,
-            status: response.status,
-            bodySnippet: snippet,
-            error: message,
-            hint: this.getConnectionHint(message),
-          };
-        }
       }
 
       const workflow = this.extractWorkflowHealthInfo(parsed);
@@ -1527,7 +1779,9 @@ export class VideoSummaryAPI {
 
     const parsed = this.tryParseJson(text);
     if (!parsed) {
-      throw new Error(`服务器返回的不是 JSON。响应片段: ${this.truncateError(text, 180)}`);
+      throw new Error(
+        `服务器返回的不是 JSON。响应片段: ${this.redactWebhookSecret(this.truncateError(text, 180))}`,
+      );
     }
 
     return parsed;
@@ -1543,12 +1797,14 @@ export class VideoSummaryAPI {
       }
     }
 
-    const snippet = text ? `。响应片段: ${this.truncateError(text, 180)}` : '';
+    const snippet = text
+      ? `。响应片段: ${this.redactWebhookSecret(this.truncateError(text, 180))}`
+      : '';
     return `HTTP ${response.status} ${response.statusText}${snippet}`;
   }
 
   formatUserFacingError(error: unknown): string {
-    const message = this.errorToString(error);
+    const message = this.redactWebhookSecret(this.errorToString(error));
     const lower = message.toLowerCase();
 
     if (message.includes('请求被取消')) {
@@ -1556,10 +1812,16 @@ export class VideoSummaryAPI {
     }
 
     if (message.includes('HTTP 404')) {
+      if (this.backend === 'codex-worker') {
+        return `Codex Worker 端点不存在。请确认后端 App 已启动且 URL 指向正确端口。当前 URL: ${this.webhookUrl}`;
+      }
       return `Webhook 不存在或路径不匹配。请确认 n8n workflow 已激活，并且插件 URL 与 Webhook Path 完全一致。当前 URL: ${this.webhookUrl}`;
     }
 
     if (message.includes('HTTP 401') || message.includes('HTTP 403')) {
+      if (this.backend === 'codex-worker') {
+        return 'Codex Worker 拒绝访问。请检查 Worker 鉴权 token 与本地服务安全配置。';
+      }
       return '处理服务拒绝访问。请检查 n8n 权限、反向代理鉴权或远程服务访问设置。';
     }
 
@@ -1583,6 +1845,9 @@ export class VideoSummaryAPI {
       message.includes('HTTP 502') ||
       message.includes('HTTP 503')
     ) {
+      if (this.backend === 'codex-worker') {
+        return `Codex Worker 内部报错。请打开 Worker 控制台查看任务日志。原始错误: ${message}`;
+      }
       return `处理服务内部报错。请打开 n8n Execution 日志查看失败节点。原始错误: ${message}`;
     }
 
@@ -1592,6 +1857,9 @@ export class VideoSummaryAPI {
       lower.includes('networkerror') ||
       lower.includes('connection refused')
     ) {
+      if (this.backend === 'codex-worker') {
+        return `无法连接 Codex Worker。请确认本地后端 App 已启动、端口可访问且 Worker URL 正确。当前 URL: ${this.webhookUrl}`;
+      }
       return `无法连接处理服务。请确认 Docker/n8n 已启动，端口可访问，插件 URL 正确。当前 URL: ${this.webhookUrl}`;
     }
 
@@ -1619,6 +1887,10 @@ export class VideoSummaryAPI {
       return '先运行 docker compose 服务，再确认端口没有被其他 n8n 占用。';
     }
 
+    if (message.includes('无法连接 Codex Worker')) {
+      return '先启动本地后端 App，再确认 Worker URL 与端口配置。';
+    }
+
     if (message.includes('Bilibili 拒绝')) {
       return '执行 docker compose build --no-cache 更新 yt-dlp；仍失败时添加 docker/cookies/bilibili_cookies.txt。';
     }
@@ -1632,6 +1904,9 @@ export class VideoSummaryAPI {
     }
 
     if (message.includes('拒绝访问')) {
+      if (this.backend === 'codex-worker') {
+        return '检查 Worker 的共享 token；/health 应保持可读，任务接口需使用匹配的鉴权配置。';
+      }
       return '如果你使用远程 n8n，请检查登录、反向代理和 CORS/鉴权配置。';
     }
 
@@ -1661,6 +1936,30 @@ function pickString(source: any, keys: string[]): string | undefined {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return undefined;
+}
+
+/** 读取 worker 的 latestLog（也兼容旧 lastLog），避免每秒重复写入同一条日志。 */
+function progressLogMarker(log: any): string | undefined {
+  if (typeof log === 'string') return log.trim() || undefined;
+  if (!log || typeof log !== 'object') return undefined;
+  return pickString(log, ['at', 'timestamp']) || formatProgressLog(log);
+}
+
+function formatProgressLog(log: any): string | undefined {
+  if (typeof log === 'string') return log.trim() || undefined;
+  if (!log || typeof log !== 'object') return undefined;
+
+  const direct = pickString(log, ['message', 'text']);
+  if (direct) return direct;
+  const detail = log.detail;
+  if (typeof detail === 'string') return detail.trim() || undefined;
+  if (!detail || typeof detail !== 'object') return undefined;
+
+  const entries = Object.entries(detail)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .slice(0, 4)
+    .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+  return entries.length > 0 ? entries.join(' · ') : undefined;
 }
 
 /** 把 0-1 或 0-100 的进度字段统一成 0-1 */

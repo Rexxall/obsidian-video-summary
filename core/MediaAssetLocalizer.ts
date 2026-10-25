@@ -1,4 +1,3 @@
-// agent: codex (2026-07-29)
 import type { MediaAssetReference, ProcessingResult, VideoSegment, VisualEvidence } from '../types';
 
 export interface BinaryAssetAdapter {
@@ -20,6 +19,7 @@ export interface MediaAssetLocalizerOptions {
   maxTotalBytes?: number;
   timeoutMs?: number;
   fetchBinary?: BinaryFetcher;
+  workerEndpoint?: string;
 }
 
 export interface MediaLocalizationResult {
@@ -33,9 +33,9 @@ const SAFE_ARTIFACT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
 /**
  * Copies worker-served evidence images into a Vault-relative asset folder.
  *
- * Only loopback HTTP(S) URLs are downloaded. Absolute worker paths are never
- * read directly, which keeps this path portable and avoids exposing arbitrary
- * local files to the plugin.
+ * Only URLs on the configured loopback Worker's exact origin and fixed asset
+ * path contract are downloaded. Redirects and absolute worker paths are never
+ * followed or read directly.
  */
 export class MediaAssetLocalizer {
   private readonly adapter: BinaryAssetAdapter;
@@ -45,6 +45,7 @@ export class MediaAssetLocalizer {
   private readonly maxTotalBytes: number;
   private readonly timeoutMs: number;
   private readonly fetchBinary: BinaryFetcher;
+  private readonly allowedAssetOrigin?: string;
 
   constructor(
     adapter: BinaryAssetAdapter,
@@ -66,6 +67,7 @@ export class MediaAssetLocalizer {
     );
     this.timeoutMs = boundedInteger(options.timeoutMs, 1_000, 120_000, 20_000);
     this.fetchBinary = options.fetchBinary || fetchLoopbackBinary;
+    this.allowedAssetOrigin = allowedLoopbackWorkerOrigin(options.workerEndpoint);
   }
 
   async localizeResult(
@@ -100,14 +102,14 @@ export class MediaAssetLocalizer {
         // loopback asset URL. We never read that path; a safe URL is enough to
         // localize it without surfacing a misleading warning to the user.
         const fallbackUrl = String(asset.url || '').trim();
-        if (!isLoopbackAssetUrl(fallbackUrl)) {
+        if (!isAllowedWorkerAssetUrl(fallbackUrl, this.allowedAssetOrigin)) {
           warnings.push(`visual_asset_path_rejected:${asset.id || 'unknown'}`);
         }
         candidate.path = undefined;
       }
       const url = String(candidate.url || '').trim();
       if (!url) return candidate;
-      if (!isLoopbackAssetUrl(url)) {
+      if (!isAllowedWorkerAssetUrl(url, this.allowedAssetOrigin)) {
         warnings.push(`visual_asset_not_localized_untrusted_origin:${asset.id || 'unknown'}`);
         return candidate;
       }
@@ -229,6 +231,7 @@ async function fetchLoopbackBinary(url: string, signal: AbortSignal): Promise<Bi
     method: 'GET',
     cache: 'no-store',
     credentials: 'omit',
+    redirect: 'error',
     signal,
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -262,12 +265,30 @@ function isWithinManagedRoot(path: string, rootPath: string): boolean {
   return path === rootPath || path.startsWith(`${rootPath}/`);
 }
 
-function isLoopbackAssetUrl(value: string): boolean {
+function allowedLoopbackWorkerOrigin(value: string | undefined): string | undefined {
+  if (!value) return undefined;
   try {
     const url = new URL(value);
-    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    if (!['http:', 'https:'].includes(url.protocol)) return undefined;
     const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-    return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+    if (host !== '127.0.0.1' && host !== '::1') return undefined;
+    if (url.username || url.password) return undefined;
+    return url.origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function isAllowedWorkerAssetUrl(value: string, allowedOrigin: string | undefined): boolean {
+  if (!allowedOrigin) return false;
+  try {
+    const url = new URL(value);
+    if (url.origin !== allowedOrigin || url.username || url.password || url.search || url.hash) {
+      return false;
+    }
+    return /^\/video-summary\/assets\/[A-Za-z0-9][A-Za-z0-9._-]{2,127}\/[A-Za-z0-9._-]+\.(?:png|jpe?g)$/i.test(
+      url.pathname,
+    );
   } catch {
     return false;
   }

@@ -1,3 +1,4 @@
+import { writeCleanVideoBody } from '../utils/NoteOutput';
 import {
   AttentionRange,
   EvidenceClaim,
@@ -9,11 +10,18 @@ import {
 } from '../types';
 import * as yaml from 'js-yaml';
 import { buildTimestampUrl, formatTimestamp, stableHash } from './KnowledgeModel';
+import {
+  safeExternalHttpUrl,
+  safeInlineRasterDataUrl,
+  safeManagedVaultImagePath,
+  safeRemoteImageUrl,
+} from '../utils/SafeExternalUrl';
 
 export type ManagedBlockKind = 'generated' | 'evidence' | 'attention' | 'learning';
 export type SafeFrontmatterScalar = string | number | boolean | null;
 
 export interface ManagedKnowledgeWriteOptions {
+  includeDiagnostics?: boolean;
   updateGenerated?: boolean;
   updateEvidence?: boolean;
   updateAttention?: boolean;
@@ -59,6 +67,16 @@ export function writeManagedKnowledgeMarkdown(
   sourceUrl = '',
   options: ManagedKnowledgeWriteOptions = {},
 ): string {
+  // Diagnostics (evidence, attention) are opt-in; default notes carry the summary and transcript only.
+  if (options.includeDiagnostics !== true) {
+    if (options.updateGenerated === false && options.updateEvidence === false) return body;
+    let next = writeCleanVideoBody(body, result, options.updateGenerated !== false);
+    // Keep explicitly requested learning packages available; do not invent one by default.
+    if (options.updateLearning !== false && result.learning) {
+      next = upsertManagedBlock(next, 'learning', renderLearningMarkdown(result));
+    }
+    return next;
+  }
   const {
     updateGenerated = true,
     updateEvidence = true,
@@ -126,7 +144,11 @@ export function buildRichFrontmatterFields(
   assignNonEmptyString(fields, 'video_title', result.video_title);
   assignNonEmptyString(fields, 'video_author', result.video_author);
   assignNonEmptyString(fields, 'video_duration', result.video_duration);
-  assignNonEmptyString(fields, 'video_cover', result.video_cover);
+  assignNonEmptyString(
+    fields,
+    'video_cover',
+    safeRemoteImageUrl(result.video_cover) || safeInlineRasterDataUrl(result.video_cover),
+  );
   assignNonEmptyString(fields, 'summary', result.summary);
   assignNonEmptyString(fields, 'video_transcript', result.video_transcript);
   assignNonEmptyString(fields, 'video_artifact_id', result.artifact?.artifact_id);
@@ -155,7 +177,25 @@ export function serializeScalarFrontmatter(fields: Record<string, SafeFrontmatte
 }
 
 export function renderGeneratedMarkdown(result: ProcessingResult): string {
-  return (result.note || result.summary || '').trim();
+  return sanitizeGeneratedMarkdownActiveResources(result.note || result.summary || '').trim();
+}
+
+/**
+ * Model-authored Markdown is untrusted. Disable embeds and active HTML resource
+ * elements while preserving ordinary text and links for user review.
+ */
+export function sanitizeGeneratedMarkdownActiveResources(markdown: string): string {
+  return String(markdown || '')
+    .replace(/!/g, '&#33;')
+    .replace(/</g, '&lt;');
+}
+
+export function escapeUntrustedMarkdownInline(value: unknown): string {
+  const escaped = String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/([*_[\]`()#|>])/g, '\\$1')
+    .replace(/\r?\n+/g, ' ');
+  return sanitizeGeneratedMarkdownActiveResources(escaped).trim();
 }
 
 export function renderEvidenceMarkdown(
@@ -203,7 +243,9 @@ export function renderEvidenceMarkdown(
 
   if (visual.length > 0) {
     lines.push('', '### 画面证据');
-    visual.forEach((item) => renderVisual(lines, item, sourceUrl, allowTimestamps));
+    visual.forEach((item) =>
+      renderVisual(lines, item, sourceUrl, allowTimestamps, result.artifact?.media_asset_root),
+    );
   }
 
   return lines.join('\n');
@@ -326,13 +368,14 @@ function renderVisual(
   item: VisualEvidence,
   sourceUrl: string,
   allowTimestamps: boolean,
+  managedMediaRoot: string | undefined,
 ) {
   if (!allowTimestamps) {
     lines.push(
       `- 画面证据（时间未对齐） ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`,
     );
     if (item.ocr_text) lines.push(`  - 屏幕文字：${escapeInline(item.ocr_text)}`);
-    appendKeyframe(lines, item);
+    appendKeyframe(lines, item, managedMediaRoot);
     return;
   }
   const timestampUrl = buildTimestampUrl(sourceUrl, item.start);
@@ -341,21 +384,21 @@ function renderVisual(
     : formatTimestamp(item.start);
   lines.push(`- ${timestamp} ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`);
   if (item.ocr_text) lines.push(`  - 屏幕文字：${escapeInline(item.ocr_text)}`);
-  appendKeyframe(lines, item);
+  appendKeyframe(lines, item, managedMediaRoot);
 }
 
-function appendKeyframe(lines: string[], item: VisualEvidence): void {
-  const path = item.keyframe?.path?.trim();
-  if (path && !isAbsoluteMediaPath(path)) {
+function appendKeyframe(
+  lines: string[],
+  item: VisualEvidence,
+  managedMediaRoot: string | undefined,
+): void {
+  const path = safeManagedVaultImagePath(item.keyframe?.path, managedMediaRoot);
+  if (path) {
     lines.push(`  - ![[${path.replace(/\|/g, '\\|')}]]`);
     return;
   }
-  const url = item.keyframe?.url?.trim() || (path ? `file://${encodeURI(path)}` : '');
-  if (url) lines.push(`  - ![关键帧](<${escapeMarkdownDestination(url)}>)`);
-}
-
-function isAbsoluteMediaPath(path: string): boolean {
-  return path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path);
+  const url = safeRemoteImageUrl(item.keyframe?.url);
+  if (url) lines.push(`  - [远程关键帧（点击打开）](<${escapeMarkdownDestination(url)}>)`);
 }
 
 function escapeMarkdownDestination(value: string): string {
@@ -366,9 +409,10 @@ function segmentLink(segment: VideoSegment, sourceUrl: string, allowTimestamps: 
   if (!allowTimestamps || segment.start === null || segment.timing_quality === 'none') {
     return '文本证据';
   }
-  const url = segment.timestamp_url || buildTimestampUrl(sourceUrl, segment.start);
+  const url =
+    safeExternalHttpUrl(segment.timestamp_url) || buildTimestampUrl(sourceUrl, segment.start);
   const label = formatTimestamp(segment.start);
-  return url ? `[${label}](${url})` : label;
+  return url ? `[${label}](<${escapeMarkdownDestination(url)}>)` : label;
 }
 
 function segmentMeta(segment: VideoSegment): string {
@@ -411,7 +455,7 @@ function formatDuration(seconds: number): string {
 }
 
 function escapeInline(value: string): string {
-  return String(value || '')
+  return sanitizeGeneratedMarkdownActiveResources(String(value || ''))
     .replace(/\r?\n+/g, ' ')
     .replace(/\|/g, '\\|')
     .trim();

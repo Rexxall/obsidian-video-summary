@@ -1,6 +1,7 @@
 import type { DataAdapter, ListedFiles } from 'obsidian';
 import type { LearningCard, QuizQuestion, VideoKnowledgeArtifact, VideoSegment } from '../types';
 import { buildTimestampUrl, stableHash } from './KnowledgeModel';
+import { safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 
 export const LEARNING_PROGRESS_SCHEMA_VERSION = 1;
 
@@ -535,7 +536,8 @@ export function resolveLearningEvidence(
       };
     }
     const timestampUrl =
-      segment.timestamp_url || buildTimestampUrl(artifact.source.url || '', segment.start);
+      safeExternalHttpUrl(segment.timestamp_url) ||
+      buildTimestampUrl(artifact.source.url || '', segment.start);
     return {
       segment_id: segmentId,
       status: 'available',

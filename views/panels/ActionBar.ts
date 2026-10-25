@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { Notice, TFile, TFolder, setIcon } from 'obsidian';
 import { ViewContext } from '../context';
 import {
@@ -195,7 +194,7 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
     });
   }
 
-  iconButton(actions, 'settings', '打开插件设置', () => {
+  actions.createEl('button', { text: '插件设置', cls: 'plugin-settings-entry', attr: { type: 'button' } }).addEventListener('click', () => {
     const settingApi = (ctx.plugin.app as any).setting;
     if (settingApi?.open) {
       settingApi.open();

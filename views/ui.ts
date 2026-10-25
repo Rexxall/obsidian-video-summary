@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { Menu, setIcon } from 'obsidian';
 
 export interface MenuItemSpec {

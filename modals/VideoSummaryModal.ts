@@ -100,11 +100,11 @@ export class VideoSummaryModal extends Modal {
     // 本地文件输入
     const localFileSetting = new Setting(contentEl)
       .setName('本地文件')
-      .setDesc('Docker/n8n 场景建议填 uploads 目录内的文件名或相对路径。');
+      .setDesc('Bundled Docker/n8n 只接受 uploads 根目录内的文件名。');
 
     this.localFileInput = localFileSetting.controlEl.createEl('input');
     this.localFileInput.type = 'text';
-    this.localFileInput.placeholder = 'lecture-01.mp4 或 uploads/lecture-01.mp4';
+    this.localFileInput.placeholder = 'lecture-01.mp4';
 
     // 显示当前文件信息
     const file = this.view.file;
@@ -172,24 +172,18 @@ export class VideoSummaryModal extends Modal {
       // 从UI输入中获取内容并合并
       if (this.videoUrlInput && this.videoUrlInput.value.trim()) {
         videoInput.url = this.videoUrlInput.value.trim();
-        console.log('UI输入 - 视频链接:', videoInput.url);
       }
 
       if (this.providedTranscriptInput && this.providedTranscriptInput.value.trim()) {
         videoInput.transcript = this.providedTranscriptInput.value.trim();
-        console.log('UI输入 - 提供文稿:', videoInput.transcript.substring(0, 50) + '...');
       }
 
       if (this.localFileInput && this.localFileInput.value.trim()) {
         videoInput.localFile = this.localFileInput.value.trim();
-        console.log('UI输入 - 本地文件:', videoInput.localFile);
       }
-
-      console.log('最终VideoInput:', videoInput);
 
       // 检查是否有任意一种输入（视频链接、提供的文稿或本地文件）
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        console.log('没有找到任何输入');
         new Notice(ERROR_MESSAGES.NO_INPUT);
         return;
       }

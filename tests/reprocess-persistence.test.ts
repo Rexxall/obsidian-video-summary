@@ -5,6 +5,7 @@ import { ArtifactStore, normalizeTranscriptForHash, sha256Hex } from '../core/Ar
 import {
   hydratePersistedReprocessResult,
   resolveArtifactPersistenceIdentity,
+  stripUntrustedPersistedMediaAssetPaths,
 } from '../core/ReprocessPersistence';
 
 async function transcriptOnlyArtifact(transcript: string): Promise<VideoKnowledgeArtifact> {
@@ -134,4 +135,45 @@ test('no-fetch reconstruction prefers persisted source URL over backend metadata
 
   assert.equal(identity.source.url, input.sourceUrl);
   assert.equal(identity.artifactId, ArtifactStore.artifactId(identity.sourceHash));
+});
+
+test('reprocess strips legacy keyframe paths unless the previous artifact root exactly matches', async () => {
+  const managedRoot = 'Video Inbox/_video-summary-assets';
+  const previous = await transcriptOnlyArtifact('Stored transcript');
+  previous.segments[0].keyframe = {
+    id: 'frame-1',
+    path: `${managedRoot}/${previous.artifact_id}/frame-1.jpg`,
+  };
+  previous.visual_evidence = [
+    {
+      id: 'visual-1',
+      start: 0,
+      description: 'Stored visual evidence',
+      keyframe: {
+        id: 'frame-2',
+        path: `${managedRoot}/${previous.artifact_id}/frame-2.jpg`,
+      },
+    },
+  ];
+
+  const legacyResult: ProcessingResult = {
+    video_segments: previous.segments,
+    visual_evidence: previous.visual_evidence,
+  };
+  stripUntrustedPersistedMediaAssetPaths(legacyResult, previous, managedRoot);
+  assert.equal(legacyResult.video_segments?.[0].keyframe?.path, undefined);
+  assert.equal(legacyResult.visual_evidence?.[0].keyframe?.path, undefined);
+
+  previous.provenance.media_asset_root = managedRoot;
+  const trustedResult: ProcessingResult = {
+    video_segments: previous.segments,
+    visual_evidence: previous.visual_evidence,
+  };
+  stripUntrustedPersistedMediaAssetPaths(trustedResult, previous, managedRoot);
+  assert.match(trustedResult.video_segments?.[0].keyframe?.path || '', /frame-1\.jpg$/);
+  assert.match(trustedResult.visual_evidence?.[0].keyframe?.path || '', /frame-2\.jpg$/);
+
+  stripUntrustedPersistedMediaAssetPaths(trustedResult, previous, 'Other/_video-summary-assets');
+  assert.equal(trustedResult.video_segments?.[0].keyframe?.path, undefined);
+  assert.equal(trustedResult.visual_evidence?.[0].keyframe?.path, undefined);
 });

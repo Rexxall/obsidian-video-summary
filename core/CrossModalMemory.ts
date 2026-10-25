@@ -69,6 +69,8 @@ export interface MemorySearchResult {
   evidence_id?: string;
   /** Present for claim records so inference is never displayed as verified evidence. */
   claim_review_state?: EvidenceClaim['review_state'];
+  /** Artifact-recorded root required before a local keyframe may be rendered. */
+  media_asset_root?: string;
   keyframe?: MediaAssetReference;
   text: string;
   snippet: string;
@@ -329,6 +331,7 @@ function recordsForArtifact(artifact: VideoKnowledgeArtifact): MemoryRecord[] {
       evidence_type: type,
       evidence_id: id,
       claim_review_state: claimReviewState,
+      media_asset_root: artifact.provenance.media_asset_root,
       keyframe: keyframe || segment?.keyframe,
       text: boundedText,
       normalized_text: normalizeSearchText(boundedText),
@@ -466,6 +469,7 @@ function scoreRecord(
     evidence_type: record.evidence_type,
     evidence_id: record.evidence_id,
     claim_review_state: record.claim_review_state,
+    media_asset_root: record.media_asset_root,
     keyframe: record.keyframe,
     text: record.text,
     snippet,

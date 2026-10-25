@@ -47,6 +47,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Format
+        run: npm run format
+
       - name: Validate bundled workflow
         run: node tools/upgrade-workflow-v3.mjs --check
 
@@ -64,6 +67,10 @@ jobs:
           head_commit="$(git rev-parse "HEAD^{commit}")"
           if [[ "$head_commit" != "$tag_commit" ]]; then
             echo "Checked-out ref is not tag $RELEASE_VERSION" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$head_commit" origin/main; then
+            echo "Tag $RELEASE_VERSION is not reachable from origin/main" >&2
             exit 1
           fi
 
@@ -149,16 +156,3 @@ jobs:
               --verify-tag \
               "${notes_args[@]}"
           fi
-
-      - name: Publish Gitee domestic assets
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          GITEE_USERNAME: roronoazoro35
-        run: |
-          if [[ -z "$GITEE_TOKEN" ]]; then
-            echo "::notice::GITEE_TOKEN is not configured; skipping Gitee asset publication."
-            exit 0
-          fi
-          node "$GITHUB_WORKSPACE/.release-tooling/tools/publish-gitee-assets.mjs" \
-            --version "$RELEASE_VERSION" \
-            --asset-dir "$GITHUB_WORKSPACE"

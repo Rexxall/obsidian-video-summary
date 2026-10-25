@@ -1,4 +1,3 @@
-// agent: codex (2026-07-29)
 import { canonicalizeVideoUrl } from '../shared';
 import type {
   ProcessingBackend,

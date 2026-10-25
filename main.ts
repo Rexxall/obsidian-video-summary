@@ -1,5 +1,4 @@
-// agent: codex (2026-05-21)
-// agent: claude (2026-07-02) — history 拆分存储 / 后端 preflight / cookies 管理 / obsidian:// 协议直连
+import { relinkVideoJobs } from './utils/NoteOutput';
 import {
   App,
   Editor,
@@ -31,6 +30,7 @@ import {
 import {
   DEFAULT_SETTINGS,
   DEFAULT_N8N_WEBHOOK_URL,
+  DEFAULT_WEBHOOK_AUTH_HEADER,
   DEFAULT_HISTORY_LIMIT,
   LEGACY_DEFAULT_N8N_WEBHOOK_URL,
   LEGACY_N8N_WEBHOOK_URL,
@@ -45,6 +45,7 @@ import { VideoUtils } from './utils/VideoUtils';
 import { FileProcessor } from './utils/FileProcessor';
 import { RetryUtils } from './utils/RetryUtils';
 import { NoteProcessor } from './utils/NoteProcessor';
+import { safeExternalHttpUrl } from './utils/SafeExternalUrl';
 import { JobStore } from './core/JobStore';
 import { JobService } from './core/JobService';
 import { NoteIndex } from './core/NoteIndex';
@@ -99,8 +100,6 @@ export default class VideoSummaryPlugin extends Plugin {
   } | null = null;
 
   async onload() {
-    console.log('加载视频总结插件');
-
     // 加载设置
     await this.loadSettings();
 
@@ -191,14 +190,13 @@ export default class VideoSummaryPlugin extends Plugin {
       this.app.vault.on('rename', (file, oldPath) => {
         this.noteIndex.handleRename(file, oldPath);
         if (file instanceof TFile && file.extension === 'md') {
+          relinkVideoJobs(this.jobs, oldPath, file);
           void this.handleVideoNoteRenamed(file, oldPath).catch((error) => {
             console.warn('[Video Summary] 重命名后的关联更新失败', error);
           });
         }
       }),
     );
-
-    console.log('Video Summary Plugin loaded');
   }
 
   onunload() {
@@ -208,13 +206,12 @@ export default class VideoSummaryPlugin extends Plugin {
       this.historySaveTimer = null;
       void this.writeHistoryFile();
     }
-    console.log('Video Summary Plugin unloaded');
   }
 
   private addCommands() {
     // 主要命令：快速总结当前笔记
     this.addCommand({
-      id: 'video-summary-quick',
+      id: 'quick',
       name: '📺 快速总结当前笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.quickProcessCurrentNote(editor, view, 'summary');
@@ -223,7 +220,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 新增命令：将全文作为文稿总结
     this.addCommand({
-      id: 'video-summary-full-text',
+      id: 'full-text',
       name: '📺 将当前笔记全文作为文稿总结',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.processFullTextAsTranscript(editor, view);
@@ -232,7 +229,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 快速提取文稿
     this.addCommand({
-      id: 'video-transcript-quick',
+      id: 'transcript-quick',
       name: '📝 快速提取文稿',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.quickProcessCurrentNote(editor, view, 'transcript-only');
@@ -241,7 +238,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 只更新视频信息
     this.addCommand({
-      id: 'video-info-update',
+      id: 'info-update',
       name: 'ℹ️ 更新视频信息（不改正文）',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.updateVideoInfoOnly(editor, view, false);
@@ -250,7 +247,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 更新视频信息并重命名
     this.addCommand({
-      id: 'video-info-update-rename',
+      id: 'info-update-rename',
       name: 'ℹ️ 更新视频信息并重命名',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.updateVideoInfoOnly(editor, view, true);
@@ -259,7 +256,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 打开视频总结管理视图
     this.addCommand({
-      id: 'video-summary-view',
+      id: 'view',
       name: '📋 视频总结管理',
       callback: () => {
         this.activateView();
@@ -268,7 +265,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 批量处理命令
     this.addCommand({
-      id: 'video-summary-batch',
+      id: 'batch',
       name: '🔄 批量处理视频',
       callback: () => {
         new BatchProcessingModal(this.app, this).open();
@@ -277,7 +274,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 重新处理当前笔记
     this.addCommand({
-      id: 'video-summary-reprocess',
+      id: 'reprocess',
       name: '🔄 重新处理当前笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.reprocessCurrentNote(editor, view);
@@ -286,7 +283,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 处理所有待处理视频
     this.addCommand({
-      id: 'video-summary-process-all-pending',
+      id: 'process-all-pending',
       name: '⚡ 处理所有待处理视频',
       callback: () => {
         this.processAllPendingVideos();
@@ -295,7 +292,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 测试当前视频处理后端连接
     this.addCommand({
-      id: 'video-summary-test-connection',
+      id: 'test-connection',
       name: '🔗 测试当前视频处理后端',
       callback: () => {
         this.testProcessingBackendConnection();
@@ -303,7 +300,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'video-summary-open-codex-dashboard',
+      id: 'open-worker-dashboard',
       name: '📊 打开 Codex Worker 控制台',
       callback: () => {
         this.openCodexWorkerDashboard();
@@ -311,7 +308,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'video-summary-memory-search',
+      id: 'memory-search',
       name: '🔎 搜索跨模态视频记忆',
       callback: () => {
         new KnowledgeLabModal(this.app, this, 'memory').open();
@@ -319,7 +316,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'video-summary-claim-lab',
+      id: 'claim-lab',
       name: '🧪 生成多视频论点实验室',
       callback: () => {
         new KnowledgeLabModal(this.app, this, 'claim-lab').open();
@@ -327,7 +324,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'video-summary-learning-review',
+      id: 'learning-review',
       name: '🧠 复习当前视频的学习卡',
       editorCallback: (_editor: Editor, view: MarkdownView) => {
         if (view.file) void this.openLearningReviewForFile(view.file);
@@ -335,7 +332,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'video-summary-learning-review-due',
+      id: 'learning-review-due',
       name: '🧠 复习所有到期的视频学习卡',
       callback: () => {
         void this.openGlobalLearningReview();
@@ -343,7 +340,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'video-summary-reprocess-from-artifact',
+      id: 'reprocess-from-artifact',
       name: '♻️ 用本地可复现工件重新处理',
       editorCallback: (_editor: Editor, view: MarkdownView) => {
         if (view.file) void this.reprocessFromPersistedArtifact(view.file);
@@ -351,7 +348,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'video-summary-generate-base',
+      id: 'generate-base',
       name: '🗂️ 生成或安全更新视频库 Base',
       callback: () => {
         void this.ensureVideoLibraryBase(true);
@@ -360,7 +357,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 标记为非视频笔记
     this.addCommand({
-      id: 'video-summary-mark-excluded',
+      id: 'mark-excluded',
       name: '⛔️ 标记为非视频笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.markAsExcluded(editor, view);
@@ -572,6 +569,12 @@ export default class VideoSummaryPlugin extends Plugin {
           : mode === 'transcript-only'
             ? this.settings.quickTranscriptOptions.language
             : this.settings.defaultLanguage;
+      const requestTimeoutMinutes =
+        mode === 'summary'
+          ? this.settings.quickSummaryOptions.timeoutMinutes
+          : mode === 'transcript-only'
+            ? this.settings.quickTranscriptOptions.timeoutMinutes
+            : this.settings.timeoutMinutes;
 
       // 显示处理状态
       const statusNotice = new Notice(`正在处理: ${this.getModeDisplayText(mode)}`, 0);
@@ -615,6 +618,7 @@ export default class VideoSummaryPlugin extends Plugin {
               'transcript-only',
               requestLanguage,
               false, // 不使用缓存
+              this.settings.quickTranscriptOptions.timeoutMinutes,
             );
 
             if (extractResult.video_transcript) {
@@ -647,6 +651,8 @@ export default class VideoSummaryPlugin extends Plugin {
                 mode,
                 requestLanguage,
                 this.settings.enableCache !== false,
+                undefined,
+                requestTimeoutMinutes,
               );
             },
             1,
@@ -674,6 +680,8 @@ export default class VideoSummaryPlugin extends Plugin {
                 mode,
                 requestLanguage,
                 this.settings.enableCache !== false, // 根据设置决定是否使用缓存
+                undefined,
+                requestTimeoutMinutes,
               );
             },
             1, // 重试1次
@@ -776,6 +784,8 @@ export default class VideoSummaryPlugin extends Plugin {
               mode,
               requestLanguage,
               this.settings.enableCache !== false,
+              undefined,
+              this.settings.quickSummaryOptions.timeoutMinutes,
             );
           },
           1, // 重试1次
@@ -1012,6 +1022,8 @@ export default class VideoSummaryPlugin extends Plugin {
     }
 
     const label = backend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
+
+
     const otherBackend: ProcessingBackend = backend === 'n8n' ? 'codex-worker' : 'n8n';
     const otherLabel = otherBackend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
     const otherUrl =
@@ -1019,7 +1031,19 @@ export default class VideoSummaryPlugin extends Plugin {
         ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl
         : this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl;
 
-    const otherResult = await VideoSummaryAPI.probeEndpoint(otherUrl, otherBackend);
+    const fallbackWebhookProfile = this.getActiveWebhookProfile();
+    const otherResult = await VideoSummaryAPI.probeEndpoint(
+      otherUrl,
+      otherBackend,
+      4000,
+      undefined,
+      otherBackend === 'n8n'
+        ? {
+            headerName: fallbackWebhookProfile?.headerName,
+            secret: fallbackWebhookProfile?.secret,
+          }
+        : undefined,
+    );
 
     if (otherResult.ok) {
       const confirmed = await this.showConfirmDialog(
@@ -1043,7 +1067,8 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   openCodexWorkerDashboard() {
-    window.open(this.getCodexWorkerDashboardUrl(), '_blank');
+    const dashboardUrl = safeExternalHttpUrl(this.getCodexWorkerDashboardUrl());
+    if (dashboardUrl) window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
   }
 
   private async processFile(file: TFile) {
@@ -1167,12 +1192,26 @@ export default class VideoSummaryPlugin extends Plugin {
           id: 'default-webhook',
           name: '默认 Webhook',
           url: this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl,
+          headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
+          secret: '',
         },
       ];
       shouldSave = true;
     }
 
     this.settings.webhookProfiles.forEach((profile) => {
+      if (typeof profile.headerName !== 'string' || !profile.headerName.trim()) {
+        profile.headerName = DEFAULT_WEBHOOK_AUTH_HEADER;
+        shouldSave = true;
+      } else if (profile.headerName !== profile.headerName.trim()) {
+        profile.headerName = profile.headerName.trim();
+        shouldSave = true;
+      }
+      if (typeof profile.secret !== 'string') {
+        profile.secret = '';
+        shouldSave = true;
+      }
+
       const hasDefaultIdentity =
         profile.id === 'default-webhook' ||
         profile.name === 'Cyrus' ||
@@ -1300,6 +1339,7 @@ export default class VideoSummaryPlugin extends Plugin {
   private initializeApiInstance(url?: string) {
     const targetUrl = url ?? this.getActiveProcessingEndpoint();
     const backend = this.settings?.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
+    const activeWebhookProfile = this.getActiveWebhookProfile();
     this.api = new VideoSummaryAPI(
       targetUrl,
       this.app.vault,
@@ -1307,6 +1347,13 @@ export default class VideoSummaryPlugin extends Plugin {
       `${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/data`,
       this.settings.payloadKeys,
       backend,
+      backend === 'n8n'
+        ? {
+            headerName: activeWebhookProfile?.headerName,
+            secret: activeWebhookProfile?.secret,
+          }
+        : undefined,
+      this.settings.timeoutMinutes ?? DEFAULT_SETTINGS.timeoutMinutes,
     );
     this.api.setWebhookHistory(this.settings.webhookHistory || []);
     this.api.setAiModel(this.settings.aiModel);
@@ -1492,24 +1539,20 @@ export default class VideoSummaryPlugin extends Plugin {
         // 检查新路径是否已存在
         const existingFile = this.app.vault.getAbstractFileByPath(newPath);
         if (existingFile && existingFile !== file) {
-          console.log(`文件 ${newPath} 已存在，跳过重命名`);
           return;
         }
 
         // 重命名文件（保持路径）
         await this.app.fileManager.renameFile(file, newPath);
-        console.log(`文件已重命名为: ${newPath}`);
       } else {
         // 文件在根目录
         const existingFile = this.app.vault.getAbstractFileByPath(newFileName);
         if (existingFile && existingFile !== file) {
-          console.log(`文件 ${newFileName} 已存在，跳过重命名`);
           return;
         }
 
         // 重命名文件
         await this.app.fileManager.renameFile(file, newFileName);
-        console.log(`文件已重命名为: ${newFileName}`);
       }
     } catch (error) {
       console.error(`重命名文件失败: ${error.message}`);
@@ -1651,8 +1694,9 @@ export default class VideoSummaryPlugin extends Plugin {
               view?.openArtifact(notePath, artifact.artifact_id, target.start);
               return;
             }
-            if (target.timestamp_url) {
-              window.open(target.timestamp_url, '_blank');
+            const externalUrl = safeExternalHttpUrl(target.timestamp_url);
+            if (externalUrl) {
+              window.open(externalUrl, '_blank', 'noopener,noreferrer');
               return;
             }
             new Notice('工件原笔记已不存在，无法定位播放器。');
@@ -2166,10 +2210,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const tabsContainer = containerEl.createDiv({ cls: 'settings-tabs-bar' });
 
     const tabs: { id: typeof this.activeTab; label: string; icon: string }[] = [
-      { id: 'general', label: '通用', icon: 'settings' },
-      { id: 'workflow', label: '工作流', icon: 'link' },
-      { id: 'core', label: '核心功能', icon: 'zap' },
-      { id: 'advanced', label: '高级', icon: 'wrench' },
+      { id: 'general', label: '基础与保存', icon: 'settings' },
+      { id: 'workflow', label: '后端与连接', icon: 'link' },
+      { id: 'core', label: '处理行为', icon: 'zap' },
+      { id: 'advanced', label: '高级参数', icon: 'wrench' },
     ];
 
     const seg = tabsContainer.createDiv({ cls: 'vs-seg' });
@@ -2302,7 +2346,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       {
         label: '本地文件',
         state: 'warning',
-        detail: 'Docker 场景建议只填 uploads 目录内的文件名或相对路径，不要直接填 macOS 绝对路径。',
+        detail: 'Bundled Docker/n8n 只接受 uploads 根目录内的文件名，不接受子目录或绝对路径。',
       },
     ];
   }
@@ -2745,6 +2789,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       this.plugin.settings.webhookProfiles.forEach((profile) => {
         const row = profilesContainer.createDiv({ cls: 'webhook-profile-row' });
+        row.style.flexWrap = 'wrap';
 
         const nameInput = row.createEl('input', {
           type: 'text',
@@ -2771,6 +2816,54 @@ class VideoSummarySettingTab extends PluginSettingTab {
             await this.plugin.setActiveWebhook(profile.id, { silent: true });
             refreshDropdownOptions();
           }
+        };
+
+        const headerInput = row.createEl('input', {
+          type: 'text',
+          value: profile.headerName || DEFAULT_WEBHOOK_AUTH_HEADER,
+          cls: 'webhook-auth-header-input',
+          attr: {
+            placeholder: DEFAULT_WEBHOOK_AUTH_HEADER,
+            'aria-label': 'Webhook 鉴权 Header 名称',
+            title: '附带工作流 2.1.5 必填：须与 n8n Header Auth 的 Header 名称一致',
+          },
+        });
+        headerInput.style.width = '190px';
+        headerInput.oninput = async () => {
+          profile.headerName = headerInput.value.trim() || DEFAULT_WEBHOOK_AUTH_HEADER;
+          if (
+            profile.id === this.plugin.settings.activeWebhookId &&
+            this.plugin.settings.activeBackend === 'n8n'
+          ) {
+            this.plugin.reinitializeApi(profile.url);
+          }
+          await this.plugin.saveSettings();
+        };
+
+        const secretInput = row.createEl('input', {
+          type: 'password',
+          value: profile.secret || '',
+          cls: 'webhook-auth-secret-input',
+          attr: {
+            placeholder: '鉴权 Secret（工作流 2.1.5 必填）',
+            'aria-label': 'Webhook 鉴权 Secret',
+            title:
+              '附带工作流 2.1.5 必填；只有另行部署的兼容旧端点才可留空（留空时不发送鉴权 Header）',
+            autocomplete: 'off',
+            spellcheck: 'false',
+          },
+        });
+        secretInput.style.flex = '1 1 190px';
+        secretInput.style.minWidth = '160px';
+        secretInput.oninput = async () => {
+          profile.secret = secretInput.value;
+          if (
+            profile.id === this.plugin.settings.activeWebhookId &&
+            this.plugin.settings.activeBackend === 'n8n'
+          ) {
+            this.plugin.reinitializeApi(profile.url);
+          }
+          await this.plugin.saveSettings();
         };
 
         const actions = row.createDiv({ cls: 'webhook-profile-actions' });
@@ -2824,6 +2917,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
             id: `webhook-${Date.now()}`,
             name: `Webhook ${this.plugin.settings.webhookProfiles.length + 1}`,
             url: '',
+            headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
+            secret: '',
           };
           this.plugin.settings.webhookProfiles.push(newProfile);
           await this.plugin.saveSettings();
@@ -3435,17 +3530,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 缓存信息提示
     const cacheInfoContainer = cacheSubsection.createEl('div', { cls: 'cache-info-container' });
-    cacheInfoContainer.innerHTML = `
-			<div class="cache-info-tip">
-				<strong>💡 缓存提示：</strong>
-				<ul>
-					<li>缓存文件存储在：<code>&lt;插件目录&gt;/data/cache/</code></li>
-					<li>缓存会自动清理过期项</li>
-					<li>禁用缓存后，所有缓存操作将被忽略</li>
-					<li>建议定期清理过期缓存以节省空间</li>
-				</ul>
-			</div>
-		`;
+    const cacheInfoTip = cacheInfoContainer.createEl('div', { cls: 'cache-info-tip' });
+    cacheInfoTip.createEl('strong', { text: '💡 缓存提示：' });
+    const cacheInfoList = cacheInfoTip.createEl('ul');
+    const cachePathItem = cacheInfoList.createEl('li');
+    cachePathItem.appendText('缓存文件存储在：');
+    cachePathItem.createEl('code', { text: '<插件目录>/data/cache/' });
+    cacheInfoList.createEl('li', { text: '缓存会自动清理过期项' });
+    cacheInfoList.createEl('li', { text: '禁用缓存后，所有缓存操作将被忽略' });
+    cacheInfoList.createEl('li', { text: '建议定期清理过期缓存以节省空间' });
   }
 
   /**
@@ -3457,20 +3550,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
     expiredCount: number;
     totalSize: number;
   }) {
-    console.log('🎬 开始创建缓存预览模态框');
-    console.log('📊 统计信息:', stats);
-
     // 创建模态框
     const modal = new Modal(this.app);
     modal.titleEl.setText('📊 缓存预览');
-    console.log('📝 模态框标题已设置');
 
     const { contentEl } = modal;
 
     // 创建刷新函数，用于更新当前模态框内容
     const refreshModalContent = async () => {
       try {
-        console.log('🔄 正在刷新模态框内容...');
         const newStats = await this.plugin.api.getCacheStats();
         contentEl.empty();
         await renderModalContent(contentEl, newStats);
@@ -3484,48 +3572,41 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const renderModalContent = async (container: HTMLElement, currentStats: typeof stats) => {
       // 统计信息
       const statsSection = container.createEl('div', { cls: 'cache-preview-stats' });
-      statsSection.innerHTML = `
-				<div class="stat-card">
-					<div class="stat-title">总缓存项</div>
-					<div class="stat-value">${currentStats.size}</div>
-				</div>
-				<div class="stat-card">
-					<div class="stat-title">最大容量</div>
-					<div class="stat-value">${currentStats.maxSize}</div>
-				</div>
-				<div class="stat-card">
-					<div class="stat-title">过期项</div>
-					<div class="stat-value ${currentStats.expiredCount > 0 ? 'expired' : ''}">${currentStats.expiredCount}</div>
-				</div>
-				<div class="stat-card">
-					<div class="stat-title">总大小</div>
-					<div class="stat-value">${this.formatBytes(currentStats.totalSize)}</div>
-				</div>
-			`;
-      console.log('📊 统计信息区域已创建');
-
+      const addStatCard = (title: string, value: string, valueClass = '') => {
+        const card = statsSection.createEl('div', { cls: 'stat-card' });
+        card.createEl('div', { cls: 'stat-title', text: title });
+        card.createEl('div', {
+          cls: `stat-value${valueClass ? ` ${valueClass}` : ''}`,
+          text: value,
+        });
+      };
+      addStatCard('总缓存项', String(currentStats.size));
+      addStatCard('最大容量', String(currentStats.maxSize));
+      addStatCard(
+        '过期项',
+        String(currentStats.expiredCount),
+        currentStats.expiredCount > 0 ? 'expired' : '',
+      );
+      addStatCard('总大小', this.formatBytes(currentStats.totalSize));
       // 缓存内容预览
       if (currentStats.size > 0) {
-        console.log('📋 缓存不为空，创建内容预览');
         const previewSection = container.createEl('div', { cls: 'cache-preview-content' });
         previewSection.createEl('h3', { text: '缓存内容预览' });
 
         // 获取缓存内容
         await this.showCacheContentPreview(previewSection);
       } else {
-        console.log('📭 缓存为空，显示空状态');
         const emptySection = container.createEl('div', { cls: 'cache-empty-section' });
-        emptySection.innerHTML = `
-					<div class="cache-empty-message">
-						<p>📭 暂无缓存内容</p>
-						<p class="cache-empty-tip">提示：处理视频后会自动添加到缓存，或者点击"添加测试"按钮添加测试数据</p>
-					</div>
-				`;
+        const emptyMessage = emptySection.createEl('div', { cls: 'cache-empty-message' });
+        emptyMessage.createEl('p', { text: '📭 暂无缓存内容' });
+        emptyMessage.createEl('p', {
+          cls: 'cache-empty-tip',
+          text: '提示：处理视频后会自动添加到缓存，或者点击“添加测试”按钮添加测试数据',
+        });
       }
 
       // 操作按钮
       const actionsSection = container.createEl('div', { cls: 'cache-preview-actions' });
-      console.log('🔘 操作按钮区域已创建');
 
       // 刷新按钮
       actionsSection.createEl('button', {
@@ -3538,7 +3619,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
         text: '❌ 关闭',
         cls: 'cache-action-btn',
       }).onclick = () => {
-        console.log('❌ 关闭按钮被点击');
         modal.close();
       };
     };
@@ -3546,9 +3626,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 初始渲染
     await renderModalContent(contentEl, stats);
 
-    console.log('🚀 准备打开模态框');
     modal.open();
-    console.log('✅ 模态框已打开');
   }
 
   /**
@@ -3581,16 +3659,41 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
         // URL
         const urlEl = infoEl.createEl('div', { cls: 'cache-item-url' });
-        urlEl.innerHTML = `<strong>URL:</strong> <a href="${item.url}" target="_blank">${this.truncateUrl(item.url)}</a>`;
+        urlEl.createEl('strong', { text: 'URL:' });
+        urlEl.appendText(' ');
+        const displayUrl = this.truncateUrl(item.url);
+        const linkableUrl = safeExternalHttpUrl(item.url);
+        if (linkableUrl) {
+          urlEl.createEl('a', {
+            text: displayUrl,
+            attr: {
+              href: linkableUrl,
+              target: '_blank',
+              rel: 'noopener noreferrer',
+            },
+          });
+        } else {
+          urlEl.createEl('span', { text: displayUrl });
+        }
 
         // 元数据
         const metaEl = infoEl.createEl('div', { cls: 'cache-item-meta' });
-        metaEl.innerHTML = `
-					<span class="cache-item-mode">${this.getModeLabel(item.mode)}</span>
-					<span class="cache-item-language">${this.getLanguageLabel(item.language)}</span>
-					<span class="cache-item-time">${this.formatTime(item.timestamp)}</span>
-					<span class="cache-item-status ${item.isExpired ? 'expired' : 'valid'}">${item.isExpired ? '已过期' : '有效'}</span>
-				`;
+        metaEl.createEl('span', {
+          cls: 'cache-item-mode',
+          text: this.getModeLabel(item.mode),
+        });
+        metaEl.createEl('span', {
+          cls: 'cache-item-language',
+          text: this.getLanguageLabel(item.language),
+        });
+        metaEl.createEl('span', {
+          cls: 'cache-item-time',
+          text: this.formatTime(item.timestamp),
+        });
+        metaEl.createEl('span', {
+          cls: `cache-item-status ${item.isExpired ? 'expired' : 'valid'}`,
+          text: item.isExpired ? '已过期' : '有效',
+        });
 
         // 删除按钮
         const deleteBtn = itemEl.createEl('button', {
@@ -3672,9 +3775,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       new Notice('✅ 已添加测试缓存项', 3000);
 
-      // 刷新缓存统计显示
-      const stats = await this.plugin.api.getCacheStats();
-      console.log('测试数据添加后的缓存统计:', stats);
+      // 读取一次统计，确保写入后的缓存索引仍可解析。
+      await this.plugin.api.getCacheStats();
     } catch (error) {
       console.error('添加测试缓存数据失败:', error);
       new Notice(`❌ 添加测试缓存数据失败: ${error.message}`, 5000);

@@ -16,6 +16,7 @@ import type {
   VideoSegment,
   VisualEvidence,
 } from '../types';
+import { isExactHostOrSubdomain, safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 import { resolveContentRoute } from './ContentRouter';
 
 export const VIDEO_ARTIFACT_SCHEMA_VERSION = 3;
@@ -201,11 +202,13 @@ export function stableHash(value: string): string {
 export function buildTimestampUrl(sourceUrl: string, seconds: number | null): string | undefined {
   if (!sourceUrl || seconds === null || !Number.isFinite(seconds) || seconds < 0) return undefined;
   try {
-    const url = new URL(sourceUrl);
+    const safeSource = safeExternalHttpUrl(sourceUrl);
+    if (!safeSource) return undefined;
+    const url = new URL(safeSource);
     if (
-      url.hostname.includes('youtube.com') ||
-      url.hostname.includes('youtu.be') ||
-      url.hostname.includes('bilibili.com')
+      isExactHostOrSubdomain(url.hostname, 'youtube.com') ||
+      url.hostname === 'youtu.be' ||
+      isExactHostOrSubdomain(url.hostname, 'bilibili.com')
     ) {
       url.searchParams.set('t', `${Math.floor(seconds)}s`);
       return url.toString();
@@ -267,7 +270,8 @@ function normalizeSegment(
     source,
     timing_quality: quality,
     timestamp_url:
-      readString(raw, ['timestamp_url', 'timestamp_link']) || buildTimestampUrl(sourceUrl, start),
+      safeExternalHttpUrl(readString(raw, ['timestamp_url', 'timestamp_link'])) ||
+      buildTimestampUrl(sourceUrl, start),
     keyframe: normalizeAsset(raw.keyframe || raw.asset || raw.image, `${id}-frame`),
     visual_text: readString(raw, ['visual_text', 'ocr_text', 'screen_text']),
     confidence: normalizeRatio(raw.confidence),
@@ -307,7 +311,9 @@ function parseCueTranscript(text: string, sourceUrl: string): VideoSegment[] {
 
 function parseTimestampPrefixedTranscript(text: string, sourceUrl: string): VideoSegment[] {
   const result: VideoSegment[] = [];
-  for (const line of text.split('\n')) {
+  // Handle pasted captions such as [00:00]first[00:02]second without line breaks.
+  const expanded = text.replace(/(\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])\s*/g, '\n$1 ');
+  for (const line of expanded.split('\n')) {
     const match = line.match(
       /^\s*(?:\[|\()?((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)(?:\]|\))?\s+(.+)$/,
     );
@@ -613,20 +619,15 @@ function normalizeEvidenceReference(
 function normalizeAsset(raw: any, fallbackId: string): MediaAssetReference | undefined {
   if (!raw) return undefined;
   if (typeof raw === 'string') {
-    const value = raw.trim();
-    if (!value) return undefined;
-    return /^https?:\/\//i.test(value)
-      ? { id: sanitizeId(fallbackId), url: value }
-      : { id: sanitizeId(fallbackId), path: value };
+    const url = safeExternalHttpUrl(raw);
+    return url ? { id: sanitizeId(fallbackId), url } : undefined;
   }
   if (typeof raw !== 'object') return undefined;
-  const url = readString(raw, ['url', 'source_url']);
-  const path = readString(raw, ['path', 'local_path']);
-  if (!url && !path) return undefined;
+  const url = safeExternalHttpUrl(readString(raw, ['url', 'source_url']));
+  if (!url) return undefined;
   return {
     id: sanitizeId(readString(raw, ['id', 'asset_id']) || fallbackId),
-    path: path || undefined,
-    url: url || undefined,
+    url,
     mime_type: readString(raw, ['mime_type', 'mimeType']),
     sha256: readString(raw, ['sha256', 'hash']),
     width: readNumber(raw, ['width']) ?? undefined,

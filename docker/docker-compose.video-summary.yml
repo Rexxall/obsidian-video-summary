@@ -5,8 +5,10 @@ services:
       dockerfile: docker/n8n-video-summary.Dockerfile
     image: video-summary-n8n:latest
     container_name: n8n-video-summary
+    # Local-only by default. Do not change this to 0.0.0.0 without adding
+    # authenticated TLS termination and Webhook Header Auth first.
     ports:
-      - '5678:5678'
+      - '127.0.0.1:5678:5678'
     volumes:
       - ./n8n-data:/home/node/.n8n
       - ./files:/home/node/files
@@ -16,3 +18,7 @@ services:
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=true
+      - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=true
+      - N8N_RESTRICT_FILE_ACCESS_TO=/home/node/uploads;/home/node/files;/home/node/cookies

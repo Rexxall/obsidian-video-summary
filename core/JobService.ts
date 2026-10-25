@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { Notice, TFile } from 'obsidian';
 import VideoSummaryPlugin from '../main';
 import { NoteProcessor } from '../utils/NoteProcessor';
@@ -29,6 +28,7 @@ import { syncCourseIndexAtomic } from './CourseIndexWriter';
 import {
   hydratePersistedReprocessResult,
   resolveArtifactPersistenceIdentity,
+  stripUntrustedPersistedMediaAssetPaths,
 } from './ReprocessPersistence';
 
 export interface SubmitOptions {
@@ -162,7 +162,7 @@ export class JobService {
   async cancel(job: Job) {
     this.store.cancel(job.id);
     const noteName = job.notePath ? basenameOf(job.notePath) : job.title;
-    this.plugin.api.cancelByNoteName(noteName);
+    await this.plugin.api.cancelByNoteName(noteName);
     const file = this.fileFor(job);
     if (file) {
       await this.noteProcessor.setProcessingStatus(file, 'pending');
@@ -218,10 +218,19 @@ export class JobService {
       return;
     }
     try {
+      const noteInput = this.noteProcessor.buildVideoInput(
+        await this.plugin.app.vault.read(activeFile),
+      );
+      const inferredInput = extractVideoInputFromPayload(result);
       const context: ArtifactJobContext = {
         title: activeFile.basename,
         notePath: activeFile.path,
-        input: extractVideoInputFromPayload(result),
+        input: {
+          ...inferredInput,
+          url: noteInput.url || inferredInput.url,
+          localFile: noteInput.localFile,
+          transcript: noteInput.transcript || inferredInput.transcript,
+        },
         platform: result.video_platform,
       };
       const saved = await this.persistArtifact(context, result);
@@ -432,7 +441,7 @@ export class JobService {
           job.input.artifactId || result.artifact?.artifact_id,
         );
       }
-      this.plugin.addToHistory(noteName, 'success', job.mode, {
+      this.plugin.addToHistory(file?.basename || noteName, 'success', job.mode, {
         url: job.input.url,
         platform: job.platform,
         durationMs: job.startedAt ? Date.now() - job.startedAt : undefined,
@@ -497,7 +506,10 @@ export class JobService {
         if (!(error instanceof ArtifactNotFoundError)) throw error;
       }
     }
+    const managedMediaRoot = mediaAssetRoot(this.plugin.settings.outputFolder);
+    stripBackendMediaAssetPaths(result);
     hydratePersistedReprocessResult(result, job.input, previous);
+    stripUntrustedPersistedMediaAssetPaths(result, previous, managedMediaRoot);
 
     const requestedContentType =
       job.input.contentType || this.plugin.settings.defaultContentType || 'auto';
@@ -552,7 +564,13 @@ export class JobService {
     }
     const localizedMedia = await new MediaAssetLocalizer(
       this.plugin.app.vault.adapter,
-      mediaAssetRoot(this.plugin.settings.outputFolder),
+      managedMediaRoot,
+      {
+        workerEndpoint:
+          this.plugin.settings.activeBackend === 'codex-worker'
+            ? this.plugin.settings.codexWorkerUrl
+            : undefined,
+      },
     ).localizeResult(result, artifactId);
     result.video_segments = localizedMedia.result.video_segments;
     result.visual_evidence = localizedMedia.result.visual_evidence;
@@ -580,6 +598,7 @@ export class JobService {
       },
       generated_at: result.artifact?.generated_at || now,
       transcript_source: result.transcript_source || result.artifact?.transcript_source,
+      media_asset_root: managedMediaRoot,
       warnings: uniqueStrings([...(result.artifact?.warnings || []), ...localizedMedia.warnings]),
     } satisfies VideoKnowledgeArtifact['provenance'];
 
@@ -768,6 +787,18 @@ export class JobService {
 function basenameOf(path: string): string {
   const name = path.split('/').pop() || path;
   return name.replace(/\.md$/i, '');
+}
+
+/** Fresh backend payloads never get to assert that a Vault path is already trusted. */
+function stripBackendMediaAssetPaths(result: ProcessingResult): void {
+  result.video_segments = result.video_segments?.map((segment) => ({
+    ...segment,
+    keyframe: segment.keyframe ? { ...segment.keyframe, path: undefined } : undefined,
+  }));
+  result.visual_evidence = result.visual_evidence?.map((evidence) => ({
+    ...evidence,
+    keyframe: evidence.keyframe ? { ...evidence.keyframe, path: undefined } : undefined,
+  }));
 }
 
 function messageOf(error: unknown): string {

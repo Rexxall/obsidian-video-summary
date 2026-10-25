@@ -11,6 +11,7 @@ import {
   type MemorySearchResult,
   type TextHighlightRange,
 } from '../core/CrossModalMemory';
+import { safeExternalHttpUrl, safeManagedVaultImagePath } from '../utils/SafeExternalUrl';
 
 export type KnowledgeLabMode = 'memory' | 'claim-lab';
 
@@ -182,7 +183,8 @@ export class KnowledgeLabModal extends Modal {
     results.forEach((result) => {
       const card = container.createDiv({ cls: 'vs-memory-result' });
       const heading = card.createDiv({ cls: 'vs-memory-result-heading' });
-      const targetUrl = result.timestamp_url || result.source_url;
+      const targetUrl =
+        safeExternalHttpUrl(result.timestamp_url) || safeExternalHttpUrl(result.source_url);
       if (targetUrl) {
         const link = heading.createEl('a', {
           text: `${result.title}${result.timestamp !== null ? ` · ${formatTime(result.timestamp)}` : ''}`,
@@ -247,10 +249,9 @@ export class KnowledgeLabModal extends Modal {
     const reference = result.keyframe;
     if (!reference) return;
     let source: string | undefined;
-    if (reference.url && /^https?:\/\//i.test(reference.url)) {
-      source = reference.url;
-    } else if (reference.path && !reference.path.startsWith('/')) {
-      const file = this.app.vault.getAbstractFileByPath(normalizePath(reference.path));
+    const localPath = safeManagedVaultImagePath(reference.path, result.media_asset_root);
+    if (localPath) {
+      const file = this.app.vault.getAbstractFileByPath(normalizePath(localPath));
       if (file instanceof TFile) source = this.app.vault.getResourcePath(file);
     }
     if (!source) return;

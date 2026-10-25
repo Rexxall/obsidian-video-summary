@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import VideoSummaryPlugin from '../main';
 import { SubmitOptions } from '../core/JobService';
 

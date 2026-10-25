@@ -4,6 +4,11 @@ import type {
   VideoKnowledgeArtifact,
   VideoSegment,
 } from '../types';
+import {
+  isExactHostOrSubdomain,
+  safeExternalHttpUrl,
+  safeRemoteImageUrl,
+} from '../utils/SafeExternalUrl';
 
 export const CLAIM_LAB_CONTRACT_VERSION = 'claim-lab-v1';
 export const CLAIM_LAB_MANAGED_START = '<!-- video-summary-claim-lab:start -->';
@@ -437,9 +442,8 @@ function renderMatrixCell(resolved: ResolvedArtifactClaim): string {
     return `**主张：** ${claim}<br>**证据：missing / needs-review**`;
   }
   const time = formatTimestamp(evidence.segment.start);
-  const timeLabel = evidence.timestamp_url
-    ? `[${time}](<${escapeLinkDestination(evidence.timestamp_url)}>)`
-    : time;
+  const evidenceUrl = safeExternalHttpUrl(evidence.timestamp_url);
+  const timeLabel = evidenceUrl ? `[${time}](<${escapeLinkDestination(evidenceUrl)}>)` : time;
   const quote = escapeTableCell(truncateText(evidence.quote, 110));
   return `**主张：** ${claim}<br>**证据：** ${timeLabel} “${quote}”`;
 }
@@ -450,11 +454,12 @@ function renderResolvedEvidence(resolved: ResolvedArtifactClaim): string[] {
   }
   return resolved.evidence.slice(0, 4).map((evidence) => {
     const time = formatTimestamp(evidence.segment.start);
-    const timeLabel = evidence.timestamp_url
-      ? `[${time}](<${escapeLinkDestination(evidence.timestamp_url)}>)`
-      : time;
-    const keyframe = evidence.segment.keyframe?.url || evidence.segment.keyframe?.path;
-    const keyframeLink = keyframe ? ` · [关键帧](<${escapeLinkDestination(keyframe)}>)` : '';
+    const evidenceUrl = safeExternalHttpUrl(evidence.timestamp_url);
+    const timeLabel = evidenceUrl ? `[${time}](<${escapeLinkDestination(evidenceUrl)}>)` : time;
+    const remoteKeyframe = safeRemoteImageUrl(evidence.segment.keyframe?.url);
+    const keyframeLink = remoteKeyframe
+      ? ` · [关键帧](<${escapeLinkDestination(remoteKeyframe)}>)`
+      : '';
     return `  - 证据 ${timeLabel} · ${evidence.reference.source}${keyframeLink}：“${escapeMarkdownText(evidence.quote)}”`;
   });
 }
@@ -465,8 +470,9 @@ function artifactClaimSource(claim: ResolvedArtifactClaim): string {
 
 function artifactSourceLink(artifact: VideoKnowledgeArtifact): string {
   const title = escapeMarkdownText(cleanText(artifact.title) || artifact.artifact_id);
-  if (artifact.source.url) {
-    return `[${title}](<${escapeLinkDestination(artifact.source.url)}>)`;
+  const sourceUrl = safeExternalHttpUrl(artifact.source.url);
+  if (sourceUrl) {
+    return `[${title}](<${escapeLinkDestination(sourceUrl)}>)`;
   }
   if (artifact.source.note_path) {
     return `[[${artifact.source.note_path.replace(/\|/g, '\\|')}|${title}]]`;
@@ -607,12 +613,14 @@ const STOP_WORDS = new Set([
 function timestampUrl(sourceUrl: string | undefined, seconds: number | null): string | undefined {
   if (!sourceUrl || seconds === null || !Number.isFinite(seconds) || seconds < 0) return undefined;
   try {
-    const url = new URL(sourceUrl);
-    if (url.hostname === 'youtu.be' || url.hostname.endsWith('youtube.com')) {
+    const safeSource = safeExternalHttpUrl(sourceUrl);
+    if (!safeSource) return undefined;
+    const url = new URL(safeSource);
+    if (url.hostname === 'youtu.be' || isExactHostOrSubdomain(url.hostname, 'youtube.com')) {
       url.searchParams.set('t', `${Math.floor(seconds)}s`);
       return url.toString();
     }
-    if (url.hostname.endsWith('bilibili.com') || url.hostname === 'b23.tv') {
+    if (isExactHostOrSubdomain(url.hostname, 'bilibili.com') || url.hostname === 'b23.tv') {
       url.searchParams.set('t', String(Math.floor(seconds)));
       return url.toString();
     }
@@ -675,6 +683,7 @@ function escapeMarkdownText(value: string): string {
   return cleanText(value)
     .replace(/\\/g, '\\\\')
     .replace(/([*_[\]`|])/g, '\\$1')
+    .replace(/</g, '&lt;')
     .replace(/\r?\n/g, ' ');
 }
 

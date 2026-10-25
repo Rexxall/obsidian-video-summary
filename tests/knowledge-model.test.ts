@@ -219,6 +219,33 @@ test('normalizes rich payload aliases, provenance, routing, and attention data',
   assert.equal(result.artifact?.processing_depth, 'evidence');
 });
 
+test('backend media references may provide URLs but never trusted Vault paths', () => {
+  const result = normalizeRichProcessingResult(
+    {},
+    {
+      visual_evidence: [
+        {
+          id: 'visual-backend-path',
+          start: 4,
+          description: 'Backend must not assert localization provenance.',
+          keyframe: {
+            id: 'frame-backend-path',
+            path: 'Secrets/_video-summary-assets/artifact-fake/private.jpg',
+            url: 'http://127.0.0.1:8787/video-summary/assets/visual-abc/frame.jpg',
+          },
+        },
+      ],
+    },
+    { sourceUrl: YOUTUBE_URL, backend: 'codex-worker' },
+  );
+
+  assert.equal(result.visual_evidence?.[0].keyframe?.path, undefined);
+  assert.equal(
+    result.visual_evidence?.[0].keyframe?.url,
+    'http://127.0.0.1:8787/video-summary/assets/visual-abc/frame.jpg',
+  );
+});
+
 test('learning items use content-stable local ids and resolve labeled choice answers', () => {
   const payload = {
     learning: {

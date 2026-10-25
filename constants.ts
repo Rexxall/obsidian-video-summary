@@ -1,5 +1,3 @@
-// agent: codex (2026-05-21)
-// agent: claude (2026-07-02) — history 拆分/短链展开/preflight/cookies 相关常量
 import type { PlatformCapability, VideoSummarySettings, WorkflowHealthInfo } from './types';
 
 // 已知的短链域名：发给后端前先展开成最终链接，减少一类下载失败
@@ -16,13 +14,14 @@ export const SHORT_LINK_HOSTS = [
 export const DEFAULT_HISTORY_LIMIT = 300;
 
 export const DEFAULT_AI_MODELS: string[] = ['Gemini 3.1', 'Gemini 3.0'];
+export const DEFAULT_WEBHOOK_AUTH_HEADER = 'X-Video-Summary-Token';
 export const DEFAULT_N8N_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook/obsidian-video-summary';
 export const LEGACY_DEFAULT_N8N_WEBHOOK_URL =
   'http://localhost:5678/webhook/obsidian-video-summary';
 export const LEGACY_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/cyrus';
 export const RECOMMENDED_WORKFLOW: Required<WorkflowHealthInfo> = {
   name: 'Video Summary Advanced Workflow',
-  version: '2.1.4',
+  version: '2.1.5',
   variant: 'advanced',
   webhookPath: 'obsidian-video-summary',
   models: [...DEFAULT_AI_MODELS],
@@ -35,7 +34,7 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     platform: '本地音频/视频',
     status: 'recommended',
     input: 'local_file',
-    requirements: '把文件放进 docker/uploads，只填写文件名或相对路径。',
+    requirements: '把文件放进 docker/uploads，只填写根目录内的文件名。',
     notes: '最稳定，适合长录音、会议、课程和个人素材。',
   },
   {
@@ -91,6 +90,8 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
       id: 'default-webhook',
       name: 'Local n8n',
       url: DEFAULT_N8N_WEBHOOK_URL,
+      headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
+      secret: '',
     },
   ],
   activeWebhookId: 'default-webhook',
@@ -104,7 +105,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   generateLearningArtifacts: false,
   aiModel: 'Gemini 3.1',
   customAiModels: [...DEFAULT_AI_MODELS],
-  timeoutMinutes: 10,
+  timeoutMinutes: 30,
   autoSave: true,
   batchConcurrency: 3,
   outputFolder: '',
@@ -119,13 +120,13 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
     language: 'zh',
     mode: 'summary',
     outputFolder: '',
-    timeoutMinutes: 10,
+    timeoutMinutes: 30,
   },
   quickTranscriptOptions: {
     language: 'zh',
     mode: 'transcript-only',
     outputFolder: '',
-    timeoutMinutes: 10,
+    timeoutMinutes: 30,
   },
   fileListSortBy: 'ctime-desc', // 默认按创建时间（最新）排序
   historySortBy: 'time-desc', // 默认按时间（最新）排序

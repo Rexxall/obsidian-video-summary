@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 
 export type JobState = 'queued' | 'running' | 'review' | 'success' | 'error' | 'cancelled';

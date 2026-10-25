@@ -3,8 +3,10 @@ import { test } from 'node:test';
 import * as yaml from 'js-yaml';
 import {
   buildRichFrontmatterFields,
+  escapeUntrustedMarkdownInline,
   renderAttentionMarkdown,
   renderEvidenceMarkdown,
+  sanitizeGeneratedMarkdownActiveResources,
   serializeScalarFrontmatter,
   writeManagedKnowledgeMarkdown,
 } from '../core/KnowledgeMarkdown';
@@ -12,8 +14,37 @@ import type { ProcessingResult } from '../types';
 
 const SOURCE_URL = 'https://www.youtube.com/watch?v=markdown-contract';
 
-test('new rich notes contain all four marker-delimited managed blocks', () => {
-  const markdown = writeManagedKnowledgeMarkdown('', richResult('第一版总结'), SOURCE_URL);
+test('model-authored Markdown cannot auto-load remote or embedded resources', () => {
+  const input = [
+    '普通 [链接](https://example.com/page) 保留。',
+    '![追踪像素](http://127.0.0.1:8787/private.png)',
+    '![[Vault/Secret.png]]',
+    '<img src="https://example.com/pixel.png">',
+    '<iframe src="https://example.com/frame"></iframe>',
+    '<svg><image href="https://example.com/vector.png"></image></svg>',
+    '\\\\![偶数反斜杠](http://127.0.0.1:8787/private.png)',
+    '<div style="background-image:url(http://127.0.0.1:8787/private.png)">背景</div>',
+  ].join('\n');
+  const safe = sanitizeGeneratedMarkdownActiveResources(input);
+
+  assert.match(safe, /\[链接\]\(https:\/\/example\.com\/page\)/);
+  assert.doesNotMatch(safe, /!/);
+  assert.doesNotMatch(safe, /</);
+  assert.match(safe, /&#33;\[追踪像素\]/);
+  assert.match(safe, /&lt;img/);
+  assert.match(safe, /&lt;div style=/);
+
+  const inline = escapeUntrustedMarkdownInline(
+    '标题 ![像素](http://127.0.0.1/p.png)\n<div style="background:url(http://127.0.0.1)">',
+  );
+  assert.doesNotMatch(inline, /[!<\n]/);
+  assert.match(inline, /&#33;\\\[像素\\\]/);
+});
+
+test('with diagnostics on, new rich notes contain all four marker-delimited managed blocks', () => {
+  const markdown = writeManagedKnowledgeMarkdown('', richResult('第一版总结'), SOURCE_URL, {
+    includeDiagnostics: true,
+  });
 
   for (const kind of ['generated', 'evidence', 'attention', 'learning']) {
     assert.equal(count(markdown, `<!-- video-summary-${kind}:start -->`), 1);
@@ -49,7 +80,16 @@ test('reprocessing replaces only managed blocks and preserves user-authored Mark
   assert.match(after, /- \[ \] 我自己的任务/);
   assert.match(after, /==我自己的高亮==/);
   assert.equal(count(after, '<!-- video-summary-generated:start -->'), 1);
-  assert.equal(count(after, '<!-- video-summary-evidence:start -->'), 1);
+  assert.equal(count(after, '<!-- video-summary-evidence:start -->'), 0);
+});
+
+test('by default a note gets the summary and learning blocks, not diagnostics', () => {
+  const markdown = writeManagedKnowledgeMarkdown('', richResult('默认总结'), SOURCE_URL);
+  assert.equal(count(markdown, '<!-- video-summary-generated:start -->'), 1);
+  assert.equal(count(markdown, '<!-- video-summary-learning:start -->'), 1);
+  assert.equal(count(markdown, '<!-- video-summary-evidence:start -->'), 0);
+  assert.equal(count(markdown, '<!-- video-summary-attention:start -->'), 0);
+  assert.match(markdown, /默认总结/);
 });
 
 test('untimed material never renders a fabricated clickable 0:00 timestamp', () => {
@@ -124,7 +164,7 @@ test('evidence block ids are stable across identical renders and distinct for un
   assert.notEqual(idsOnce[0], idsOnce[1]);
 });
 
-test('remote worker keyframes render inline while absolute paths never become broken wiki embeds', () => {
+test('only localized worker keyframes render inline', () => {
   const result = richResult('真实关键帧');
   result.visual_evidence = [
     {
@@ -138,15 +178,26 @@ test('remote worker keyframes render inline while absolute paths never become br
         mime_type: 'image/jpeg',
       },
     },
+    {
+      id: 'visual-localized',
+      start: 16,
+      description: '已经过哈希和根目录校验的本地化画面。',
+      keyframe: {
+        id: 'frame-000016000',
+        path: '课程/_video-summary-assets/artifact-visual-test/frame-000016000.jpg',
+        mime_type: 'image/jpeg',
+      },
+    },
   ];
 
   const markdown = renderEvidenceMarkdown(result, SOURCE_URL);
 
+  assert.doesNotMatch(markdown, /127\.0\.0\.1/);
+  assert.doesNotMatch(markdown, /!\[\[\/private\/tmp/);
   assert.match(
     markdown,
-    /!\[关键帧\]\(<http:\/\/127\.0\.0\.1:8787\/video-summary\/assets\/visual-abc\/frame-000014000\.jpg>\)/,
+    /!\[\[课程\/_video-summary-assets\/artifact-visual-test\/frame-000016000\.jpg\]\]/,
   );
-  assert.doesNotMatch(markdown, /!\[\[\/private\/tmp/);
 });
 
 test('rich frontmatter projects only scalar values and round-trips as safe YAML', () => {
@@ -266,6 +317,7 @@ function richResult(summary: string): ProcessingResult {
       schema_version: 3,
       artifact_id: 'artifact-contract',
       processing_depth: 'evidence',
+      media_asset_root: '课程/_video-summary-assets',
       warnings: ['测试限制'],
     },
   };

@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26)
 import { Notice, TFile, setIcon } from 'obsidian';
 import { ViewContext, LibraryFilter } from '../context';
 import { canLoadRemoteCover, VideoNoteEntry, platformLabel } from '../../core/NoteIndex';

@@ -1,4 +1,3 @@
-// agent: claude (2026-07-26) — 从 VideoSummaryView 抽出，行为不变
 import { App, Modal } from 'obsidian';
 
 export class FolderSelectModal extends Modal {

@@ -1,14 +1,15 @@
-// agent: claude (2026-07-26)
 import { App, TFile } from 'obsidian';
 import { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 import { JobDraft, titleForUrl } from './InputParser';
 import {
   buildRichFrontmatterFields,
+  escapeUntrustedMarkdownInline,
   renderAttentionMarkdown,
   renderEvidenceMarkdown,
   renderLearningMarkdown,
   SafeFrontmatterScalar,
   serializeScalarFrontmatter,
+  sanitizeGeneratedMarkdownActiveResources,
   writeManagedKnowledgeMarkdown,
 } from './KnowledgeMarkdown';
 
@@ -19,7 +20,7 @@ export interface NoteFactoryOptions {
 
 /**
  * 建笔记相关的纯操作，从旧视图的 createNoteForPart / createNoteFromWebhookResult 移出来，
- * 行为保持一致（YAML 结构、文件名冲突处理、正文骨架都没变）。
+ * 保留 YAML 和文件名冲突处理；待处理状态只保存在属性中，不写空白正文模板。
  */
 export class NoteFactory {
   private app: App;
@@ -53,24 +54,7 @@ export class NoteFactory {
     }
     lines.push('---');
 
-    const content = `${lines.join('\n')}
-
-# ${draft.title}
-
-## 基本信息
-- **视频链接**: ${draft.input.url || '（无）'}
-- **创建时间**: ${now.toLocaleString('zh-CN')}
-- **处理状态**: 待处理
-
-## 视频内容
-<!-- 视频总结将在这里生成 -->
-
-## 笔记
-<!-- 个人笔记将在这里生成 -->
-
-## 文稿
-<!-- 视频文稿将在这里生成 -->
-`;
+    const content = `${lines.join('\n')}\n`;
 
     try {
       return await this.app.vault.create(filePath, content);
@@ -160,17 +144,23 @@ export class NoteFactory {
 /** 把结果拼成可插入当前笔记的 Markdown 片段 */
 export function buildInsertionContent(result: ProcessingResult): string {
   const lines: string[] = ['---', '## Webhook 结果'];
-  if (result.video_title) lines.push(`- **标题**: ${result.video_title}`);
-  if (result.video_author) lines.push(`- **作者**: ${result.video_author}`);
-  if (result.video_duration) lines.push(`- **时长**: ${result.video_duration}`);
+  if (result.video_title) {
+    lines.push(`- **标题**: ${escapeUntrustedMarkdownInline(result.video_title)}`);
+  }
+  if (result.video_author) {
+    lines.push(`- **作者**: ${escapeUntrustedMarkdownInline(result.video_author)}`);
+  }
+  if (result.video_duration) {
+    lines.push(`- **时长**: ${escapeUntrustedMarkdownInline(result.video_duration)}`);
+  }
   if (result.summary) {
-    lines.push('', '### 总结', result.summary);
+    lines.push('', '### 总结', sanitizeGeneratedMarkdownActiveResources(result.summary));
   }
   if (result.note) {
-    lines.push('', '### 大纲', result.note);
+    lines.push('', '### 大纲', sanitizeGeneratedMarkdownActiveResources(result.note));
   }
   if (result.video_transcript) {
-    lines.push('', '### 文稿', result.video_transcript);
+    lines.push('', '### 文稿', sanitizeGeneratedMarkdownActiveResources(result.video_transcript));
   }
   if (result.video_segments?.length || result.evidence_claims?.length) {
     lines.push('', renderEvidenceMarkdown(result, result.artifact?.source_url));
@@ -220,8 +210,6 @@ export function extractVideoInputFromPayload(raw: any): VideoInput {
   if (link) input.url = link;
   const transcript = pick(['provided_transcript', 'transcript']);
   if (transcript) input.transcript = transcript;
-  const localFile = pick(['local_file', 'localFileName', 'localFile']);
-  if (localFile) input.localFile = localFile;
   return input;
 }
 

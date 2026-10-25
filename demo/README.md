@@ -28,4 +28,3 @@ For local files, put your test file in `docker/uploads` and use `sample-input-lo
 - `sample-input-local-file.md`: Local file test note.
 - `sample-output-note.md`: Example output shape.
 - `demo-script-3min.md`: Short recording script.
-- `xiaohongshu-post-draft.md`: Social post draft.

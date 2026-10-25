@@ -41,6 +41,32 @@ export function hydratePersistedReprocessResult(
 }
 
 /**
+ * Legacy artifacts predate the provenance binding for localized assets. Never
+ * upgrade their paths into a newly trusted artifact unless the recorded root
+ * exists and exactly matches the root managed by the current configuration.
+ */
+export function stripUntrustedPersistedMediaAssetPaths(
+  result: ProcessingResult,
+  previous: VideoKnowledgeArtifact | undefined,
+  managedMediaRoot: string,
+): void {
+  if (
+    previous?.provenance.media_asset_root &&
+    previous.provenance.media_asset_root === managedMediaRoot
+  ) {
+    return;
+  }
+  result.video_segments = result.video_segments?.map((segment) => ({
+    ...segment,
+    keyframe: segment.keyframe ? { ...segment.keyframe, path: undefined } : undefined,
+  }));
+  result.visual_evidence = result.visual_evidence?.map((evidence) => ({
+    ...evidence,
+    keyframe: evidence.keyframe ? { ...evidence.keyframe, path: undefined } : undefined,
+  }));
+}
+
+/**
  * Resolve the content-addressed identity only after persisted inputs have been
  * restored. When the caller supplied a known artifact, retain its reviewed
  * identity and update only the note locator.
