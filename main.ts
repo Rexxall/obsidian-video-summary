@@ -10,7 +10,6 @@ import {
   TFile,
   WorkspaceLeaf,
   DropdownComponent,
-  setIcon,
 } from 'obsidian';
 import { VideoSummaryModal } from './modals';
 import { BatchProcessingModal } from './BatchProcessingModal';
