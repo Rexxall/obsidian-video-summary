@@ -10,13 +10,25 @@ export function cleanVideoScaffold(body: string): string {
 /** A single folded source section; keep the source text, not a fabricated evidence claim. */
 export function renderTranscriptFold(transcript: string): string {
   if (!transcript.trim()) return '';
-  const lines = transcript.trim().replace(/\r\n/g, '\n')
+  const lines = transcript
+    .trim()
+    .replace(/\r\n/g, '\n')
     .replace(/([^\n])(?=\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])/g, '$1\n');
-  return '> [!quote]- 原始文稿\n' + lines.split('\n').map(line => '> ' + line).join('\n');
+  return (
+    '> [!quote]- 原始文稿\n' +
+    lines
+      .split('\n')
+      .map((line) => '> ' + line)
+      .join('\n')
+  );
 }
 
 /** Replace only plugin-owned blocks; keep prose and annotations outside them intact. */
-export function writeCleanVideoBody(body: string, result: { note?: string; summary?: string; video_transcript?: string }, updateSummary = true): string {
+export function writeCleanVideoBody(
+  body: string,
+  result: { note?: string; summary?: string; video_transcript?: string },
+  updateSummary = true,
+): string {
   const replace = (text: string, kind: string, value: string) => {
     const start = `<!-- video-summary-${kind}:start -->`;
     const end = `<!-- video-summary-${kind}:end -->`;
@@ -39,9 +51,14 @@ export function writeCleanVideoBody(body: string, result: { note?: string; summa
 }
 
 /** Automatic rename and user rename must update all live task links together. */
-export function relinkVideoJobs(store: { getAll(): any[]; update(id: string, patch: any): void }, oldPath: string, file: { path: string; basename: string }) {
+export function relinkVideoJobs(
+  store: { getAll(): any[]; update(id: string, patch: any): void },
+  oldPath: string,
+  file: { path: string; basename: string },
+) {
   if (oldPath === file.path) return;
   for (const job of store.getAll()) {
-    if (job.notePath === oldPath) store.update(job.id, { notePath: file.path, title: file.basename });
+    if (job.notePath === oldPath)
+      store.update(job.id, { notePath: file.path, title: file.basename });
   }
 }

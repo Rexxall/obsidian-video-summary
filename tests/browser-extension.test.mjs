@@ -8,20 +8,39 @@ const dir = new URL('../browser-extension/', import.meta.url);
 function loadBackground({ sync = {}, local = {}, fetchImpl } = {}) {
   const listeners = {};
   const area = (store) => ({
-    get: async (keys) => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter((k) => k in store).map((k) => [k, store[k]])),
+    get: async (keys) =>
+      Object.fromEntries(
+        (Array.isArray(keys) ? keys : [keys]).filter((k) => k in store).map((k) => [k, store[k]]),
+      ),
     set: async (value) => Object.assign(store, value),
-    remove: async (keys) => { for (const k of [].concat(keys)) delete store[k]; },
+    remove: async (keys) => {
+      for (const k of [].concat(keys)) delete store[k];
+    },
   });
-  const event = (name) => ({ addListener: (fn) => { listeners[name] = fn; } });
+  const event = (name) => ({
+    addListener: (fn) => {
+      listeners[name] = fn;
+    },
+  });
   const context = {
     console,
     URL,
     fetch: fetchImpl,
     chrome: {
       storage: { sync: area(sync), local: area(local) },
-      runtime: { onMessage: event('message'), onInstalled: event('installed'), onStartup: event('startup') },
+      runtime: {
+        onMessage: event('message'),
+        onInstalled: event('installed'),
+        onStartup: event('startup'),
+      },
       commands: { onCommand: event('command') },
-      contextMenus: { create() {}, removeAll(cb) { cb?.(); }, onClicked: event('menu') },
+      contextMenus: {
+        create() {},
+        removeAll(cb) {
+          cb?.();
+        },
+        onClicked: event('menu'),
+      },
       tabs: { query: async () => [], create: async () => ({}), update: async () => ({}) },
       action: { openPopup: async () => {} },
       scripting: { executeScript: async () => [] },
@@ -42,12 +61,17 @@ test('extension shared bundle detects supported platforms', () => {
   context.self = context;
   vm.createContext(context);
   vm.runInContext(readFileSync(new URL('vendor/shared.global.js', dir), 'utf8'), context);
-  assert.equal(context.VideoSummaryShared.detectPlatform('https://www.youtube.com/watch?v=abc'), 'youtube');
+  assert.equal(
+    context.VideoSummaryShared.detectPlatform('https://www.youtube.com/watch?v=abc'),
+    'youtube',
+  );
   assert.equal(context.VideoSummaryShared.isVideoUrl('https://example.com/article'), false);
 });
 
 test('an Obsidian REST token saved by older versions moves out of synced storage', async () => {
-  const { send, sync, local } = loadBackground({ sync: { vaultName: 'V', obsidianRestToken: 'secret-token' } });
+  const { send, sync, local } = loadBackground({
+    sync: { vaultName: 'V', obsidianRestToken: 'secret-token' },
+  });
   const state = await send({ type: 'GET_STATE' });
   assert.equal(state.settings.obsidianRestToken, 'secret-token');
   assert.equal(local.obsidianRestToken, 'secret-token');

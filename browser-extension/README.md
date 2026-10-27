@@ -21,12 +21,12 @@ Works in Chrome, Edge, Brave and other Chromium browsers.
 
 ## Shortcuts
 
-| Action | macOS | Windows / Linux |
-|---|---|---|
-| Capture current video | ⌘⇧S | Ctrl+Shift+S |
-| Append current video link | ⌘⇧A | Ctrl+Shift+A |
-| Add current video to queue | ⌃Z | Alt+Shift+Q |
-| Open batch scan | ⌃S | Alt+Shift+B |
+| Action                     | macOS | Windows / Linux |
+| -------------------------- | ----- | --------------- |
+| Capture current video      | ⌘⇧S   | Ctrl+Shift+S    |
+| Append current video link  | ⌘⇧A   | Ctrl+Shift+A    |
+| Add current video to queue | ⌃Z    | Alt+Shift+Q     |
+| Open batch scan            | ⌃S    | Alt+Shift+B     |
 
 Change them at `chrome://extensions/shortcuts`.
 

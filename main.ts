@@ -1029,7 +1029,6 @@ export default class VideoSummaryPlugin extends Plugin {
 
     const label = backend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
 
-
     const otherBackend: ProcessingBackend = backend === 'n8n' ? 'codex-worker' : 'n8n';
     const otherLabel = otherBackend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
     const otherUrl =
@@ -3099,7 +3098,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
-
   }
 
   private createOutputSection(containerEl: HTMLElement) {

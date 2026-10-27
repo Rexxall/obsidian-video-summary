@@ -1,4 +1,3 @@
-
 /**
  * Normalize a user-, note-, or backend-supplied external URL for clickable UI.
  * Credentials and non-HTTP schemes are rejected so values such as javascript:

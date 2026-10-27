@@ -247,7 +247,11 @@ export class VideoSummaryView extends ItemView {
   private renderFooter(panel: HTMLElement) {
     const foot = panel.createDiv({ cls: 'vs-foot-links' });
     const link = (text: string, onClick: () => void) => {
-      const button = foot.createEl('button', { text, cls: 'vs-link-btn', attr: { type: 'button' } });
+      const button = foot.createEl('button', {
+        text,
+        cls: 'vs-link-btn',
+        attr: { type: 'button' },
+      });
       button.addEventListener('click', onClick);
     };
     const run = (id: string) =>

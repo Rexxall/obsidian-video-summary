@@ -14,11 +14,26 @@ const CHECK = process.argv.includes('--check');
 const BANNER = '// Generated from shared/ by tools/sync-extension-shared.mjs. Do not edit.\n';
 const MODULES = ['platforms.mjs', 'status.mjs', 'url.mjs', 'payload.mjs'];
 const EXPORTS = [
-  'SUPPORTED_PLATFORMS', 'PLATFORMS', 'isVideoUrl', 'detectPlatform',
-  'STATUS', 'STATUS_EMOJI', 'normalizeStatus', 'statusText',
-  'canonicalizeVideoUrl', 'appendTimestamp', 'stripTimestamp', 'formatTimestamp',
-  'MODES', 'LANGUAGES', 'ACTIONS', 'buildUnifiedPayload', 'normalizeRequest', 'buildLegacyN8nPayload',
-  'safeTitle', 'normalizeText',
+  'SUPPORTED_PLATFORMS',
+  'PLATFORMS',
+  'isVideoUrl',
+  'detectPlatform',
+  'STATUS',
+  'STATUS_EMOJI',
+  'normalizeStatus',
+  'statusText',
+  'canonicalizeVideoUrl',
+  'appendTimestamp',
+  'stripTimestamp',
+  'formatTimestamp',
+  'MODES',
+  'LANGUAGES',
+  'ACTIONS',
+  'buildUnifiedPayload',
+  'normalizeRequest',
+  'buildLegacyN8nPayload',
+  'safeTitle',
+  'normalizeText',
 ];
 
 const read = (name) => readFileSync(join(SHARED, name), 'utf8');

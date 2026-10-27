@@ -133,7 +133,10 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
 
   root.createDiv({
     cls: 'vs-add-hint',
-    text: quick === null ? `当前：${modeLabel(ctx.plugin.settings.defaultMode)}（在更多选项里改）· 多行即批量 · ⌘ Enter 开始` : '多行即批量 · ⌘ Enter 开始',
+    text:
+      quick === null
+        ? `当前：${modeLabel(ctx.plugin.settings.defaultMode)}（在更多选项里改）· 多行即批量 · ⌘ Enter 开始`
+        : '多行即批量 · ⌘ Enter 开始',
   });
 
   const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? ' is-open' : ''}` });
@@ -189,7 +192,13 @@ function bindFileDrop(box: HTMLElement, ctx: ViewContext, input: HTMLTextAreaEle
 function renderHeader(root: HTMLElement, ctx: ViewContext) {
   const header = root.createDiv({ cls: 'vs-header' });
   header.createSpan({ text: '视频总结', cls: 'vs-header-title' });
-  iconButton(header, 'more-horizontal', '更多', (event) => showMoreMenu(ctx, event), 'vs-header-more');
+  iconButton(
+    header,
+    'more-horizontal',
+    '更多',
+    (event) => showMoreMenu(ctx, event),
+    'vs-header-more',
+  );
 
   const backend = activeBackendInfo(ctx);
   const cachedResult = freshProbeResult(ctx, backend);
@@ -587,9 +596,13 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     await plugin.saveSettings();
   });
 
-  const models = (settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]).filter(Boolean);
+  const models = (
+    settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]
+  ).filter(Boolean);
   const modelSelect = row('处理模型').createEl('select', { cls: 'dropdown' });
-  models.forEach((model) => modelSelect.createEl('option', { text: model, attr: { value: model } }));
+  models.forEach((model) =>
+    modelSelect.createEl('option', { text: model, attr: { value: model } }),
+  );
   modelSelect.value = settings.aiModel || models[0] || '';
   modelSelect.addEventListener('change', async () => {
     settings.aiModel = modelSelect.value;
@@ -617,25 +630,45 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
   });
 
   const toggles = container.createDiv({ cls: 'vs-opt-checks' });
-  const check = (label: string, title: string, value: boolean, onChange: (value: boolean) => Promise<void>) => {
+  const check = (
+    label: string,
+    title: string,
+    value: boolean,
+    onChange: (value: boolean) => Promise<void>,
+  ) => {
     const el = toggles.createEl('label', { cls: 'vs-check', attr: { title } });
     const box = el.createEl('input', { attr: { type: 'checkbox' } });
     box.checked = value;
     el.createSpan({ text: label });
     box.addEventListener('change', () => void onChange(box.checked));
   };
-  check('先预览再写入', '结果先预览，确认后才写入笔记', settings.previewBeforeWrite === true, async (value) => {
-    settings.previewBeforeWrite = value;
-    await plugin.saveSettings();
-  });
-  check('观看判断', '输出值得看、建议略读或可以跳过', settings.attentionAssessmentEnabled, async (value) => {
-    settings.attentionAssessmentEnabled = value;
-    plugin.api.setAnalysisDefaults({ attentionAssessment: value });
-    await plugin.saveSettings();
-  });
-  check('这次跳过缓存', '强制重新处理，只对本次打开的侧栏有效', ctx.state.ignoreCache, async (value) => {
-    ctx.state.ignoreCache = value;
-  });
+  check(
+    '先预览再写入',
+    '结果先预览，确认后才写入笔记',
+    settings.previewBeforeWrite === true,
+    async (value) => {
+      settings.previewBeforeWrite = value;
+      await plugin.saveSettings();
+    },
+  );
+  check(
+    '观看判断',
+    '输出值得看、建议略读或可以跳过',
+    settings.attentionAssessmentEnabled,
+    async (value) => {
+      settings.attentionAssessmentEnabled = value;
+      plugin.api.setAnalysisDefaults({ attentionAssessment: value });
+      await plugin.saveSettings();
+    },
+  );
+  check(
+    '这次跳过缓存',
+    '强制重新处理，只对本次打开的侧栏有效',
+    ctx.state.ignoreCache,
+    async (value) => {
+      ctx.state.ignoreCache = value;
+    },
+  );
 }
 
 interface AdvancedFields {

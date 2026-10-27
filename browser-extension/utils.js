@@ -1,50 +1,51 @@
-
 (function attachVideoCaptureUtils(global) {
   // Shared single-source core (vendored from @video-summary/shared), loaded via
   // vendor/shared.global.js BEFORE this file. Platform detection + URL canonicalization
   // are delegated to it so the logic lives in exactly one place.
   const SHARED = global.VideoSummaryShared;
   if (!SHARED) {
-    console.error("[VideoCapture] vendor/shared.global.js must be loaded before utils.js");
+    console.error('[VideoCapture] vendor/shared.global.js must be loaded before utils.js');
   }
 
   const DEFAULT_SETTINGS = Object.freeze({
-    vaultName: "",
-    folder: "",
-    appendPath: "",
-    obsidianRestProtocol: "https",
+    vaultName: '',
+    folder: '',
+    appendPath: '',
+    obsidianRestProtocol: 'https',
     obsidianRestPort: 27123,
-    obsidianRestToken: "",
-    codexWorkerUrl: "http://127.0.0.1:8787/video-summary/jobs",
-    n8nWebhookUrl: "http://localhost:5678/webhook/video-summary-merge",
-    webhookFormat: "unified",
-    defaultMode: "summary",
-    defaultLanguage: "zh",
-    quickAction: "create-pending-note",
+    obsidianRestToken: '',
+    codexWorkerUrl: 'http://127.0.0.1:8787/video-summary/jobs',
+    n8nWebhookUrl: 'http://localhost:5678/webhook/video-summary-merge',
+    webhookFormat: 'unified',
+    defaultMode: 'summary',
+    defaultLanguage: 'zh',
+    quickAction: 'create-pending-note',
     autoClose: false,
-    paperStyle: false
+    paperStyle: false,
   });
 
   // Unified host list from the shared source (previously a local 5-host subset).
   const VIDEO_HOST_PATTERNS = SHARED
     ? SHARED.SUPPORTED_PLATFORMS
-    : ["youtube.com", "youtu.be", "bilibili.com", "douyin.com", "tiktok.com"];
+    : ['youtube.com', 'youtu.be', 'bilibili.com', 'douyin.com', 'tiktok.com'];
 
   function sanitizeFilename(title) {
-    const clean = (title || "Untitled Video")
-      .replace(/[\\/:*?"<>|]/g, "_")
-      .replace(/\s+/g, " ")
+    const clean = (title || 'Untitled Video')
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/\s+/g, ' ')
       .trim();
-    return clean || "Untitled Video";
+    return clean || 'Untitled Video';
   }
 
   function cleanTitle(title) {
-    return (title || "Untitled Video")
-      .replace(/ - YouTube$/, "")
-      .replace(/_哔哩哔哩_bilibili$/, "")
-      .replace(/^\(\d+\)\s*/, "")
-      .replace(/\s+/g, " ")
-      .trim() || "Untitled Video";
+    return (
+      (title || 'Untitled Video')
+        .replace(/ - YouTube$/, '')
+        .replace(/_哔哩哔哩_bilibili$/, '')
+        .replace(/^\(\d+\)\s*/, '')
+        .replace(/\s+/g, ' ')
+        .trim() || 'Untitled Video'
+    );
   }
 
   function detectPlatform(url) {
@@ -64,11 +65,11 @@
     try {
       const parsed = new URL(url);
       if (
-        parsed.hostname.includes("youtube") ||
-        parsed.hostname.includes("youtu.be") ||
-        parsed.hostname.includes("bilibili")
+        parsed.hostname.includes('youtube') ||
+        parsed.hostname.includes('youtu.be') ||
+        parsed.hostname.includes('bilibili')
       ) {
-        parsed.searchParams.set("t", String(Math.floor(seconds)));
+        parsed.searchParams.set('t', String(Math.floor(seconds)));
       }
       return parsed.toString();
     } catch {
@@ -87,27 +88,28 @@
   }
 
   function formatTimestamp(seconds) {
-    if (!Number.isFinite(seconds)) return "--:--";
+    if (!Number.isFinite(seconds)) return '--:--';
     const safe = Math.max(0, Math.floor(seconds));
     const h = Math.floor(safe / 3600);
     const m = Math.floor((safe % 3600) / 60);
     const s = safe % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-    return `${m}:${String(s).padStart(2, "0")}`;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
   }
 
   function encodeObsidianParam(value) {
-    return encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
-      `%${char.charCodeAt(0).toString(16)}`
+    return encodeURIComponent(value).replace(
+      /[!'()*]/g,
+      (char) => `%${char.charCodeAt(0).toString(16)}`,
     );
   }
 
   function yamlQuote(value) {
-    return JSON.stringify(String(value || ""));
+    return JSON.stringify(String(value || ''));
   }
 
   function buildMarkdownLink(item) {
-    const timestamp = Number.isFinite(item.timestamp) ? ` ${formatTimestamp(item.timestamp)}` : "";
+    const timestamp = Number.isFinite(item.timestamp) ? ` ${formatTimestamp(item.timestamp)}` : '';
     return `[${cleanTitle(item.title)}${timestamp}](${item.timestampUrl || item.url})`;
   }
 
@@ -119,9 +121,9 @@
     const capturedAt = new Date().toISOString();
     const timestampLines = Number.isFinite(item.timestamp)
       ? `video_timestamp: ${Math.floor(item.timestamp)}\ntimestamp_link: ${yamlQuote(timestampUrl)}\n`
-      : "";
+      : '';
 
-    return `---\nlink: ${yamlQuote(baseUrl)}\nstatus: pending\nsource: browser-extension\ncapture_route: ${yamlQuote(settings.quickAction || "create-pending-note")}\nvideo_title: ${yamlQuote(title)}\nvideo_platform: ${yamlQuote(platform)}\n${timestampLines}captured_at: ${yamlQuote(capturedAt)}\n---\n# ${title}\n\n${buildMarkdownLink({ ...item, title, url: baseUrl, timestampUrl })}\n`;
+    return `---\nlink: ${yamlQuote(baseUrl)}\nstatus: pending\nsource: browser-extension\ncapture_route: ${yamlQuote(settings.quickAction || 'create-pending-note')}\nvideo_title: ${yamlQuote(title)}\nvideo_platform: ${yamlQuote(platform)}\n${timestampLines}captured_at: ${yamlQuote(capturedAt)}\n---\n# ${title}\n\n${buildMarkdownLink({ ...item, title, url: baseUrl, timestampUrl })}\n`;
   }
 
   function buildObsidianNewUri(vaultName, folder, item, settings) {
@@ -132,7 +134,7 @@
   }
 
   function buildObsidianFilePath(folder, title) {
-    const cleanFolder = (folder || "").trim().replace(/^\/+|\/+$/g, "");
+    const cleanFolder = (folder || '').trim().replace(/^\/+|\/+$/g, '');
     return cleanFolder ? `${cleanFolder}/${title}` : title;
   }
 
@@ -145,30 +147,30 @@
   function buildObsidianProcessUri(vaultName, item, settings) {
     const title = cleanTitle(item.title);
     const baseUrl = cleanVideoUrl(item.url, { keepTimestamp: false });
-    const timestampUrl = item.timestampUrl || "";
-    const mode = item.mode || settings.defaultMode || "summary";
+    const timestampUrl = item.timestampUrl || '';
+    const mode = item.mode || settings.defaultMode || 'summary';
     const params = [
       `vault=${encodeObsidianParam(vaultName)}`,
       `url=${encodeObsidianParam(baseUrl)}`,
       `title=${encodeObsidianParam(title)}`,
-      `mode=${encodeObsidianParam(mode)}`
+      `mode=${encodeObsidianParam(mode)}`,
     ];
     if (settings.folder) params.push(`folder=${encodeObsidianParam(settings.folder)}`);
     if (timestampUrl && timestampUrl !== baseUrl) {
       params.push(`timestamp_link=${encodeObsidianParam(timestampUrl)}`);
     }
-    return `obsidian://video-summary?${params.join("&")}`;
+    return `obsidian://video-summary?${params.join('&')}`;
   }
 
   function buildUnifiedPayload(item, settings, action) {
     const title = cleanTitle(item.title);
     const baseUrl = cleanVideoUrl(item.url, { keepTimestamp: false });
     const timestampUrl = item.timestampUrl || item.url;
-    const mode = item.mode || settings.defaultMode || "summary";
-    const language = item.language || settings.defaultLanguage || "zh";
+    const mode = item.mode || settings.defaultMode || 'summary';
+    const language = item.language || settings.defaultLanguage || 'zh';
 
     return {
-      source: "browser-extension",
+      source: 'browser-extension',
       action,
       name: title,
       metadata: {
@@ -179,22 +181,22 @@
         timestamp: Number.isFinite(item.timestamp) ? Math.floor(item.timestamp) : null,
         title,
         platform: detectPlatform(baseUrl),
-        folder: settings.folder || "",
-        appendPath: settings.appendPath || "",
-        captured_at: new Date().toISOString()
+        folder: settings.folder || '',
+        appendPath: settings.appendPath || '',
+        captured_at: new Date().toISOString(),
       },
-      content: ""
+      content: '',
     };
   }
 
   function buildLegacyBridgePayload(item, settings, action) {
     return {
-      action: action === "append-link" ? "append" : "new",
+      action: action === 'append-link' ? 'append' : 'new',
       title: cleanTitle(item.title),
       url: item.timestampUrl || item.url,
-      vault: settings.vaultName || "",
-      folder: settings.folder || "",
-      appendPath: settings.appendPath || ""
+      vault: settings.vaultName || '',
+      folder: settings.folder || '',
+      appendPath: settings.appendPath || '',
     };
   }
 
@@ -216,6 +218,6 @@
     formatTimestamp,
     isVideoUrl,
     sanitizeFilename,
-    stripTimestamp
+    stripTimestamp,
   };
-})(typeof self !== "undefined" ? self : window);
+})(typeof self !== 'undefined' ? self : window);

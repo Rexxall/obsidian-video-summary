@@ -375,7 +375,12 @@ export class VideoSummaryAPI {
     if (this.backend === 'codex-worker') {
       try {
         const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(this.nextControllerKey('simple'), payload, undefined, requestTimeoutMs),
+          await this.processCodexWorkerJob(
+            this.nextControllerKey('simple'),
+            payload,
+            undefined,
+            requestTimeoutMs,
+          ),
           cacheFingerprint,
         );
         this.recordWebhookResult(result, input, mode, language);
@@ -1580,7 +1585,9 @@ export class VideoSummaryAPI {
           bodySnippet: probe.bodySnippet,
         };
       }
-      const error = this.formatUserFacingError(new Error(probe.error || 'Codex Worker 健康检查失败'));
+      const error = this.formatUserFacingError(
+        new Error(probe.error || 'Codex Worker 健康检查失败'),
+      );
       return {
         success: false,
         durationMs,

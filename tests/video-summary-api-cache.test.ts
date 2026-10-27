@@ -215,7 +215,13 @@ function useFetchTransport() {
       body: request.body as string | undefined,
     });
     const text = await response.text();
-    return { status: response.status, text, headers: {}, json: null, arrayBuffer: new ArrayBuffer(0) } as never;
+    return {
+      status: response.status,
+      text,
+      headers: {},
+      json: null,
+      arrayBuffer: new ArrayBuffer(0),
+    } as never;
   };
   return () => {
     VideoSummaryAPI.transport = original;
@@ -265,8 +271,15 @@ test('cancelling a Codex Worker task aborts its task-level wait immediately', as
     await rejected;
 
     await new Promise<void>((resolve) => setTimeout(resolve, 20));
-    assert.equal(calls.filter((call) => call.startsWith('GET')).length, 0, 'cancellation should interrupt the poll sleep before a status request');
-    assert.ok(calls.some((call) => call.startsWith('POST') && call.includes('cancel')), 'the job is cancelled on the Worker too');
+    assert.equal(
+      calls.filter((call) => call.startsWith('GET')).length,
+      0,
+      'cancellation should interrupt the poll sleep before a status request',
+    );
+    assert.ok(
+      calls.some((call) => call.startsWith('POST') && call.includes('cancel')),
+      'the job is cancelled on the Worker too',
+    );
     assert.ok(Date.now() - cancelledAt < 250, 'cancellation should not wait for the poll interval');
   } finally {
     globalThis.fetch = originalFetch;

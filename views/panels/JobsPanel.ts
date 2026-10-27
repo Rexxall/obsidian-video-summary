@@ -372,7 +372,9 @@ function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRo
       ctx.state.advancedOpen = true;
       ctx.renderAll();
       window.setTimeout(() => {
-        (document.querySelector('.vs-fold .vs-transcript-input') as HTMLTextAreaElement | null)?.focus();
+        (
+          document.querySelector('.vs-fold .vs-transcript-input') as HTMLTextAreaElement | null
+        )?.focus();
       }, 0);
     });
   } else if (kind === 'login') {
@@ -390,13 +392,18 @@ function failureKind(raw: string): 'no-transcript' | 'login' | 'backend' | null 
   const error = raw.toLowerCase();
   if (NO_TRANSCRIPT.test(error)) return 'no-transcript';
   if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) return 'login';
-  if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败|timeout|timed out|超时/.test(error)) {
+  if (
+    /econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败|timeout|timed out|超时/.test(
+      error,
+    )
+  ) {
     return 'backend';
   }
   return null;
 }
 
-const NO_TRANSCRIPT = /无字幕|没有字幕|未找到字幕|字幕不可用|no subtitles?|no captions?|subtitles? not (?:found|available)|transcript (?:not available|unavailable)|没有文稿/;
+const NO_TRANSCRIPT =
+  /无字幕|没有字幕|未找到字幕|字幕不可用|no subtitles?|no captions?|subtitles? not (?:found|available)|transcript (?:not available|unavailable)|没有文稿/;
 
 /** 历史里保留原始文件名用于重跑；列表只隐藏时间戳和机器式前缀。 */
 function displayTaskTitle(raw: string): string {

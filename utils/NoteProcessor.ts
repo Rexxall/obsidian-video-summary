@@ -193,7 +193,7 @@ export class NoteProcessor {
     );
 
     const newContent = this.buildContent(fm, newBody);
-    await this.vault.process(file, current => {
+    await this.vault.process(file, (current) => {
       if (current !== content) throw new Error('笔记在处理期间已变化，请重试；你的修改已保留。');
       return newContent;
     });
@@ -221,7 +221,7 @@ export class NoteProcessor {
     fm.video_summary_status = canonicalPluginStatus(status);
     if (mirrorLegacyStatus) fm.status = status;
     const newContent = this.buildContent(fm, body);
-    await this.vault.process(file, current => {
+    await this.vault.process(file, (current) => {
       if (current !== content) throw new Error('笔记在处理期间已变化，请重试；你的修改已保留。');
       return newContent;
     });
@@ -240,7 +240,7 @@ export class NoteProcessor {
     fm.processing_error_at = new Date().toISOString();
     const newBody = `${this.removeProcessingErrorBlock(body).trim()}\n\n${this.buildProcessingErrorBlock(errorMessage)}\n`;
     const newContent = this.buildContent(fm, newBody);
-    await this.vault.process(file, current => {
+    await this.vault.process(file, (current) => {
       if (current !== content) throw new Error('笔记在处理期间已变化，请重试；你的修改已保留。');
       return newContent;
     });

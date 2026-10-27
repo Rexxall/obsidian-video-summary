@@ -10,11 +10,20 @@ const end = bundle.indexOf('\n// utils/FileProcessor.ts', start);
 assert.ok(start >= 0 && end > start, 'Expected the installed VideoSummaryView bundle section');
 
 class Element {
-  constructor() { this.children = []; this.clientWidth = 480; }
-  empty() { this.children = []; }
+  constructor() {
+    this.children = [];
+    this.clientWidth = 480;
+  }
+  empty() {
+    this.children = [];
+  }
   addClass() {}
   toggleClass() {}
-  createDiv() { const child = new Element(); this.children.push(child); return child; }
+  createDiv() {
+    const child = new Element();
+    this.children.push(child);
+    return child;
+  }
 }
 
 class ItemView {
@@ -22,17 +31,38 @@ class ItemView {
     this.headerEl = new Element();
     this.contentEl = new Element();
     this.containerEl = { children: [this.headerEl, this.contentEl] };
-    this.app = { workspace: { on() { return {}; } } };
+    this.app = {
+      workspace: {
+        on() {
+          return {};
+        },
+      },
+    };
   }
   registerEvent() {}
-  async open() { this.load(); await this.onOpen(); }
-  load() { this._loaded = true; }
+  async open() {
+    this.load();
+    await this.onOpen();
+  }
+  load() {
+    this._loaded = true;
+  }
 }
 
 const context = {
-  [bundle.match(/var VideoSummaryView = class extends (import_obsidian\d*)\.ItemView/)[1]]: { ItemView },
-  ResizeObserver: class { observe() {} disconnect() {} },
-  window: { setInterval() { return 1; }, clearInterval() {} },
+  [bundle.match(/var VideoSummaryView = class extends (import_obsidian\d*)\.ItemView/)[1]]: {
+    ItemView,
+  },
+  ResizeObserver: class {
+    observe() {}
+    disconnect() {}
+  },
+  window: {
+    setInterval() {
+      return 1;
+    },
+    clearInterval() {},
+  },
   disconnectLibraryCoverObserver() {},
 };
 vm.createContext(context);
@@ -54,7 +84,9 @@ async function check(withHoverEditor) {
   const nativeHeader = view.containerEl.children[0];
   assert.equal(view.headerEl, nativeHeader, 'Constructor must preserve Obsidian headerEl');
   let renders = 0;
-  view.renderAll = () => { renders += 1; };
+  view.renderAll = () => {
+    renders += 1;
+  };
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await view.open();
     assert.equal(view.headerEl, nativeHeader, 'onOpen must preserve the native title bar');
@@ -68,4 +100,7 @@ async function check(withHoverEditor) {
   await check(false);
   await check(true);
   console.log('PASS: native header preserved; view opens/reopens with and without Hover Editor');
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
