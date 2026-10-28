@@ -1,6 +1,10 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { VideoSummaryAPI } from '../api/VideoSummaryAPI';
+import { useFetchTransport } from './fetch-transport';
+
+// n8n webhook calls now use the native request layer; tests drive it through mocked fetch.
+useFetchTransport();
 
 class MemoryAdapter {
   private readonly files = new Map<string, string>();

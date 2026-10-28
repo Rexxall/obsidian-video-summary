@@ -349,12 +349,12 @@ function confirmDelete(ctx: ViewContext, entry: VideoNoteEntry) {
   new ConfirmModal(
     ctx.plugin.app,
     '删除笔记',
-    `确定把 "${entry.basename}" 移到系统回收站？`,
+    `确定删除 "${entry.basename}"？会按 Obsidian 的“删除文件”设置移到回收站。`,
     async (confirmed: boolean) => {
       if (!confirmed) return;
       const file = fileOf(ctx, entry);
       if (!file) return;
-      await ctx.plugin.app.vault.trash(file, true);
+      await ctx.plugin.app.fileManager.trashFile(file);
       new Notice(`已删除 ${entry.basename}`);
       ctx.renderPanels();
     },

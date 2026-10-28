@@ -5,8 +5,8 @@ Thanks for helping improve Video Summary.
 ## Local setup
 
 ```bash
-git clone https://github.com/Rexxall/obsidian-video-summary-plugin.git
-cd obsidian-video-summary-plugin
+git clone https://github.com/Rexxall/obsidian-video-summary.git
+cd obsidian-video-summary
 npm install
 npm run build
 ```

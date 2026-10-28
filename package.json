@@ -1,6 +1,6 @@
 {
   "name": "obsidian-video-summary-plugin",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "将视频链接、本地音视频和文稿整理为结构化 Obsidian 笔记",
   "main": "main.js",
   "scripts": {
@@ -27,11 +27,11 @@
   "author": "Rexx",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Rexxall/obsidian-video-summary-plugin.git"
+    "url": "git+https://github.com/Rexxall/obsidian-video-summary.git"
   },
-  "homepage": "https://github.com/Rexxall/obsidian-video-summary-plugin#readme",
+  "homepage": "https://github.com/Rexxall/obsidian-video-summary#readme",
   "bugs": {
-    "url": "https://github.com/Rexxall/obsidian-video-summary-plugin/issues"
+    "url": "https://github.com/Rexxall/obsidian-video-summary/issues"
   },
   "license": "MIT",
   "devDependencies": {

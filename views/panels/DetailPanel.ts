@@ -1,4 +1,4 @@
-import { MarkdownRenderer, Notice, TFile, setIcon } from 'obsidian';
+import { Component, MarkdownRenderer, Notice, TFile, setIcon } from 'obsidian';
 import { DetailTab, ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
 import { ProcessingHistory, VideoKnowledgeArtifact } from '../../types';
@@ -599,7 +599,7 @@ function renderEvidence(container: HTMLElement, ctx: ViewContext, job: Job) {
     markdown,
     markdownEl,
     job.notePath || '',
-    ctx.plugin,
+    panelComponent(ctx),
   );
 }
 
@@ -655,7 +655,7 @@ function renderPreview(body: HTMLElement, ctx: ViewContext, job: Job) {
     markdown.slice(0, 6000),
     markdownEl,
     job.notePath || '',
-    ctx.plugin,
+    panelComponent(ctx),
   );
 }
 
@@ -774,4 +774,12 @@ function findNote(ctx: ViewContext, name: string): TFile | null {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
   if (direct instanceof TFile) return direct;
   return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
+}
+
+/** Markdown 渲染挂在当前面板的生命周期上，面板重画时一并卸载，不挂在插件实例上。 */
+function panelComponent(ctx: ViewContext): Component {
+  const component = new Component();
+  component.load();
+  ctx.registerPanelCleanup(() => component.unload());
+  return component;
 }

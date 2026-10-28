@@ -64,11 +64,7 @@ export class VideoSummaryModal extends Modal {
 
     // 根据模式显示/隐藏语言选择
     const updateLanguageVisibility = () => {
-      if (this.mode === 'summary') {
-        languageSetting.settingEl.style.display = 'block';
-      } else {
-        languageSetting.settingEl.style.display = 'none';
-      }
+      languageSetting.settingEl.toggle(this.mode === 'summary');
     };
     updateLanguageVisibility();
 

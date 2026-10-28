@@ -248,7 +248,7 @@ export class BatchProcessingModal extends Modal {
     this.playlistEl = playlistSelectionEl.createDiv({ cls: 'batch-playlist-list' });
 
     this.progressEl = bodyEl.createDiv({ cls: 'batch-progress' });
-    this.progressEl.style.display = 'none';
+    this.progressEl.hide();
 
     // ---------- 底部 ----------
     const footer = contentEl.createDiv({ cls: 'vs-modal-footer' });
@@ -666,7 +666,7 @@ export class BatchProcessingModal extends Modal {
 
     // 显示进度区域
     if (this.progressEl) {
-      this.progressEl.style.display = 'block';
+      this.progressEl.show();
       this.updateProgressDisplay();
     }
 
@@ -829,7 +829,7 @@ export class BatchProcessingModal extends Modal {
       .map((item) => item.canonical_key);
 
     if (this.progressEl) {
-      this.progressEl.style.display = 'block';
+      this.progressEl.show();
     }
     this.progress = {
       total: selectedItemKeys.length,

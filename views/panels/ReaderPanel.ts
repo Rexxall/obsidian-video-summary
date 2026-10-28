@@ -1,6 +1,7 @@
-import { Notice, TFile, setIcon } from 'obsidian';
+import { MarkdownView, Notice, TFile, setIcon } from 'obsidian';
 import { Job } from '../../core/JobStore';
 import { buildTimestampUrl, formatTimestamp } from '../../core/KnowledgeModel';
+import { formatTranscriptQuote } from '../../core/TranscriptQuote';
 import { UserHighlight, VideoSegment } from '../../types';
 import {
   isExactHostOrSubdomain,
@@ -8,6 +9,7 @@ import {
   safeVaultRelativeMediaPath,
 } from '../../utils/SafeExternalUrl';
 import { ViewContext } from '../context';
+import { showMenu } from '../ui';
 
 interface PlayerController {
   seek(seconds: number): void;
@@ -72,7 +74,12 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
         cls: `vs-reader-segment${segment.id === activeId ? ' is-active' : ''}${
           highlights.has(segment.id) ? ' is-highlighted' : ''
         }`,
-        attr: { type: 'button', 'data-segment-id': segment.id },
+        attr: {
+          type: 'button',
+          'data-segment-id': segment.id,
+          draggable: 'true',
+          title: '点击跳到这里 · 右键复制引用 · 拖进笔记插入引用',
+        },
       });
       const time = row.createSpan({
         text: formatTimestamp(segment.start),
@@ -113,6 +120,32 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
       star.addEventListener('click', activateHighlight);
       star.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') activateHighlight(event);
+      });
+      row.addEventListener('dragstart', (event) => {
+        event.dataTransfer?.setData('text/plain', quoteFor(ctx, job, sourceUrl, segment));
+      });
+      row.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        const quote = quoteFor(ctx, job, sourceUrl, segment);
+        showMenu(event, [
+          {
+            title: '复制引用',
+            icon: 'quote',
+            onClick: () => {
+              void navigator.clipboard.writeText(quote).then(() => new Notice('已复制引用'));
+            },
+          },
+          {
+            title: '插入到笔记',
+            icon: 'text-cursor-input',
+            onClick: () => insertIntoRecentNote(ctx, quote),
+          },
+          {
+            title: highlightLabel,
+            icon: highlighted ? 'star-off' : 'star',
+            onClick: () => void toggleHighlight(ctx, job, segment, highlights).then(renderRows),
+          },
+        ]);
       });
       row.addEventListener('click', () => {
         if (segment.start === null || segment.timing_quality === 'none') {
@@ -177,6 +210,30 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
     renderRows();
   });
   renderRows();
+}
+
+function quoteFor(ctx: ViewContext, job: Job, sourceUrl: string, segment: VideoSegment): string {
+  const timed = segment.start !== null && segment.timing_quality !== 'none';
+  return formatTranscriptQuote(ctx.plugin.settings.readerQuoteTemplate, {
+    text: segment.text,
+    start: timed ? segment.start : null,
+    speaker: segment.speaker,
+    sourceUrl,
+    title: job.title,
+    notePath: job.notePath,
+  });
+}
+
+/** 插到主编辑区最近用过的那篇笔记的光标处；侧栏自己不是编辑器，所以不用 activeLeaf。 */
+function insertIntoRecentNote(ctx: ViewContext, text: string) {
+  const { workspace } = ctx.plugin.app;
+  const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
+  if (!(view instanceof MarkdownView)) {
+    new Notice('先在主编辑区打开一篇笔记，再插入引用');
+    return;
+  }
+  view.editor.replaceSelection(`${text}\n`);
+  new Notice(`已插入到 ${view.file?.basename ?? '笔记'}`);
 }
 
 function createPlayer(

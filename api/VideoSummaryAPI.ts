@@ -230,7 +230,7 @@ export class VideoSummaryAPI {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
+          console.debug(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
         onProgress?.({ stageLabel: '命中缓存', progress: 1, message: '命中缓存，未请求后端' });
         return cachedResult;
@@ -287,12 +287,13 @@ export class VideoSummaryAPI {
     }, requestTimeoutMs);
 
     try {
-      const response = await fetch(this.webhookUrl, {
-        method: 'POST',
-        headers: this.buildN8nHeaders(),
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
+      const response = await VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(payload),
+        requestTimeoutMs + 1000,
+        controller.signal,
+      );
 
       if (!response.ok) {
         throw new Error(await this.formatHttpError(response));
@@ -362,7 +363,7 @@ export class VideoSummaryAPI {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
+          console.debug(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
         return cachedResult;
       }
@@ -417,12 +418,13 @@ export class VideoSummaryAPI {
 
     try {
       // 发送请求
-      const response = await fetch(this.webhookUrl, {
-        method: 'POST',
-        headers: this.buildN8nHeaders(),
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
+      const response = await VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(payload),
+        requestTimeoutMs + 1000,
+        controller.signal,
+      );
 
       if (!response.ok) {
         throw new Error(await this.formatHttpError(response));
@@ -1142,6 +1144,29 @@ export class VideoSummaryAPI {
   static transport: (request: RequestUrlParam) => Promise<RequestUrlResponse> = (request) =>
     import('obsidian').then(({ requestUrl }) => requestUrl(request));
 
+  /**
+   * n8n webhook calls use the same native layer as the Worker (no browser fetch, no CORS),
+   * wrapped as a Response so the existing error and JSON readers keep working.
+   */
+  private static async webhookRequest(
+    url: string,
+    headers: Record<string, string>,
+    body: string,
+    timeoutMs: number,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    const response = await VideoSummaryAPI.nativeRequest(
+      { url, method: 'POST', contentType: 'application/json', headers, body },
+      timeoutMs,
+      signal,
+    );
+    if (response.status < 200 || response.status > 599) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const emptyBody = [204, 205, 304].includes(response.status);
+    return new Response(emptyBody ? null : response.text, { status: response.status });
+  }
+
   private static async nativeRequest(
     request: RequestUrlParam,
     timeoutMs: number,
@@ -1546,12 +1571,13 @@ export class VideoSummaryAPI {
           metadata: { mode: 'transcript-only', language: 'zh', ai: '' },
           content: '',
         } as any);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: VideoSummaryAPI.buildN8nHeaders(n8nAuth),
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+      const response = await VideoSummaryAPI.webhookRequest(
+        url,
+        VideoSummaryAPI.buildN8nHeaders(n8nAuth),
+        JSON.stringify(body),
+        timeoutMs + 1000,
+        controller.signal,
+      );
       if (response.status === 404) {
         return { ok: false, error: 'HTTP 404 — webhook 不存在或 workflow 未激活' };
       }
@@ -1599,11 +1625,12 @@ export class VideoSummaryAPI {
     }
 
     try {
-      const response = await fetch(this.webhookUrl, {
-        method: 'POST',
-        headers: this.buildN8nHeaders(),
-        body: JSON.stringify(this.buildConnectionTestPayload()),
-      });
+      const response = await VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(this.buildConnectionTestPayload()),
+        this.resolveTimeoutMs(),
+      );
 
       const durationMs = Date.now() - started;
       const text = await response.text();

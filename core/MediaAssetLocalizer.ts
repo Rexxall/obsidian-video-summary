@@ -329,7 +329,7 @@ function declaredImageType(mimeType: string | undefined, url: string): 'jpg' | '
 }
 
 async function sha256Buffer(data: ArrayBuffer): Promise<string> {
-  const subtle = globalThis.crypto?.subtle;
+  const subtle = typeof crypto === 'undefined' ? undefined : crypto.subtle;
   if (!subtle) throw new Error('Web Crypto SHA-256 is unavailable');
   const digest = await subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(digest))

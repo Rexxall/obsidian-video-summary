@@ -1,6 +1,10 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { VideoSummaryAPI } from '../api/VideoSummaryAPI';
+import { useFetchTransport } from './fetch-transport';
+
+// n8n webhook calls now use the native request layer; tests drive it through mocked fetch.
+useFetchTransport();
 
 class MemoryAdapter {
   private readonly files = new Map<string, string>();
@@ -205,28 +209,6 @@ test('reproducible reprocessing sends stored transcript without any source fetch
     globalThis.fetch = originalFetch;
   }
 });
-
-function useFetchTransport() {
-  const original = VideoSummaryAPI.transport;
-  VideoSummaryAPI.transport = async (request) => {
-    const response = await fetch(request.url, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body as string | undefined,
-    });
-    const text = await response.text();
-    return {
-      status: response.status,
-      text,
-      headers: {},
-      json: null,
-      arrayBuffer: new ArrayBuffer(0),
-    } as never;
-  };
-  return () => {
-    VideoSummaryAPI.transport = original;
-  };
-}
 
 test('cancelling a Codex Worker task aborts its task-level wait immediately', async () => {
   const originalFetch = globalThis.fetch;

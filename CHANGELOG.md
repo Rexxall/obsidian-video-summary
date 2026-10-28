@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## 2.7.0
+
+Community-directory release.
+
+- **Quote the transcript into your notes.** In Reader, right-click a transcript line to copy it as
+  a quote or insert it at the cursor of the note you were editing, or drag the line into a note.
+  The quote links back to that second of the video. Change the format in Settings → 输出 →
+  文稿引用格式 (`{{text}}`, `{{time}}`, `{{link}}`, `{{url}}`, `{{speaker}}`, `{{title}}`,
+  `{{note}}`).
+- **Collect the video links in a note.** New command 收集当前笔记里的视频链接到侧栏 puts every
+  supported video link from the current note, including its properties, into the side panel's add
+  box, once per video. Pick a mode and start; nothing runs until you do.
+- n8n webhook requests now go through Obsidian's own network layer, like the Worker requests, so a
+  browser CORS policy can no longer block them.
+- Settings section titles use Obsidian's native headings; the webhook rows, batch progress and
+  language switch use theme classes instead of inline styles.
+- Command names no longer start with emoji, so they read cleanly in the command palette.
+- Deleting a note from the library follows your Obsidian "Deleted files" setting.
+- Requires Obsidian 1.8.7 or later.
+
 ## 2.6.0
 
 Interface release. 2.5.0 was never published on its own; its fixes ship here.

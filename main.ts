@@ -64,6 +64,7 @@ import { normalizeVideoSummaryBaseFolder, upsertVideoSummaryBase } from './core/
 import { restoreReprocessPayload } from './core/ReproducibilityManifest';
 import { ReproducibilityStore } from './core/ReproducibilityStore';
 import { CourseStore } from './core/CourseStore';
+import { DEFAULT_QUOTE_TEMPLATE } from './core/TranscriptQuote';
 import { syncCourseIndexAtomic } from './core/CourseIndexWriter';
 import { Modal } from 'obsidian';
 
@@ -218,7 +219,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 主要命令：快速总结当前笔记
     this.addCommand({
       id: 'quick',
-      name: '📺 快速总结当前笔记',
+      name: '快速总结当前笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.quickProcessCurrentNote(editor, view, 'summary');
       },
@@ -227,7 +228,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 新增命令：将全文作为文稿总结
     this.addCommand({
       id: 'full-text',
-      name: '📺 将当前笔记全文作为文稿总结',
+      name: '将当前笔记全文作为文稿总结',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.processFullTextAsTranscript(editor, view);
       },
@@ -236,7 +237,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 快速提取文稿
     this.addCommand({
       id: 'transcript-quick',
-      name: '📝 快速提取文稿',
+      name: '快速提取文稿',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.quickProcessCurrentNote(editor, view, 'transcript-only');
       },
@@ -245,7 +246,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 只更新视频信息
     this.addCommand({
       id: 'info-update',
-      name: 'ℹ️ 更新视频信息（不改正文）',
+      name: '更新视频信息（不改正文）',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.updateVideoInfoOnly(editor, view, false);
       },
@@ -254,16 +255,28 @@ export default class VideoSummaryPlugin extends Plugin {
     // 更新视频信息并重命名
     this.addCommand({
       id: 'info-update-rename',
-      name: 'ℹ️ 更新视频信息并重命名',
+      name: '更新视频信息并重命名',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.updateVideoInfoOnly(editor, view, true);
+      },
+    });
+
+    // 把当前笔记里的视频链接收进侧栏添加框，确认后再批量处理
+    this.addCommand({
+      id: 'collect-note-links',
+      name: '收集当前笔记里的视频链接到侧栏',
+      checkCallback: (checking: boolean) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== 'md') return false;
+        if (!checking) void this.collectVideoLinksFromNote(file);
+        return true;
       },
     });
 
     // 打开视频总结管理视图
     this.addCommand({
       id: 'view',
-      name: '📋 视频总结管理',
+      name: '打开视频总结侧栏',
       callback: () => {
         this.activateView();
       },
@@ -272,7 +285,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 批量处理命令
     this.addCommand({
       id: 'batch',
-      name: '🔄 批量处理视频',
+      name: '批量处理视频',
       callback: () => {
         new BatchProcessingModal(this.app, this).open();
       },
@@ -281,7 +294,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 重新处理当前笔记
     this.addCommand({
       id: 'reprocess',
-      name: '🔄 重新处理当前笔记',
+      name: '重新处理当前笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.reprocessCurrentNote(editor, view);
       },
@@ -290,7 +303,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 处理所有待处理视频
     this.addCommand({
       id: 'process-all-pending',
-      name: '⚡ 处理所有待处理视频',
+      name: '处理所有待处理视频',
       callback: () => {
         this.processAllPendingVideos();
       },
@@ -299,7 +312,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 测试当前视频处理后端连接
     this.addCommand({
       id: 'test-connection',
-      name: '🔗 测试当前视频处理后端',
+      name: '测试当前视频处理后端',
       callback: () => {
         this.testProcessingBackendConnection();
       },
@@ -307,7 +320,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-worker-dashboard',
-      name: '📊 打开 Codex Worker 控制台',
+      name: '打开 Codex Worker 控制台',
       callback: () => {
         this.openCodexWorkerDashboard();
       },
@@ -315,7 +328,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'memory-search',
-      name: '🔎 搜索跨模态视频记忆',
+      name: '搜索跨模态视频记忆',
       callback: () => {
         new KnowledgeLabModal(this.app, this, 'memory').open();
       },
@@ -323,7 +336,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'claim-lab',
-      name: '🧪 生成多视频论点实验室',
+      name: '生成多视频论点实验室',
       callback: () => {
         new KnowledgeLabModal(this.app, this, 'claim-lab').open();
       },
@@ -331,7 +344,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'learning-review',
-      name: '🧠 复习当前视频的学习卡',
+      name: '复习当前视频的学习卡',
       editorCallback: (_editor: Editor, view: MarkdownView) => {
         if (view.file) void this.openLearningReviewForFile(view.file);
       },
@@ -339,7 +352,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'learning-review-due',
-      name: '🧠 复习所有到期的视频学习卡',
+      name: '复习所有到期的视频学习卡',
       callback: () => {
         void this.openGlobalLearningReview();
       },
@@ -347,7 +360,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'reprocess-from-artifact',
-      name: '♻️ 用本地可复现工件重新处理',
+      name: '用本地可复现工件重新处理',
       editorCallback: (_editor: Editor, view: MarkdownView) => {
         if (view.file) void this.reprocessFromPersistedArtifact(view.file);
       },
@@ -355,7 +368,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'generate-base',
-      name: '🗂️ 生成或安全更新视频库 Base',
+      name: '生成或安全更新视频库 Base',
       callback: () => {
         void this.ensureVideoLibraryBase(true);
       },
@@ -364,7 +377,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 标记为非视频笔记
     this.addCommand({
       id: 'mark-excluded',
-      name: '⛔️ 标记为非视频笔记',
+      name: '标记为非视频笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
         this.markAsExcluded(editor, view);
       },
@@ -1078,6 +1091,18 @@ export default class VideoSummaryPlugin extends Plugin {
 
   private async processFile(file: TFile) {
     await this.fileProcessor.processFile(file);
+  }
+
+  private async collectVideoLinksFromNote(file: TFile): Promise<void> {
+    const content = await this.app.vault.cachedRead(file);
+    const urls = VideoUtils.extractVideoUrls(content);
+    if (urls.length === 0) {
+      new Notice(`“${file.basename}”里没有找到支持的视频链接`);
+      return;
+    }
+    const view = await this.activateView();
+    view?.prefillInput(urls.join('\n'));
+    new Notice(`已把 ${urls.length} 个视频链接放进侧栏，选好模式后点“开始”`);
   }
 
   private async activateView(): Promise<VideoSummaryView | null> {
@@ -2154,9 +2179,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
   /** 一段的标题与一句说明 */
   private group(containerEl: HTMLElement, title: string, desc: string) {
-    const head = containerEl.createDiv({ cls: 'vs-settings-group' });
-    head.createEl('h3', { text: title });
-    head.createDiv({ text: desc, cls: 'vs-settings-group-desc' });
+    const head = new Setting(containerEl).setName(title).setDesc(desc).setHeading();
+    head.settingEl.addClass('vs-settings-group');
   }
 
   /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
@@ -2764,7 +2788,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       this.plugin.settings.webhookProfiles.forEach((profile) => {
         const row = profilesContainer.createDiv({ cls: 'webhook-profile-row' });
-        row.style.flexWrap = 'wrap';
 
         const nameInput = row.createEl('input', {
           type: 'text',
@@ -2803,7 +2826,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
             title: '附带工作流 2.1.5 必填：须与 n8n Header Auth 的 Header 名称一致',
           },
         });
-        headerInput.style.width = '190px';
         headerInput.oninput = async () => {
           profile.headerName = headerInput.value.trim() || DEFAULT_WEBHOOK_AUTH_HEADER;
           if (
@@ -2828,8 +2850,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
             spellcheck: 'false',
           },
         });
-        secretInput.style.flex = '1 1 190px';
-        secretInput.style.minWidth = '160px';
         secretInput.oninput = async () => {
           profile.secret = secretInput.value;
           if (
@@ -3158,6 +3178,21 @@ class VideoSummarySettingTab extends PluginSettingTab {
           this.plugin.settings.paperStyle = value;
           await this.plugin.saveSettings();
         }),
+      );
+
+    new Setting(section)
+      .setName('文稿引用格式')
+      .setDesc(
+        '在阅读器里右键一段文稿“复制引用”“插入到笔记”或把它拖进笔记时使用。可用 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}，\\n 表示换行。',
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_QUOTE_TEMPLATE)
+          .setValue(this.plugin.settings.readerQuoteTemplate)
+          .onChange(async (value) => {
+            this.plugin.settings.readerQuoteTemplate = value.trim() || DEFAULT_QUOTE_TEMPLATE;
+            await this.plugin.saveSettings();
+          }),
       );
   }
 
@@ -3580,7 +3615,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       // 缓存内容预览
       if (currentStats.size > 0) {
         const previewSection = container.createEl('div', { cls: 'cache-preview-content' });
-        previewSection.createEl('h3', { text: '缓存内容预览' });
+        new Setting(previewSection).setName('缓存内容预览').setHeading();
 
         // 获取缓存内容
         await this.showCacheContentPreview(previewSection);
@@ -3731,11 +3766,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
    */
   private deleteCacheItem(key: string) {
     try {
-      const cacheData = localStorage.getItem('video-summary-cache');
+      const cacheData = window.localStorage.getItem('video-summary-cache');
       if (cacheData) {
         const entries = JSON.parse(cacheData);
         const filteredEntries = entries.filter((entry: [string, any]) => entry[0] !== key);
-        localStorage.setItem('video-summary-cache', JSON.stringify(filteredEntries));
+        window.localStorage.setItem('video-summary-cache', JSON.stringify(filteredEntries));
       }
     } catch (error) {
       console.error('删除缓存项失败:', error);
@@ -3829,10 +3864,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
    */
   private getLocalStorageSize(): number {
     let totalSize = 0;
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
       if (key && key.startsWith('video-summary-cache')) {
-        const value = localStorage.getItem(key);
+        const value = window.localStorage.getItem(key);
         if (value) {
           totalSize += value.length;
         }

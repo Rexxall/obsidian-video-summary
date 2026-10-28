@@ -382,11 +382,8 @@ export class NoteIndex {
   }
 
   private loadPlatformCoverCache(): void {
-    if (typeof localStorage === 'undefined') return;
     try {
-      const raw = localStorage.getItem(PLATFORM_COVER_CACHE_KEY);
-      if (!raw) return;
-      const items = JSON.parse(raw) as unknown;
+      const items = this.app.loadLocalStorage(PLATFORM_COVER_CACHE_KEY) as unknown;
       if (!Array.isArray(items)) return;
       const cutoff = Date.now() - PLATFORM_COVER_CACHE_TTL_MS;
       for (const row of items.slice(0, PLATFORM_COVER_CACHE_LIMIT)) {
@@ -410,12 +407,11 @@ export class NoteIndex {
   }
 
   private persistPlatformCoverCache(): void {
-    if (typeof localStorage === 'undefined') return;
     try {
       const items = Array.from(this.platformCoverCache.entries())
         .sort((left, right) => right[1].updatedAt - left[1].updatedAt)
         .slice(0, PLATFORM_COVER_CACHE_LIMIT);
-      localStorage.setItem(PLATFORM_COVER_CACHE_KEY, JSON.stringify(items));
+      this.app.saveLocalStorage(PLATFORM_COVER_CACHE_KEY, items);
     } catch {
       // localStorage 不可用时退化为会话缓存，不影响封面显示。
     }

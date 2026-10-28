@@ -1,3 +1,4 @@
+import { DEFAULT_QUOTE_TEMPLATE } from './core/TranscriptQuote';
 import type { PlatformCapability, VideoSummarySettings, WorkflowHealthInfo } from './types';
 
 // 已知的短链域名：发给后端前先展开成最终链接，减少一类下载失败
@@ -104,6 +105,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   attentionAssessmentEnabled: true,
   generateLearningArtifacts: false,
   paperStyle: false,
+  readerQuoteTemplate: DEFAULT_QUOTE_TEMPLATE,
   aiModel: 'Gemini 3.1',
   customAiModels: [...DEFAULT_AI_MODELS],
   timeoutMinutes: 30,

@@ -122,6 +122,13 @@ export class VideoSummaryView extends ItemView {
     this.renderAll();
   }
 
+  /** 把一批链接放进添加框，由用户选模式后再点开始。 */
+  prefillInput(text: string): void {
+    this.state.inputDraft = text;
+    this.state.detail = null;
+    this.renderAll();
+  }
+
   /** Open a persisted artifact and optionally seek its synchronized reader. */
   openArtifact(notePath: string, artifactId: string, seekSeconds?: number): void {
     this.state.tab = 'library';

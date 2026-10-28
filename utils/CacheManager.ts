@@ -139,11 +139,11 @@ export class CacheManager {
 
   private async migrateFromLocalStorage(): Promise<void> {
     try {
-      if (typeof localStorage === 'undefined') return;
-      const oldCacheData = localStorage.getItem('video-summary-cache');
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      const oldCacheData = window.localStorage.getItem('video-summary-cache');
       if (!oldCacheData) return;
 
-      console.log('发现旧缓存数据，开始迁移...');
+      console.debug('发现旧缓存数据，开始迁移...');
       const entries = JSON.parse(oldCacheData) as Array<
         [string, { mode?: ProcessingMode; language?: SupportedLanguage; result: ProcessingResult }]
       >;
@@ -161,8 +161,8 @@ export class CacheManager {
           console.error(`迁移缓存项失败: ${key}`, error);
         }
       }
-      console.log(`迁移完成，共迁移 ${migratedCount} 项`);
-      localStorage.removeItem('video-summary-cache');
+      console.debug(`迁移完成，共迁移 ${migratedCount} 项`);
+      window.localStorage.removeItem('video-summary-cache');
     } catch (error) {
       console.error('迁移旧缓存失败:', error);
     }
@@ -434,7 +434,7 @@ export class CacheManager {
       .map(([key]) => key);
     for (const key of expiredKeys) await this.removeIndexKey(key);
     if (expiredKeys.length > 0) {
-      console.log(`清理了 ${expiredKeys.length} 个过期缓存项`);
+      console.debug(`清理了 ${expiredKeys.length} 个过期缓存项`);
     }
   }
 

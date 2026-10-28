@@ -871,8 +871,8 @@ function appendFileNames(ctx: ViewContext, input: HTMLTextAreaElement, names: st
 
 function autoGrow(input: HTMLTextAreaElement) {
   const resize = () => {
-    input.style.height = 'auto';
-    input.style.height = `${Math.min(140, Math.max(32, input.scrollHeight))}px`;
+    input.setCssStyles({ height: 'auto' });
+    input.setCssStyles({ height: `${Math.min(140, Math.max(32, input.scrollHeight))}px` });
   };
   input.addEventListener('input', resize);
   resize();

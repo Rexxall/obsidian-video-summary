@@ -89,6 +89,1610 @@ var import_obsidian18 = require("obsidian");
 // modals/VideoSummaryModal.ts
 var import_obsidian = require("obsidian");
 
+// utils/SafeExternalUrl.ts
+function safeExternalHttpUrl(value) {
+  if (typeof value !== "string") return void 0;
+  const candidate = value.trim();
+  if (!candidate || [...candidate].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  }))
+    return void 0;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return void 0;
+    if (url.username || url.password) return void 0;
+    return url.toString();
+  } catch {
+    return void 0;
+  }
+}
+function isExactHostOrSubdomain(hostname, domain) {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  const base = domain.toLowerCase().replace(/\.$/, "");
+  return host === base || host.endsWith(`.${base}`);
+}
+var TRUSTED_REMOTE_IMAGE_DOMAINS = [
+  "ytimg.com",
+  "ggpht.com",
+  "hdslb.com",
+  "biliimg.com",
+  "douyinpic.com",
+  "byteimg.com",
+  "tiktokcdn.com",
+  "tiktokcdn-eu.com",
+  "tiktokcdn-us.com",
+  "byteoversea.com",
+  "ibytedtos.com",
+  "xhscdn.com"
+];
+function safeRemoteImageUrl(value) {
+  const normalized = safeExternalHttpUrl(value);
+  if (!normalized) return void 0;
+  const url = new URL(normalized);
+  if (url.protocol !== "https:" || url.port) return void 0;
+  if (!TRUSTED_REMOTE_IMAGE_DOMAINS.some((domain) => isExactHostOrSubdomain(url.hostname, domain))) {
+    return void 0;
+  }
+  return url.toString();
+}
+function safeInlineRasterDataUrl(value) {
+  if (typeof value !== "string") return void 0;
+  const candidate = value.trim();
+  if (!candidate || candidate.length > 2e6) return void 0;
+  return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\r\n]+$/i.test(candidate) ? candidate : void 0;
+}
+function safeManagedVaultImagePath(value, expectedRoot) {
+  if (typeof value !== "string" || typeof expectedRoot !== "string") return void 0;
+  const candidate = value.trim();
+  const root = expectedRoot.trim().replace(/\/+$/, "");
+  if (!candidate || !root || candidate.length > 1024 || candidate.startsWith("/") || /^[A-Za-z]:[\\/]/.test(candidate) || candidate.includes("\\") || ["|", "[", "]", "#", "^"].some((character) => candidate.includes(character)) || [...candidate].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  })) {
+    return void 0;
+  }
+  if (!candidate.startsWith(`${root}/`)) return void 0;
+  const parts = candidate.split("/");
+  const rootParts = root.split("/");
+  if (rootParts.some((part) => !part || part === "." || part === "..") || rootParts[rootParts.length - 1] !== "_video-summary-assets") {
+    return void 0;
+  }
+  if (parts.some((part) => !part || part === "." || part === "..")) return void 0;
+  const marker = parts.lastIndexOf("_video-summary-assets");
+  if (marker !== rootParts.length - 1 || marker !== parts.length - 3) return void 0;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/.test(parts[marker + 1] || "")) return void 0;
+  if (!/^[A-Za-z0-9._-]+\.(?:png|jpe?g)$/i.test(parts[parts.length - 1] || "")) return void 0;
+  return candidate;
+}
+function safeVaultRelativeMediaPath(value) {
+  if (typeof value !== "string") return void 0;
+  const candidate = value.trim();
+  if (!candidate || candidate.length > 1024 || candidate.startsWith("/") || /^[A-Za-z]:[\\/]/.test(candidate) || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(candidate) || candidate.includes("\\") || candidate.split("/").some((part) => !part || part === "." || part === "..") || [...candidate].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  })) {
+    return void 0;
+  }
+  return candidate;
+}
+
+// core/ContentRouter.ts
+var CONTENT_ROUTER_CONTRACT_VERSION = "content-routing-v1";
+var LOCAL_ROUTE_SCORE_THRESHOLD = 0.52;
+var LOCAL_ROUTE_MARGIN_THRESHOLD = 0.08;
+var BACKEND_ROUTE_CONFIDENCE_THRESHOLD = 0.55;
+var ROUTABLE_TYPES = [
+  "course",
+  "interview",
+  "tutorial",
+  "news",
+  "meeting",
+  "review"
+];
+var VIDEO_CONTENT_TYPES = [...ROUTABLE_TYPES, "general"];
+var CHANNEL_WEIGHTS = {
+  title: { perCue: 0.13, cap: 0.26 },
+  author: { perCue: 0.07, cap: 0.07 },
+  transcript: { perCue: 0.09, cap: 0.27 },
+  chapter: { perCue: 0.12, cap: 0.24 }
+};
+var CUES = {
+  course: {
+    title: [
+      cue(/\b(?:course|lecture|class|seminar)\b|课程|講義|授業|セミナー/i, "\u8BFE\u7A0B\u6216\u8BB2\u6388\u5F62\u5F0F"),
+      cue(
+        /\b(?:lesson|module|week)\s*\d+\b|第\s*\d+\s*(?:课|講|回|章)|第[一二三四五六七八九十]+课/i,
+        "\u8FDE\u7EED\u8BFE\u6B21\u6216\u6A21\u5757\u7F16\u53F7"
+      ),
+      cue(/\bsyllabus\b|教学大纲|シラバス|学習目標/i, "\u6559\u5B66\u5927\u7EB2\u6216\u5B66\u4E60\u76EE\u6807")
+    ],
+    author: [
+      cue(/\b(?:academy|university|school|education)\b|大学|学院|教育|アカデミー/i, "\u6559\u80B2\u673A\u6784\u7F72\u540D")
+    ],
+    transcript: [
+      cue(
+        /\b(?:learning objectives?|by the end of (?:this )?lesson)\b|学习目标|本节课(?:将|要)|学習目標|この講義では/i,
+        "\u660E\u786E\u5B66\u4E60\u76EE\u6807"
+      ),
+      cue(
+        /\b(?:concept|theory|definition)\b|概念|理论|定义|概念|理論|定義/i,
+        "\u6982\u5FF5\u3001\u7406\u8BBA\u6216\u5B9A\u4E49\u8BB2\u89E3"
+      ),
+      cue(
+        /\b(?:exercise|assignment|recap|review questions?)\b|练习|作业|复习题|演習|課題|復習/i,
+        "\u7EC3\u4E60\u3001\u4F5C\u4E1A\u6216\u590D\u4E60\u5B89\u6392"
+      )
+    ],
+    chapter: [
+      cue(/\b(?:lesson|module|week|lecture)\s*\d+\b|第\s*\d+\s*(?:课|講|回|章)/i, "\u7AE0\u8282\u5448\u8BFE\u7A0B\u5E8F\u5217"),
+      cue(
+        /\b(?:objectives?|recap|exercise)\b|学习目标|复习|练习|学習目標|復習|演習/i,
+        "\u6559\u5B66\u578B\u7AE0\u8282"
+      )
+    ]
+  },
+  interview: {
+    title: [
+      cue(
+        /\b(?:interview|conversation|fireside chat)\b|访谈|采访|对谈|专访|インタビュー|対談/i,
+        "\u8BBF\u8C08\u6216\u5BF9\u8C08\u5F62\u5F0F"
+      ),
+      cue(/\b(?:with|featuring|guest)\b|嘉宾|做客|ゲスト|〜に聞く/i, "\u6807\u9898\u7A81\u51FA\u53D7\u8BBF\u8005\u6216\u5609\u5BBE")
+    ],
+    author: [
+      cue(/\b(?:podcast|talks?|dialogue)\b|播客|访谈|ポッドキャスト|トーク/i, "\u5BF9\u8BDD\u578B\u9891\u9053\u7F72\u540D")
+    ],
+    transcript: [
+      cue(
+        /\b(?:interviewer|host|guest|question|answer)\s*[:：]|主持人|嘉宾|采访者|提问[:：]|司会|ゲスト|質問[:：]/i,
+        "\u4E3B\u6301\u4EBA\u3001\u5609\u5BBE\u6216\u95EE\u7B54\u6807\u7B7E"
+      ),
+      cue(
+        /\b(?:let me ask|my next question|thanks for joining)\b|想请问|下一个问题|感谢.*(?:做客|接受采访)|お聞きしたい|次の質問/i,
+        "\u91C7\u8BBF\u5F0F\u63D0\u95EE\u8854\u63A5"
+      ),
+      cue(
+        /\b(?:in my experience|from my perspective)\b|我的经历|我的看法|経験から|私の考え/i,
+        "\u53D7\u8BBF\u8005\u4E2A\u4EBA\u89C2\u70B9\u6216\u7ECF\u5386"
+      )
+    ],
+    chapter: [
+      cue(/\b(?:q\s*&\s*a|question|conversation)\b|问答|提问|对谈|質疑応答|質問/i, "\u95EE\u7B54\u578B\u7AE0\u8282"),
+      cue(/\b(?:guest|career|experience)\b|嘉宾|经历|生涯|ゲスト|経験/i, "\u4EBA\u7269\u7ECF\u5386\u578B\u7AE0\u8282")
+    ]
+  },
+  tutorial: {
+    title: [
+      cue(
+        /\b(?:tutorial|how to|step[- ]by[- ]step|guide)\b|教程|如何|手把手|チュートリアル|やり方|方法/i,
+        "\u64CD\u4F5C\u6559\u7A0B\u6216\u6307\u5357\u5F62\u5F0F"
+      ),
+      cue(
+        /\b(?:from scratch|beginner'?s? guide)\b|从零开始|零基础|初心者|ゼロから/i,
+        "\u4ECE\u96F6\u6216\u65B0\u624B\u5BFC\u5411"
+      )
+    ],
+    author: [
+      cue(
+        /\b(?:developer|maker|workshop|lab)\b|开发者|工坊|实验室|開発|ワークショップ/i,
+        "\u5B9E\u4F5C\u578B\u9891\u9053\u7F72\u540D"
+      )
+    ],
+    transcript: [
+      cue(
+        /\b(?:prerequisite|you will need|requirements?)\b|准备工作|你需要|前提条件|必要なもの|事前準備/i,
+        "\u524D\u7F6E\u6761\u4EF6\u6216\u6750\u6599\u6E05\u5355"
+      ),
+      cue(
+        /\b(?:first|next|then|finally),?\s+(?:open|click|install|run|select|create|add)\b|首先.*(?:打开|点击|安装)|然后.*(?:运行|选择|创建)|まず.*(?:開く|クリック|インストール)|次に/i,
+        "\u8FDE\u7EED\u64CD\u4F5C\u6B65\u9AA4"
+      ),
+      cue(
+        /\b(?:verify|check that|troubleshoot|if .* fails?)\b|验证|检查是否|故障排除|如果.*失败|確認|トラブルシュート|うまくいかない/i,
+        "\u7ED3\u679C\u9A8C\u8BC1\u6216\u6545\u969C\u6392\u67E5"
+      )
+    ],
+    chapter: [
+      cue(
+        /\b(?:setup|installation|step)\s*\d*\b|安装|配置|步骤|セットアップ|インストール|手順/i,
+        "\u5B89\u88C5\u6216\u6B65\u9AA4\u7AE0\u8282"
+      ),
+      cue(
+        /\b(?:verify|test|troubleshoot|finish)\b|验证|测试|排错|確認|テスト|トラブル/i,
+        "\u9A8C\u8BC1\u6216\u6392\u9519\u7AE0\u8282"
+      )
+    ]
+  },
+  news: {
+    title: [
+      cue(
+        /\b(?:breaking|news|news update|report)\b|新闻|快讯|报道|ニュース|速報|報道/i,
+        "\u65B0\u95FB\u6216\u5FEB\u8BAF\u5F62\u5F0F"
+      ),
+      cue(
+        /\b(?:latest|today|live updates?)\b|最新|今日|突发|現地|きょう|ライブ更新/i,
+        "\u65F6\u6548\u6027\u66F4\u65B0\u63AA\u8F9E"
+      )
+    ],
+    author: [
+      cue(
+        /\b(?:news|times|post|press|broadcast)\b|新闻|日报|电视台|通讯社|新聞|放送|通信社/i,
+        "\u65B0\u95FB\u5A92\u4F53\u7F72\u540D"
+      )
+    ],
+    transcript: [
+      cue(
+        /\b(?:according to|officials? said|in a statement)\b|据.*(?:称|表示)|官方表示|声明称|によると|発表しました/i,
+        "\u6765\u6E90\u5F52\u56E0\u6216\u5B98\u65B9\u58F0\u660E"
+      ),
+      cue(
+        /\b(?:reporting from|our correspondent|at \d{1,2}(?::\d{2})?\s*(?:am|pm))\b|记者.*报道|当地时间|現地から|記者/i,
+        "\u8BB0\u8005\u3001\u5730\u70B9\u6216\u65F6\u95F4\u7EBF\u7D22"
+      ),
+      cue(
+        /\b(?:developing story|we will continue to update)\b|持续更新|后续报道|続報|随時更新/i,
+        "\u6301\u7EED\u4E8B\u4EF6\u66F4\u65B0"
+      )
+    ],
+    chapter: [
+      cue(
+        /\b(?:timeline|what happened|latest)\b|事件经过|最新进展|時系列|何が起きた|最新情報/i,
+        "\u4E8B\u4EF6\u65F6\u95F4\u7EBF\u7AE0\u8282"
+      ),
+      cue(
+        /\b(?:reaction|impact|what next)\b|各方回应|影响|后续|反応|影響|今後/i,
+        "\u56DE\u5E94\u3001\u5F71\u54CD\u6216\u540E\u7EED\u7AE0\u8282"
+      )
+    ]
+  },
+  meeting: {
+    title: [
+      cue(
+        /\b(?:meeting|standup|sync|retrospective|town hall)\b|会议|例会|复盘会|全员会|会議|ミーティング|振り返り/i,
+        "\u4F1A\u8BAE\u6216\u540C\u6B65\u5F62\u5F0F"
+      ),
+      cue(/\b(?:minutes|agenda)\b|会议纪要|议程|会議録|議事録|アジェンダ/i, "\u8BAE\u7A0B\u6216\u4F1A\u8BAE\u7EAA\u8981")
+    ],
+    author: [
+      cue(
+        /\b(?:team|project|working group)\b|团队|项目组|工作组|チーム|プロジェクト/i,
+        "\u56E2\u961F\u6216\u9879\u76EE\u7EC4\u7F72\u540D"
+      )
+    ],
+    transcript: [
+      cue(
+        /\b(?:agenda|today'?s topics?)\b|今天的议程|本次议题|本日の議題|アジェンダ/i,
+        "\u660E\u786E\u4F1A\u8BAE\u8BAE\u7A0B"
+      ),
+      cue(
+        /\b(?:we decided|decision|approved)\b|决定|决议|通过|合意しました|決定|承認/i,
+        "\u51B3\u7B56\u6216\u51B3\u8BAE\u8868\u8FF0"
+      ),
+      cue(
+        /\b(?:action item|owner|due date|deadline)\b|行动项|负责人|截止日期|待办|アクションアイテム|担当|期限/i,
+        "\u884C\u52A8\u9879\u3001\u8D1F\u8D23\u4EBA\u6216\u671F\u9650"
+      )
+    ],
+    chapter: [
+      cue(
+        /\b(?:agenda|discussion|decision)\b|议程|讨论|决策|議題|議論|決定/i,
+        "\u8BAE\u7A0B\u3001\u8BA8\u8BBA\u6216\u51B3\u7B56\u7AE0\u8282"
+      ),
+      cue(
+        /\b(?:action items?|next steps?)\b|行动项|下一步|待办|アクション|次のステップ/i,
+        "\u884C\u52A8\u9879\u6216\u4E0B\u4E00\u6B65\u7AE0\u8282"
+      )
+    ]
+  },
+  review: {
+    title: [
+      cue(
+        /\b(?:review|hands[- ]on|unboxing|tested)\b|测评|评测|开箱|体验|レビュー|実機|使ってみた/i,
+        "\u8BC4\u6D4B\u3001\u4F53\u9A8C\u6216\u5F00\u7BB1\u5F62\u5F0F"
+      ),
+      cue(/\b(?:vs\.?|versus|comparison)\b|对比|比较|横评|比較|どっち/i, "\u5BF9\u6BD4\u8BC4\u6D4B\u5F62\u5F0F")
+    ],
+    author: [
+      cue(/\b(?:reviews?|testing|tech)\b|测评|评测|科技|レビュー|検証|テック/i, "\u8BC4\u6D4B\u578B\u9891\u9053\u7F72\u540D")
+    ],
+    transcript: [
+      cue(
+        /\b(?:pros? and cons?|advantages? and disadvantages?)\b|优点|缺点|利弊|メリット|デメリット|長所|短所/i,
+        "\u4F18\u7F3A\u70B9\u6216\u6743\u8861"
+      ),
+      cue(
+        /\b(?:price|value|specifications?|benchmark)\b|价格|性价比|参数|跑分|価格|コスパ|仕様|ベンチマーク/i,
+        "\u4EF7\u683C\u3001\u89C4\u683C\u6216\u6D4B\u8BD5\u6570\u636E"
+      ),
+      cue(
+        /\b(?:recommend|worth (?:it|buying)|verdict)\b|推荐|值不值得|购买建议|结论|おすすめ|買うべき|結論/i,
+        "\u9002\u7528\u4EBA\u7FA4\u6216\u8D2D\u4E70\u7ED3\u8BBA"
+      )
+    ],
+    chapter: [
+      cue(
+        /\b(?:design|performance|battery|camera)\b|外观|性能|续航|相机|デザイン|性能|バッテリー|カメラ/i,
+        "\u4EA7\u54C1\u7EF4\u5EA6\u7AE0\u8282"
+      ),
+      cue(
+        /\b(?:pros?|cons?|verdict|comparison)\b|优缺点|结论|对比|長所|短所|結論|比較/i,
+        "\u4F18\u7F3A\u70B9\u3001\u7ED3\u8BBA\u6216\u5BF9\u6BD4\u7AE0\u8282"
+      )
+    ]
+  }
+};
+var SECTION_DEFINITIONS = {
+  course: [
+    section("learning_goals", "\u5B66\u4E60\u76EE\u6807", "\u5217\u51FA\u5B66\u5B8C\u540E\u5E94\u80FD\u89E3\u91CA\u6216\u5B8C\u6210\u7684\u4E8B\u9879\u3002", true, "recommended"),
+    section("concept_map", "\u6982\u5FF5\u5730\u56FE", "\u7EC4\u7EC7\u6838\u5FC3\u6982\u5FF5\u3001\u5B9A\u4E49\u53CA\u5176\u5173\u7CFB\u3002", true, "required"),
+    section("lesson_outline", "\u8BFE\u7A0B\u7ED3\u6784", "\u6309\u8BB2\u6388\u987A\u5E8F\u8FD8\u539F\u7AE0\u8282\u8109\u7EDC\u3002", true, "required"),
+    section("key_explanations", "\u91CD\u70B9\u8BB2\u89E3", "\u63D0\u70BC\u5173\u952E\u89E3\u91CA\u3001\u4F8B\u5B50\u4E0E\u63A8\u5BFC\u3002", true, "required"),
+    section(
+      "practice_and_review",
+      "\u7EC3\u4E60\u4E0E\u590D\u4E60",
+      "\u4FDD\u7559\u7EC3\u4E60\u3001\u4F5C\u4E1A\u548C\u590D\u4E60\u63D0\u793A\u3002",
+      false,
+      "recommended"
+    )
+  ],
+  interview: [
+    section(
+      "participants_and_context",
+      "\u4EBA\u7269\u4E0E\u8BED\u5883",
+      "\u8BF4\u660E\u4E3B\u6301\u4EBA\u3001\u53D7\u8BBF\u8005\u53CA\u8BBF\u8C08\u80CC\u666F\u3002",
+      true,
+      "recommended"
+    ),
+    section("themes", "\u5BF9\u8C08\u4E3B\u9898", "\u5F52\u7EB3\u5B9E\u9645\u8BA8\u8BBA\u7684\u4E3B\u9898\uFF0C\u4E0D\u628A\u95EE\u9898\u5F53\u4F5C\u56DE\u7B54\u3002", true, "required"),
+    section("viewpoints_by_speaker", "\u4EBA\u7269\u89C2\u70B9", "\u6309\u8BF4\u8BDD\u8005\u5206\u79BB\u89C2\u70B9\u548C\u7ECF\u5386\u3002", true, "required"),
+    section("notable_exchanges", "\u5173\u952E\u95EE\u7B54", "\u4FDD\u7559\u91CD\u8981\u63D0\u95EE\u3001\u56DE\u7B54\u53CA\u4E0A\u4E0B\u6587\u3002", true, "required"),
+    section("open_questions", "\u672A\u51B3\u95EE\u9898", "\u8BB0\u5F55\u56DE\u907F\u3001\u5206\u6B67\u6216\u4ECD\u672A\u56DE\u7B54\u7684\u95EE\u9898\u3002", false, "recommended")
+  ],
+  tutorial: [
+    section(
+      "outcome_and_prerequisites",
+      "\u76EE\u6807\u4E0E\u524D\u7F6E\u6761\u4EF6",
+      "\u8BF4\u660E\u6700\u7EC8\u6210\u679C\u3001\u73AF\u5883\u3001\u6750\u6599\u548C\u5047\u8BBE\u3002",
+      true,
+      "recommended"
+    ),
+    section(
+      "materials_and_setup",
+      "\u51C6\u5907\u4E0E\u914D\u7F6E",
+      "\u5217\u51FA\u5DE5\u5177\u3001\u7248\u672C\u3001\u8F93\u5165\u548C\u521D\u59CB\u8BBE\u7F6E\u3002",
+      true,
+      "recommended"
+    ),
+    section(
+      "ordered_steps",
+      "\u64CD\u4F5C\u6B65\u9AA4",
+      "\u6309\u987A\u5E8F\u5199\u51FA\u53EF\u590D\u73B0\u6B65\u9AA4\uFF0C\u4E0D\u8865\u9020\u7F3A\u5931\u64CD\u4F5C\u3002",
+      true,
+      "required"
+    ),
+    section(
+      "verification_and_troubleshooting",
+      "\u9A8C\u8BC1\u4E0E\u6392\u9519",
+      "\u8BF4\u660E\u5982\u4F55\u9A8C\u8BC1\u7ED3\u679C\u53CA\u5DF2\u63D0\u5230\u7684\u6545\u969C\u5904\u7406\u3002",
+      true,
+      "required"
+    ),
+    section("final_checklist", "\u5B8C\u6210\u68C0\u67E5\u8868", "\u751F\u6210\u53EF\u6267\u884C\u7684\u6536\u5C3E\u68C0\u67E5\u9879\u3002", false, "recommended")
+  ],
+  news: [
+    section(
+      "event_snapshot",
+      "\u4E8B\u4EF6\u6982\u89C8",
+      "\u7528\u4EBA\u7269\u3001\u4E8B\u4EF6\u3001\u65F6\u95F4\u3001\u5730\u70B9\u6982\u62EC\u5DF2\u786E\u8BA4\u4FE1\u606F\u3002",
+      true,
+      "required"
+    ),
+    section("timeline", "\u65F6\u95F4\u7EBF", "\u533A\u5206\u4E8B\u4EF6\u53D1\u751F\u65F6\u95F4\u4E0E\u62A5\u9053\u53D1\u5E03\u65F6\u95F4\u3002", true, "required"),
+    section(
+      "actors_and_attribution",
+      "\u76F8\u5173\u65B9\u4E0E\u4FE1\u6E90",
+      "\u9010\u9879\u4FDD\u7559\u53D1\u8A00\u4EBA\u3001\u673A\u6784\u53CA\u5F52\u56E0\u3002",
+      true,
+      "required"
+    ),
+    section(
+      "evidence_and_uncertainty",
+      "\u8BC1\u636E\u4E0E\u4E0D\u786E\u5B9A\u6027",
+      "\u5206\u5F00\u5DF2\u786E\u8BA4\u4E8B\u5B9E\u3001\u4E3B\u5F20\u548C\u672A\u77E5\u4E8B\u9879\u3002",
+      true,
+      "required"
+    ),
+    section(
+      "implications_and_follow_up",
+      "\u5F71\u54CD\u4E0E\u540E\u7EED",
+      "\u8BF4\u660E\u62A5\u9053\u63D0\u51FA\u7684\u5F71\u54CD\u548C\u5F85\u9A8C\u8BC1\u8FDB\u5C55\u3002",
+      false,
+      "recommended"
+    )
+  ],
+  meeting: [
+    section("meeting_context", "\u4F1A\u8BAE\u80CC\u666F", "\u8BB0\u5F55\u4F1A\u8BAE\u76EE\u6807\u3001\u53C2\u4E0E\u8005\u548C\u8BAE\u7A0B\u8303\u56F4\u3002", true, "recommended"),
+    section("decisions", "\u5DF2\u5B9A\u4E8B\u9879", "\u53EA\u6536\u5F55\u660E\u786E\u5F62\u6210\u7684\u51B3\u5B9A\u548C\u6279\u51C6\u3002", true, "required"),
+    section("action_items", "\u884C\u52A8\u9879", "\u4EE5\u4E8B\u9879\u3001\u8D1F\u8D23\u4EBA\u3001\u671F\u9650\u548C\u72B6\u6001\u7EC4\u7EC7\u5F85\u529E\u3002", true, "required"),
+    section("discussion_summary", "\u8BA8\u8BBA\u6458\u8981", "\u6309\u8BAE\u9898\u6982\u62EC\u8BBA\u70B9\u3001\u4F9D\u636E\u548C\u5206\u6B67\u3002", true, "required"),
+    section(
+      "open_issues_and_next_meeting",
+      "\u672A\u51B3\u4E8B\u9879\u4E0E\u4E0B\u6B21\u4F1A\u8BAE",
+      "\u8BB0\u5F55\u963B\u585E\u3001\u5F85\u786E\u8BA4\u9879\u548C\u540E\u7EED\u5B89\u6392\u3002",
+      false,
+      "recommended"
+    )
+  ],
+  review: [
+    section(
+      "review_scope_and_criteria",
+      "\u8BC4\u6D4B\u8303\u56F4\u4E0E\u6807\u51C6",
+      "\u8BF4\u660E\u8BC4\u6D4B\u5BF9\u8C61\u3001\u7248\u672C\u3001\u6761\u4EF6\u548C\u8BC4\u4EF7\u6807\u51C6\u3002",
+      true,
+      "recommended"
+    ),
+    section(
+      "product_or_subject_facts",
+      "\u5BF9\u8C61\u4E8B\u5B9E",
+      "\u5206\u5F00\u89C4\u683C\u4E8B\u5B9E\u3001\u4F53\u9A8C\u5224\u65AD\u548C\u5382\u5546\u4E3B\u5F20\u3002",
+      true,
+      "required"
+    ),
+    section("strengths", "\u4F18\u52BF", "\u8BB0\u5F55\u6709\u5177\u4F53\u4F9D\u636E\u7684\u4F18\u70B9\u3002", true, "required"),
+    section(
+      "weaknesses_and_tradeoffs",
+      "\u4E0D\u8DB3\u4E0E\u6743\u8861",
+      "\u8BB0\u5F55\u9650\u5236\u3001\u4EE3\u4EF7\u548C\u9002\u7528\u8FB9\u754C\u3002",
+      true,
+      "required"
+    ),
+    section(
+      "verdict_and_fit",
+      "\u7ED3\u8BBA\u4E0E\u9002\u7528\u4EBA\u7FA4",
+      "\u7ED9\u51FA\u6709\u6761\u4EF6\u7684\u7ED3\u8BBA\uFF0C\u4E0D\u628A\u4E2A\u4EBA\u504F\u597D\u666E\u904D\u5316\u3002",
+      true,
+      "required"
+    )
+  ],
+  general: [
+    section("overview", "\u5185\u5BB9\u6982\u89C8", "\u6982\u62EC\u4E3B\u9898\u3001\u76EE\u7684\u548C\u8303\u56F4\u3002", true, "recommended"),
+    section("key_points", "\u5173\u952E\u5185\u5BB9", "\u6309\u903B\u8F91\u7EC4\u7EC7\u4E3B\u8981\u4FE1\u606F\u3002", true, "required"),
+    section(
+      "evidence_and_caveats",
+      "\u8BC1\u636E\u4E0E\u9650\u5236",
+      "\u6807\u6CE8\u53EF\u6838\u5BF9\u4F9D\u636E\u3001\u63A8\u65AD\u548C\u7F3A\u5931\u4FE1\u606F\u3002",
+      true,
+      "required"
+    ),
+    section("takeaways", "\u53EF\u7528\u7ED3\u8BBA", "\u63D0\u70BC\u540E\u7EED\u53EF\u590D\u7528\u7684\u7ED3\u8BBA\u6216\u884C\u52A8\u3002", false, "recommended")
+  ]
+};
+var PROFILE_OBJECTIVES = {
+  course: "\u628A\u7CFB\u7EDF\u8BB2\u6388\u8F6C\u6210\u53EF\u5B66\u4E60\u3001\u53EF\u590D\u4E60\u5E76\u53EF\u56DE\u770B\u8BC1\u636E\u7684\u8BFE\u7A0B\u7B14\u8BB0\u3002",
+  interview: "\u4FDD\u7559\u4EBA\u7269\u5F52\u5C5E\u548C\u95EE\u7B54\u8BED\u5883\uFF0C\u907F\u514D\u628A\u4E3B\u6301\u4EBA\u7684\u95EE\u9898\u8BEF\u5199\u6210\u5609\u5BBE\u89C2\u70B9\u3002",
+  tutorial: "\u751F\u6210\u53EF\u590D\u73B0\u3001\u53EF\u9A8C\u8BC1\u4E14\u4E0D\u8865\u9020\u7F3A\u5931\u6B65\u9AA4\u7684\u64CD\u4F5C\u8BF4\u660E\u3002",
+  news: "\u751F\u6210\u5E26\u65F6\u95F4\u7EBF\u3001\u4FE1\u6E90\u5F52\u56E0\u548C\u4E0D\u786E\u5B9A\u6027\u8FB9\u754C\u7684\u4E8B\u4EF6\u8BB0\u5F55\u3002",
+  meeting: "\u628A\u4F1A\u8BAE\u8F6C\u6210\u51B3\u7B56\u3001\u884C\u52A8\u9879\u3001\u8BA8\u8BBA\u4F9D\u636E\u548C\u672A\u51B3\u4E8B\u9879\u3002",
+  review: "\u533A\u5206\u5BF9\u8C61\u4E8B\u5B9E\u3001\u4F53\u9A8C\u5224\u65AD\u3001\u6743\u8861\u4E0E\u9002\u7528\u4EBA\u7FA4\u3002",
+  general: "\u5728\u7C7B\u578B\u8BC1\u636E\u4E0D\u8DB3\u65F6\u751F\u6210\u4E2D\u6027\u7684\u7ED3\u6784\u5316\u6458\u8981\uFF0C\u4E0D\u5047\u88C5\u5DF2\u8BC6\u522B\u7279\u5B9A\u4F53\u88C1\u3002"
+};
+var CONTENT_PROMPT_PROFILES = Object.fromEntries(
+  VIDEO_CONTENT_TYPES.map((type2) => {
+    const sections = SECTION_DEFINITIONS[type2];
+    return [
+      type2,
+      {
+        id: `video-content-${type2}-v1`,
+        version: 1,
+        content_type: type2,
+        objective: PROFILE_OBJECTIVES[type2],
+        sections,
+        output_schema: buildOutputSchema(type2, sections),
+        guardrails: [
+          "\u53EA\u4F7F\u7528\u6807\u9898\u3001\u4F5C\u8005\u3001\u7AE0\u8282\u3001\u8F6C\u5F55\u548C\u7ED3\u6784\u5316\u8BC1\u636E\u4E2D\u53EF\u89C1\u7684\u4FE1\u606F\u3002",
+          "\u5173\u952E\u8BCD\u547D\u4E2D\u53EA\u662F\u5F31\u4FE1\u53F7\uFF0C\u4E0D\u80FD\u5355\u72EC\u5F53\u4F5C\u5185\u5BB9\u7C7B\u578B\u6216\u4E8B\u5B9E\u8BC1\u660E\u3002",
+          "\u4E8B\u5B9E\u6027\u7ED3\u8BBA\u5E94\u5F15\u7528 evidence_segment_ids\uFF1B\u6CA1\u6709\u8BC1\u636E\u65F6\u660E\u786E\u6807\u6CE8\u672A\u77E5\u3002",
+          "\u4E0D\u5F97\u4F2A\u9020\u8BF4\u8BDD\u8005\u3001\u65F6\u95F4\u70B9\u3001\u64CD\u4F5C\u6B65\u9AA4\u3001\u51B3\u5B9A\u3001\u4FE1\u6E90\u6216\u8BC4\u6D4B\u6570\u636E\u3002"
+        ]
+      }
+    ];
+  })
+);
+function getContentPromptProfile(type2) {
+  return cloneProfile(CONTENT_PROMPT_PROFILES[type2]);
+}
+function resolveContentRouting(input) {
+  const requested = normalizeRequestedType(input.requestedType);
+  if (requested && requested !== "auto") {
+    return decision(requested, 1, "manual", [
+      {
+        signal: "request",
+        message: `\u7528\u6237\u660E\u786E\u9009\u62E9 ${requested}\uFF1B\u624B\u52A8\u9009\u62E9\u8986\u76D6\u540E\u7AEF\u548C\u81EA\u52A8\u5224\u65AD\u3002`
+      }
+    ]);
+  }
+  const rejectedBackendReasons = [];
+  const backendType = normalizeContentType(input.backendType);
+  if (backendType) {
+    const reportedConfidence = normalizeConfidence(input.backendConfidence);
+    if (reportedConfidence !== void 0 && reportedConfidence >= BACKEND_ROUTE_CONFIDENCE_THRESHOLD) {
+      const backendReasons = normalizeBackendReasons(input.backendReasons);
+      return decision(backendType, reportedConfidence, "backend", [
+        {
+          signal: "backend",
+          message: `\u540E\u7AEF\u8FD4\u56DE\u53D7\u652F\u6301\u7684\u7ED3\u6784\u5316 content_type=${backendType}\u3002`
+        },
+        ...backendReasons
+      ]);
+    }
+    rejectedBackendReasons.push(
+      reportedConfidence === void 0 ? {
+        signal: "backend",
+        message: `\u540E\u7AEF content_type=${backendType} \u6CA1\u6709\u663E\u5F0F\u7F6E\u4FE1\u5EA6\uFF0C\u4E0D\u80FD\u8986\u76D6\u672C\u5730\u53EF\u89C1\u8BC1\u636E\u3002`
+      } : {
+        signal: "backend",
+        message: `\u540E\u7AEF content_type=${backendType} \u7684\u663E\u5F0F\u7F6E\u4FE1\u5EA6 ${formatConfidence(
+          reportedConfidence
+        )} \u4F4E\u4E8E\u91C7\u7528\u9608\u503C\uFF0C\u7EE7\u7EED\u4F7F\u7528\u672C\u5730\u53EF\u89C1\u8BC1\u636E\u5224\u65AD\u3002`
+      }
+    );
+  } else if (hasValue(input.backendType)) {
+    rejectedBackendReasons.push({
+      signal: "backend",
+      message: "\u540E\u7AEF content_type \u4E0D\u5728\u53D7\u652F\u6301\u679A\u4E3E\u4E2D\uFF0C\u672A\u91C7\u7528\u3002"
+    });
+  }
+  if (input.autoRoute === false) {
+    return decision("general", 1, "fallback", [
+      ...rejectedBackendReasons,
+      {
+        signal: "fallback",
+        message: "\u81EA\u52A8\u8DEF\u7531\u5DF2\u5173\u95ED\u4E14\u6CA1\u6709\u6709\u6548\u624B\u52A8\u7C7B\u578B\uFF0C\u4F7F\u7528 general\u3002"
+      }
+    ]);
+  }
+  const local = inferLocalRoute(input);
+  return {
+    ...local,
+    reasons: [...rejectedBackendReasons, ...local.reasons]
+  };
+}
+var resolveContentRoute = resolveContentRouting;
+function buildContentRoutingPromptContract(requestedType = "auto", autoRoute = true) {
+  const normalized = normalizeRequestedType(requestedType) || "auto";
+  const selected = normalized !== "auto" ? [getContentPromptProfile(normalized)] : VIDEO_CONTENT_TYPES.map(getContentPromptProfile);
+  return {
+    contract_version: CONTENT_ROUTER_CONTRACT_VERSION,
+    requested_type: normalized,
+    auto_route: autoRoute,
+    allowed_types: [...VIDEO_CONTENT_TYPES],
+    fallback_type: "general",
+    minimum_local_score: LOCAL_ROUTE_SCORE_THRESHOLD,
+    minimum_margin: LOCAL_ROUTE_MARGIN_THRESHOLD,
+    policies: [
+      "\u624B\u52A8 requested_type \u6C38\u8FDC\u8986\u76D6\u81EA\u52A8\u8DEF\u7531\u548C\u540E\u7AEF\u9884\u6D4B\u3002",
+      "\u81EA\u52A8\u5224\u65AD\u5FC5\u987B\u7EFC\u5408\u81F3\u5C11\u4E24\u7C7B\u53EF\u89C1\u4FE1\u53F7\uFF1B\u5355\u4E2A\u5173\u952E\u8BCD\u4E0D\u80FD\u51B3\u5B9A\u7C7B\u578B\u3002",
+      "\u6700\u9AD8\u5019\u9009\u5206\u6216\u9886\u5148\u5DEE\u4E0D\u8DB3\u65F6\u5FC5\u987B\u56DE\u9000 general\u3002",
+      "\u8FD4\u56DE\u7684 content_type \u5FC5\u987B\u4E0E\u6240\u9009 prompt profile \u548C sections schema \u4E00\u81F4\u3002"
+    ],
+    profiles: selected
+  };
+}
+function inferLocalRoute(input) {
+  const title = normalizeText(input.title);
+  const author = normalizeText(input.author);
+  const transcript = normalizeText(input.transcript).slice(0, 5e4);
+  const chapters = normalizeChapters(input.chapters);
+  const chapterText = chapters.join("\n").slice(0, 2e4);
+  const candidates = ROUTABLE_TYPES.map(
+    (type2) => scoreCandidate(type2, { title, author, transcript, chapterText, chapters })
+  ).sort((left, right) => right.score - left.score || left.type.localeCompare(right.type));
+  const top = candidates[0];
+  const second = candidates[1];
+  const margin = top.score - second.score;
+  const signalCount = new Set(
+    top.reasons.map((reason) => reason.signal).filter((signal) => !["fallback", "request", "backend"].includes(signal))
+  ).size;
+  const candidateScores = Object.fromEntries(
+    candidates.map((candidate) => [candidate.type, round(candidate.score)])
+  );
+  const accepted = top.score >= LOCAL_ROUTE_SCORE_THRESHOLD && margin >= LOCAL_ROUTE_MARGIN_THRESHOLD && signalCount >= 2;
+  if (accepted) {
+    const confidence2 = clamp(
+      0.5 + top.score * 0.35 + Math.min(0.1, margin * 0.25) + Math.min(0.05, Math.max(0, signalCount - 2) * 0.025),
+      0.6,
+      0.96
+    );
+    return decision(
+      top.type,
+      confidence2,
+      "local",
+      [
+        ...top.reasons,
+        {
+          signal: "structure",
+          message: `\u7EFC\u5408 ${signalCount} \u7C7B\u53EF\u89C1\u4FE1\u53F7\uFF1B\u9886\u5148\u4E0B\u4E00\u5019\u9009 ${round(margin)}\u3002`
+        }
+      ],
+      candidateScores
+    );
+  }
+  const fallbackReasons = [];
+  if (top.score === 0) {
+    fallbackReasons.push({
+      signal: "fallback",
+      message: "\u6807\u9898\u3001\u4F5C\u8005\u3001\u8F6C\u5F55\u548C\u7AE0\u8282\u4E2D\u6CA1\u6709\u8DB3\u591F\u7684\u4F53\u88C1\u7EBF\u7D22\u3002"
+    });
+  } else {
+    fallbackReasons.push(...top.reasons.slice(0, 4));
+    fallbackReasons.push({
+      signal: "fallback",
+      message: top.score < LOCAL_ROUTE_SCORE_THRESHOLD ? `\u6700\u9AD8\u5019\u9009 ${top.type} \u7684\u7EFC\u5408\u5206 ${round(top.score)} \u4F4E\u4E8E\u9608\u503C\uFF0C\u5173\u952E\u8BCD\u4E0D\u5355\u72EC\u51B3\u5B9A\u7C7B\u578B\u3002` : margin < LOCAL_ROUTE_MARGIN_THRESHOLD ? `${top.type} \u4E0E ${second.type} \u7684\u5206\u5DEE\u4EC5 ${round(margin)}\uFF0C\u5B58\u5728\u6B67\u4E49\u3002` : `\u6700\u9AD8\u5019\u9009\u53EA\u8986\u76D6 ${signalCount} \u7C7B\u4FE1\u53F7\uFF0C\u8BC1\u636E\u6765\u6E90\u4E0D\u8DB3\u3002`
+    });
+  }
+  const confidence = clamp(
+    0.45 + Math.max(0, LOCAL_ROUTE_SCORE_THRESHOLD - top.score) * 0.35 + Math.min(0.15, Math.max(0, margin) * 0.3),
+    0.45,
+    0.75
+  );
+  return decision("general", confidence, "fallback", fallbackReasons, candidateScores);
+}
+function scoreCandidate(type2, evidence) {
+  const rules = CUES[type2];
+  const reasons = [];
+  let score = 0;
+  for (const channel of ["title", "author", "transcript", "chapter"]) {
+    const text = channel === "chapter" ? evidence.chapterText : evidence[channel];
+    const cues = rules[channel] || [];
+    const matches = cues.filter((item) => item.pattern.test(text));
+    if (matches.length === 0) continue;
+    const weights = CHANNEL_WEIGHTS[channel];
+    const contribution = Math.min(weights.cap, matches.length * weights.perCue);
+    score += contribution;
+    reasons.push({
+      signal: channel,
+      message: `${signalLabel(channel)}\u63D0\u4F9B${matches.map((match) => `\u201C${match.label}\u201D`).join("\u3001")}\u7EBF\u7D22\u3002`,
+      weight: round(contribution)
+    });
+  }
+  const structural = structuralSignals(type2, evidence.transcript, evidence.chapters);
+  score += structural.score;
+  reasons.push(...structural.reasons);
+  return {
+    type: type2,
+    score: round(clamp(score, 0, 0.95)),
+    reasons
+  };
+}
+function structuralSignals(type2, transcript, chapters) {
+  const reasons = [];
+  let score = 0;
+  const add = (condition, weight, message) => {
+    if (!condition) return;
+    score += weight;
+    reasons.push({ signal: "structure", message, weight });
+  };
+  const sequentialChapters = chapters.filter(
+    (chapter) => /(?:\b(?:lesson|module|step|part)\s*\d+\b|第\s*\d+\s*(?:课|講|回|章)|步骤\s*\d+|手順\s*\d+)/i.test(
+      chapter
+    )
+  ).length;
+  if (type2 === "course") {
+    add(chapters.length >= 3 && sequentialChapters >= 2, 0.16, "\u591A\u4E2A\u8FDE\u7EED\u8BFE\u6B21/\u6A21\u5757\u5F62\u6210\u6559\u5B66\u5E8F\u5217\u3002");
+    add(
+      countMatches(
+        transcript,
+        /(?:学习目标|练习|复习|learning objective|exercise|recap|学習目標|演習|復習)/gi
+      ) >= 3,
+      0.12,
+      "\u8F6C\u5F55\u540C\u65F6\u5305\u542B\u76EE\u6807\u3001\u8BB2\u89E3\u548C\u7EC3\u4E60\u5F0F\u6559\u5B66\u7ED3\u6784\u3002"
+    );
+  }
+  if (type2 === "interview") {
+    add(
+      countMatches(
+        transcript,
+        /(?:^|\n)\s*(?:q|a|host|guest|interviewer|主持人|嘉宾|采访者|司会|ゲスト)\s*[:：]/gim
+      ) >= 4,
+      0.18,
+      "\u8F6C\u5F55\u5B58\u5728\u591A\u8F6E\u3001\u53EF\u533A\u5206\u89D2\u8272\u7684\u95EE\u7B54\u7ED3\u6784\u3002"
+    );
+    add(
+      countMatches(transcript, /[?？]\s*(?:\n|$)/gm) >= 3 && countMatches(transcript, /(?:我|私|my|we|我们|私たち)/gi) >= 3,
+      0.1,
+      "\u591A\u8F6E\u95EE\u9898\u4E0E\u7B2C\u4E00\u4EBA\u79F0\u56DE\u7B54\u5171\u540C\u51FA\u73B0\u3002"
+    );
+  }
+  if (type2 === "tutorial") {
+    add(
+      countMatches(
+        transcript,
+        /(?:first|next|then|finally|首先|接下来|然后|最后|まず|次に|それから|最後に)/gi
+      ) >= 3,
+      0.16,
+      "\u8F6C\u5F55\u5177\u6709\u81F3\u5C11\u4E09\u6BB5\u8FDE\u7EED\u64CD\u4F5C\u987A\u5E8F\u3002"
+    );
+    add(chapters.length >= 3 && sequentialChapters >= 2, 0.14, "\u7AE0\u8282\u5F62\u6210\u8FDE\u7EED\u64CD\u4F5C\u6B65\u9AA4\u3002");
+  }
+  if (type2 === "news") {
+    add(
+      countMatches(
+        transcript,
+        /(?:according to|said in a statement|reported by|据.+表示|记者报道|によると|発表しました)/gi
+      ) >= 2,
+      0.15,
+      "\u8F6C\u5F55\u5BF9\u591A\u4E2A\u9648\u8FF0\u8FDB\u884C\u4E86\u4FE1\u6E90\u5F52\u56E0\u3002"
+    );
+    add(
+      countMatches(
+        transcript,
+        /(?:\b\d{1,2}:\d{2}\b|\b20\d{2}[-/年]\d{1,2}|当地时间|現地時間|today|yesterday|今日|昨日)/gi
+      ) >= 2,
+      0.1,
+      "\u5305\u542B\u591A\u4E2A\u660E\u786E\u65E5\u671F\u6216\u4E8B\u4EF6\u65F6\u95F4\u7EBF\u7D22\u3002"
+    );
+  }
+  if (type2 === "meeting") {
+    add(
+      countMatches(
+        transcript,
+        /(?:action item|owner|deadline|行动项|负责人|截止|アクションアイテム|担当|期限)/gi
+      ) >= 3,
+      0.18,
+      "\u591A\u9879\u884C\u52A8\u9879\u540C\u65F6\u5E26\u6709\u8D1F\u8D23\u4EBA\u6216\u671F\u9650\u7ED3\u6784\u3002"
+    );
+    add(
+      chapters.some((chapter) => /(?:decision|决定|決定)/i.test(chapter)) && chapters.some((chapter) => /(?:action|next|行动|下一步|アクション|次)/i.test(chapter)),
+      0.12,
+      "\u7AE0\u8282\u540C\u65F6\u533A\u5206\u51B3\u7B56\u4E0E\u540E\u7EED\u884C\u52A8\u3002"
+    );
+  }
+  if (type2 === "review") {
+    add(
+      countMatches(
+        transcript,
+        /(?:pros?|cons?|advantage|disadvantage|优点|缺点|优势|不足|メリット|デメリット|長所|短所)/gi
+      ) >= 3,
+      0.16,
+      "\u8F6C\u5F55\u4ECE\u591A\u4E2A\u89D2\u5EA6\u6210\u5BF9\u8BA8\u8BBA\u4F18\u70B9\u4E0E\u9650\u5236\u3002"
+    );
+    add(
+      chapters.length >= 3 && chapters.filter(
+        (chapter) => /(?:design|performance|price|verdict|外观|性能|价格|结论|デザイン|性能|価格|結論)/i.test(
+          chapter
+        )
+      ).length >= 2,
+      0.12,
+      "\u7AE0\u8282\u6309\u8BC4\u6D4B\u7EF4\u5EA6\u7EC4\u7EC7\u5E76\u5305\u542B\u7ED3\u8BBA\u3002"
+    );
+  }
+  return { score: round(Math.min(score, 0.3)), reasons };
+}
+function decision(type2, confidence, source, reasons, candidateScores) {
+  return {
+    type: type2,
+    confidence: round(clamp(confidence, 0, 1)),
+    source,
+    reasons,
+    prompt_profile: getContentPromptProfile(type2),
+    candidate_scores: candidateScores
+  };
+}
+function buildOutputSchema(type2, sections) {
+  const sectionProperties = Object.fromEntries(
+    sections.map((item) => [
+      item.key,
+      {
+        type: "string",
+        description: `${item.purpose} Evidence policy: ${item.evidence}.`
+      }
+    ])
+  );
+  return {
+    type: "object",
+    required: ["content_type", "summary", "sections", "evidence_claims", "content_routing"],
+    properties: {
+      content_type: {
+        type: "string",
+        const: type2,
+        description: "The resolved supported content type."
+      },
+      summary: {
+        type: "string",
+        description: "A concise overview grounded in the supplied source."
+      },
+      sections: {
+        type: "object",
+        required: sections.filter((item) => item.required).map((item) => item.key),
+        properties: sectionProperties
+      },
+      evidence_claims: {
+        type: "array",
+        description: "Factual claims with references to existing segment ids.",
+        items: {
+          type: "object",
+          required: ["claim", "evidence_segment_ids"],
+          properties: {
+            claim: { type: "string" },
+            evidence_segment_ids: { type: "array", items: { type: "string" } },
+            confidence: { type: "number" }
+          }
+        }
+      },
+      content_routing: {
+        type: "object",
+        required: ["type", "confidence", "reasons", "prompt_profile"],
+        properties: {
+          type: { type: "string", const: type2 },
+          confidence: { type: "number" },
+          reasons: { type: "array", items: { type: "string" } },
+          prompt_profile: { type: "string", const: `video-content-${type2}-v1` }
+        }
+      }
+    }
+  };
+}
+function section(key, heading, purpose, required, evidence) {
+  return { key, heading, purpose, required, evidence };
+}
+function cue(pattern, label) {
+  return { pattern, label };
+}
+function normalizeRequestedType(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (value === "auto") return "auto";
+  return normalizeContentType(value);
+}
+function normalizeContentType(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  return VIDEO_CONTENT_TYPES.includes(value) ? value : void 0;
+}
+function normalizeConfidence(raw) {
+  if (raw === null || raw === void 0 || raw === "" || typeof raw === "boolean") return void 0;
+  const value = typeof raw === "number" ? raw : Number(String(raw).trim());
+  if (!Number.isFinite(value)) return void 0;
+  return clamp(value > 1 && value <= 100 ? value / 100 : value, 0, 1);
+}
+function normalizeBackendReasons(raw) {
+  if (!Array.isArray(raw)) return [];
+  const reasons = [];
+  for (const item of raw) {
+    const value = typeof item === "string" ? item : item && typeof item === "object" && "message" in item ? String(item.message || "") : "";
+    const message = value.replace(/\s+/g, " ").trim().slice(0, 240);
+    if (message) reasons.push({ signal: "backend", message });
+    if (reasons.length >= 8) break;
+  }
+  return reasons;
+}
+function normalizeChapters(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    if (typeof item === "string") return normalizeText(item);
+    if (!item || typeof item !== "object") return "";
+    const record = item;
+    for (const key of ["title", "name", "label", "text", "summary"]) {
+      if (typeof record[key] === "string" && record[key].trim()) {
+        return normalizeText(record[key]);
+      }
+    }
+    return "";
+  }).filter(Boolean).slice(0, 100);
+}
+function normalizeText(raw) {
+  return String(raw || "").normalize("NFKC").replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+function signalLabel(signal) {
+  return {
+    title: "\u6807\u9898",
+    author: "\u4F5C\u8005/\u9891\u9053",
+    transcript: "\u8F6C\u5F55",
+    chapter: "\u7AE0\u8282"
+  }[signal];
+}
+function countMatches(text, pattern) {
+  if (!text) return 0;
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  return Array.from(text.matchAll(new RegExp(pattern.source, flags))).length;
+}
+function hasValue(value) {
+  return value !== void 0 && value !== null && String(value).trim() !== "";
+}
+function formatConfidence(value) {
+  return `${Math.round(value * 100)}%`;
+}
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+function round(value) {
+  return Math.round(value * 1e3) / 1e3;
+}
+function cloneProfile(profile) {
+  return JSON.parse(JSON.stringify(profile));
+}
+
+// core/KnowledgeModel.ts
+var VIDEO_ARTIFACT_SCHEMA_VERSION = 3;
+var EVIDENCE_SOURCES = /* @__PURE__ */ new Set([
+  "speech",
+  "screen",
+  "comment",
+  "user",
+  "ai-inference"
+]);
+var TIMING_QUALITY = /* @__PURE__ */ new Set(["exact", "aligned", "estimated", "none"]);
+function normalizeRichProcessingResult(base, payload, context = {}) {
+  const sourceUrl = context.sourceUrl || readString(payload, ["source_url", "video_url", "link"]);
+  const transcript = base.video_transcript || readString(payload, ["video_transcript", "transcript", "provided_transcript"]);
+  const rawSegments = readArray(payload, ["video_segments", "segments", "transcript_segments", "cues"]) || readArray(payload?.artifact, ["video_segments", "segments", "transcript_segments", "cues"]);
+  const fallbackQuality = normalizeTimingQuality(
+    payload?.timing_quality || payload?.artifact?.timing_quality,
+    "none"
+  );
+  const segments = normalizeSegments(rawSegments, transcript, sourceUrl, fallbackQuality);
+  const timingQuality = aggregateTimingQuality(
+    segments,
+    normalizeTimingQuality(payload?.timing_quality || payload?.artifact?.timing_quality, "none")
+  );
+  const claims = normalizeClaims(
+    readArray(payload, ["evidence_claims", "claims"]) || readArray(payload?.artifact, ["evidence_claims", "claims"]),
+    segments
+  );
+  const visualEvidence = normalizeVisualEvidence(
+    readArray(payload, ["visual_evidence", "visual_observations", "keyframes"]) || readArray(payload?.artifact, ["visual_evidence", "visual_observations", "keyframes"])
+  );
+  const backendRouting = objectOrUndefined(payload?.content_routing) || objectOrUndefined(payload?.routing) || objectOrUndefined(payload?.artifact?.content_routing);
+  const contentRouting = resolveContentRoute({
+    requestedType: context.requestedContentType,
+    autoRoute: context.autoRoute,
+    backendType: payload?.content_type || payload?.resolved_content_type || payload?.artifact?.content_type || backendRouting?.type || backendRouting?.content_type,
+    backendConfidence: backendRouting?.confidence ?? payload?.content_type_confidence ?? payload?.routing_confidence,
+    backendReasons: backendRouting?.reasons ?? payload?.content_type_reasons ?? payload?.routing_reasons,
+    title: base.video_title || readString(payload, ["video_title", "title", "name"]),
+    author: base.video_author || readString(payload, ["video_author", "author", "channel", "creator", "uploader"]),
+    transcript,
+    chapters: context.chapters || payload?.video_chapters || payload?.chapters || payload?.artifact?.chapters
+  });
+  const attention = normalizeAttention(
+    payload?.attention || payload?.attention_assessment || payload?.artifact?.attention
+  );
+  const learning = normalizeLearning(
+    payload?.learning || payload?.learning_package || payload?.artifact?.learning
+  );
+  const provenance = normalizeProvenance(
+    payload,
+    context,
+    sourceUrl,
+    timingQuality,
+    contentRouting
+  );
+  return {
+    ...base,
+    video_id: base.video_id || readString(payload, ["video_id", "id"]),
+    video_platform: base.video_platform || readString(payload, ["video_platform", "platform"]),
+    video_published_at: base.video_published_at || readString(payload, ["video_published_at", "published_at"]),
+    transcript_source: base.transcript_source || readString(payload, ["transcript_source"]) || provenance.transcript_source,
+    timing_quality: timingQuality,
+    video_segments: segments,
+    evidence_claims: claims,
+    visual_evidence: visualEvidence,
+    content_type: contentRouting.type,
+    content_routing: contentRouting,
+    attention,
+    learning,
+    artifact: provenance,
+    related_notes: normalizeRelatedNotes(
+      payload?.related_notes || payload?.artifact?.related_notes
+    )
+  };
+}
+function normalizeSegments(rawSegments, transcript = "", sourceUrl = "", fallbackQuality = "none") {
+  const normalized = (rawSegments || []).map((raw, index) => normalizeSegment(raw, index, sourceUrl, fallbackQuality)).filter((segment) => segment !== null);
+  if (normalized.length > 0) {
+    return normalized.sort(compareSegments);
+  }
+  return parseTranscriptSegments(transcript, sourceUrl);
+}
+function parseTranscriptSegments(transcript, sourceUrl = "") {
+  const text = normalizeText2(transcript);
+  if (!text) return [];
+  const cueSegments = parseCueTranscript(text, sourceUrl);
+  if (cueSegments.length > 0) return cueSegments;
+  const prefixed = parseTimestampPrefixedTranscript(text, sourceUrl);
+  if (prefixed.length > 0) return prefixed;
+  return splitUntimedTranscript(text).map((part, index) => ({
+    id: stableSegmentId(sourceUrl, null, part, index),
+    start: null,
+    text: part,
+    source: "speech",
+    timing_quality: "none"
+  }));
+}
+function stableSegmentId(sourceUrl, start, text, fallbackIndex = 0) {
+  const timing = start === null ? `untimed-${fallbackIndex}` : start.toFixed(3);
+  return `vs-${stableHash(`${normalizeSource(sourceUrl)}|${timing}|${normalizeText2(text)}`)}`;
+}
+function stableHash(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+function buildTimestampUrl(sourceUrl, seconds) {
+  if (!sourceUrl || seconds === null || !Number.isFinite(seconds) || seconds < 0) return void 0;
+  try {
+    const safeSource = safeExternalHttpUrl(sourceUrl);
+    if (!safeSource) return void 0;
+    const url = new URL(safeSource);
+    if (isExactHostOrSubdomain(url.hostname, "youtube.com") || url.hostname === "youtu.be" || isExactHostOrSubdomain(url.hostname, "bilibili.com")) {
+      url.searchParams.set("t", `${Math.floor(seconds)}s`);
+      return url.toString();
+    }
+  } catch {
+    return void 0;
+  }
+  return void 0;
+}
+function formatTimestamp(seconds) {
+  if (seconds === null || seconds === void 0 || !Number.isFinite(seconds) || seconds < 0) {
+    return "--:--";
+  }
+  const whole = Math.floor(seconds);
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor(whole % 3600 / 60);
+  const secs = whole % 60;
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+function normalizeSegment(raw, index, sourceUrl, fallbackQuality) {
+  if (typeof raw === "string") {
+    const text2 = normalizeText2(raw);
+    if (!text2) return null;
+    return {
+      id: stableSegmentId(sourceUrl, null, text2, index),
+      start: null,
+      text: text2,
+      source: "speech",
+      timing_quality: "none"
+    };
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const text = readString(raw, ["text", "transcript", "content", "quote"]);
+  if (!text) return null;
+  const start = readNumber(raw, ["start", "start_seconds", "startTime", "offset"]);
+  const end = readNumber(raw, ["end", "end_seconds", "endTime"]);
+  const source = normalizeEvidenceSource(raw.source || raw.source_type || raw.kind, "speech");
+  const quality = normalizeTimingQuality(
+    raw.timing_quality,
+    start === null ? "none" : fallbackQuality === "none" ? "estimated" : fallbackQuality
+  );
+  const id = readString(raw, ["id", "segment_id"]) || stableSegmentId(sourceUrl, start, text, index);
+  return {
+    id: sanitizeId(id),
+    start,
+    end,
+    text: normalizeText2(text),
+    speaker: readString(raw, ["speaker", "speaker_name", "speaker_label"]),
+    source,
+    timing_quality: quality,
+    timestamp_url: safeExternalHttpUrl(readString(raw, ["timestamp_url", "timestamp_link"])) || buildTimestampUrl(sourceUrl, start),
+    keyframe: normalizeAsset(raw.keyframe || raw.asset || raw.image, `${id}-frame`),
+    visual_text: readString(raw, ["visual_text", "ocr_text", "screen_text"]),
+    confidence: normalizeRatio(raw.confidence)
+  };
+}
+function parseCueTranscript(text, sourceUrl) {
+  const lines = text.split("\n");
+  const result = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const timing = parseTimingLine(lines[index]);
+    if (!timing) continue;
+    const body = [];
+    index += 1;
+    while (index < lines.length && !parseTimingLine(lines[index])) {
+      const line = cleanCueText(lines[index]);
+      if (line && !/^\d+$/.test(line) && line !== "WEBVTT") body.push(line);
+      if (!lines[index].trim() && body.length > 0) break;
+      index += 1;
+    }
+    const content = normalizeText2(body.join(" "));
+    if (!content) continue;
+    const id = stableSegmentId(sourceUrl, timing.start, content, result.length);
+    result.push({
+      id,
+      start: timing.start,
+      end: timing.end,
+      text: content,
+      source: "speech",
+      timing_quality: "exact",
+      timestamp_url: buildTimestampUrl(sourceUrl, timing.start)
+    });
+    index -= 1;
+  }
+  return dedupeRollingCues(result);
+}
+function parseTimestampPrefixedTranscript(text, sourceUrl) {
+  const result = [];
+  const expanded = text.replace(/(\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])\s*/g, "\n$1 ");
+  for (const line of expanded.split("\n")) {
+    const match = line.match(
+      /^\s*(?:\[|\()?((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)(?:\]|\))?\s+(.+)$/
+    );
+    if (!match) continue;
+    const start = parseClock(match[1]);
+    const content = normalizeText2(match[2]);
+    if (start === null || !content) continue;
+    const previous = result[result.length - 1];
+    if (previous && previous.end === void 0) previous.end = start;
+    const id = stableSegmentId(sourceUrl, start, content, result.length);
+    result.push({
+      id,
+      start,
+      text: content,
+      source: "speech",
+      timing_quality: "exact",
+      timestamp_url: buildTimestampUrl(sourceUrl, start)
+    });
+  }
+  return result;
+}
+function normalizeClaims(rawClaims, segments) {
+  const segmentsById = new Map(segments.map((segment) => [segment.id, segment]));
+  return (rawClaims || []).map((raw, index) => {
+    if (!raw || typeof raw !== "object") return null;
+    const claim = readString(raw, ["claim", "text", "summary", "title"]);
+    if (!claim) return null;
+    const explicitEvidence = Array.isArray(raw.evidence) ? raw.evidence : [];
+    const legacyIds = Array.isArray(raw.segment_ids) ? raw.segment_ids : Array.isArray(raw.evidence_segment_ids) ? raw.evidence_segment_ids : [];
+    const fallbackSource = normalizeEvidenceSource(raw.source || raw.source_type, "ai-inference");
+    let rejectedEvidence = false;
+    const evidenceCandidates = explicitEvidence.map(
+      (item) => normalizeEvidenceReference(item, fallbackSource)
+    );
+    const evidence = evidenceCandidates.filter((item) => {
+      if (!item) {
+        rejectedEvidence = true;
+        return false;
+      }
+      if (!segmentsById.has(item.segment_id)) {
+        rejectedEvidence = true;
+        return false;
+      }
+      return true;
+    }).filter(
+      (item, itemIndex, items) => items.findIndex(
+        (candidate) => candidate.segment_id === item.segment_id && candidate.source === item.source
+      ) === itemIndex
+    );
+    for (const segmentId of legacyIds) {
+      const rawId = String(segmentId || "").trim();
+      if (!rawId) {
+        rejectedEvidence = true;
+        continue;
+      }
+      const id2 = sanitizeId(rawId);
+      const segment = segmentsById.get(id2);
+      if (!segment) {
+        rejectedEvidence = true;
+        continue;
+      }
+      if (evidence.some((item) => item.segment_id === id2)) continue;
+      evidence.push({
+        segment_id: id2,
+        source: segment.source || fallbackSource,
+        quote: segment.text,
+        asset_id: segment.keyframe?.id
+      });
+    }
+    const start = readNumber(raw, ["start", "start_seconds", "timestamp"]);
+    if (start !== null) {
+      const nearest = nearestSegment(segments, start);
+      if (evidence.length === 0 && nearest) {
+        evidence.push({
+          segment_id: nearest.id,
+          source: nearest.source,
+          quote: nearest.text,
+          asset_id: nearest.keyframe?.id
+        });
+      } else if (!nearest || evidence.length > 0 && !evidence.some((item) => item.segment_id === nearest.id)) {
+        rejectedEvidence = true;
+      }
+    }
+    const id = readString(raw, ["id", "claim_id"]) || `claim-${stableHash(`${claim}|${evidence.map((item) => item.segment_id).join("|")}|${index}`)}`;
+    const reviewState = rejectedEvidence || explicitEvidence.length > 0 && evidence.length === 0 ? "needs-review" : normalizeReviewState(raw.review_state, fallbackSource);
+    return {
+      id: sanitizeId(id),
+      claim: normalizeText2(claim),
+      evidence,
+      start,
+      end: readNumber(raw, ["end", "end_seconds"]),
+      confidence: normalizeRatio(raw.confidence),
+      review_state: reviewState
+    };
+  }).filter((claim) => claim !== null);
+}
+function normalizeVisualEvidence(rawItems) {
+  return (rawItems || []).map((raw, index) => {
+    if (!raw || typeof raw !== "object") return null;
+    const description = readString(raw, ["description", "text", "caption", "summary"]);
+    const ocrText = readString(raw, ["ocr_text", "visual_text", "screen_text"]);
+    if (!description && !ocrText) return null;
+    const start = readNumber(raw, ["start", "start_seconds", "timestamp"]);
+    if (start === null) return null;
+    const id = readString(raw, ["id", "evidence_id"]) || `visual-${stableHash(`${start}|${description}|${ocrText}|${index}`)}`;
+    return {
+      id: sanitizeId(id),
+      start,
+      end: readNumber(raw, ["end", "end_seconds"]) ?? void 0,
+      description: normalizeText2(description || ocrText),
+      ocr_text: ocrText || void 0,
+      keyframe: normalizeAsset(raw.keyframe || raw.asset || raw.image, `${id}-frame`),
+      kind: normalizeVisualKind(raw.kind || raw.type),
+      confidence: normalizeRatio(raw.confidence)
+    };
+  }).filter((item) => item !== null);
+}
+function normalizeAttention(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const action = ["watch", "skim", "skip"].includes(raw.action) ? raw.action : void 0;
+  const rationale = readString(raw, ["rationale", "reason", "summary"]);
+  if (!action || !rationale) return void 0;
+  return {
+    action,
+    score: normalizeRatio(raw.score),
+    confidence: normalizeRatio(raw.confidence),
+    rationale,
+    context: readString(raw, ["context", "relevance_context"]),
+    information_density: normalizeRatio(raw.information_density),
+    originality: normalizeRatio(raw.originality),
+    actionability: normalizeRatio(raw.actionability),
+    vault_relevance: normalizeRatio(raw.vault_relevance),
+    promotional_ratio: normalizeRatio(raw.promotional_ratio),
+    estimated_useful_seconds: readNumber(raw, ["estimated_useful_seconds", "useful_seconds"]) ?? void 0,
+    evidence_segment_ids: normalizeStringArray(raw.evidence_segment_ids),
+    limitations: normalizeStringArray(raw.limitations),
+    must_watch: normalizeAttentionRanges(raw.must_watch),
+    skippable: normalizeAttentionRanges(raw.skippable)
+  };
+}
+function normalizeLearning(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const flashcards = Array.isArray(raw.flashcards) ? raw.flashcards.map((item) => {
+    const front = readString(item, ["front", "question", "prompt"]);
+    const back = readString(item, ["back", "answer"]);
+    if (!front || !back) return null;
+    const providerId = readString(item, ["id"]);
+    return {
+      id: `card-${stableHash(`${normalizeText2(front)}|${normalizeText2(back)}`)}`,
+      provider_id: providerId || void 0,
+      front,
+      back,
+      evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
+      tags: normalizeStringArray(item.tags)
+    };
+  }).filter(Boolean) : void 0;
+  const questions = Array.isArray(raw.questions) ? raw.questions.map((item) => {
+    const prompt = readString(item, ["prompt", "question"]);
+    const rawAnswer = readString(item, ["answer", "correct_answer"]);
+    const choices = normalizeStringArray(item.choices);
+    const answer = resolveChoiceAnswer(rawAnswer, choices);
+    if (!prompt || !answer) return null;
+    const difficulty = ["easy", "medium", "hard"].includes(item.difficulty) ? item.difficulty : void 0;
+    const providerId = readString(item, ["id"]);
+    return {
+      id: `question-${stableHash(`${normalizeText2(prompt)}|${normalizeText2(answer)}`)}`,
+      provider_id: providerId || void 0,
+      prompt,
+      choices,
+      answer,
+      explanation: readString(item, ["explanation", "rationale"]),
+      evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
+      difficulty
+    };
+  }).filter(Boolean) : void 0;
+  const feynmanPrompts = normalizeStringArray(raw.feynman_prompts);
+  if (!flashcards?.length && !questions?.length && !feynmanPrompts?.length) return void 0;
+  return {
+    flashcards,
+    questions,
+    feynman_prompts: feynmanPrompts
+  };
+}
+function resolveChoiceAnswer(answer, choices) {
+  const raw = String(answer || "").trim();
+  if (!raw || !choices?.length) return raw;
+  const normalized = raw.normalize("NFKC");
+  const label = normalized.match(/^([A-Ha-h]|[1-9])(?:[.、:：)\]\s]|$)/)?.[1];
+  if (!label) return raw;
+  const index = /^\d$/.test(label) ? Number(label) - 1 : label.toUpperCase().charCodeAt(0) - "A".charCodeAt(0);
+  return choices[index] || raw;
+}
+function normalizeProvenance(payload, context, sourceUrl, timingQuality, contentRouting) {
+  const raw = payload?.artifact?.provenance || payload?.provenance || payload?.artifact || {};
+  const sourceHash = readString(raw, ["source_hash"]) || stableHash(normalizeSource(sourceUrl));
+  const warnings = normalizeStringArray(raw.warnings) ?? [];
+  if (timingQuality === "estimated") {
+    warnings?.push("\u90E8\u5206\u65F6\u95F4\u70B9\u4E3A\u4F30\u7B97\u503C\uFF0C\u5F15\u7528\u524D\u5E94\u56DE\u770B\u539F\u89C6\u9891\u3002");
+  }
+  if (timingQuality === "none") {
+    warnings?.push("\u5F53\u524D\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u8F74\uFF0C\u672A\u751F\u6210\u53EF\u70B9\u51FB\u8BC1\u636E\u65F6\u95F4\u70B9\u3002");
+  }
+  return {
+    schema_version: VIDEO_ARTIFACT_SCHEMA_VERSION,
+    artifact_id: readString(raw, ["artifact_id", "id"]),
+    source_url: sourceUrl || void 0,
+    source_hash: sourceHash,
+    transcript_hash: readString(raw, ["transcript_hash"]),
+    backend: normalizeBackend(raw.backend || context.backend),
+    model: readString(raw, ["model"]) || context.model,
+    prompt_profile: readString(raw, ["prompt_profile"]) || contentRouting.prompt_profile.id || context.promptProfile,
+    prompt_version: readString(raw, ["prompt_version"]) || context.promptVersion,
+    processing_depth: normalizeProcessingDepth(raw.processing_depth || context.processingDepth) || context.processingDepth,
+    content_routing: {
+      source: contentRouting.source,
+      confidence: contentRouting.confidence,
+      reasons: contentRouting.reasons.map((reason) => reason.message),
+      prompt_profile: contentRouting.prompt_profile.id
+    },
+    generated_at: readString(raw, ["generated_at"]) || (/* @__PURE__ */ new Date()).toISOString(),
+    transcript_source: readString(raw, ["transcript_source", "source"]),
+    warnings: warnings.length > 0 ? Array.from(new Set(warnings)) : void 0
+  };
+}
+function normalizeEvidenceReference(raw, fallbackSource) {
+  if (typeof raw === "string") {
+    const segmentId2 = raw.trim();
+    return segmentId2 ? { segment_id: sanitizeId(segmentId2), source: fallbackSource } : null;
+  }
+  if (!raw || typeof raw !== "object") return null;
+  const segmentId = readString(raw, ["segment_id", "id"]);
+  if (!segmentId) return null;
+  return {
+    segment_id: sanitizeId(segmentId),
+    source: normalizeEvidenceSource(raw.source || raw.source_type, fallbackSource),
+    quote: readString(raw, ["quote", "text"]),
+    asset_id: readString(raw, ["asset_id", "keyframe_id"])
+  };
+}
+function normalizeAsset(raw, fallbackId) {
+  if (!raw) return void 0;
+  if (typeof raw === "string") {
+    const url2 = safeExternalHttpUrl(raw);
+    return url2 ? { id: sanitizeId(fallbackId), url: url2 } : void 0;
+  }
+  if (typeof raw !== "object") return void 0;
+  const url = safeExternalHttpUrl(readString(raw, ["url", "source_url"]));
+  if (!url) return void 0;
+  return {
+    id: sanitizeId(readString(raw, ["id", "asset_id"]) || fallbackId),
+    url,
+    mime_type: readString(raw, ["mime_type", "mimeType"]),
+    sha256: readString(raw, ["sha256", "hash"]),
+    width: readNumber(raw, ["width"]) ?? void 0,
+    height: readNumber(raw, ["height"]) ?? void 0,
+    bytes: readNumber(raw, ["bytes", "size"]) ?? void 0
+  };
+}
+function normalizeRelatedNotes(raw) {
+  if (!Array.isArray(raw)) return void 0;
+  const allowed = /* @__PURE__ */ new Set([
+    "supplements",
+    "repeats",
+    "conflicts",
+    "updates",
+    "related"
+  ]);
+  const values = raw.map((item) => {
+    if (!item || typeof item !== "object") return null;
+    const notePath = readString(item, ["note_path", "path"]);
+    const reason = readString(item, ["reason", "rationale"]);
+    const relation = allowed.has(item.relation) ? item.relation : "related";
+    if (!notePath || !reason) return null;
+    return {
+      note_path: notePath,
+      relation,
+      reason,
+      confidence: normalizeRatio(item.confidence)
+    };
+  }).filter((item) => item !== null);
+  return values.length > 0 ? values : void 0;
+}
+function normalizeAttentionRanges(raw) {
+  if (!Array.isArray(raw)) return void 0;
+  const values = raw.map((item) => {
+    if (!item || typeof item !== "object") return null;
+    const start = readNumber(item, ["start", "start_seconds"]);
+    const end = readNumber(item, ["end", "end_seconds"]);
+    const reason = readString(item, ["reason", "rationale"]);
+    if (start === null || end === null || end <= start || !reason) return null;
+    return { start, end, reason };
+  }).filter((item) => item !== null);
+  return values.length > 0 ? values : void 0;
+}
+function parseTimingLine(line) {
+  const match = line.match(
+    /((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)\s*-->\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)/
+  );
+  if (!match) return null;
+  const start = parseClock(match[1]);
+  const end = parseClock(match[2]);
+  return start === null || end === null ? null : { start, end };
+}
+function parseClock(value) {
+  const normalized = value.trim().replace(",", ".");
+  const parts = normalized.split(":").map(Number);
+  if (parts.some((part) => !Number.isFinite(part)) || parts.length < 2 || parts.length > 3) {
+    return null;
+  }
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] * 3600 + parts[1] * 60 + parts[2];
+}
+function dedupeRollingCues(segments) {
+  const result = [];
+  for (const segment of segments) {
+    const previous = result[result.length - 1];
+    if (previous && previous.text.toLocaleLowerCase() === segment.text.toLocaleLowerCase() && previous.start === segment.start) {
+      previous.end = Math.max(
+        previous.end || previous.start || 0,
+        segment.end || segment.start || 0
+      );
+      continue;
+    }
+    result.push(segment);
+  }
+  return result;
+}
+function splitUntimedTranscript(text) {
+  const paragraphs = text.split(/\n{2,}/).map(normalizeText2).filter(Boolean);
+  if (paragraphs.length > 1) return paragraphs;
+  const lines = text.split("\n").map(normalizeText2).filter(Boolean);
+  if (lines.length > 1) return lines;
+  return text.split(/(?<=[。！？.!?])\s+/).reduce((chunks, sentence) => {
+    const current = chunks[chunks.length - 1];
+    if (!current || current.length + sentence.length > 500) chunks.push(sentence);
+    else chunks[chunks.length - 1] = `${current} ${sentence}`;
+    return chunks;
+  }, []).filter(Boolean);
+}
+function compareSegments(left, right) {
+  if (left.start === null && right.start === null) return 0;
+  if (left.start === null) return 1;
+  if (right.start === null) return -1;
+  return left.start - right.start;
+}
+function aggregateTimingQuality(segments, fallback) {
+  if (segments.length === 0) return fallback;
+  const values = segments.map((segment) => segment.timing_quality || "none");
+  if (values.every((value) => value === "exact")) return "exact";
+  if (values.some((value) => value === "none")) return "none";
+  if (values.some((value) => value === "estimated")) return "estimated";
+  if (values.some((value) => value === "aligned")) return "aligned";
+  return fallback;
+}
+function nearestSegment(segments, seconds) {
+  const MAX_ALIGNMENT_GAP_SECONDS = 5;
+  let best;
+  for (const segment of segments) {
+    if (segment.start === null || segment.timing_quality === "none") continue;
+    const end = segment.end !== void 0 && segment.end !== null && segment.end >= segment.start ? segment.end : segment.start;
+    const distance = seconds < segment.start ? segment.start - seconds : seconds > end ? seconds - end : 0;
+    if (!best || distance < best.distance) best = { segment, distance };
+  }
+  return best && best.distance <= MAX_ALIGNMENT_GAP_SECONDS ? best.segment : void 0;
+}
+function normalizeTimingQuality(raw, fallback) {
+  return TIMING_QUALITY.has(raw) ? raw : fallback;
+}
+function normalizeEvidenceSource(raw, fallback) {
+  const value = String(raw || "").trim().toLowerCase();
+  const aliases = {
+    audio: "speech",
+    transcript: "speech",
+    voice: "speech",
+    visual: "screen",
+    ocr: "screen",
+    image: "screen",
+    comments: "comment",
+    inference: "ai-inference",
+    ai: "ai-inference"
+  };
+  const normalized = aliases[value] || value;
+  return EVIDENCE_SOURCES.has(normalized) ? normalized : fallback;
+}
+function normalizeReviewState(raw, source) {
+  if (["supported", "needs-review", "inference"].includes(raw)) return raw;
+  return source === "ai-inference" ? "inference" : "supported";
+}
+function normalizeVisualKind(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  const allowed = /* @__PURE__ */ new Set(["slide", "chart", "code", "interface", "object", "scene", "other"]);
+  return allowed.has(value) ? value : "other";
+}
+function normalizeProcessingDepth(raw) {
+  return ["quick", "evidence", "deep-visual"].includes(raw) ? raw : void 0;
+}
+function normalizeBackend(raw) {
+  return raw === "n8n" || raw === "codex-worker" ? raw : void 0;
+}
+function normalizeRatio(raw) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return void 0;
+  return Math.max(0, Math.min(1, value > 1 ? value / 100 : value));
+}
+function normalizeStringArray(raw) {
+  if (!Array.isArray(raw)) return void 0;
+  const values = raw.map((item) => String(item || "").trim()).filter(Boolean);
+  return values.length > 0 ? Array.from(new Set(values)) : void 0;
+}
+function readArray(source, keys) {
+  if (!source || typeof source !== "object") return void 0;
+  for (const key of keys) {
+    if (Array.isArray(source[key])) return source[key];
+  }
+  return void 0;
+}
+function objectOrUndefined(source) {
+  return source && typeof source === "object" && !Array.isArray(source) ? source : void 0;
+}
+function readString(source, keys) {
+  if (!source || typeof source !== "object") return "";
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+function readNumber(source, keys) {
+  if (!source || typeof source !== "object") return null;
+  for (const key of keys) {
+    const raw = source[key];
+    if (raw === null || raw === void 0 || typeof raw === "boolean" || typeof raw === "string" && !raw.trim()) {
+      continue;
+    }
+    const value = Number(raw);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+function cleanCueText(value) {
+  return value.replace(/<[^>]+>/g, "").replace(/\{\\[^}]+\}/g, "").replace(/\s+/g, " ").trim();
+}
+function normalizeText2(value) {
+  return String(value || "").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
+}
+function normalizeSource(value) {
+  return String(value || "").trim().replace(/#.*$/, "");
+}
+function sanitizeId(value) {
+  return String(value || "").trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || `vs-${stableHash(value)}`;
+}
+
+// core/TranscriptQuote.ts
+var DEFAULT_QUOTE_TEMPLATE = "> {{text}} ({{link}})";
+function formatTranscriptQuote(template, source) {
+  const text = source.text.replace(/\s+/g, " ").trim();
+  const time = formatTimestamp(source.start);
+  const url = source.sourceUrl && buildTimestampUrl(source.sourceUrl, source.start) || "";
+  const link = url ? `[${time}](${url})` : time;
+  const noteTarget = (source.notePath || "").replace(/\.md$/i, "");
+  const note = noteTarget ? `[[${noteTarget}|${source.title || noteTarget}]]` : "";
+  const values = {
+    text,
+    time,
+    url,
+    link,
+    speaker: source.speaker || "",
+    title: source.title || "",
+    note
+  };
+  const body = (template.trim() ? template : DEFAULT_QUOTE_TEMPLATE).replace(
+    /\{\{\s*(\w+)\s*\}\}/g,
+    (match, key) => key in values ? values[key] : match
+  );
+  return body.replace(/\\n/g, "\n");
+}
+
 // shared/platforms.mjs
 var SUPPORTED_PLATFORMS = [
   "youtube.com",
@@ -274,6 +1878,7 @@ var DEFAULT_SETTINGS = {
   attentionAssessmentEnabled: true,
   generateLearningArtifacts: false,
   paperStyle: false,
+  readerQuoteTemplate: DEFAULT_QUOTE_TEMPLATE,
   aiModel: "Gemini 3.1",
   customAiModels: [...DEFAULT_AI_MODELS],
   timeoutMinutes: 30,
@@ -3409,1585 +5014,6 @@ var {
   safeDump
 } = yaml;
 
-// utils/SafeExternalUrl.ts
-function safeExternalHttpUrl(value) {
-  if (typeof value !== "string") return void 0;
-  const candidate = value.trim();
-  if (!candidate || [...candidate].some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || code === 127;
-  }))
-    return void 0;
-  try {
-    const url = new URL(candidate);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return void 0;
-    if (url.username || url.password) return void 0;
-    return url.toString();
-  } catch {
-    return void 0;
-  }
-}
-function isExactHostOrSubdomain(hostname, domain) {
-  const host = hostname.toLowerCase().replace(/\.$/, "");
-  const base = domain.toLowerCase().replace(/\.$/, "");
-  return host === base || host.endsWith(`.${base}`);
-}
-var TRUSTED_REMOTE_IMAGE_DOMAINS = [
-  "ytimg.com",
-  "ggpht.com",
-  "hdslb.com",
-  "biliimg.com",
-  "douyinpic.com",
-  "byteimg.com",
-  "tiktokcdn.com",
-  "tiktokcdn-eu.com",
-  "tiktokcdn-us.com",
-  "byteoversea.com",
-  "ibytedtos.com",
-  "xhscdn.com"
-];
-function safeRemoteImageUrl(value) {
-  const normalized = safeExternalHttpUrl(value);
-  if (!normalized) return void 0;
-  const url = new URL(normalized);
-  if (url.protocol !== "https:" || url.port) return void 0;
-  if (!TRUSTED_REMOTE_IMAGE_DOMAINS.some((domain) => isExactHostOrSubdomain(url.hostname, domain))) {
-    return void 0;
-  }
-  return url.toString();
-}
-function safeInlineRasterDataUrl(value) {
-  if (typeof value !== "string") return void 0;
-  const candidate = value.trim();
-  if (!candidate || candidate.length > 2e6) return void 0;
-  return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\r\n]+$/i.test(candidate) ? candidate : void 0;
-}
-function safeManagedVaultImagePath(value, expectedRoot) {
-  if (typeof value !== "string" || typeof expectedRoot !== "string") return void 0;
-  const candidate = value.trim();
-  const root = expectedRoot.trim().replace(/\/+$/, "");
-  if (!candidate || !root || candidate.length > 1024 || candidate.startsWith("/") || /^[A-Za-z]:[\\/]/.test(candidate) || candidate.includes("\\") || ["|", "[", "]", "#", "^"].some((character) => candidate.includes(character)) || [...candidate].some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || code === 127;
-  })) {
-    return void 0;
-  }
-  if (!candidate.startsWith(`${root}/`)) return void 0;
-  const parts = candidate.split("/");
-  const rootParts = root.split("/");
-  if (rootParts.some((part) => !part || part === "." || part === "..") || rootParts[rootParts.length - 1] !== "_video-summary-assets") {
-    return void 0;
-  }
-  if (parts.some((part) => !part || part === "." || part === "..")) return void 0;
-  const marker = parts.lastIndexOf("_video-summary-assets");
-  if (marker !== rootParts.length - 1 || marker !== parts.length - 3) return void 0;
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/.test(parts[marker + 1] || "")) return void 0;
-  if (!/^[A-Za-z0-9._-]+\.(?:png|jpe?g)$/i.test(parts[parts.length - 1] || "")) return void 0;
-  return candidate;
-}
-function safeVaultRelativeMediaPath(value) {
-  if (typeof value !== "string") return void 0;
-  const candidate = value.trim();
-  if (!candidate || candidate.length > 1024 || candidate.startsWith("/") || /^[A-Za-z]:[\\/]/.test(candidate) || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(candidate) || candidate.includes("\\") || candidate.split("/").some((part) => !part || part === "." || part === "..") || [...candidate].some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || code === 127;
-  })) {
-    return void 0;
-  }
-  return candidate;
-}
-
-// core/ContentRouter.ts
-var CONTENT_ROUTER_CONTRACT_VERSION = "content-routing-v1";
-var LOCAL_ROUTE_SCORE_THRESHOLD = 0.52;
-var LOCAL_ROUTE_MARGIN_THRESHOLD = 0.08;
-var BACKEND_ROUTE_CONFIDENCE_THRESHOLD = 0.55;
-var ROUTABLE_TYPES = [
-  "course",
-  "interview",
-  "tutorial",
-  "news",
-  "meeting",
-  "review"
-];
-var VIDEO_CONTENT_TYPES = [...ROUTABLE_TYPES, "general"];
-var CHANNEL_WEIGHTS = {
-  title: { perCue: 0.13, cap: 0.26 },
-  author: { perCue: 0.07, cap: 0.07 },
-  transcript: { perCue: 0.09, cap: 0.27 },
-  chapter: { perCue: 0.12, cap: 0.24 }
-};
-var CUES = {
-  course: {
-    title: [
-      cue(/\b(?:course|lecture|class|seminar)\b|课程|講義|授業|セミナー/i, "\u8BFE\u7A0B\u6216\u8BB2\u6388\u5F62\u5F0F"),
-      cue(
-        /\b(?:lesson|module|week)\s*\d+\b|第\s*\d+\s*(?:课|講|回|章)|第[一二三四五六七八九十]+课/i,
-        "\u8FDE\u7EED\u8BFE\u6B21\u6216\u6A21\u5757\u7F16\u53F7"
-      ),
-      cue(/\bsyllabus\b|教学大纲|シラバス|学習目標/i, "\u6559\u5B66\u5927\u7EB2\u6216\u5B66\u4E60\u76EE\u6807")
-    ],
-    author: [
-      cue(/\b(?:academy|university|school|education)\b|大学|学院|教育|アカデミー/i, "\u6559\u80B2\u673A\u6784\u7F72\u540D")
-    ],
-    transcript: [
-      cue(
-        /\b(?:learning objectives?|by the end of (?:this )?lesson)\b|学习目标|本节课(?:将|要)|学習目標|この講義では/i,
-        "\u660E\u786E\u5B66\u4E60\u76EE\u6807"
-      ),
-      cue(
-        /\b(?:concept|theory|definition)\b|概念|理论|定义|概念|理論|定義/i,
-        "\u6982\u5FF5\u3001\u7406\u8BBA\u6216\u5B9A\u4E49\u8BB2\u89E3"
-      ),
-      cue(
-        /\b(?:exercise|assignment|recap|review questions?)\b|练习|作业|复习题|演習|課題|復習/i,
-        "\u7EC3\u4E60\u3001\u4F5C\u4E1A\u6216\u590D\u4E60\u5B89\u6392"
-      )
-    ],
-    chapter: [
-      cue(/\b(?:lesson|module|week|lecture)\s*\d+\b|第\s*\d+\s*(?:课|講|回|章)/i, "\u7AE0\u8282\u5448\u8BFE\u7A0B\u5E8F\u5217"),
-      cue(
-        /\b(?:objectives?|recap|exercise)\b|学习目标|复习|练习|学習目標|復習|演習/i,
-        "\u6559\u5B66\u578B\u7AE0\u8282"
-      )
-    ]
-  },
-  interview: {
-    title: [
-      cue(
-        /\b(?:interview|conversation|fireside chat)\b|访谈|采访|对谈|专访|インタビュー|対談/i,
-        "\u8BBF\u8C08\u6216\u5BF9\u8C08\u5F62\u5F0F"
-      ),
-      cue(/\b(?:with|featuring|guest)\b|嘉宾|做客|ゲスト|〜に聞く/i, "\u6807\u9898\u7A81\u51FA\u53D7\u8BBF\u8005\u6216\u5609\u5BBE")
-    ],
-    author: [
-      cue(/\b(?:podcast|talks?|dialogue)\b|播客|访谈|ポッドキャスト|トーク/i, "\u5BF9\u8BDD\u578B\u9891\u9053\u7F72\u540D")
-    ],
-    transcript: [
-      cue(
-        /\b(?:interviewer|host|guest|question|answer)\s*[:：]|主持人|嘉宾|采访者|提问[:：]|司会|ゲスト|質問[:：]/i,
-        "\u4E3B\u6301\u4EBA\u3001\u5609\u5BBE\u6216\u95EE\u7B54\u6807\u7B7E"
-      ),
-      cue(
-        /\b(?:let me ask|my next question|thanks for joining)\b|想请问|下一个问题|感谢.*(?:做客|接受采访)|お聞きしたい|次の質問/i,
-        "\u91C7\u8BBF\u5F0F\u63D0\u95EE\u8854\u63A5"
-      ),
-      cue(
-        /\b(?:in my experience|from my perspective)\b|我的经历|我的看法|経験から|私の考え/i,
-        "\u53D7\u8BBF\u8005\u4E2A\u4EBA\u89C2\u70B9\u6216\u7ECF\u5386"
-      )
-    ],
-    chapter: [
-      cue(/\b(?:q\s*&\s*a|question|conversation)\b|问答|提问|对谈|質疑応答|質問/i, "\u95EE\u7B54\u578B\u7AE0\u8282"),
-      cue(/\b(?:guest|career|experience)\b|嘉宾|经历|生涯|ゲスト|経験/i, "\u4EBA\u7269\u7ECF\u5386\u578B\u7AE0\u8282")
-    ]
-  },
-  tutorial: {
-    title: [
-      cue(
-        /\b(?:tutorial|how to|step[- ]by[- ]step|guide)\b|教程|如何|手把手|チュートリアル|やり方|方法/i,
-        "\u64CD\u4F5C\u6559\u7A0B\u6216\u6307\u5357\u5F62\u5F0F"
-      ),
-      cue(
-        /\b(?:from scratch|beginner'?s? guide)\b|从零开始|零基础|初心者|ゼロから/i,
-        "\u4ECE\u96F6\u6216\u65B0\u624B\u5BFC\u5411"
-      )
-    ],
-    author: [
-      cue(
-        /\b(?:developer|maker|workshop|lab)\b|开发者|工坊|实验室|開発|ワークショップ/i,
-        "\u5B9E\u4F5C\u578B\u9891\u9053\u7F72\u540D"
-      )
-    ],
-    transcript: [
-      cue(
-        /\b(?:prerequisite|you will need|requirements?)\b|准备工作|你需要|前提条件|必要なもの|事前準備/i,
-        "\u524D\u7F6E\u6761\u4EF6\u6216\u6750\u6599\u6E05\u5355"
-      ),
-      cue(
-        /\b(?:first|next|then|finally),?\s+(?:open|click|install|run|select|create|add)\b|首先.*(?:打开|点击|安装)|然后.*(?:运行|选择|创建)|まず.*(?:開く|クリック|インストール)|次に/i,
-        "\u8FDE\u7EED\u64CD\u4F5C\u6B65\u9AA4"
-      ),
-      cue(
-        /\b(?:verify|check that|troubleshoot|if .* fails?)\b|验证|检查是否|故障排除|如果.*失败|確認|トラブルシュート|うまくいかない/i,
-        "\u7ED3\u679C\u9A8C\u8BC1\u6216\u6545\u969C\u6392\u67E5"
-      )
-    ],
-    chapter: [
-      cue(
-        /\b(?:setup|installation|step)\s*\d*\b|安装|配置|步骤|セットアップ|インストール|手順/i,
-        "\u5B89\u88C5\u6216\u6B65\u9AA4\u7AE0\u8282"
-      ),
-      cue(
-        /\b(?:verify|test|troubleshoot|finish)\b|验证|测试|排错|確認|テスト|トラブル/i,
-        "\u9A8C\u8BC1\u6216\u6392\u9519\u7AE0\u8282"
-      )
-    ]
-  },
-  news: {
-    title: [
-      cue(
-        /\b(?:breaking|news|news update|report)\b|新闻|快讯|报道|ニュース|速報|報道/i,
-        "\u65B0\u95FB\u6216\u5FEB\u8BAF\u5F62\u5F0F"
-      ),
-      cue(
-        /\b(?:latest|today|live updates?)\b|最新|今日|突发|現地|きょう|ライブ更新/i,
-        "\u65F6\u6548\u6027\u66F4\u65B0\u63AA\u8F9E"
-      )
-    ],
-    author: [
-      cue(
-        /\b(?:news|times|post|press|broadcast)\b|新闻|日报|电视台|通讯社|新聞|放送|通信社/i,
-        "\u65B0\u95FB\u5A92\u4F53\u7F72\u540D"
-      )
-    ],
-    transcript: [
-      cue(
-        /\b(?:according to|officials? said|in a statement)\b|据.*(?:称|表示)|官方表示|声明称|によると|発表しました/i,
-        "\u6765\u6E90\u5F52\u56E0\u6216\u5B98\u65B9\u58F0\u660E"
-      ),
-      cue(
-        /\b(?:reporting from|our correspondent|at \d{1,2}(?::\d{2})?\s*(?:am|pm))\b|记者.*报道|当地时间|現地から|記者/i,
-        "\u8BB0\u8005\u3001\u5730\u70B9\u6216\u65F6\u95F4\u7EBF\u7D22"
-      ),
-      cue(
-        /\b(?:developing story|we will continue to update)\b|持续更新|后续报道|続報|随時更新/i,
-        "\u6301\u7EED\u4E8B\u4EF6\u66F4\u65B0"
-      )
-    ],
-    chapter: [
-      cue(
-        /\b(?:timeline|what happened|latest)\b|事件经过|最新进展|時系列|何が起きた|最新情報/i,
-        "\u4E8B\u4EF6\u65F6\u95F4\u7EBF\u7AE0\u8282"
-      ),
-      cue(
-        /\b(?:reaction|impact|what next)\b|各方回应|影响|后续|反応|影響|今後/i,
-        "\u56DE\u5E94\u3001\u5F71\u54CD\u6216\u540E\u7EED\u7AE0\u8282"
-      )
-    ]
-  },
-  meeting: {
-    title: [
-      cue(
-        /\b(?:meeting|standup|sync|retrospective|town hall)\b|会议|例会|复盘会|全员会|会議|ミーティング|振り返り/i,
-        "\u4F1A\u8BAE\u6216\u540C\u6B65\u5F62\u5F0F"
-      ),
-      cue(/\b(?:minutes|agenda)\b|会议纪要|议程|会議録|議事録|アジェンダ/i, "\u8BAE\u7A0B\u6216\u4F1A\u8BAE\u7EAA\u8981")
-    ],
-    author: [
-      cue(
-        /\b(?:team|project|working group)\b|团队|项目组|工作组|チーム|プロジェクト/i,
-        "\u56E2\u961F\u6216\u9879\u76EE\u7EC4\u7F72\u540D"
-      )
-    ],
-    transcript: [
-      cue(
-        /\b(?:agenda|today'?s topics?)\b|今天的议程|本次议题|本日の議題|アジェンダ/i,
-        "\u660E\u786E\u4F1A\u8BAE\u8BAE\u7A0B"
-      ),
-      cue(
-        /\b(?:we decided|decision|approved)\b|决定|决议|通过|合意しました|決定|承認/i,
-        "\u51B3\u7B56\u6216\u51B3\u8BAE\u8868\u8FF0"
-      ),
-      cue(
-        /\b(?:action item|owner|due date|deadline)\b|行动项|负责人|截止日期|待办|アクションアイテム|担当|期限/i,
-        "\u884C\u52A8\u9879\u3001\u8D1F\u8D23\u4EBA\u6216\u671F\u9650"
-      )
-    ],
-    chapter: [
-      cue(
-        /\b(?:agenda|discussion|decision)\b|议程|讨论|决策|議題|議論|決定/i,
-        "\u8BAE\u7A0B\u3001\u8BA8\u8BBA\u6216\u51B3\u7B56\u7AE0\u8282"
-      ),
-      cue(
-        /\b(?:action items?|next steps?)\b|行动项|下一步|待办|アクション|次のステップ/i,
-        "\u884C\u52A8\u9879\u6216\u4E0B\u4E00\u6B65\u7AE0\u8282"
-      )
-    ]
-  },
-  review: {
-    title: [
-      cue(
-        /\b(?:review|hands[- ]on|unboxing|tested)\b|测评|评测|开箱|体验|レビュー|実機|使ってみた/i,
-        "\u8BC4\u6D4B\u3001\u4F53\u9A8C\u6216\u5F00\u7BB1\u5F62\u5F0F"
-      ),
-      cue(/\b(?:vs\.?|versus|comparison)\b|对比|比较|横评|比較|どっち/i, "\u5BF9\u6BD4\u8BC4\u6D4B\u5F62\u5F0F")
-    ],
-    author: [
-      cue(/\b(?:reviews?|testing|tech)\b|测评|评测|科技|レビュー|検証|テック/i, "\u8BC4\u6D4B\u578B\u9891\u9053\u7F72\u540D")
-    ],
-    transcript: [
-      cue(
-        /\b(?:pros? and cons?|advantages? and disadvantages?)\b|优点|缺点|利弊|メリット|デメリット|長所|短所/i,
-        "\u4F18\u7F3A\u70B9\u6216\u6743\u8861"
-      ),
-      cue(
-        /\b(?:price|value|specifications?|benchmark)\b|价格|性价比|参数|跑分|価格|コスパ|仕様|ベンチマーク/i,
-        "\u4EF7\u683C\u3001\u89C4\u683C\u6216\u6D4B\u8BD5\u6570\u636E"
-      ),
-      cue(
-        /\b(?:recommend|worth (?:it|buying)|verdict)\b|推荐|值不值得|购买建议|结论|おすすめ|買うべき|結論/i,
-        "\u9002\u7528\u4EBA\u7FA4\u6216\u8D2D\u4E70\u7ED3\u8BBA"
-      )
-    ],
-    chapter: [
-      cue(
-        /\b(?:design|performance|battery|camera)\b|外观|性能|续航|相机|デザイン|性能|バッテリー|カメラ/i,
-        "\u4EA7\u54C1\u7EF4\u5EA6\u7AE0\u8282"
-      ),
-      cue(
-        /\b(?:pros?|cons?|verdict|comparison)\b|优缺点|结论|对比|長所|短所|結論|比較/i,
-        "\u4F18\u7F3A\u70B9\u3001\u7ED3\u8BBA\u6216\u5BF9\u6BD4\u7AE0\u8282"
-      )
-    ]
-  }
-};
-var SECTION_DEFINITIONS = {
-  course: [
-    section("learning_goals", "\u5B66\u4E60\u76EE\u6807", "\u5217\u51FA\u5B66\u5B8C\u540E\u5E94\u80FD\u89E3\u91CA\u6216\u5B8C\u6210\u7684\u4E8B\u9879\u3002", true, "recommended"),
-    section("concept_map", "\u6982\u5FF5\u5730\u56FE", "\u7EC4\u7EC7\u6838\u5FC3\u6982\u5FF5\u3001\u5B9A\u4E49\u53CA\u5176\u5173\u7CFB\u3002", true, "required"),
-    section("lesson_outline", "\u8BFE\u7A0B\u7ED3\u6784", "\u6309\u8BB2\u6388\u987A\u5E8F\u8FD8\u539F\u7AE0\u8282\u8109\u7EDC\u3002", true, "required"),
-    section("key_explanations", "\u91CD\u70B9\u8BB2\u89E3", "\u63D0\u70BC\u5173\u952E\u89E3\u91CA\u3001\u4F8B\u5B50\u4E0E\u63A8\u5BFC\u3002", true, "required"),
-    section(
-      "practice_and_review",
-      "\u7EC3\u4E60\u4E0E\u590D\u4E60",
-      "\u4FDD\u7559\u7EC3\u4E60\u3001\u4F5C\u4E1A\u548C\u590D\u4E60\u63D0\u793A\u3002",
-      false,
-      "recommended"
-    )
-  ],
-  interview: [
-    section(
-      "participants_and_context",
-      "\u4EBA\u7269\u4E0E\u8BED\u5883",
-      "\u8BF4\u660E\u4E3B\u6301\u4EBA\u3001\u53D7\u8BBF\u8005\u53CA\u8BBF\u8C08\u80CC\u666F\u3002",
-      true,
-      "recommended"
-    ),
-    section("themes", "\u5BF9\u8C08\u4E3B\u9898", "\u5F52\u7EB3\u5B9E\u9645\u8BA8\u8BBA\u7684\u4E3B\u9898\uFF0C\u4E0D\u628A\u95EE\u9898\u5F53\u4F5C\u56DE\u7B54\u3002", true, "required"),
-    section("viewpoints_by_speaker", "\u4EBA\u7269\u89C2\u70B9", "\u6309\u8BF4\u8BDD\u8005\u5206\u79BB\u89C2\u70B9\u548C\u7ECF\u5386\u3002", true, "required"),
-    section("notable_exchanges", "\u5173\u952E\u95EE\u7B54", "\u4FDD\u7559\u91CD\u8981\u63D0\u95EE\u3001\u56DE\u7B54\u53CA\u4E0A\u4E0B\u6587\u3002", true, "required"),
-    section("open_questions", "\u672A\u51B3\u95EE\u9898", "\u8BB0\u5F55\u56DE\u907F\u3001\u5206\u6B67\u6216\u4ECD\u672A\u56DE\u7B54\u7684\u95EE\u9898\u3002", false, "recommended")
-  ],
-  tutorial: [
-    section(
-      "outcome_and_prerequisites",
-      "\u76EE\u6807\u4E0E\u524D\u7F6E\u6761\u4EF6",
-      "\u8BF4\u660E\u6700\u7EC8\u6210\u679C\u3001\u73AF\u5883\u3001\u6750\u6599\u548C\u5047\u8BBE\u3002",
-      true,
-      "recommended"
-    ),
-    section(
-      "materials_and_setup",
-      "\u51C6\u5907\u4E0E\u914D\u7F6E",
-      "\u5217\u51FA\u5DE5\u5177\u3001\u7248\u672C\u3001\u8F93\u5165\u548C\u521D\u59CB\u8BBE\u7F6E\u3002",
-      true,
-      "recommended"
-    ),
-    section(
-      "ordered_steps",
-      "\u64CD\u4F5C\u6B65\u9AA4",
-      "\u6309\u987A\u5E8F\u5199\u51FA\u53EF\u590D\u73B0\u6B65\u9AA4\uFF0C\u4E0D\u8865\u9020\u7F3A\u5931\u64CD\u4F5C\u3002",
-      true,
-      "required"
-    ),
-    section(
-      "verification_and_troubleshooting",
-      "\u9A8C\u8BC1\u4E0E\u6392\u9519",
-      "\u8BF4\u660E\u5982\u4F55\u9A8C\u8BC1\u7ED3\u679C\u53CA\u5DF2\u63D0\u5230\u7684\u6545\u969C\u5904\u7406\u3002",
-      true,
-      "required"
-    ),
-    section("final_checklist", "\u5B8C\u6210\u68C0\u67E5\u8868", "\u751F\u6210\u53EF\u6267\u884C\u7684\u6536\u5C3E\u68C0\u67E5\u9879\u3002", false, "recommended")
-  ],
-  news: [
-    section(
-      "event_snapshot",
-      "\u4E8B\u4EF6\u6982\u89C8",
-      "\u7528\u4EBA\u7269\u3001\u4E8B\u4EF6\u3001\u65F6\u95F4\u3001\u5730\u70B9\u6982\u62EC\u5DF2\u786E\u8BA4\u4FE1\u606F\u3002",
-      true,
-      "required"
-    ),
-    section("timeline", "\u65F6\u95F4\u7EBF", "\u533A\u5206\u4E8B\u4EF6\u53D1\u751F\u65F6\u95F4\u4E0E\u62A5\u9053\u53D1\u5E03\u65F6\u95F4\u3002", true, "required"),
-    section(
-      "actors_and_attribution",
-      "\u76F8\u5173\u65B9\u4E0E\u4FE1\u6E90",
-      "\u9010\u9879\u4FDD\u7559\u53D1\u8A00\u4EBA\u3001\u673A\u6784\u53CA\u5F52\u56E0\u3002",
-      true,
-      "required"
-    ),
-    section(
-      "evidence_and_uncertainty",
-      "\u8BC1\u636E\u4E0E\u4E0D\u786E\u5B9A\u6027",
-      "\u5206\u5F00\u5DF2\u786E\u8BA4\u4E8B\u5B9E\u3001\u4E3B\u5F20\u548C\u672A\u77E5\u4E8B\u9879\u3002",
-      true,
-      "required"
-    ),
-    section(
-      "implications_and_follow_up",
-      "\u5F71\u54CD\u4E0E\u540E\u7EED",
-      "\u8BF4\u660E\u62A5\u9053\u63D0\u51FA\u7684\u5F71\u54CD\u548C\u5F85\u9A8C\u8BC1\u8FDB\u5C55\u3002",
-      false,
-      "recommended"
-    )
-  ],
-  meeting: [
-    section("meeting_context", "\u4F1A\u8BAE\u80CC\u666F", "\u8BB0\u5F55\u4F1A\u8BAE\u76EE\u6807\u3001\u53C2\u4E0E\u8005\u548C\u8BAE\u7A0B\u8303\u56F4\u3002", true, "recommended"),
-    section("decisions", "\u5DF2\u5B9A\u4E8B\u9879", "\u53EA\u6536\u5F55\u660E\u786E\u5F62\u6210\u7684\u51B3\u5B9A\u548C\u6279\u51C6\u3002", true, "required"),
-    section("action_items", "\u884C\u52A8\u9879", "\u4EE5\u4E8B\u9879\u3001\u8D1F\u8D23\u4EBA\u3001\u671F\u9650\u548C\u72B6\u6001\u7EC4\u7EC7\u5F85\u529E\u3002", true, "required"),
-    section("discussion_summary", "\u8BA8\u8BBA\u6458\u8981", "\u6309\u8BAE\u9898\u6982\u62EC\u8BBA\u70B9\u3001\u4F9D\u636E\u548C\u5206\u6B67\u3002", true, "required"),
-    section(
-      "open_issues_and_next_meeting",
-      "\u672A\u51B3\u4E8B\u9879\u4E0E\u4E0B\u6B21\u4F1A\u8BAE",
-      "\u8BB0\u5F55\u963B\u585E\u3001\u5F85\u786E\u8BA4\u9879\u548C\u540E\u7EED\u5B89\u6392\u3002",
-      false,
-      "recommended"
-    )
-  ],
-  review: [
-    section(
-      "review_scope_and_criteria",
-      "\u8BC4\u6D4B\u8303\u56F4\u4E0E\u6807\u51C6",
-      "\u8BF4\u660E\u8BC4\u6D4B\u5BF9\u8C61\u3001\u7248\u672C\u3001\u6761\u4EF6\u548C\u8BC4\u4EF7\u6807\u51C6\u3002",
-      true,
-      "recommended"
-    ),
-    section(
-      "product_or_subject_facts",
-      "\u5BF9\u8C61\u4E8B\u5B9E",
-      "\u5206\u5F00\u89C4\u683C\u4E8B\u5B9E\u3001\u4F53\u9A8C\u5224\u65AD\u548C\u5382\u5546\u4E3B\u5F20\u3002",
-      true,
-      "required"
-    ),
-    section("strengths", "\u4F18\u52BF", "\u8BB0\u5F55\u6709\u5177\u4F53\u4F9D\u636E\u7684\u4F18\u70B9\u3002", true, "required"),
-    section(
-      "weaknesses_and_tradeoffs",
-      "\u4E0D\u8DB3\u4E0E\u6743\u8861",
-      "\u8BB0\u5F55\u9650\u5236\u3001\u4EE3\u4EF7\u548C\u9002\u7528\u8FB9\u754C\u3002",
-      true,
-      "required"
-    ),
-    section(
-      "verdict_and_fit",
-      "\u7ED3\u8BBA\u4E0E\u9002\u7528\u4EBA\u7FA4",
-      "\u7ED9\u51FA\u6709\u6761\u4EF6\u7684\u7ED3\u8BBA\uFF0C\u4E0D\u628A\u4E2A\u4EBA\u504F\u597D\u666E\u904D\u5316\u3002",
-      true,
-      "required"
-    )
-  ],
-  general: [
-    section("overview", "\u5185\u5BB9\u6982\u89C8", "\u6982\u62EC\u4E3B\u9898\u3001\u76EE\u7684\u548C\u8303\u56F4\u3002", true, "recommended"),
-    section("key_points", "\u5173\u952E\u5185\u5BB9", "\u6309\u903B\u8F91\u7EC4\u7EC7\u4E3B\u8981\u4FE1\u606F\u3002", true, "required"),
-    section(
-      "evidence_and_caveats",
-      "\u8BC1\u636E\u4E0E\u9650\u5236",
-      "\u6807\u6CE8\u53EF\u6838\u5BF9\u4F9D\u636E\u3001\u63A8\u65AD\u548C\u7F3A\u5931\u4FE1\u606F\u3002",
-      true,
-      "required"
-    ),
-    section("takeaways", "\u53EF\u7528\u7ED3\u8BBA", "\u63D0\u70BC\u540E\u7EED\u53EF\u590D\u7528\u7684\u7ED3\u8BBA\u6216\u884C\u52A8\u3002", false, "recommended")
-  ]
-};
-var PROFILE_OBJECTIVES = {
-  course: "\u628A\u7CFB\u7EDF\u8BB2\u6388\u8F6C\u6210\u53EF\u5B66\u4E60\u3001\u53EF\u590D\u4E60\u5E76\u53EF\u56DE\u770B\u8BC1\u636E\u7684\u8BFE\u7A0B\u7B14\u8BB0\u3002",
-  interview: "\u4FDD\u7559\u4EBA\u7269\u5F52\u5C5E\u548C\u95EE\u7B54\u8BED\u5883\uFF0C\u907F\u514D\u628A\u4E3B\u6301\u4EBA\u7684\u95EE\u9898\u8BEF\u5199\u6210\u5609\u5BBE\u89C2\u70B9\u3002",
-  tutorial: "\u751F\u6210\u53EF\u590D\u73B0\u3001\u53EF\u9A8C\u8BC1\u4E14\u4E0D\u8865\u9020\u7F3A\u5931\u6B65\u9AA4\u7684\u64CD\u4F5C\u8BF4\u660E\u3002",
-  news: "\u751F\u6210\u5E26\u65F6\u95F4\u7EBF\u3001\u4FE1\u6E90\u5F52\u56E0\u548C\u4E0D\u786E\u5B9A\u6027\u8FB9\u754C\u7684\u4E8B\u4EF6\u8BB0\u5F55\u3002",
-  meeting: "\u628A\u4F1A\u8BAE\u8F6C\u6210\u51B3\u7B56\u3001\u884C\u52A8\u9879\u3001\u8BA8\u8BBA\u4F9D\u636E\u548C\u672A\u51B3\u4E8B\u9879\u3002",
-  review: "\u533A\u5206\u5BF9\u8C61\u4E8B\u5B9E\u3001\u4F53\u9A8C\u5224\u65AD\u3001\u6743\u8861\u4E0E\u9002\u7528\u4EBA\u7FA4\u3002",
-  general: "\u5728\u7C7B\u578B\u8BC1\u636E\u4E0D\u8DB3\u65F6\u751F\u6210\u4E2D\u6027\u7684\u7ED3\u6784\u5316\u6458\u8981\uFF0C\u4E0D\u5047\u88C5\u5DF2\u8BC6\u522B\u7279\u5B9A\u4F53\u88C1\u3002"
-};
-var CONTENT_PROMPT_PROFILES = Object.fromEntries(
-  VIDEO_CONTENT_TYPES.map((type2) => {
-    const sections = SECTION_DEFINITIONS[type2];
-    return [
-      type2,
-      {
-        id: `video-content-${type2}-v1`,
-        version: 1,
-        content_type: type2,
-        objective: PROFILE_OBJECTIVES[type2],
-        sections,
-        output_schema: buildOutputSchema(type2, sections),
-        guardrails: [
-          "\u53EA\u4F7F\u7528\u6807\u9898\u3001\u4F5C\u8005\u3001\u7AE0\u8282\u3001\u8F6C\u5F55\u548C\u7ED3\u6784\u5316\u8BC1\u636E\u4E2D\u53EF\u89C1\u7684\u4FE1\u606F\u3002",
-          "\u5173\u952E\u8BCD\u547D\u4E2D\u53EA\u662F\u5F31\u4FE1\u53F7\uFF0C\u4E0D\u80FD\u5355\u72EC\u5F53\u4F5C\u5185\u5BB9\u7C7B\u578B\u6216\u4E8B\u5B9E\u8BC1\u660E\u3002",
-          "\u4E8B\u5B9E\u6027\u7ED3\u8BBA\u5E94\u5F15\u7528 evidence_segment_ids\uFF1B\u6CA1\u6709\u8BC1\u636E\u65F6\u660E\u786E\u6807\u6CE8\u672A\u77E5\u3002",
-          "\u4E0D\u5F97\u4F2A\u9020\u8BF4\u8BDD\u8005\u3001\u65F6\u95F4\u70B9\u3001\u64CD\u4F5C\u6B65\u9AA4\u3001\u51B3\u5B9A\u3001\u4FE1\u6E90\u6216\u8BC4\u6D4B\u6570\u636E\u3002"
-        ]
-      }
-    ];
-  })
-);
-function getContentPromptProfile(type2) {
-  return cloneProfile(CONTENT_PROMPT_PROFILES[type2]);
-}
-function resolveContentRouting(input) {
-  const requested = normalizeRequestedType(input.requestedType);
-  if (requested && requested !== "auto") {
-    return decision(requested, 1, "manual", [
-      {
-        signal: "request",
-        message: `\u7528\u6237\u660E\u786E\u9009\u62E9 ${requested}\uFF1B\u624B\u52A8\u9009\u62E9\u8986\u76D6\u540E\u7AEF\u548C\u81EA\u52A8\u5224\u65AD\u3002`
-      }
-    ]);
-  }
-  const rejectedBackendReasons = [];
-  const backendType = normalizeContentType(input.backendType);
-  if (backendType) {
-    const reportedConfidence = normalizeConfidence(input.backendConfidence);
-    if (reportedConfidence !== void 0 && reportedConfidence >= BACKEND_ROUTE_CONFIDENCE_THRESHOLD) {
-      const backendReasons = normalizeBackendReasons(input.backendReasons);
-      return decision(backendType, reportedConfidence, "backend", [
-        {
-          signal: "backend",
-          message: `\u540E\u7AEF\u8FD4\u56DE\u53D7\u652F\u6301\u7684\u7ED3\u6784\u5316 content_type=${backendType}\u3002`
-        },
-        ...backendReasons
-      ]);
-    }
-    rejectedBackendReasons.push(
-      reportedConfidence === void 0 ? {
-        signal: "backend",
-        message: `\u540E\u7AEF content_type=${backendType} \u6CA1\u6709\u663E\u5F0F\u7F6E\u4FE1\u5EA6\uFF0C\u4E0D\u80FD\u8986\u76D6\u672C\u5730\u53EF\u89C1\u8BC1\u636E\u3002`
-      } : {
-        signal: "backend",
-        message: `\u540E\u7AEF content_type=${backendType} \u7684\u663E\u5F0F\u7F6E\u4FE1\u5EA6 ${formatConfidence(
-          reportedConfidence
-        )} \u4F4E\u4E8E\u91C7\u7528\u9608\u503C\uFF0C\u7EE7\u7EED\u4F7F\u7528\u672C\u5730\u53EF\u89C1\u8BC1\u636E\u5224\u65AD\u3002`
-      }
-    );
-  } else if (hasValue(input.backendType)) {
-    rejectedBackendReasons.push({
-      signal: "backend",
-      message: "\u540E\u7AEF content_type \u4E0D\u5728\u53D7\u652F\u6301\u679A\u4E3E\u4E2D\uFF0C\u672A\u91C7\u7528\u3002"
-    });
-  }
-  if (input.autoRoute === false) {
-    return decision("general", 1, "fallback", [
-      ...rejectedBackendReasons,
-      {
-        signal: "fallback",
-        message: "\u81EA\u52A8\u8DEF\u7531\u5DF2\u5173\u95ED\u4E14\u6CA1\u6709\u6709\u6548\u624B\u52A8\u7C7B\u578B\uFF0C\u4F7F\u7528 general\u3002"
-      }
-    ]);
-  }
-  const local = inferLocalRoute(input);
-  return {
-    ...local,
-    reasons: [...rejectedBackendReasons, ...local.reasons]
-  };
-}
-var resolveContentRoute = resolveContentRouting;
-function buildContentRoutingPromptContract(requestedType = "auto", autoRoute = true) {
-  const normalized = normalizeRequestedType(requestedType) || "auto";
-  const selected = normalized !== "auto" ? [getContentPromptProfile(normalized)] : VIDEO_CONTENT_TYPES.map(getContentPromptProfile);
-  return {
-    contract_version: CONTENT_ROUTER_CONTRACT_VERSION,
-    requested_type: normalized,
-    auto_route: autoRoute,
-    allowed_types: [...VIDEO_CONTENT_TYPES],
-    fallback_type: "general",
-    minimum_local_score: LOCAL_ROUTE_SCORE_THRESHOLD,
-    minimum_margin: LOCAL_ROUTE_MARGIN_THRESHOLD,
-    policies: [
-      "\u624B\u52A8 requested_type \u6C38\u8FDC\u8986\u76D6\u81EA\u52A8\u8DEF\u7531\u548C\u540E\u7AEF\u9884\u6D4B\u3002",
-      "\u81EA\u52A8\u5224\u65AD\u5FC5\u987B\u7EFC\u5408\u81F3\u5C11\u4E24\u7C7B\u53EF\u89C1\u4FE1\u53F7\uFF1B\u5355\u4E2A\u5173\u952E\u8BCD\u4E0D\u80FD\u51B3\u5B9A\u7C7B\u578B\u3002",
-      "\u6700\u9AD8\u5019\u9009\u5206\u6216\u9886\u5148\u5DEE\u4E0D\u8DB3\u65F6\u5FC5\u987B\u56DE\u9000 general\u3002",
-      "\u8FD4\u56DE\u7684 content_type \u5FC5\u987B\u4E0E\u6240\u9009 prompt profile \u548C sections schema \u4E00\u81F4\u3002"
-    ],
-    profiles: selected
-  };
-}
-function inferLocalRoute(input) {
-  const title = normalizeText(input.title);
-  const author = normalizeText(input.author);
-  const transcript = normalizeText(input.transcript).slice(0, 5e4);
-  const chapters = normalizeChapters(input.chapters);
-  const chapterText = chapters.join("\n").slice(0, 2e4);
-  const candidates = ROUTABLE_TYPES.map(
-    (type2) => scoreCandidate(type2, { title, author, transcript, chapterText, chapters })
-  ).sort((left, right) => right.score - left.score || left.type.localeCompare(right.type));
-  const top = candidates[0];
-  const second = candidates[1];
-  const margin = top.score - second.score;
-  const signalCount = new Set(
-    top.reasons.map((reason) => reason.signal).filter((signal) => !["fallback", "request", "backend"].includes(signal))
-  ).size;
-  const candidateScores = Object.fromEntries(
-    candidates.map((candidate) => [candidate.type, round(candidate.score)])
-  );
-  const accepted = top.score >= LOCAL_ROUTE_SCORE_THRESHOLD && margin >= LOCAL_ROUTE_MARGIN_THRESHOLD && signalCount >= 2;
-  if (accepted) {
-    const confidence2 = clamp(
-      0.5 + top.score * 0.35 + Math.min(0.1, margin * 0.25) + Math.min(0.05, Math.max(0, signalCount - 2) * 0.025),
-      0.6,
-      0.96
-    );
-    return decision(
-      top.type,
-      confidence2,
-      "local",
-      [
-        ...top.reasons,
-        {
-          signal: "structure",
-          message: `\u7EFC\u5408 ${signalCount} \u7C7B\u53EF\u89C1\u4FE1\u53F7\uFF1B\u9886\u5148\u4E0B\u4E00\u5019\u9009 ${round(margin)}\u3002`
-        }
-      ],
-      candidateScores
-    );
-  }
-  const fallbackReasons = [];
-  if (top.score === 0) {
-    fallbackReasons.push({
-      signal: "fallback",
-      message: "\u6807\u9898\u3001\u4F5C\u8005\u3001\u8F6C\u5F55\u548C\u7AE0\u8282\u4E2D\u6CA1\u6709\u8DB3\u591F\u7684\u4F53\u88C1\u7EBF\u7D22\u3002"
-    });
-  } else {
-    fallbackReasons.push(...top.reasons.slice(0, 4));
-    fallbackReasons.push({
-      signal: "fallback",
-      message: top.score < LOCAL_ROUTE_SCORE_THRESHOLD ? `\u6700\u9AD8\u5019\u9009 ${top.type} \u7684\u7EFC\u5408\u5206 ${round(top.score)} \u4F4E\u4E8E\u9608\u503C\uFF0C\u5173\u952E\u8BCD\u4E0D\u5355\u72EC\u51B3\u5B9A\u7C7B\u578B\u3002` : margin < LOCAL_ROUTE_MARGIN_THRESHOLD ? `${top.type} \u4E0E ${second.type} \u7684\u5206\u5DEE\u4EC5 ${round(margin)}\uFF0C\u5B58\u5728\u6B67\u4E49\u3002` : `\u6700\u9AD8\u5019\u9009\u53EA\u8986\u76D6 ${signalCount} \u7C7B\u4FE1\u53F7\uFF0C\u8BC1\u636E\u6765\u6E90\u4E0D\u8DB3\u3002`
-    });
-  }
-  const confidence = clamp(
-    0.45 + Math.max(0, LOCAL_ROUTE_SCORE_THRESHOLD - top.score) * 0.35 + Math.min(0.15, Math.max(0, margin) * 0.3),
-    0.45,
-    0.75
-  );
-  return decision("general", confidence, "fallback", fallbackReasons, candidateScores);
-}
-function scoreCandidate(type2, evidence) {
-  const rules = CUES[type2];
-  const reasons = [];
-  let score = 0;
-  for (const channel of ["title", "author", "transcript", "chapter"]) {
-    const text = channel === "chapter" ? evidence.chapterText : evidence[channel];
-    const cues = rules[channel] || [];
-    const matches = cues.filter((item) => item.pattern.test(text));
-    if (matches.length === 0) continue;
-    const weights = CHANNEL_WEIGHTS[channel];
-    const contribution = Math.min(weights.cap, matches.length * weights.perCue);
-    score += contribution;
-    reasons.push({
-      signal: channel,
-      message: `${signalLabel(channel)}\u63D0\u4F9B${matches.map((match) => `\u201C${match.label}\u201D`).join("\u3001")}\u7EBF\u7D22\u3002`,
-      weight: round(contribution)
-    });
-  }
-  const structural = structuralSignals(type2, evidence.transcript, evidence.chapters);
-  score += structural.score;
-  reasons.push(...structural.reasons);
-  return {
-    type: type2,
-    score: round(clamp(score, 0, 0.95)),
-    reasons
-  };
-}
-function structuralSignals(type2, transcript, chapters) {
-  const reasons = [];
-  let score = 0;
-  const add = (condition, weight, message) => {
-    if (!condition) return;
-    score += weight;
-    reasons.push({ signal: "structure", message, weight });
-  };
-  const sequentialChapters = chapters.filter(
-    (chapter) => /(?:\b(?:lesson|module|step|part)\s*\d+\b|第\s*\d+\s*(?:课|講|回|章)|步骤\s*\d+|手順\s*\d+)/i.test(
-      chapter
-    )
-  ).length;
-  if (type2 === "course") {
-    add(chapters.length >= 3 && sequentialChapters >= 2, 0.16, "\u591A\u4E2A\u8FDE\u7EED\u8BFE\u6B21/\u6A21\u5757\u5F62\u6210\u6559\u5B66\u5E8F\u5217\u3002");
-    add(
-      countMatches(
-        transcript,
-        /(?:学习目标|练习|复习|learning objective|exercise|recap|学習目標|演習|復習)/gi
-      ) >= 3,
-      0.12,
-      "\u8F6C\u5F55\u540C\u65F6\u5305\u542B\u76EE\u6807\u3001\u8BB2\u89E3\u548C\u7EC3\u4E60\u5F0F\u6559\u5B66\u7ED3\u6784\u3002"
-    );
-  }
-  if (type2 === "interview") {
-    add(
-      countMatches(
-        transcript,
-        /(?:^|\n)\s*(?:q|a|host|guest|interviewer|主持人|嘉宾|采访者|司会|ゲスト)\s*[:：]/gim
-      ) >= 4,
-      0.18,
-      "\u8F6C\u5F55\u5B58\u5728\u591A\u8F6E\u3001\u53EF\u533A\u5206\u89D2\u8272\u7684\u95EE\u7B54\u7ED3\u6784\u3002"
-    );
-    add(
-      countMatches(transcript, /[?？]\s*(?:\n|$)/gm) >= 3 && countMatches(transcript, /(?:我|私|my|we|我们|私たち)/gi) >= 3,
-      0.1,
-      "\u591A\u8F6E\u95EE\u9898\u4E0E\u7B2C\u4E00\u4EBA\u79F0\u56DE\u7B54\u5171\u540C\u51FA\u73B0\u3002"
-    );
-  }
-  if (type2 === "tutorial") {
-    add(
-      countMatches(
-        transcript,
-        /(?:first|next|then|finally|首先|接下来|然后|最后|まず|次に|それから|最後に)/gi
-      ) >= 3,
-      0.16,
-      "\u8F6C\u5F55\u5177\u6709\u81F3\u5C11\u4E09\u6BB5\u8FDE\u7EED\u64CD\u4F5C\u987A\u5E8F\u3002"
-    );
-    add(chapters.length >= 3 && sequentialChapters >= 2, 0.14, "\u7AE0\u8282\u5F62\u6210\u8FDE\u7EED\u64CD\u4F5C\u6B65\u9AA4\u3002");
-  }
-  if (type2 === "news") {
-    add(
-      countMatches(
-        transcript,
-        /(?:according to|said in a statement|reported by|据.+表示|记者报道|によると|発表しました)/gi
-      ) >= 2,
-      0.15,
-      "\u8F6C\u5F55\u5BF9\u591A\u4E2A\u9648\u8FF0\u8FDB\u884C\u4E86\u4FE1\u6E90\u5F52\u56E0\u3002"
-    );
-    add(
-      countMatches(
-        transcript,
-        /(?:\b\d{1,2}:\d{2}\b|\b20\d{2}[-/年]\d{1,2}|当地时间|現地時間|today|yesterday|今日|昨日)/gi
-      ) >= 2,
-      0.1,
-      "\u5305\u542B\u591A\u4E2A\u660E\u786E\u65E5\u671F\u6216\u4E8B\u4EF6\u65F6\u95F4\u7EBF\u7D22\u3002"
-    );
-  }
-  if (type2 === "meeting") {
-    add(
-      countMatches(
-        transcript,
-        /(?:action item|owner|deadline|行动项|负责人|截止|アクションアイテム|担当|期限)/gi
-      ) >= 3,
-      0.18,
-      "\u591A\u9879\u884C\u52A8\u9879\u540C\u65F6\u5E26\u6709\u8D1F\u8D23\u4EBA\u6216\u671F\u9650\u7ED3\u6784\u3002"
-    );
-    add(
-      chapters.some((chapter) => /(?:decision|决定|決定)/i.test(chapter)) && chapters.some((chapter) => /(?:action|next|行动|下一步|アクション|次)/i.test(chapter)),
-      0.12,
-      "\u7AE0\u8282\u540C\u65F6\u533A\u5206\u51B3\u7B56\u4E0E\u540E\u7EED\u884C\u52A8\u3002"
-    );
-  }
-  if (type2 === "review") {
-    add(
-      countMatches(
-        transcript,
-        /(?:pros?|cons?|advantage|disadvantage|优点|缺点|优势|不足|メリット|デメリット|長所|短所)/gi
-      ) >= 3,
-      0.16,
-      "\u8F6C\u5F55\u4ECE\u591A\u4E2A\u89D2\u5EA6\u6210\u5BF9\u8BA8\u8BBA\u4F18\u70B9\u4E0E\u9650\u5236\u3002"
-    );
-    add(
-      chapters.length >= 3 && chapters.filter(
-        (chapter) => /(?:design|performance|price|verdict|外观|性能|价格|结论|デザイン|性能|価格|結論)/i.test(
-          chapter
-        )
-      ).length >= 2,
-      0.12,
-      "\u7AE0\u8282\u6309\u8BC4\u6D4B\u7EF4\u5EA6\u7EC4\u7EC7\u5E76\u5305\u542B\u7ED3\u8BBA\u3002"
-    );
-  }
-  return { score: round(Math.min(score, 0.3)), reasons };
-}
-function decision(type2, confidence, source, reasons, candidateScores) {
-  return {
-    type: type2,
-    confidence: round(clamp(confidence, 0, 1)),
-    source,
-    reasons,
-    prompt_profile: getContentPromptProfile(type2),
-    candidate_scores: candidateScores
-  };
-}
-function buildOutputSchema(type2, sections) {
-  const sectionProperties = Object.fromEntries(
-    sections.map((item) => [
-      item.key,
-      {
-        type: "string",
-        description: `${item.purpose} Evidence policy: ${item.evidence}.`
-      }
-    ])
-  );
-  return {
-    type: "object",
-    required: ["content_type", "summary", "sections", "evidence_claims", "content_routing"],
-    properties: {
-      content_type: {
-        type: "string",
-        const: type2,
-        description: "The resolved supported content type."
-      },
-      summary: {
-        type: "string",
-        description: "A concise overview grounded in the supplied source."
-      },
-      sections: {
-        type: "object",
-        required: sections.filter((item) => item.required).map((item) => item.key),
-        properties: sectionProperties
-      },
-      evidence_claims: {
-        type: "array",
-        description: "Factual claims with references to existing segment ids.",
-        items: {
-          type: "object",
-          required: ["claim", "evidence_segment_ids"],
-          properties: {
-            claim: { type: "string" },
-            evidence_segment_ids: { type: "array", items: { type: "string" } },
-            confidence: { type: "number" }
-          }
-        }
-      },
-      content_routing: {
-        type: "object",
-        required: ["type", "confidence", "reasons", "prompt_profile"],
-        properties: {
-          type: { type: "string", const: type2 },
-          confidence: { type: "number" },
-          reasons: { type: "array", items: { type: "string" } },
-          prompt_profile: { type: "string", const: `video-content-${type2}-v1` }
-        }
-      }
-    }
-  };
-}
-function section(key, heading, purpose, required, evidence) {
-  return { key, heading, purpose, required, evidence };
-}
-function cue(pattern, label) {
-  return { pattern, label };
-}
-function normalizeRequestedType(raw) {
-  const value = String(raw || "").trim().toLowerCase();
-  if (value === "auto") return "auto";
-  return normalizeContentType(value);
-}
-function normalizeContentType(raw) {
-  const value = String(raw || "").trim().toLowerCase();
-  return VIDEO_CONTENT_TYPES.includes(value) ? value : void 0;
-}
-function normalizeConfidence(raw) {
-  if (raw === null || raw === void 0 || raw === "" || typeof raw === "boolean") return void 0;
-  const value = typeof raw === "number" ? raw : Number(String(raw).trim());
-  if (!Number.isFinite(value)) return void 0;
-  return clamp(value > 1 && value <= 100 ? value / 100 : value, 0, 1);
-}
-function normalizeBackendReasons(raw) {
-  if (!Array.isArray(raw)) return [];
-  const reasons = [];
-  for (const item of raw) {
-    const value = typeof item === "string" ? item : item && typeof item === "object" && "message" in item ? String(item.message || "") : "";
-    const message = value.replace(/\s+/g, " ").trim().slice(0, 240);
-    if (message) reasons.push({ signal: "backend", message });
-    if (reasons.length >= 8) break;
-  }
-  return reasons;
-}
-function normalizeChapters(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item) => {
-    if (typeof item === "string") return normalizeText(item);
-    if (!item || typeof item !== "object") return "";
-    const record = item;
-    for (const key of ["title", "name", "label", "text", "summary"]) {
-      if (typeof record[key] === "string" && record[key].trim()) {
-        return normalizeText(record[key]);
-      }
-    }
-    return "";
-  }).filter(Boolean).slice(0, 100);
-}
-function normalizeText(raw) {
-  return String(raw || "").normalize("NFKC").replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-}
-function signalLabel(signal) {
-  return {
-    title: "\u6807\u9898",
-    author: "\u4F5C\u8005/\u9891\u9053",
-    transcript: "\u8F6C\u5F55",
-    chapter: "\u7AE0\u8282"
-  }[signal];
-}
-function countMatches(text, pattern) {
-  if (!text) return 0;
-  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
-  return Array.from(text.matchAll(new RegExp(pattern.source, flags))).length;
-}
-function hasValue(value) {
-  return value !== void 0 && value !== null && String(value).trim() !== "";
-}
-function formatConfidence(value) {
-  return `${Math.round(value * 100)}%`;
-}
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-function round(value) {
-  return Math.round(value * 1e3) / 1e3;
-}
-function cloneProfile(profile) {
-  return JSON.parse(JSON.stringify(profile));
-}
-
-// core/KnowledgeModel.ts
-var VIDEO_ARTIFACT_SCHEMA_VERSION = 3;
-var EVIDENCE_SOURCES = /* @__PURE__ */ new Set([
-  "speech",
-  "screen",
-  "comment",
-  "user",
-  "ai-inference"
-]);
-var TIMING_QUALITY = /* @__PURE__ */ new Set(["exact", "aligned", "estimated", "none"]);
-function normalizeRichProcessingResult(base, payload, context = {}) {
-  const sourceUrl = context.sourceUrl || readString(payload, ["source_url", "video_url", "link"]);
-  const transcript = base.video_transcript || readString(payload, ["video_transcript", "transcript", "provided_transcript"]);
-  const rawSegments = readArray(payload, ["video_segments", "segments", "transcript_segments", "cues"]) || readArray(payload?.artifact, ["video_segments", "segments", "transcript_segments", "cues"]);
-  const fallbackQuality = normalizeTimingQuality(
-    payload?.timing_quality || payload?.artifact?.timing_quality,
-    "none"
-  );
-  const segments = normalizeSegments(rawSegments, transcript, sourceUrl, fallbackQuality);
-  const timingQuality = aggregateTimingQuality(
-    segments,
-    normalizeTimingQuality(payload?.timing_quality || payload?.artifact?.timing_quality, "none")
-  );
-  const claims = normalizeClaims(
-    readArray(payload, ["evidence_claims", "claims"]) || readArray(payload?.artifact, ["evidence_claims", "claims"]),
-    segments
-  );
-  const visualEvidence = normalizeVisualEvidence(
-    readArray(payload, ["visual_evidence", "visual_observations", "keyframes"]) || readArray(payload?.artifact, ["visual_evidence", "visual_observations", "keyframes"])
-  );
-  const backendRouting = objectOrUndefined(payload?.content_routing) || objectOrUndefined(payload?.routing) || objectOrUndefined(payload?.artifact?.content_routing);
-  const contentRouting = resolveContentRoute({
-    requestedType: context.requestedContentType,
-    autoRoute: context.autoRoute,
-    backendType: payload?.content_type || payload?.resolved_content_type || payload?.artifact?.content_type || backendRouting?.type || backendRouting?.content_type,
-    backendConfidence: backendRouting?.confidence ?? payload?.content_type_confidence ?? payload?.routing_confidence,
-    backendReasons: backendRouting?.reasons ?? payload?.content_type_reasons ?? payload?.routing_reasons,
-    title: base.video_title || readString(payload, ["video_title", "title", "name"]),
-    author: base.video_author || readString(payload, ["video_author", "author", "channel", "creator", "uploader"]),
-    transcript,
-    chapters: context.chapters || payload?.video_chapters || payload?.chapters || payload?.artifact?.chapters
-  });
-  const attention = normalizeAttention(
-    payload?.attention || payload?.attention_assessment || payload?.artifact?.attention
-  );
-  const learning = normalizeLearning(
-    payload?.learning || payload?.learning_package || payload?.artifact?.learning
-  );
-  const provenance = normalizeProvenance(
-    payload,
-    context,
-    sourceUrl,
-    timingQuality,
-    contentRouting
-  );
-  return {
-    ...base,
-    video_id: base.video_id || readString(payload, ["video_id", "id"]),
-    video_platform: base.video_platform || readString(payload, ["video_platform", "platform"]),
-    video_published_at: base.video_published_at || readString(payload, ["video_published_at", "published_at"]),
-    transcript_source: base.transcript_source || readString(payload, ["transcript_source"]) || provenance.transcript_source,
-    timing_quality: timingQuality,
-    video_segments: segments,
-    evidence_claims: claims,
-    visual_evidence: visualEvidence,
-    content_type: contentRouting.type,
-    content_routing: contentRouting,
-    attention,
-    learning,
-    artifact: provenance,
-    related_notes: normalizeRelatedNotes(
-      payload?.related_notes || payload?.artifact?.related_notes
-    )
-  };
-}
-function normalizeSegments(rawSegments, transcript = "", sourceUrl = "", fallbackQuality = "none") {
-  const normalized = (rawSegments || []).map((raw, index) => normalizeSegment(raw, index, sourceUrl, fallbackQuality)).filter((segment) => segment !== null);
-  if (normalized.length > 0) {
-    return normalized.sort(compareSegments);
-  }
-  return parseTranscriptSegments(transcript, sourceUrl);
-}
-function parseTranscriptSegments(transcript, sourceUrl = "") {
-  const text = normalizeText2(transcript);
-  if (!text) return [];
-  const cueSegments = parseCueTranscript(text, sourceUrl);
-  if (cueSegments.length > 0) return cueSegments;
-  const prefixed = parseTimestampPrefixedTranscript(text, sourceUrl);
-  if (prefixed.length > 0) return prefixed;
-  return splitUntimedTranscript(text).map((part, index) => ({
-    id: stableSegmentId(sourceUrl, null, part, index),
-    start: null,
-    text: part,
-    source: "speech",
-    timing_quality: "none"
-  }));
-}
-function stableSegmentId(sourceUrl, start, text, fallbackIndex = 0) {
-  const timing = start === null ? `untimed-${fallbackIndex}` : start.toFixed(3);
-  return `vs-${stableHash(`${normalizeSource(sourceUrl)}|${timing}|${normalizeText2(text)}`)}`;
-}
-function stableHash(value) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-function buildTimestampUrl(sourceUrl, seconds) {
-  if (!sourceUrl || seconds === null || !Number.isFinite(seconds) || seconds < 0) return void 0;
-  try {
-    const safeSource = safeExternalHttpUrl(sourceUrl);
-    if (!safeSource) return void 0;
-    const url = new URL(safeSource);
-    if (isExactHostOrSubdomain(url.hostname, "youtube.com") || url.hostname === "youtu.be" || isExactHostOrSubdomain(url.hostname, "bilibili.com")) {
-      url.searchParams.set("t", `${Math.floor(seconds)}s`);
-      return url.toString();
-    }
-  } catch {
-    return void 0;
-  }
-  return void 0;
-}
-function formatTimestamp(seconds) {
-  if (seconds === null || seconds === void 0 || !Number.isFinite(seconds) || seconds < 0) {
-    return "--:--";
-  }
-  const whole = Math.floor(seconds);
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor(whole % 3600 / 60);
-  const secs = whole % 60;
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : `${minutes}:${String(secs).padStart(2, "0")}`;
-}
-function normalizeSegment(raw, index, sourceUrl, fallbackQuality) {
-  if (typeof raw === "string") {
-    const text2 = normalizeText2(raw);
-    if (!text2) return null;
-    return {
-      id: stableSegmentId(sourceUrl, null, text2, index),
-      start: null,
-      text: text2,
-      source: "speech",
-      timing_quality: "none"
-    };
-  }
-  if (!raw || typeof raw !== "object") return null;
-  const text = readString(raw, ["text", "transcript", "content", "quote"]);
-  if (!text) return null;
-  const start = readNumber(raw, ["start", "start_seconds", "startTime", "offset"]);
-  const end = readNumber(raw, ["end", "end_seconds", "endTime"]);
-  const source = normalizeEvidenceSource(raw.source || raw.source_type || raw.kind, "speech");
-  const quality = normalizeTimingQuality(
-    raw.timing_quality,
-    start === null ? "none" : fallbackQuality === "none" ? "estimated" : fallbackQuality
-  );
-  const id = readString(raw, ["id", "segment_id"]) || stableSegmentId(sourceUrl, start, text, index);
-  return {
-    id: sanitizeId(id),
-    start,
-    end,
-    text: normalizeText2(text),
-    speaker: readString(raw, ["speaker", "speaker_name", "speaker_label"]),
-    source,
-    timing_quality: quality,
-    timestamp_url: safeExternalHttpUrl(readString(raw, ["timestamp_url", "timestamp_link"])) || buildTimestampUrl(sourceUrl, start),
-    keyframe: normalizeAsset(raw.keyframe || raw.asset || raw.image, `${id}-frame`),
-    visual_text: readString(raw, ["visual_text", "ocr_text", "screen_text"]),
-    confidence: normalizeRatio(raw.confidence)
-  };
-}
-function parseCueTranscript(text, sourceUrl) {
-  const lines = text.split("\n");
-  const result = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const timing = parseTimingLine(lines[index]);
-    if (!timing) continue;
-    const body = [];
-    index += 1;
-    while (index < lines.length && !parseTimingLine(lines[index])) {
-      const line = cleanCueText(lines[index]);
-      if (line && !/^\d+$/.test(line) && line !== "WEBVTT") body.push(line);
-      if (!lines[index].trim() && body.length > 0) break;
-      index += 1;
-    }
-    const content = normalizeText2(body.join(" "));
-    if (!content) continue;
-    const id = stableSegmentId(sourceUrl, timing.start, content, result.length);
-    result.push({
-      id,
-      start: timing.start,
-      end: timing.end,
-      text: content,
-      source: "speech",
-      timing_quality: "exact",
-      timestamp_url: buildTimestampUrl(sourceUrl, timing.start)
-    });
-    index -= 1;
-  }
-  return dedupeRollingCues(result);
-}
-function parseTimestampPrefixedTranscript(text, sourceUrl) {
-  const result = [];
-  const expanded = text.replace(/(\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])\s*/g, "\n$1 ");
-  for (const line of expanded.split("\n")) {
-    const match = line.match(
-      /^\s*(?:\[|\()?((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)(?:\]|\))?\s+(.+)$/
-    );
-    if (!match) continue;
-    const start = parseClock(match[1]);
-    const content = normalizeText2(match[2]);
-    if (start === null || !content) continue;
-    const previous = result[result.length - 1];
-    if (previous && previous.end === void 0) previous.end = start;
-    const id = stableSegmentId(sourceUrl, start, content, result.length);
-    result.push({
-      id,
-      start,
-      text: content,
-      source: "speech",
-      timing_quality: "exact",
-      timestamp_url: buildTimestampUrl(sourceUrl, start)
-    });
-  }
-  return result;
-}
-function normalizeClaims(rawClaims, segments) {
-  const segmentsById = new Map(segments.map((segment) => [segment.id, segment]));
-  return (rawClaims || []).map((raw, index) => {
-    if (!raw || typeof raw !== "object") return null;
-    const claim = readString(raw, ["claim", "text", "summary", "title"]);
-    if (!claim) return null;
-    const explicitEvidence = Array.isArray(raw.evidence) ? raw.evidence : [];
-    const legacyIds = Array.isArray(raw.segment_ids) ? raw.segment_ids : Array.isArray(raw.evidence_segment_ids) ? raw.evidence_segment_ids : [];
-    const fallbackSource = normalizeEvidenceSource(raw.source || raw.source_type, "ai-inference");
-    let rejectedEvidence = false;
-    const evidenceCandidates = explicitEvidence.map(
-      (item) => normalizeEvidenceReference(item, fallbackSource)
-    );
-    const evidence = evidenceCandidates.filter((item) => {
-      if (!item) {
-        rejectedEvidence = true;
-        return false;
-      }
-      if (!segmentsById.has(item.segment_id)) {
-        rejectedEvidence = true;
-        return false;
-      }
-      return true;
-    }).filter(
-      (item, itemIndex, items) => items.findIndex(
-        (candidate) => candidate.segment_id === item.segment_id && candidate.source === item.source
-      ) === itemIndex
-    );
-    for (const segmentId of legacyIds) {
-      const rawId = String(segmentId || "").trim();
-      if (!rawId) {
-        rejectedEvidence = true;
-        continue;
-      }
-      const id2 = sanitizeId(rawId);
-      const segment = segmentsById.get(id2);
-      if (!segment) {
-        rejectedEvidence = true;
-        continue;
-      }
-      if (evidence.some((item) => item.segment_id === id2)) continue;
-      evidence.push({
-        segment_id: id2,
-        source: segment.source || fallbackSource,
-        quote: segment.text,
-        asset_id: segment.keyframe?.id
-      });
-    }
-    const start = readNumber(raw, ["start", "start_seconds", "timestamp"]);
-    if (start !== null) {
-      const nearest = nearestSegment(segments, start);
-      if (evidence.length === 0 && nearest) {
-        evidence.push({
-          segment_id: nearest.id,
-          source: nearest.source,
-          quote: nearest.text,
-          asset_id: nearest.keyframe?.id
-        });
-      } else if (!nearest || evidence.length > 0 && !evidence.some((item) => item.segment_id === nearest.id)) {
-        rejectedEvidence = true;
-      }
-    }
-    const id = readString(raw, ["id", "claim_id"]) || `claim-${stableHash(`${claim}|${evidence.map((item) => item.segment_id).join("|")}|${index}`)}`;
-    const reviewState = rejectedEvidence || explicitEvidence.length > 0 && evidence.length === 0 ? "needs-review" : normalizeReviewState(raw.review_state, fallbackSource);
-    return {
-      id: sanitizeId(id),
-      claim: normalizeText2(claim),
-      evidence,
-      start,
-      end: readNumber(raw, ["end", "end_seconds"]),
-      confidence: normalizeRatio(raw.confidence),
-      review_state: reviewState
-    };
-  }).filter((claim) => claim !== null);
-}
-function normalizeVisualEvidence(rawItems) {
-  return (rawItems || []).map((raw, index) => {
-    if (!raw || typeof raw !== "object") return null;
-    const description = readString(raw, ["description", "text", "caption", "summary"]);
-    const ocrText = readString(raw, ["ocr_text", "visual_text", "screen_text"]);
-    if (!description && !ocrText) return null;
-    const start = readNumber(raw, ["start", "start_seconds", "timestamp"]);
-    if (start === null) return null;
-    const id = readString(raw, ["id", "evidence_id"]) || `visual-${stableHash(`${start}|${description}|${ocrText}|${index}`)}`;
-    return {
-      id: sanitizeId(id),
-      start,
-      end: readNumber(raw, ["end", "end_seconds"]) ?? void 0,
-      description: normalizeText2(description || ocrText),
-      ocr_text: ocrText || void 0,
-      keyframe: normalizeAsset(raw.keyframe || raw.asset || raw.image, `${id}-frame`),
-      kind: normalizeVisualKind(raw.kind || raw.type),
-      confidence: normalizeRatio(raw.confidence)
-    };
-  }).filter((item) => item !== null);
-}
-function normalizeAttention(raw) {
-  if (!raw || typeof raw !== "object") return void 0;
-  const action = ["watch", "skim", "skip"].includes(raw.action) ? raw.action : void 0;
-  const rationale = readString(raw, ["rationale", "reason", "summary"]);
-  if (!action || !rationale) return void 0;
-  return {
-    action,
-    score: normalizeRatio(raw.score),
-    confidence: normalizeRatio(raw.confidence),
-    rationale,
-    context: readString(raw, ["context", "relevance_context"]),
-    information_density: normalizeRatio(raw.information_density),
-    originality: normalizeRatio(raw.originality),
-    actionability: normalizeRatio(raw.actionability),
-    vault_relevance: normalizeRatio(raw.vault_relevance),
-    promotional_ratio: normalizeRatio(raw.promotional_ratio),
-    estimated_useful_seconds: readNumber(raw, ["estimated_useful_seconds", "useful_seconds"]) ?? void 0,
-    evidence_segment_ids: normalizeStringArray(raw.evidence_segment_ids),
-    limitations: normalizeStringArray(raw.limitations),
-    must_watch: normalizeAttentionRanges(raw.must_watch),
-    skippable: normalizeAttentionRanges(raw.skippable)
-  };
-}
-function normalizeLearning(raw) {
-  if (!raw || typeof raw !== "object") return void 0;
-  const flashcards = Array.isArray(raw.flashcards) ? raw.flashcards.map((item) => {
-    const front = readString(item, ["front", "question", "prompt"]);
-    const back = readString(item, ["back", "answer"]);
-    if (!front || !back) return null;
-    const providerId = readString(item, ["id"]);
-    return {
-      id: `card-${stableHash(`${normalizeText2(front)}|${normalizeText2(back)}`)}`,
-      provider_id: providerId || void 0,
-      front,
-      back,
-      evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
-      tags: normalizeStringArray(item.tags)
-    };
-  }).filter(Boolean) : void 0;
-  const questions = Array.isArray(raw.questions) ? raw.questions.map((item) => {
-    const prompt = readString(item, ["prompt", "question"]);
-    const rawAnswer = readString(item, ["answer", "correct_answer"]);
-    const choices = normalizeStringArray(item.choices);
-    const answer = resolveChoiceAnswer(rawAnswer, choices);
-    if (!prompt || !answer) return null;
-    const difficulty = ["easy", "medium", "hard"].includes(item.difficulty) ? item.difficulty : void 0;
-    const providerId = readString(item, ["id"]);
-    return {
-      id: `question-${stableHash(`${normalizeText2(prompt)}|${normalizeText2(answer)}`)}`,
-      provider_id: providerId || void 0,
-      prompt,
-      choices,
-      answer,
-      explanation: readString(item, ["explanation", "rationale"]),
-      evidence_segment_ids: normalizeStringArray(item.evidence_segment_ids),
-      difficulty
-    };
-  }).filter(Boolean) : void 0;
-  const feynmanPrompts = normalizeStringArray(raw.feynman_prompts);
-  if (!flashcards?.length && !questions?.length && !feynmanPrompts?.length) return void 0;
-  return {
-    flashcards,
-    questions,
-    feynman_prompts: feynmanPrompts
-  };
-}
-function resolveChoiceAnswer(answer, choices) {
-  const raw = String(answer || "").trim();
-  if (!raw || !choices?.length) return raw;
-  const normalized = raw.normalize("NFKC");
-  const label = normalized.match(/^([A-Ha-h]|[1-9])(?:[.、:：)\]\s]|$)/)?.[1];
-  if (!label) return raw;
-  const index = /^\d$/.test(label) ? Number(label) - 1 : label.toUpperCase().charCodeAt(0) - "A".charCodeAt(0);
-  return choices[index] || raw;
-}
-function normalizeProvenance(payload, context, sourceUrl, timingQuality, contentRouting) {
-  const raw = payload?.artifact?.provenance || payload?.provenance || payload?.artifact || {};
-  const sourceHash = readString(raw, ["source_hash"]) || stableHash(normalizeSource(sourceUrl));
-  const warnings = normalizeStringArray(raw.warnings) ?? [];
-  if (timingQuality === "estimated") {
-    warnings?.push("\u90E8\u5206\u65F6\u95F4\u70B9\u4E3A\u4F30\u7B97\u503C\uFF0C\u5F15\u7528\u524D\u5E94\u56DE\u770B\u539F\u89C6\u9891\u3002");
-  }
-  if (timingQuality === "none") {
-    warnings?.push("\u5F53\u524D\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u8F74\uFF0C\u672A\u751F\u6210\u53EF\u70B9\u51FB\u8BC1\u636E\u65F6\u95F4\u70B9\u3002");
-  }
-  return {
-    schema_version: VIDEO_ARTIFACT_SCHEMA_VERSION,
-    artifact_id: readString(raw, ["artifact_id", "id"]),
-    source_url: sourceUrl || void 0,
-    source_hash: sourceHash,
-    transcript_hash: readString(raw, ["transcript_hash"]),
-    backend: normalizeBackend(raw.backend || context.backend),
-    model: readString(raw, ["model"]) || context.model,
-    prompt_profile: readString(raw, ["prompt_profile"]) || contentRouting.prompt_profile.id || context.promptProfile,
-    prompt_version: readString(raw, ["prompt_version"]) || context.promptVersion,
-    processing_depth: normalizeProcessingDepth(raw.processing_depth || context.processingDepth) || context.processingDepth,
-    content_routing: {
-      source: contentRouting.source,
-      confidence: contentRouting.confidence,
-      reasons: contentRouting.reasons.map((reason) => reason.message),
-      prompt_profile: contentRouting.prompt_profile.id
-    },
-    generated_at: readString(raw, ["generated_at"]) || (/* @__PURE__ */ new Date()).toISOString(),
-    transcript_source: readString(raw, ["transcript_source", "source"]),
-    warnings: warnings.length > 0 ? Array.from(new Set(warnings)) : void 0
-  };
-}
-function normalizeEvidenceReference(raw, fallbackSource) {
-  if (typeof raw === "string") {
-    const segmentId2 = raw.trim();
-    return segmentId2 ? { segment_id: sanitizeId(segmentId2), source: fallbackSource } : null;
-  }
-  if (!raw || typeof raw !== "object") return null;
-  const segmentId = readString(raw, ["segment_id", "id"]);
-  if (!segmentId) return null;
-  return {
-    segment_id: sanitizeId(segmentId),
-    source: normalizeEvidenceSource(raw.source || raw.source_type, fallbackSource),
-    quote: readString(raw, ["quote", "text"]),
-    asset_id: readString(raw, ["asset_id", "keyframe_id"])
-  };
-}
-function normalizeAsset(raw, fallbackId) {
-  if (!raw) return void 0;
-  if (typeof raw === "string") {
-    const url2 = safeExternalHttpUrl(raw);
-    return url2 ? { id: sanitizeId(fallbackId), url: url2 } : void 0;
-  }
-  if (typeof raw !== "object") return void 0;
-  const url = safeExternalHttpUrl(readString(raw, ["url", "source_url"]));
-  if (!url) return void 0;
-  return {
-    id: sanitizeId(readString(raw, ["id", "asset_id"]) || fallbackId),
-    url,
-    mime_type: readString(raw, ["mime_type", "mimeType"]),
-    sha256: readString(raw, ["sha256", "hash"]),
-    width: readNumber(raw, ["width"]) ?? void 0,
-    height: readNumber(raw, ["height"]) ?? void 0,
-    bytes: readNumber(raw, ["bytes", "size"]) ?? void 0
-  };
-}
-function normalizeRelatedNotes(raw) {
-  if (!Array.isArray(raw)) return void 0;
-  const allowed = /* @__PURE__ */ new Set([
-    "supplements",
-    "repeats",
-    "conflicts",
-    "updates",
-    "related"
-  ]);
-  const values = raw.map((item) => {
-    if (!item || typeof item !== "object") return null;
-    const notePath = readString(item, ["note_path", "path"]);
-    const reason = readString(item, ["reason", "rationale"]);
-    const relation = allowed.has(item.relation) ? item.relation : "related";
-    if (!notePath || !reason) return null;
-    return {
-      note_path: notePath,
-      relation,
-      reason,
-      confidence: normalizeRatio(item.confidence)
-    };
-  }).filter((item) => item !== null);
-  return values.length > 0 ? values : void 0;
-}
-function normalizeAttentionRanges(raw) {
-  if (!Array.isArray(raw)) return void 0;
-  const values = raw.map((item) => {
-    if (!item || typeof item !== "object") return null;
-    const start = readNumber(item, ["start", "start_seconds"]);
-    const end = readNumber(item, ["end", "end_seconds"]);
-    const reason = readString(item, ["reason", "rationale"]);
-    if (start === null || end === null || end <= start || !reason) return null;
-    return { start, end, reason };
-  }).filter((item) => item !== null);
-  return values.length > 0 ? values : void 0;
-}
-function parseTimingLine(line) {
-  const match = line.match(
-    /((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)\s*-->\s*((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)/
-  );
-  if (!match) return null;
-  const start = parseClock(match[1]);
-  const end = parseClock(match[2]);
-  return start === null || end === null ? null : { start, end };
-}
-function parseClock(value) {
-  const normalized = value.trim().replace(",", ".");
-  const parts = normalized.split(":").map(Number);
-  if (parts.some((part) => !Number.isFinite(part)) || parts.length < 2 || parts.length > 3) {
-    return null;
-  }
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  return parts[0] * 3600 + parts[1] * 60 + parts[2];
-}
-function dedupeRollingCues(segments) {
-  const result = [];
-  for (const segment of segments) {
-    const previous = result[result.length - 1];
-    if (previous && previous.text.toLocaleLowerCase() === segment.text.toLocaleLowerCase() && previous.start === segment.start) {
-      previous.end = Math.max(
-        previous.end || previous.start || 0,
-        segment.end || segment.start || 0
-      );
-      continue;
-    }
-    result.push(segment);
-  }
-  return result;
-}
-function splitUntimedTranscript(text) {
-  const paragraphs = text.split(/\n{2,}/).map(normalizeText2).filter(Boolean);
-  if (paragraphs.length > 1) return paragraphs;
-  const lines = text.split("\n").map(normalizeText2).filter(Boolean);
-  if (lines.length > 1) return lines;
-  return text.split(/(?<=[。！？.!?])\s+/).reduce((chunks, sentence) => {
-    const current = chunks[chunks.length - 1];
-    if (!current || current.length + sentence.length > 500) chunks.push(sentence);
-    else chunks[chunks.length - 1] = `${current} ${sentence}`;
-    return chunks;
-  }, []).filter(Boolean);
-}
-function compareSegments(left, right) {
-  if (left.start === null && right.start === null) return 0;
-  if (left.start === null) return 1;
-  if (right.start === null) return -1;
-  return left.start - right.start;
-}
-function aggregateTimingQuality(segments, fallback) {
-  if (segments.length === 0) return fallback;
-  const values = segments.map((segment) => segment.timing_quality || "none");
-  if (values.every((value) => value === "exact")) return "exact";
-  if (values.some((value) => value === "none")) return "none";
-  if (values.some((value) => value === "estimated")) return "estimated";
-  if (values.some((value) => value === "aligned")) return "aligned";
-  return fallback;
-}
-function nearestSegment(segments, seconds) {
-  const MAX_ALIGNMENT_GAP_SECONDS = 5;
-  let best;
-  for (const segment of segments) {
-    if (segment.start === null || segment.timing_quality === "none") continue;
-    const end = segment.end !== void 0 && segment.end !== null && segment.end >= segment.start ? segment.end : segment.start;
-    const distance = seconds < segment.start ? segment.start - seconds : seconds > end ? seconds - end : 0;
-    if (!best || distance < best.distance) best = { segment, distance };
-  }
-  return best && best.distance <= MAX_ALIGNMENT_GAP_SECONDS ? best.segment : void 0;
-}
-function normalizeTimingQuality(raw, fallback) {
-  return TIMING_QUALITY.has(raw) ? raw : fallback;
-}
-function normalizeEvidenceSource(raw, fallback) {
-  const value = String(raw || "").trim().toLowerCase();
-  const aliases = {
-    audio: "speech",
-    transcript: "speech",
-    voice: "speech",
-    visual: "screen",
-    ocr: "screen",
-    image: "screen",
-    comments: "comment",
-    inference: "ai-inference",
-    ai: "ai-inference"
-  };
-  const normalized = aliases[value] || value;
-  return EVIDENCE_SOURCES.has(normalized) ? normalized : fallback;
-}
-function normalizeReviewState(raw, source) {
-  if (["supported", "needs-review", "inference"].includes(raw)) return raw;
-  return source === "ai-inference" ? "inference" : "supported";
-}
-function normalizeVisualKind(raw) {
-  const value = String(raw || "").trim().toLowerCase();
-  const allowed = /* @__PURE__ */ new Set(["slide", "chart", "code", "interface", "object", "scene", "other"]);
-  return allowed.has(value) ? value : "other";
-}
-function normalizeProcessingDepth(raw) {
-  return ["quick", "evidence", "deep-visual"].includes(raw) ? raw : void 0;
-}
-function normalizeBackend(raw) {
-  return raw === "n8n" || raw === "codex-worker" ? raw : void 0;
-}
-function normalizeRatio(raw) {
-  const value = Number(raw);
-  if (!Number.isFinite(value)) return void 0;
-  return Math.max(0, Math.min(1, value > 1 ? value / 100 : value));
-}
-function normalizeStringArray(raw) {
-  if (!Array.isArray(raw)) return void 0;
-  const values = raw.map((item) => String(item || "").trim()).filter(Boolean);
-  return values.length > 0 ? Array.from(new Set(values)) : void 0;
-}
-function readArray(source, keys) {
-  if (!source || typeof source !== "object") return void 0;
-  for (const key of keys) {
-    if (Array.isArray(source[key])) return source[key];
-  }
-  return void 0;
-}
-function objectOrUndefined(source) {
-  return source && typeof source === "object" && !Array.isArray(source) ? source : void 0;
-}
-function readString(source, keys) {
-  if (!source || typeof source !== "object") return "";
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-}
-function readNumber(source, keys) {
-  if (!source || typeof source !== "object") return null;
-  for (const key of keys) {
-    const raw = source[key];
-    if (raw === null || raw === void 0 || typeof raw === "boolean" || typeof raw === "string" && !raw.trim()) {
-      continue;
-    }
-    const value = Number(raw);
-    if (Number.isFinite(value)) return value;
-  }
-  return null;
-}
-function cleanCueText(value) {
-  return value.replace(/<[^>]+>/g, "").replace(/\{\\[^}]+\}/g, "").replace(/\s+/g, " ").trim();
-}
-function normalizeText2(value) {
-  return String(value || "").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
-}
-function normalizeSource(value) {
-  return String(value || "").trim().replace(/#.*$/, "");
-}
-function sanitizeId(value) {
-  return String(value || "").trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || `vs-${stableHash(value)}`;
-}
-
 // core/KnowledgeMarkdown.ts
 var SOURCE_LABELS = {
   speech: "\u53E3\u8FF0",
@@ -5895,11 +5921,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
       });
     });
     const updateLanguageVisibility = () => {
-      if (this.mode === "summary") {
-        languageSetting.settingEl.style.display = "block";
-      } else {
-        languageSetting.settingEl.style.display = "none";
-      }
+      languageSetting.settingEl.toggle(this.mode === "summary");
     };
     updateLanguageVisibility();
     contentEl.addEventListener("change", (e) => {
@@ -7765,11 +7787,8 @@ var NoteIndex = class {
     }, 80);
   }
   loadPlatformCoverCache() {
-    if (typeof localStorage === "undefined") return;
     try {
-      const raw = localStorage.getItem(PLATFORM_COVER_CACHE_KEY);
-      if (!raw) return;
-      const items = JSON.parse(raw);
+      const items = this.app.loadLocalStorage(PLATFORM_COVER_CACHE_KEY);
       if (!Array.isArray(items)) return;
       const cutoff = Date.now() - PLATFORM_COVER_CACHE_TTL_MS;
       for (const row of items.slice(0, PLATFORM_COVER_CACHE_LIMIT)) {
@@ -7785,10 +7804,9 @@ var NoteIndex = class {
     }
   }
   persistPlatformCoverCache() {
-    if (typeof localStorage === "undefined") return;
     try {
       const items = Array.from(this.platformCoverCache.entries()).sort((left, right) => right[1].updatedAt - left[1].updatedAt).slice(0, PLATFORM_COVER_CACHE_LIMIT);
-      localStorage.setItem(PLATFORM_COVER_CACHE_KEY, JSON.stringify(items));
+      this.app.saveLocalStorage(PLATFORM_COVER_CACHE_KEY, items);
     } catch {
     }
   }
@@ -9096,7 +9114,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     });
     this.playlistEl = playlistSelectionEl.createDiv({ cls: "batch-playlist-list" });
     this.progressEl = bodyEl.createDiv({ cls: "batch-progress" });
-    this.progressEl.style.display = "none";
+    this.progressEl.hide();
     const footer = contentEl.createDiv({ cls: "vs-modal-footer" });
     const concurrency = footer.createEl("button", {
       cls: "vs-quick-chip",
@@ -9437,7 +9455,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     }
     if (!await this.plugin.ensureBackendReady()) return;
     if (this.progressEl) {
-      this.progressEl.style.display = "block";
+      this.progressEl.show();
       this.updateProgressDisplay();
     }
     this.progress = {
@@ -9564,7 +9582,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     let manifest = this.courseImport.manifest;
     const selectedItemKeys = manifest.items.filter((item) => !item.removed_from_source && selectedKeys.has(item.canonical_key)).map((item) => item.canonical_key);
     if (this.progressEl) {
-      this.progressEl.style.display = "block";
+      this.progressEl.show();
     }
     this.progress = {
       total: selectedItemKeys.length,
@@ -9861,10 +9879,10 @@ var CacheManager = class {
   }
   async migrateFromLocalStorage() {
     try {
-      if (typeof localStorage === "undefined") return;
-      const oldCacheData = localStorage.getItem("video-summary-cache");
+      if (typeof window === "undefined" || !window.localStorage) return;
+      const oldCacheData = window.localStorage.getItem("video-summary-cache");
       if (!oldCacheData) return;
-      console.log("\u53D1\u73B0\u65E7\u7F13\u5B58\u6570\u636E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
+      console.debug("\u53D1\u73B0\u65E7\u7F13\u5B58\u6570\u636E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
       const entries = JSON.parse(oldCacheData);
       let migratedCount = 0;
       for (const [key, item] of entries) {
@@ -9880,8 +9898,8 @@ var CacheManager = class {
           console.error(`\u8FC1\u79FB\u7F13\u5B58\u9879\u5931\u8D25: ${key}`, error);
         }
       }
-      console.log(`\u8FC1\u79FB\u5B8C\u6210\uFF0C\u5171\u8FC1\u79FB ${migratedCount} \u9879`);
-      localStorage.removeItem("video-summary-cache");
+      console.debug(`\u8FC1\u79FB\u5B8C\u6210\uFF0C\u5171\u8FC1\u79FB ${migratedCount} \u9879`);
+      window.localStorage.removeItem("video-summary-cache");
     } catch (error) {
       console.error("\u8FC1\u79FB\u65E7\u7F13\u5B58\u5931\u8D25:", error);
     }
@@ -10106,7 +10124,7 @@ var CacheManager = class {
     const expiredKeys = Object.entries(this.index.items).filter(([, item]) => now > item.expiryTimestamp).map(([key]) => key);
     for (const key of expiredKeys) await this.removeIndexKey(key);
     if (expiredKeys.length > 0) {
-      console.log(`\u6E05\u7406\u4E86 ${expiredKeys.length} \u4E2A\u8FC7\u671F\u7F13\u5B58\u9879`);
+      console.debug(`\u6E05\u7406\u4E86 ${expiredKeys.length} \u4E2A\u8FC7\u671F\u7F13\u5B58\u9879`);
     }
   }
   getStats() {
@@ -10752,7 +10770,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
+          console.debug(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
         onProgress?.({ stageLabel: "\u547D\u4E2D\u7F13\u5B58", progress: 1, message: "\u547D\u4E2D\u7F13\u5B58\uFF0C\u672A\u8BF7\u6C42\u540E\u7AEF" });
         return cachedResult;
@@ -10798,12 +10816,13 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       controller.abort();
     }, requestTimeoutMs);
     try {
-      const response = await fetch(this.webhookUrl, {
-        method: "POST",
-        headers: this.buildN8nHeaders(),
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
+      const response = await _VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(payload),
+        requestTimeoutMs + 1e3,
+        controller.signal
+      );
       if (!response.ok) {
         throw new Error(await this.formatHttpError(response));
       }
@@ -10854,7 +10873,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
       if (cachedResult) {
         if (this.debugMode) {
-          console.log(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
+          console.debug(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
         return cachedResult;
       }
@@ -10899,12 +10918,13 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       controller.abort();
     }, requestTimeoutMs);
     try {
-      const response = await fetch(this.webhookUrl, {
-        method: "POST",
-        headers: this.buildN8nHeaders(),
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
+      const response = await _VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(payload),
+        requestTimeoutMs + 1e3,
+        controller.signal
+      );
       if (!response.ok) {
         throw new Error(await this.formatHttpError(response));
       }
@@ -11480,6 +11500,22 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   static isSuccessfulStatus(status) {
     return status >= 200 && status < 300;
   }
+  /**
+   * n8n webhook calls use the same native layer as the Worker (no browser fetch, no CORS),
+   * wrapped as a Response so the existing error and JSON readers keep working.
+   */
+  static async webhookRequest(url, headers, body, timeoutMs, signal) {
+    const response = await _VideoSummaryAPI.nativeRequest(
+      { url, method: "POST", contentType: "application/json", headers, body },
+      timeoutMs,
+      signal
+    );
+    if (response.status < 200 || response.status > 599) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const emptyBody = [204, 205, 304].includes(response.status);
+    return new Response(emptyBody ? null : response.text, { status: response.status });
+  }
   static async nativeRequest(request, timeoutMs, signal) {
     const safeTimeoutMs = Math.max(1, Math.floor(Number(timeoutMs) || 1));
     let timeoutId;
@@ -11801,12 +11837,13 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         metadata: { mode: "transcript-only", language: "zh", ai: "" },
         content: ""
       };
-      const response = await fetch(url, {
-        method: "POST",
-        headers: _VideoSummaryAPI.buildN8nHeaders(n8nAuth),
-        body: JSON.stringify(body),
-        signal: controller.signal
-      });
+      const response = await _VideoSummaryAPI.webhookRequest(
+        url,
+        _VideoSummaryAPI.buildN8nHeaders(n8nAuth),
+        JSON.stringify(body),
+        timeoutMs + 1e3,
+        controller.signal
+      );
       if (response.status === 404) {
         return { ok: false, error: "HTTP 404 \u2014 webhook \u4E0D\u5B58\u5728\u6216 workflow \u672A\u6FC0\u6D3B" };
       }
@@ -11848,11 +11885,12 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       };
     }
     try {
-      const response = await fetch(this.webhookUrl, {
-        method: "POST",
-        headers: this.buildN8nHeaders(),
-        body: JSON.stringify(this.buildConnectionTestPayload())
-      });
+      const response = await _VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(this.buildConnectionTestPayload()),
+        this.resolveTimeoutMs()
+      );
       const durationMs = Date.now() - started;
       const text = await response.text();
       const snippet2 = this.redactWebhookSecret((text || "").slice(0, 180));
@@ -12918,8 +12956,8 @@ ${names.join("\n")}` : names.join("\n");
 }
 function autoGrow(input) {
   const resize = () => {
-    input.style.height = "auto";
-    input.style.height = `${Math.min(140, Math.max(32, input.scrollHeight))}px`;
+    input.setCssStyles({ height: "auto" });
+    input.setCssStyles({ height: `${Math.min(140, Math.max(32, input.scrollHeight))}px` });
   };
   input.addEventListener("input", resize);
   resize();
@@ -13697,12 +13735,12 @@ function confirmDelete(ctx, entry) {
   new ConfirmModal(
     ctx.plugin.app,
     "\u5220\u9664\u7B14\u8BB0",
-    `\u786E\u5B9A\u628A "${entry.basename}" \u79FB\u5230\u7CFB\u7EDF\u56DE\u6536\u7AD9\uFF1F`,
+    `\u786E\u5B9A\u5220\u9664 "${entry.basename}"\uFF1F\u4F1A\u6309 Obsidian \u7684\u201C\u5220\u9664\u6587\u4EF6\u201D\u8BBE\u7F6E\u79FB\u5230\u56DE\u6536\u7AD9\u3002`,
     async (confirmed) => {
       if (!confirmed) return;
       const file = fileOf(ctx, entry);
       if (!file) return;
-      await ctx.plugin.app.vault.trash(file, true);
+      await ctx.plugin.app.fileManager.trashFile(file);
       new import_obsidian10.Notice(`\u5DF2\u5220\u9664 ${entry.basename}`);
       ctx.renderPanels();
     }
@@ -13817,7 +13855,12 @@ function renderReaderPanel(container, ctx, job) {
     visible.forEach((segment) => {
       const row = list.createEl("button", {
         cls: `vs-reader-segment${segment.id === activeId ? " is-active" : ""}${highlights.has(segment.id) ? " is-highlighted" : ""}`,
-        attr: { type: "button", "data-segment-id": segment.id }
+        attr: {
+          type: "button",
+          "data-segment-id": segment.id,
+          draggable: "true",
+          title: "\u70B9\u51FB\u8DF3\u5230\u8FD9\u91CC \xB7 \u53F3\u952E\u590D\u5236\u5F15\u7528 \xB7 \u62D6\u8FDB\u7B14\u8BB0\u63D2\u5165\u5F15\u7528"
+        }
       });
       const time = row.createSpan({
         text: formatTimestamp(segment.start),
@@ -13858,6 +13901,32 @@ function renderReaderPanel(container, ctx, job) {
       star.addEventListener("click", activateHighlight);
       star.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") activateHighlight(event);
+      });
+      row.addEventListener("dragstart", (event) => {
+        event.dataTransfer?.setData("text/plain", quoteFor(ctx, job, sourceUrl, segment));
+      });
+      row.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        const quote = quoteFor(ctx, job, sourceUrl, segment);
+        showMenu(event, [
+          {
+            title: "\u590D\u5236\u5F15\u7528",
+            icon: "quote",
+            onClick: () => {
+              void navigator.clipboard.writeText(quote).then(() => new import_obsidian11.Notice("\u5DF2\u590D\u5236\u5F15\u7528"));
+            }
+          },
+          {
+            title: "\u63D2\u5165\u5230\u7B14\u8BB0",
+            icon: "text-cursor-input",
+            onClick: () => insertIntoRecentNote(ctx, quote)
+          },
+          {
+            title: highlightLabel,
+            icon: highlighted ? "star-off" : "star",
+            onClick: () => void toggleHighlight(ctx, job, segment, highlights).then(renderRows)
+          }
+        ]);
       });
       row.addEventListener("click", () => {
         if (segment.start === null || segment.timing_quality === "none") {
@@ -13918,6 +13987,28 @@ function renderReaderPanel(container, ctx, job) {
     renderRows();
   });
   renderRows();
+}
+function quoteFor(ctx, job, sourceUrl, segment) {
+  const timed = segment.start !== null && segment.timing_quality !== "none";
+  return formatTranscriptQuote(ctx.plugin.settings.readerQuoteTemplate, {
+    text: segment.text,
+    start: timed ? segment.start : null,
+    speaker: segment.speaker,
+    sourceUrl,
+    title: job.title,
+    notePath: job.notePath
+  });
+}
+function insertIntoRecentNote(ctx, text) {
+  const { workspace } = ctx.plugin.app;
+  const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
+  if (!(view instanceof import_obsidian11.MarkdownView)) {
+    new import_obsidian11.Notice("\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528");
+    return;
+  }
+  view.editor.replaceSelection(`${text}
+`);
+  new import_obsidian11.Notice(`\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`);
 }
 function createPlayer(container, ctx, job, sourceUrl) {
   const localSource = resolveLocalSource(ctx, job.input.localFile);
@@ -14667,7 +14758,7 @@ function renderEvidence(container, ctx, job) {
     markdown,
     markdownEl,
     job.notePath || "",
-    ctx.plugin
+    panelComponent(ctx)
   );
 }
 function prependIcon(button, icon) {
@@ -14716,7 +14807,7 @@ ${result.note}` : ""
     markdown.slice(0, 6e3),
     markdownEl,
     job.notePath || "",
-    ctx.plugin
+    panelComponent(ctx)
   );
 }
 function renderRecordDetail(container, ctx, record) {
@@ -14821,6 +14912,12 @@ function findNote2(ctx, name) {
   if (direct instanceof import_obsidian12.TFile) return direct;
   return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
 }
+function panelComponent(ctx) {
+  const component = new import_obsidian12.Component();
+  component.load();
+  ctx.registerPanelCleanup(() => component.unload());
+  return component;
+}
 
 // views/VideoSummaryView.ts
 var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
@@ -14909,6 +15006,12 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
   }
   /** 兼容旧调用方（main.ts 里的 refreshVideoSummaryView） */
   async refreshView() {
+    this.renderAll();
+  }
+  /** 把一批链接放进添加框，由用户选模式后再点开始。 */
+  prefillInput(text) {
+    this.state.inputDraft = text;
+    this.state.detail = null;
     this.renderAll();
   }
   /** Open a persisted artifact and optionally seek its synchronized reader. */
@@ -15750,7 +15853,7 @@ function canonicalSourceIdentity(source) {
   return "";
 }
 async function sha256Hex2(value) {
-  const subtle = globalThis.crypto?.subtle;
+  const subtle = typeof crypto === "undefined" ? void 0 : crypto.subtle;
   if (!subtle) {
     throw new Error("Web Crypto SHA-256 is unavailable in this Obsidian runtime");
   }
@@ -17295,7 +17398,7 @@ function declaredImageType(mimeType, url) {
   return void 0;
 }
 async function sha256Buffer(data) {
-  const subtle = globalThis.crypto?.subtle;
+  const subtle = typeof crypto === "undefined" ? void 0 : crypto.subtle;
   if (!subtle) throw new Error("Web Crypto SHA-256 is unavailable");
   const digest = await subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -21351,126 +21454,136 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
   addCommands() {
     this.addCommand({
       id: "quick",
-      name: "\u{1F4FA} \u5FEB\u901F\u603B\u7ED3\u5F53\u524D\u7B14\u8BB0",
+      name: "\u5FEB\u901F\u603B\u7ED3\u5F53\u524D\u7B14\u8BB0",
       editorCallback: (editor, view) => {
         this.quickProcessCurrentNote(editor, view, "summary");
       }
     });
     this.addCommand({
       id: "full-text",
-      name: "\u{1F4FA} \u5C06\u5F53\u524D\u7B14\u8BB0\u5168\u6587\u4F5C\u4E3A\u6587\u7A3F\u603B\u7ED3",
+      name: "\u5C06\u5F53\u524D\u7B14\u8BB0\u5168\u6587\u4F5C\u4E3A\u6587\u7A3F\u603B\u7ED3",
       editorCallback: (editor, view) => {
         this.processFullTextAsTranscript(editor, view);
       }
     });
     this.addCommand({
       id: "transcript-quick",
-      name: "\u{1F4DD} \u5FEB\u901F\u63D0\u53D6\u6587\u7A3F",
+      name: "\u5FEB\u901F\u63D0\u53D6\u6587\u7A3F",
       editorCallback: (editor, view) => {
         this.quickProcessCurrentNote(editor, view, "transcript-only");
       }
     });
     this.addCommand({
       id: "info-update",
-      name: "\u2139\uFE0F \u66F4\u65B0\u89C6\u9891\u4FE1\u606F\uFF08\u4E0D\u6539\u6B63\u6587\uFF09",
+      name: "\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\uFF08\u4E0D\u6539\u6B63\u6587\uFF09",
       editorCallback: (editor, view) => {
         this.updateVideoInfoOnly(editor, view, false);
       }
     });
     this.addCommand({
       id: "info-update-rename",
-      name: "\u2139\uFE0F \u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5E76\u91CD\u547D\u540D",
+      name: "\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5E76\u91CD\u547D\u540D",
       editorCallback: (editor, view) => {
         this.updateVideoInfoOnly(editor, view, true);
       }
     });
     this.addCommand({
+      id: "collect-note-links",
+      name: "\u6536\u96C6\u5F53\u524D\u7B14\u8BB0\u91CC\u7684\u89C6\u9891\u94FE\u63A5\u5230\u4FA7\u680F",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (!checking) void this.collectVideoLinksFromNote(file);
+        return true;
+      }
+    });
+    this.addCommand({
       id: "view",
-      name: "\u{1F4CB} \u89C6\u9891\u603B\u7ED3\u7BA1\u7406",
+      name: "\u6253\u5F00\u89C6\u9891\u603B\u7ED3\u4FA7\u680F",
       callback: () => {
         this.activateView();
       }
     });
     this.addCommand({
       id: "batch",
-      name: "\u{1F504} \u6279\u91CF\u5904\u7406\u89C6\u9891",
+      name: "\u6279\u91CF\u5904\u7406\u89C6\u9891",
       callback: () => {
         new BatchProcessingModal(this.app, this).open();
       }
     });
     this.addCommand({
       id: "reprocess",
-      name: "\u{1F504} \u91CD\u65B0\u5904\u7406\u5F53\u524D\u7B14\u8BB0",
+      name: "\u91CD\u65B0\u5904\u7406\u5F53\u524D\u7B14\u8BB0",
       editorCallback: (editor, view) => {
         this.reprocessCurrentNote(editor, view);
       }
     });
     this.addCommand({
       id: "process-all-pending",
-      name: "\u26A1 \u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891",
+      name: "\u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891",
       callback: () => {
         this.processAllPendingVideos();
       }
     });
     this.addCommand({
       id: "test-connection",
-      name: "\u{1F517} \u6D4B\u8BD5\u5F53\u524D\u89C6\u9891\u5904\u7406\u540E\u7AEF",
+      name: "\u6D4B\u8BD5\u5F53\u524D\u89C6\u9891\u5904\u7406\u540E\u7AEF",
       callback: () => {
         this.testProcessingBackendConnection();
       }
     });
     this.addCommand({
       id: "open-worker-dashboard",
-      name: "\u{1F4CA} \u6253\u5F00 Codex Worker \u63A7\u5236\u53F0",
+      name: "\u6253\u5F00 Codex Worker \u63A7\u5236\u53F0",
       callback: () => {
         this.openCodexWorkerDashboard();
       }
     });
     this.addCommand({
       id: "memory-search",
-      name: "\u{1F50E} \u641C\u7D22\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6",
+      name: "\u641C\u7D22\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6",
       callback: () => {
         new KnowledgeLabModal(this.app, this, "memory").open();
       }
     });
     this.addCommand({
       id: "claim-lab",
-      name: "\u{1F9EA} \u751F\u6210\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4",
+      name: "\u751F\u6210\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4",
       callback: () => {
         new KnowledgeLabModal(this.app, this, "claim-lab").open();
       }
     });
     this.addCommand({
       id: "learning-review",
-      name: "\u{1F9E0} \u590D\u4E60\u5F53\u524D\u89C6\u9891\u7684\u5B66\u4E60\u5361",
+      name: "\u590D\u4E60\u5F53\u524D\u89C6\u9891\u7684\u5B66\u4E60\u5361",
       editorCallback: (_editor, view) => {
         if (view.file) void this.openLearningReviewForFile(view.file);
       }
     });
     this.addCommand({
       id: "learning-review-due",
-      name: "\u{1F9E0} \u590D\u4E60\u6240\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361",
+      name: "\u590D\u4E60\u6240\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361",
       callback: () => {
         void this.openGlobalLearningReview();
       }
     });
     this.addCommand({
       id: "reprocess-from-artifact",
-      name: "\u267B\uFE0F \u7528\u672C\u5730\u53EF\u590D\u73B0\u5DE5\u4EF6\u91CD\u65B0\u5904\u7406",
+      name: "\u7528\u672C\u5730\u53EF\u590D\u73B0\u5DE5\u4EF6\u91CD\u65B0\u5904\u7406",
       editorCallback: (_editor, view) => {
         if (view.file) void this.reprocessFromPersistedArtifact(view.file);
       }
     });
     this.addCommand({
       id: "generate-base",
-      name: "\u{1F5C2}\uFE0F \u751F\u6210\u6216\u5B89\u5168\u66F4\u65B0\u89C6\u9891\u5E93 Base",
+      name: "\u751F\u6210\u6216\u5B89\u5168\u66F4\u65B0\u89C6\u9891\u5E93 Base",
       callback: () => {
         void this.ensureVideoLibraryBase(true);
       }
     });
     this.addCommand({
       id: "mark-excluded",
-      name: "\u26D4\uFE0F \u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0",
+      name: "\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0",
       editorCallback: (editor, view) => {
         this.markAsExcluded(editor, view);
       }
@@ -22024,6 +22137,17 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   }
   async processFile(file) {
     await this.fileProcessor.processFile(file);
+  }
+  async collectVideoLinksFromNote(file) {
+    const content = await this.app.vault.cachedRead(file);
+    const urls = VideoUtils.extractVideoUrls(content);
+    if (urls.length === 0) {
+      new import_obsidian18.Notice(`\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`);
+      return;
+    }
+    const view = await this.activateView();
+    view?.prefillInput(urls.join("\n"));
+    new import_obsidian18.Notice(`\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`);
   }
   async activateView() {
     const { workspace } = this.app;
@@ -22917,9 +23041,8 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   /** 一段的标题与一句说明 */
   group(containerEl, title, desc) {
-    const head = containerEl.createDiv({ cls: "vs-settings-group" });
-    head.createEl("h3", { text: title });
-    head.createDiv({ text: desc, cls: "vs-settings-group-desc" });
+    const head = new import_obsidian18.Setting(containerEl).setName(title).setDesc(desc).setHeading();
+    head.settingEl.addClass("vs-settings-group");
   }
   /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
   renderSettingsHeader(containerEl) {
@@ -23402,7 +23525,6 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       }
       this.plugin.settings.webhookProfiles.forEach((profile) => {
         const row = profilesContainer.createDiv({ cls: "webhook-profile-row" });
-        row.style.flexWrap = "wrap";
         const nameInput = row.createEl("input", {
           type: "text",
           value: profile.name || "",
@@ -23438,7 +23560,6 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
             title: "\u9644\u5E26\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF1A\u987B\u4E0E n8n Header Auth \u7684 Header \u540D\u79F0\u4E00\u81F4"
           }
         });
-        headerInput.style.width = "190px";
         headerInput.oninput = async () => {
           profile.headerName = headerInput.value.trim() || DEFAULT_WEBHOOK_AUTH_HEADER;
           if (profile.id === this.plugin.settings.activeWebhookId && this.plugin.settings.activeBackend === "n8n") {
@@ -23458,8 +23579,6 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
             spellcheck: "false"
           }
         });
-        secretInput.style.flex = "1 1 190px";
-        secretInput.style.minWidth = "160px";
         secretInput.oninput = async () => {
           profile.secret = secretInput.value;
           if (profile.id === this.plugin.settings.activeWebhookId && this.plugin.settings.activeBackend === "n8n") {
@@ -23679,6 +23798,14 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     new import_obsidian18.Setting(section3).setName("Paper & ink style").setDesc("\u7EB8\u58A8\u98CE\u683C\uFF1A\u7EB8\u611F\u5E95\u7EB9\u3001\u7EC6\u58A8\u7EBF\u3001\u886C\u7EBF\u6807\u9898\u3002\u5173\u95ED\u65F6\u5B8C\u5168\u8DDF\u968F\u5F53\u524D Obsidian \u4E3B\u9898\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.paperStyle === true).onChange(async (value) => {
         this.plugin.settings.paperStyle = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian18.Setting(section3).setName("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F").setDesc(
+      "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002"
+    ).addText(
+      (text) => text.setPlaceholder(DEFAULT_QUOTE_TEMPLATE).setValue(this.plugin.settings.readerQuoteTemplate).onChange(async (value) => {
+        this.plugin.settings.readerQuoteTemplate = value.trim() || DEFAULT_QUOTE_TEMPLATE;
         await this.plugin.saveSettings();
       })
     );
@@ -23939,7 +24066,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       addStatCard("\u603B\u5927\u5C0F", this.formatBytes(currentStats.totalSize));
       if (currentStats.size > 0) {
         const previewSection = container.createEl("div", { cls: "cache-preview-content" });
-        previewSection.createEl("h3", { text: "\u7F13\u5B58\u5185\u5BB9\u9884\u89C8" });
+        new import_obsidian18.Setting(previewSection).setName("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8").setHeading();
         await this.showCacheContentPreview(previewSection);
       } else {
         const emptySection = container.createEl("div", { cls: "cache-empty-section" });
@@ -24059,11 +24186,11 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
    */
   deleteCacheItem(key) {
     try {
-      const cacheData = localStorage.getItem("video-summary-cache");
+      const cacheData = window.localStorage.getItem("video-summary-cache");
       if (cacheData) {
         const entries = JSON.parse(cacheData);
         const filteredEntries = entries.filter((entry) => entry[0] !== key);
-        localStorage.setItem("video-summary-cache", JSON.stringify(filteredEntries));
+        window.localStorage.setItem("video-summary-cache", JSON.stringify(filteredEntries));
       }
     } catch (error) {
       console.error("\u5220\u9664\u7F13\u5B58\u9879\u5931\u8D25:", error);
@@ -24145,10 +24272,10 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
    */
   getLocalStorageSize() {
     let totalSize = 0;
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
       if (key && key.startsWith("video-summary-cache")) {
-        const value = localStorage.getItem(key);
+        const value = window.localStorage.getItem(key);
         if (value) {
           totalSize += value.length;
         }

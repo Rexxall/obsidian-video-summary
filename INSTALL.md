@@ -19,7 +19,7 @@ equivalent commands, tools, paths, and mounts.
 The optional Codex Worker service is not included in this repository or release. It is required
 only for Worker-specific progress/cancellation and `deep-visual` processing.
 
-The manifest minimum is Obsidian 1.4.0, and this release was exercised on Obsidian 1.12.7.
+The manifest minimum is Obsidian 1.8.7, and this release was exercised on Obsidian 1.12.7.
 Generated `.base` library views require Obsidian 1.9.10 or newer with the Bases core plugin
 enabled.
 
@@ -27,12 +27,12 @@ enabled.
 
 ### Release ZIP
 
-Download `video-summary-2.4.2.zip` and its matching `SHA256SUMS` from the canonical
-[GitHub 2.4.2 release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.4.2).
+Download `video-summary-<version>.zip` and its matching `SHA256SUMS` from the canonical
+[latest GitHub release](https://github.com/Rexxall/obsidian-video-summary/releases/latest).
 On macOS or Linux, verify the ZIP with:
 
 ```bash
-grep 'video-summary-2.4.2.zip' SHA256SUMS | shasum -a 256 -c -
+grep 'video-summary-<version>.zip' SHA256SUMS | shasum -a 256 -c -
 ```
 
 Then extract it into:
@@ -46,8 +46,8 @@ The folder must directly contain `main.js`, `manifest.json`, and `styles.css`.
 ### Build from source
 
 ```bash
-git clone https://github.com/Rexxall/obsidian-video-summary-plugin.git
-cd obsidian-video-summary-plugin
+git clone https://github.com/Rexxall/obsidian-video-summary.git
+cd obsidian-video-summary
 npm install
 npm run build
 ```

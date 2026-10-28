@@ -6,7 +6,7 @@
 
 把视频链接、本地录音录像和现成文稿，整理成带时间戳出处、可检索的 Obsidian 笔记。
 
-[What's new](#whats-new-in-260) · [Install](#install) · [n8n workflow](#n8n-workflow) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
+[What's new](#whats-new-in-270) · [Install](#install) · [n8n workflow](#n8n-workflow) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/panel-dark.jpg">
@@ -20,32 +20,25 @@ general-purpose n8n workflow; the plugin can also talk to a compatible external 
 It keeps the reader-facing result in Markdown and stores structured evidence, learning state, and
 reproducibility metadata as local plugin sidecars.
 
-## What's new in 2.6.0
+## What's new in 2.7.0
 
-- A new look that follows your Obsidian theme and light/dark mode, with an optional **Paper & ink
-  style** in settings.
+- **Quote the transcript into your notes.** In Reader, right-click a transcript line to copy it as
+  a quote or insert it at the cursor of the note you were editing, or drag the line into a note.
+  The quote links back to that second of the video. Change the format in Settings → 输出 →
+  文稿引用格式 (`{{text}}`, `{{time}}`, `{{link}}`, `{{url}}`, `{{speaker}}`, `{{title}}`,
+  `{{note}}`).
+- **Collect the video links in a note.** New command 收集当前笔记里的视频链接到侧栏 puts every
+  supported video link from the current note, including its properties, into the side panel's add
+  box, once per video. Pick a mode and start; nothing runs until you do.
+- n8n webhook requests now go through Obsidian's own network layer, like the Worker requests, so a
+  browser CORS policy can no longer block them.
+- Settings section titles use Obsidian's native headings; the webhook rows, batch progress and
+  language switch use theme classes instead of inline styles.
+- Command names no longer start with emoji, so they read cleanly in the command palette.
+- Deleting a note from the library follows your Obsidian "Deleted files" setting.
+- Requires Obsidian 1.8.7 or later.
 
-  <img src="docs/screenshots/paper-panel.jpg" width="860">
-
-- The side panel starts with one add box: paste links, drop audio/video files or paste a
-  transcript, pick 只要文稿 / 总结 / 证据, and start. Everything else is one click away in
-  **更多选项** or the **···** menu.
-- A failed job tells you what to do next, for example paste a transcript when a video has no
-  subtitles.
-- Settings fit on one page: 连接, 输出, 处理, and a folded 高级 section.
-- The browser extension opens on the current video with one main button.
-
-Also included from 2.5.0, which was not published separately:
-
-- The processing time limit follows your **Timeout** setting (default 30 minutes), so long lectures
-  are no longer cut off at a hidden 10-minute limit.
-- Cancelling a task also cancels it on the Worker.
-- The plugin never overwrites a note you edited while it was processing.
-- Notes stay clean by default: summary and a folded transcript; diagnostics only on request.
-- Renamed notes stay linked to their tasks.
-- New: the **Video Summary Capture** browser extension ships in the same release.
-
-Full list in [CHANGELOG.md](CHANGELOG.md).
+Earlier releases: [CHANGELOG.md](CHANGELOG.md).
 
 ## What it does
 
@@ -130,15 +123,15 @@ status: pending
 
 ### Install a release
 
-Download `video-summary-2.6.0.zip` from the canonical GitHub release:
+Download `video-summary-<version>.zip` from the canonical GitHub release:
 
-- [GitHub release](https://github.com/Rexxall/obsidian-video-summary-plugin/releases/tag/2.6.0)
+- [GitHub release](https://github.com/Rexxall/obsidian-video-summary/releases/latest)
   — canonical source and Obsidian community-plugin channel.
 
 Download `SHA256SUMS` from the same release. To check the ZIP on macOS or Linux:
 
 ```bash
-grep 'video-summary-2.6.0.zip' SHA256SUMS | shasum -a 256 -c -
+grep 'video-summary-<version>.zip' SHA256SUMS | shasum -a 256 -c -
 ```
 
 Extract its three files into:
@@ -161,15 +154,15 @@ The separately attached `Obsidian.Video.Summary.json` is an n8n import, not an O
 file. Its source in the repository is `Obsidian Video Summary.json`; the release uses a
 space-free asset name so downloaded checksums remain directly verifiable.
 
-This release is desktop-only. Its manifest minimum is Obsidian 1.4.0 and it was exercised on
+This release is desktop-only. Its manifest minimum is Obsidian 1.8.7 and it was exercised on
 Obsidian 1.12.7. The generated `.base` library views require Obsidian 1.9.10 or newer with the
 Bases core plugin enabled.
 
 ### Build from source
 
 ```bash
-git clone https://github.com/Rexxall/obsidian-video-summary-plugin.git
-cd obsidian-video-summary-plugin
+git clone https://github.com/Rexxall/obsidian-video-summary.git
+cd obsidian-video-summary
 npm install
 npm run build
 ```
@@ -242,6 +235,7 @@ The command labels are currently Chinese. Common entries include:
 - `快速总结当前笔记`
 - `将当前笔记全文作为文稿总结`
 - `快速提取文稿`
+- `收集当前笔记里的视频链接到侧栏`
 - `更新视频信息（不改正文）`
 - `批量处理视频`
 - `搜索跨模态视频记忆`
@@ -418,7 +412,10 @@ assets idempotently.
 
 ## Community submission
 
-Before submitting to the Obsidian community directory, confirm:
+Video Summary is submitted through [community.obsidian.md](https://community.obsidian.md) (sign in,
+connect GitHub, **Plugins → New plugin**). The directory reads `manifest.json` from the default
+branch and installs `main.js`, `manifest.json` and `styles.css` from the release whose tag equals
+the manifest version. Before each submission or release, confirm:
 
 - `manifest.json` has an accurate `id`, `name`, `version`, `description`, `author`, and `minAppVersion`.
 - `README.md` explains purpose and usage.
@@ -428,7 +425,7 @@ Before submitting to the Obsidian community directory, confirm:
 
 ## Support
 
-- Issues: https://github.com/Rexxall/obsidian-video-summary-plugin/issues
+- Issues: https://github.com/Rexxall/obsidian-video-summary/issues
 
 ## 中文说明
 
@@ -440,7 +437,7 @@ Before submitting to the Obsidian community directory, confirm:
 - 重新处理时只替换插件自己的区块，你写在笔记里的内容不会被覆盖；处理期间你改过笔记，插件会停下来，不会覆盖。
 - 侧栏可以看任务进度、取消任务、跟着时间戳阅读文稿。
 
-**安装：** 从 Releases 下载 `video-summary-2.6.0.zip`，把三个文件解压到 `<库>/.obsidian/plugins/video-summary/`，在“第三方插件”里启用；再按上面 n8n 一节导入工作流。
+**安装：** 从 Releases 下载 `video-summary-<version>.zip`，把三个文件解压到 `<库>/.obsidian/plugins/video-summary/`，在“第三方插件”里启用；再按上面 n8n 一节导入工作流。
 
 ## 日本語
 
