@@ -69,6 +69,7 @@ export class BatchProcessingModal extends Modal {
   }
 
   onOpen() {
+    this.modalEl.addClass('ap', 'ap-modal');
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('batch-processing-modal');

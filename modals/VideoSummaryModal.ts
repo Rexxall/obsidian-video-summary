@@ -29,6 +29,7 @@ export class VideoSummaryModal extends Modal {
   }
 
   onOpen() {
+    this.modalEl.addClass('ap', 'ap-modal');
     const { contentEl } = this;
     contentEl.empty();
 

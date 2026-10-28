@@ -104,7 +104,6 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   autoRouteContent: true,
   attentionAssessmentEnabled: true,
   generateLearningArtifacts: false,
-  paperStyle: false,
   readerQuoteTemplate: DEFAULT_QUOTE_TEMPLATE,
   aiModel: 'Gemini 3.1',
   customAiModels: [...DEFAULT_AI_MODELS],

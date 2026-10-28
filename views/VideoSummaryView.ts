@@ -64,7 +64,7 @@ export class VideoSummaryView extends ItemView {
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
-    container.addClass('video-summary-view');
+    container.addClass('video-summary-view', 'ap', 'ap-view');
     this.resizeObserver?.disconnect();
     this.resizeObserver = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? container.clientWidth;
@@ -235,7 +235,7 @@ export class VideoSummaryView extends ItemView {
       ['library', '笔记库', String(libraryCount)],
     ];
 
-    const wrapper = panel.createDiv({ cls: 'vs-tab-row' });
+    const wrapper = panel.createDiv({ cls: 'vs-tab-row ap-bar-glass' });
     segmented(
       wrapper,
       tabs.map(([value, label, count]) => ({ value, label, count })),

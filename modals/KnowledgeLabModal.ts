@@ -35,6 +35,7 @@ export class KnowledgeLabModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass('ap', 'ap-modal');
     this.contentEl.empty();
     this.contentEl.addClass('vs-modal', 'vs-knowledge-lab');
     this.contentEl.createEl('h2', {

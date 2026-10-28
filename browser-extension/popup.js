@@ -46,7 +46,6 @@ const els = {
     obsidianRestProtocol: $('setting-rest-protocol'),
     obsidianRestPort: $('setting-rest-port'),
     obsidianRestToken: $('setting-rest-token'),
-    paperStyle: $('setting-paper'),
   },
 };
 
@@ -252,8 +251,6 @@ function renderSettings() {
   const s = state.settings;
   els.routeLabel.textContent = `送到：${labelOperation(s.quickAction)}`;
   els.quickButton.textContent = quickButtonLabel(s.quickAction);
-  els.settings.paperStyle.checked = s.paperStyle === true;
-  applyPaper(s.paperStyle === true);
   els.settings.vault.value = s.vaultName || '';
   els.settings.folder.value = s.folder || '';
   els.settings.appendPath.value = s.appendPath || '';
@@ -296,10 +293,6 @@ function quickButtonLabel(operation) {
   if (operation === 'append-link') return '追加到链接清单';
   if (operation === 'queue') return '加入队列';
   return '建一篇待处理笔记';
-}
-
-function applyPaper(on) {
-  document.documentElement.classList.toggle('paper', on);
 }
 
 function escapeHtml(value) {
@@ -383,7 +376,6 @@ async function saveSettings() {
     obsidianRestProtocol: els.settings.obsidianRestProtocol.value,
     obsidianRestPort: Number(els.settings.obsidianRestPort.value || 27123),
     obsidianRestToken: els.settings.obsidianRestToken.value.trim(),
-    paperStyle: els.settings.paperStyle.checked,
   };
   const response = await send('SAVE_SETTINGS', { settings });
   state.settings = response.settings;

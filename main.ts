@@ -167,7 +167,6 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 注册设置页面
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
-    this.applyPaperStyle();
 
     // 索引增量维护：以前是每次文件变动就整块重建侧栏 DOM，现在只更新受影响的那条记录
     this.registerEvent(
@@ -200,13 +199,7 @@ export default class VideoSummaryPlugin extends Plugin {
     );
   }
 
-  /** 纸墨风格只是 body 上的一个类，样式表在它下面叠加细节。 */
-  applyPaperStyle() {
-    document.body.toggleClass('vs-paper', this.settings.paperStyle === true);
-  }
-
   onunload() {
-    document.body.removeClass('vs-paper');
     // 卸载前把待写入的历史落盘
     if (this.historySaveTimer !== null) {
       window.clearTimeout(this.historySaveTimer);
@@ -1279,7 +1272,6 @@ export default class VideoSummaryPlugin extends Plugin {
     // data.json 只存配置；history / webhookHistory 落在 history.json（见 queueHistorySave）
     await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
     this.queueHistorySave();
-    this.applyPaperStyle();
   }
 
   // ===== history.json 读写 =====
@@ -2152,7 +2144,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.addClass('vs-settings');
+    containerEl.addClass('vs-settings', 'ap', 'ap-settings');
 
     this.renderSettingsHeader(containerEl);
 
@@ -3171,16 +3163,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
-      .setName('Paper & ink style')
-      .setDesc('纸墨风格：纸感底纹、细墨线、衬线标题。关闭时完全跟随当前 Obsidian 主题。')
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.paperStyle === true).onChange(async (value) => {
-          this.plugin.settings.paperStyle = value;
-          await this.plugin.saveSettings();
-        }),
-      );
-
-    new Setting(section)
       .setName('文稿引用格式')
       .setDesc(
         '在阅读器里右键一段文稿“复制引用”“插入到笔记”或把它拖进笔记时使用。可用 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}，\\n 表示换行。',
@@ -3576,6 +3558,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }) {
     // 创建模态框
     const modal = new Modal(this.app);
+    modal.modalEl.addClass('ap', 'ap-modal');
     modal.titleEl.setText('📊 缓存预览');
 
     const { contentEl } = modal;

@@ -6,6 +6,8 @@ All notable changes to this project are documented here.
 
 Community-directory release.
 
+- **New glass design.** The side panel, every dialog, the settings page and the browser extension were redone in the style of current macOS: content on solid grouped lists and cards, the tab bar and dialogs on glass, one accent colour (yours from Obsidian), capsule buttons and segmented controls. It follows light/dark mode and falls back to solid surfaces under the system's reduce-transparency and increase-contrast settings. The "Paper & ink style" option is gone, in the plugin and in the extension.
+- Browser extension 0.5.0: the same design, with grouped settings and switches.
 - **Quote the transcript into your notes.** In Reader, right-click a transcript line to copy it as
   a quote or insert it at the cursor of the note you were editing, or drag the line into a note.
   The quote links back to that second of the video. Change the format in Settings → 输出 →

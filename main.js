@@ -1877,7 +1877,6 @@ var DEFAULT_SETTINGS = {
   autoRouteContent: true,
   attentionAssessmentEnabled: true,
   generateLearningArtifacts: false,
-  paperStyle: false,
   readerQuoteTemplate: DEFAULT_QUOTE_TEMPLATE,
   aiModel: "Gemini 3.1",
   customAiModels: [...DEFAULT_AI_MODELS],
@@ -5899,6 +5898,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
     this.noteProcessor = new NoteProcessor(app.vault);
   }
   onOpen() {
+    this.modalEl.addClass("ap", "ap-modal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "\u{1F4FA} \u89C6\u9891\u603B\u7ED3\u5904\u7406" });
@@ -6121,6 +6121,7 @@ var ConfirmModal = class extends import_obsidian2.Modal {
     this.resolve = resolve;
   }
   onOpen() {
+    this.modalEl.addClass("ap", "ap-modal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: this.title });
@@ -8952,6 +8953,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     this.courseStore = plugin.courseStore;
   }
   onOpen() {
+    this.modalEl.addClass("ap", "ap-modal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("batch-processing-modal");
@@ -12215,6 +12217,7 @@ var FolderSelectModal = class extends import_obsidian7.Modal {
     this.onSelect = onSelect;
   }
   onOpen() {
+    this.modalEl.addClass("ap", "ap-modal");
     const { contentEl } = this;
     contentEl.addClass("vs-modal", "vs-folder-modal");
     contentEl.createEl("h3", { text: "\u9009\u62E9\u8F93\u51FA\u6587\u4EF6\u5939" });
@@ -14963,7 +14966,7 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
   async onOpen() {
     const container = this.containerEl.children[1];
     container.empty();
-    container.addClass("video-summary-view");
+    container.addClass("video-summary-view", "ap", "ap-view");
     this.resizeObserver?.disconnect();
     this.resizeObserver = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? container.clientWidth;
@@ -15105,7 +15108,7 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
       ["jobs", "\u4EFB\u52A1", activeCount > 0 ? String(activeCount) : void 0],
       ["library", "\u7B14\u8BB0\u5E93", String(libraryCount)]
     ];
-    const wrapper = panel.createDiv({ cls: "vs-tab-row" });
+    const wrapper = panel.createDiv({ cls: "vs-tab-row ap-bar-glass" });
     segmented(
       wrapper,
       tabs.map(([value, label, count]) => ({ value, label, count })),
@@ -19403,6 +19406,7 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
     this.mode = mode;
   }
   onOpen() {
+    this.modalEl.addClass("ap", "ap-modal");
     this.contentEl.empty();
     this.contentEl.addClass("vs-modal", "vs-knowledge-lab");
     this.contentEl.createEl("h2", {
@@ -20325,6 +20329,7 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
     this.now = options.now || (() => /* @__PURE__ */ new Date());
   }
   onOpen() {
+    this.modalEl.addClass("ap", "ap-modal");
     this.setTitle("\u89C6\u9891\u5B66\u4E60\u590D\u4E60");
     this.contentEl.addClass("vs-modal", "vs-learning-review-modal");
     this.renderLoading();
@@ -21409,7 +21414,6 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       void this.handleProtocolRequest(params);
     });
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
-    this.applyPaperStyle();
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (file instanceof import_obsidian18.TFile && file.extension === "md") {
@@ -21439,12 +21443,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       })
     );
   }
-  /** 纸墨风格只是 body 上的一个类，样式表在它下面叠加细节。 */
-  applyPaperStyle() {
-    document.body.toggleClass("vs-paper", this.settings.paperStyle === true);
-  }
   onunload() {
-    document.body.removeClass("vs-paper");
     if (this.historySaveTimer !== null) {
       window.clearTimeout(this.historySaveTimer);
       this.historySaveTimer = null;
@@ -22281,7 +22280,6 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     this.trimHistory();
     await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
     this.queueHistorySave();
-    this.applyPaperStyle();
   }
   // ===== history.json 读写 =====
   get historyFilePath() {
@@ -23021,7 +23019,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.addClass("vs-settings");
+    containerEl.addClass("vs-settings", "ap", "ap-settings");
     this.renderSettingsHeader(containerEl);
     this.group(containerEl, "\u8FDE\u63A5", "\u5904\u7406\u670D\u52A1\u5728\u54EA\u91CC\uFF0C\u4EE5\u53CA\u7B2C\u4E00\u6B21\u4F7F\u7528\u65F6\u7684\u68C0\u67E5\u3002");
     this.createSetupGuideSection(containerEl);
@@ -23795,12 +23793,6 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         }
       })
     );
-    new import_obsidian18.Setting(section3).setName("Paper & ink style").setDesc("\u7EB8\u58A8\u98CE\u683C\uFF1A\u7EB8\u611F\u5E95\u7EB9\u3001\u7EC6\u58A8\u7EBF\u3001\u886C\u7EBF\u6807\u9898\u3002\u5173\u95ED\u65F6\u5B8C\u5168\u8DDF\u968F\u5F53\u524D Obsidian \u4E3B\u9898\u3002").addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.paperStyle === true).onChange(async (value) => {
-        this.plugin.settings.paperStyle = value;
-        await this.plugin.saveSettings();
-      })
-    );
     new import_obsidian18.Setting(section3).setName("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F").setDesc(
       "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002"
     ).addText(
@@ -24034,6 +24026,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
    */
   async showCachePreviewModal(stats) {
     const modal = new import_obsidian19.Modal(this.app);
+    modal.modalEl.addClass("ap", "ap-modal");
     modal.titleEl.setText("\u{1F4CA} \u7F13\u5B58\u9884\u89C8");
     const { contentEl } = modal;
     const refreshModalContent = async () => {

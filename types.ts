@@ -294,8 +294,6 @@ export interface VideoSummarySettings {
   autoRouteContent: boolean;
   attentionAssessmentEnabled: boolean;
   generateLearningArtifacts: boolean;
-  /** 纸墨风格：默认关，打开后在 body 上加 vs-paper，叠加纸感和细墨线 */
-  paperStyle: boolean;
   /** 阅读器里复制或插入文稿段落时用的 Markdown 模板 */
   readerQuoteTemplate: string;
   aiModel: string;

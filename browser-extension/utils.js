@@ -21,7 +21,6 @@
     defaultLanguage: 'zh',
     quickAction: 'create-pending-note',
     autoClose: false,
-    paperStyle: false,
   });
 
   // Unified host list from the shared source (previously a local 5-host subset).
