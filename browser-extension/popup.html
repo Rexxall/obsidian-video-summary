@@ -29,7 +29,7 @@
         --warn: #c76c00;
         --err: #d70015;
         --shadow-1: var(--hair), 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 8px rgb(0 0 0 / 0.04);
-        --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
         --font:
           -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Hiragino Sans',
           system-ui, sans-serif;
@@ -411,7 +411,7 @@
         background: var(--fill-strong);
         box-shadow: none;
         cursor: pointer;
-        transition: background 220ms var(--ease);
+        transition: background 200ms var(--ease);
       }
       input[type='checkbox']::after {
         content: '';
@@ -424,7 +424,7 @@
         background: #fff;
         box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
         transition:
-          transform 220ms cubic-bezier(0.34, 1.36, 0.64, 1),
+          transform 200ms cubic-bezier(0.34, 1.36, 0.64, 1),
           width 120ms var(--ease);
       }
       input[type='checkbox']:active::after {
