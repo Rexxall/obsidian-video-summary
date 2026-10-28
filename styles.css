@@ -770,7 +770,9 @@
 /* ---------- Fallbacks ---------- */
 /* No backdrop-filter: glass becomes an almost opaque surface, so text stays readable */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .ap {
+  .ap,
+  .theme-dark .ap,
+  .ap.is-dark {
     --ap-glass: var(--ap-glass-solid);
     --ap-glass-thin: var(--ap-glass-solid);
   }
@@ -778,7 +780,9 @@
 /* Reduce transparency: solid surfaces, a firmer edge */
 @media (prefers-reduced-transparency: reduce) {
   .ap,
-  .is-translucent .ap {
+  .is-translucent .ap,
+  .theme-dark .ap,
+  .ap.is-dark {
     --ap-glass: var(--ap-glass-solid);
     --ap-glass-thin: var(--ap-glass-solid);
     --ap-blur: none;
@@ -789,7 +793,9 @@
 }
 /* Increase contrast: solid surfaces and stronger lines */
 @media (prefers-contrast: more) {
-  .ap {
+  .ap,
+  .theme-dark .ap,
+  .ap.is-dark {
     --ap-glass: var(--background-primary);
     --ap-glass-thin: var(--background-primary);
     --ap-blur: none;
