@@ -3501,3 +3501,157 @@ body {
   > :is(.modal-close-button, .modal-header-button) {
   display: none;
 }
+
+/* 没有封面：平台色浅底＋平台图标，代替灰块 */
+.ap .vs-thumb.is-empty {
+  background: color-mix(in srgb, var(--vs-pf) 14%, var(--ap-page));
+}
+.ap .vs-thumb.is-empty .vs-thumb-placeholder {
+  color: var(--vs-pf);
+  opacity: 1;
+}
+.ap .vs-thumb.is-empty .vs-thumb-placeholder svg {
+  width: 18px;
+  height: 18px;
+}
+.ap .vs-thumb.is-empty .vs-thumb-bar {
+  display: none;
+}
+
+/* 添加框：开始按钮在框内右下角，提示在左下角 */
+.video-summary-view .vs-add-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ap-s2);
+  padding: 0 var(--ap-s2) var(--ap-s2) var(--ap-s3);
+}
+.video-summary-view .vs-add-bar .vs-add-hint {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--ap-caption);
+  color: var(--ap-label-3);
+}
+.video-summary-view .vs-add-bar button.vs-add-file {
+  position: static;
+}
+.video-summary-view textarea.vs-input {
+  padding-right: 11px;
+}
+
+/* “选项”展开行：标题、当前选择、箭头；展开后是模式、学习卡与默认值 */
+.video-summary-view .vs-fold {
+  margin-top: var(--ap-s3);
+  border-radius: var(--ap-r-group);
+  background: var(--ap-group);
+  box-shadow: var(--ap-hair);
+  overflow: hidden;
+}
+.video-summary-view button.vs-fold-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--ap-s2);
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--ap-s3) 0 var(--ap-s4);
+  border-radius: 0;
+  color: var(--ap-label);
+  font: var(--ap-body);
+}
+.video-summary-view button.vs-fold-toggle::before,
+.video-summary-view .vs-fold.is-open button.vs-fold-toggle::before {
+  content: none;
+}
+.video-summary-view button.vs-fold-toggle:hover {
+  background: var(--ap-fill);
+}
+.video-summary-view .vs-fold-title {
+  flex: 1;
+  text-align: left;
+}
+.video-summary-view .vs-fold-value {
+  color: var(--ap-label-2);
+  font: var(--ap-subhead);
+}
+.video-summary-view .vs-fold-chevron {
+  display: inline-flex;
+  color: var(--ap-label-3);
+  transition: transform var(--ap-base) var(--ap-ease);
+}
+.video-summary-view .vs-fold-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+.video-summary-view .vs-fold.is-open .vs-fold-chevron {
+  transform: rotate(90deg);
+}
+.video-summary-view .vs-fold-body {
+  padding: 0 var(--ap-s4) var(--ap-s3);
+}
+.video-summary-view .vs-fold-body .vs-add-controls {
+  margin-top: var(--ap-s1);
+}
+
+/* 最近完成：一组实底列表 */
+.video-summary-view .vs-history-group {
+  padding: var(--ap-s1);
+}
+.video-summary-view .vs-history-group .vs-row {
+  margin: 0;
+}
+.video-summary-view .vs-history-group .vs-row + .vs-row {
+  box-shadow: inset 0 0.5px 0 var(--ap-sep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-summary-view .vs-fold-chevron {
+    transition: none;
+  }
+}
+
+/* 弹窗标题居中（左侧空位与关闭按钮等宽） */
+.vs-modal .vs-modal-header.is-centered .vs-modal-title {
+  text-align: center;
+}
+.vs-modal .vs-modal-header-spacer {
+  flex: none;
+  width: 28px;
+}
+
+/* 筛选：搜索框旁一个胶囊，有筛选条件时变强调浅色 */
+.ap-modal .vs-modal button.vs-filter-pill {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--ap-r-pill);
+  background: var(--ap-fill);
+  color: var(--ap-label);
+  font: 500 12px/16px var(--ap-font);
+}
+.ap-modal .vs-modal button.vs-filter-pill.is-active {
+  background: var(--ap-accent-tint);
+  color: var(--ap-accent);
+}
+
+/* 列表头：已选数＋“…” */
+.vs-modal .vs-modal-quick {
+  flex-wrap: nowrap;
+  margin-bottom: var(--ap-s1);
+  padding-inline: var(--ap-s1);
+}
+.ap-modal .vs-modal .vs-quick-count {
+  font: var(--ap-subhead);
+  color: var(--ap-label-2);
+}
+
+/* 当前笔记条在“选项”下方，留出间距 */
+.video-summary-view.ap .vs-fold + .vs-context-strip {
+  margin-top: var(--ap-s3);
+}
+.ap .vs-thumb.is-empty:has(.vs-thumb-time) .vs-thumb-placeholder {
+  justify-content: flex-start;
+  padding-left: 6px;
+}

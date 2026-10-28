@@ -3,7 +3,7 @@ import { relinkVideoJobs } from '../utils/NoteOutput';
 import VideoSummaryPlugin from '../main';
 import { SubmitOptions } from '../core/JobService';
 import { BackendState, DetailRef, PanelTab, ViewContext, ViewState } from './context';
-import { openSettings, renderActionBar } from './panels/ActionBar';
+import { renderActionBar } from './panels/ActionBar';
 import { renderJobsPanel } from './panels/JobsPanel';
 import {
   disconnectLibraryCoverObserver,
@@ -221,7 +221,6 @@ export class VideoSummaryView extends ItemView {
       renderLibraryPanel(body, this.context());
     } else {
       renderJobsPanel(body, this.context());
-      this.renderFooter(panel);
     }
     panel.scrollTop = scrollTop;
   }
@@ -248,24 +247,6 @@ export class VideoSummaryView extends ItemView {
         this.renderPanels();
       },
     );
-  }
-
-  /** 任务页底部：不常去但要找得到的入口，一行安静的文字 */
-  private renderFooter(panel: HTMLElement) {
-    const foot = panel.createDiv({ cls: 'vs-foot-links' });
-    const link = (text: string, onClick: () => void) => {
-      const button = foot.createEl('button', {
-        text,
-        cls: 'vs-link-btn',
-        attr: { type: 'button' },
-      });
-      button.addEventListener('click', onClick);
-    };
-    const run = (id: string) =>
-      (this.app as any).commands?.executeCommandById?.(`${this.plugin.manifest.id}:${id}`);
-    link('复习学习卡', () => run('learning-review-due'));
-    link('跨视频搜索', () => run('memory-search'));
-    link('设置', () => openSettings(this.context()));
   }
 
   private async openNote(path: string) {

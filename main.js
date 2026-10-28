@@ -6735,6 +6735,19 @@ function balancedJsonObject(text, start) {
 
 // views/ui.ts
 var import_obsidian3 = require("obsidian");
+
+// core/CoverPlaceholder.ts
+function isPlaceholderCover(url, width, height) {
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+  return /(^|\.)ytimg\.com$/.test(host) && width === 120 && height === 90;
+}
+
+// views/ui.ts
 function iconButton(parent, icon, label, onClick, extraCls) {
   const button = parent.createEl("button", {
     cls: `vs-icon-btn${extraCls ? ` ${extraCls}` : ""}`,
@@ -6777,10 +6790,12 @@ function configChip(parent, label, value, items) {
 function showMenu(event, items) {
   const menu = new import_obsidian3.Menu();
   items.forEach((spec) => {
+    if (spec.separatorBefore) menu.addSeparator();
     menu.addItem((item) => {
       item.setTitle(spec.title);
       if (spec.icon) item.setIcon(spec.icon);
       if (spec.disabled) item.setDisabled(true);
+      if (spec.checked !== void 0) item.setChecked(spec.checked);
       item.onClick(() => spec.onClick());
     });
   });
@@ -6856,6 +6871,7 @@ function thumbnail(parent, options = {}) {
     attr: { "aria-hidden": "true" }
   });
   (0, import_obsidian3.setIcon)(placeholder, platformIcon(options.platform));
+  if (!placeholder.firstChild) (0, import_obsidian3.setIcon)(placeholder, "play");
   if (options.cover) {
     const img = thumb.createEl("img", {
       cls: "vs-thumb-img",
@@ -6867,7 +6883,16 @@ function thumbnail(parent, options = {}) {
         referrerpolicy: "no-referrer"
       }
     });
-    img.addEventListener("error", () => img.remove());
+    const drop = () => {
+      img.remove();
+      thumb.addClass("is-empty");
+    };
+    img.addEventListener("error", drop);
+    img.addEventListener("load", () => {
+      if (isPlaceholderCover(options.cover ?? "", img.naturalWidth, img.naturalHeight)) drop();
+    });
+  } else {
+    thumb.addClass("is-empty");
   }
   thumb.createSpan({ cls: "vs-thumb-bar" });
   if (options.duration) {
@@ -6900,7 +6925,7 @@ function formatClock(ms) {
 function platformIcon(platform) {
   switch (platform) {
     case "youtube":
-      return "youtube";
+      return "play";
     case "bilibili":
       return "tv";
     case "douyin":
@@ -8958,7 +8983,8 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     contentEl.empty();
     contentEl.addClass("batch-processing-modal");
     contentEl.addClass("vs-modal");
-    const header = contentEl.createDiv({ cls: "vs-modal-header" });
+    const header = contentEl.createDiv({ cls: "vs-modal-header is-centered" });
+    header.createSpan({ cls: "vs-modal-header-spacer" });
     header.createSpan({ text: "\u6279\u91CF\u5904\u7406", cls: "vs-modal-title" });
     const closeBtn = header.createEl("button", {
       cls: "vs-icon-btn",
@@ -9023,81 +9049,79 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
       error: "\u5904\u7406\u5931\u8D25",
       processed: "\u5DF2\u5904\u7406"
     };
-    this.filterPill(
-      this.filterEl,
-      statusLabels[this.statusFilter] || "\u5168\u90E8\u72B6\u6001",
-      () => Object.entries(statusLabels).map(([value, label]) => ({
-        title: label,
-        onClick: async () => {
-          this.statusFilter = value;
-          await this.applyFilters();
-          this.refreshFilterPills();
-        }
-      }))
-    );
-    this.filterPill(
-      this.filterEl,
-      this.folderFilter === "all" ? "\u5168\u90E8\u6587\u4EF6\u5939" : this.folderFilter,
-      () => [
-        {
-          title: "\u5168\u90E8\u6587\u4EF6\u5939",
-          onClick: async () => {
-            this.folderFilter = "all";
-            await this.applyFilters();
-            this.refreshFilterPills();
-          }
-        },
-        ...this.collectFolders().map((folder) => ({
-          title: folder,
-          onClick: async () => {
-            this.folderFilter = folder;
-            await this.applyFilters();
-            this.refreshFilterPills();
-          }
-        }))
-      ]
-    );
     const dateLabels = {
       all: "\u5168\u90E8\u65F6\u95F4",
       today: "\u4ECA\u5929",
       week: "\u672C\u5468",
       month: "\u672C\u6708"
     };
+    const applied = [
+      this.statusFilter !== "all" ? statusLabels[this.statusFilter] : "",
+      this.folderFilter !== "all" ? this.folderFilter.split("/").pop() || this.folderFilter : "",
+      this.dateFilter !== "all" ? dateLabels[this.dateFilter] : ""
+    ].filter(Boolean);
+    const pick = (apply) => async () => {
+      apply();
+      await this.applyFilters();
+      this.refreshFilterPills();
+    };
     this.filterPill(
       this.filterEl,
-      dateLabels[this.dateFilter] || "\u5168\u90E8\u65F6\u95F4",
-      () => Object.entries(dateLabels).map(([value, label]) => ({
-        title: label,
-        onClick: async () => {
-          this.dateFilter = value;
-          await this.applyFilters();
-          this.refreshFilterPills();
-        }
-      }))
+      applied.length ? applied.join(" \xB7 ") : "\u7B5B\u9009",
+      () => [
+        ...Object.entries(statusLabels).map(([value, label]) => ({
+          title: label,
+          checked: this.statusFilter === value,
+          onClick: pick(() => this.statusFilter = value)
+        })),
+        ...["all", ...this.collectFolders()].map((folder, index) => ({
+          title: folder === "all" ? "\u5168\u90E8\u6587\u4EF6\u5939" : folder,
+          checked: this.folderFilter === folder,
+          separatorBefore: index === 0,
+          onClick: pick(() => this.folderFilter = folder)
+        })),
+        ...Object.entries(dateLabels).map(([value, label], index) => ({
+          title: label,
+          checked: this.dateFilter === value,
+          separatorBefore: index === 0,
+          onClick: pick(() => this.dateFilter = value)
+        }))
+      ],
+      applied.length > 0
     );
     const quickRow = fileSelectionEl.createDiv({ cls: "vs-modal-quick" });
-    const quickChip = (label, active, onClick) => {
-      const chip = quickRow.createEl("button", {
-        text: label,
-        cls: `vs-quick-chip${active ? " is-active" : ""}`,
-        attr: { type: "button" }
-      });
-      chip.addEventListener("click", (event) => {
-        event.preventDefault();
-        onClick();
-      });
-    };
-    quickChip("\u5168\u9009", false, () => void this.selectAllVisible());
-    quickChip("\u6E05\u7A7A", false, () => void this.selectNone());
-    quickChip("\u9009\u62E9\u5F85\u5904\u7406", false, () => void this.selectByStatus("pending"));
-    quickChip("\u9009\u62E9\u5931\u8D25", false, () => void this.selectByStatus("error"));
-    quickChip("\u7F3A\u5C11\u89C6\u9891\u4FE1\u606F", this.infoFilter === "no-info", async () => {
-      this.infoFilter = this.infoFilter === "no-info" ? "all" : "no-info";
-      await this.applyFilters();
-      this.onOpen();
-    });
-    quickRow.createSpan({ cls: "vs-quick-spacer" });
     this.countEl = quickRow.createSpan({ cls: "vs-quick-count" });
+    quickRow.createSpan({ cls: "vs-quick-spacer" });
+    iconButton(
+      quickRow,
+      "more-horizontal",
+      "\u9009\u62E9",
+      (event) => showMenu(event, [
+        { title: "\u5168\u9009", icon: "check-check", onClick: () => void this.selectAllVisible() },
+        { title: "\u6E05\u7A7A", icon: "x", onClick: () => void this.selectNone() },
+        {
+          title: "\u9009\u62E9\u5F85\u5904\u7406",
+          icon: "circle-dashed",
+          separatorBefore: true,
+          onClick: () => void this.selectByStatus("pending")
+        },
+        {
+          title: "\u9009\u62E9\u5931\u8D25",
+          icon: "circle-alert",
+          onClick: () => void this.selectByStatus("error")
+        },
+        {
+          title: "\u53EA\u770B\u7F3A\u5C11\u89C6\u9891\u4FE1\u606F\u7684",
+          checked: this.infoFilter === "no-info",
+          separatorBefore: true,
+          onClick: async () => {
+            this.infoFilter = this.infoFilter === "no-info" ? "all" : "no-info";
+            await this.applyFilters();
+            this.onOpen();
+          }
+        }
+      ])
+    );
     this.fileListEl = fileSelectionEl.createDiv({ cls: "vs-modal-list" });
     this.renderLastBatch(fileSelectionEl);
     const playlistSelectionEl = bodyEl.createDiv({ cls: "batch-playlist-selection" });
@@ -9159,9 +9183,9 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     void this.scanVideoFiles();
   }
   /** 一行筛选里的下拉胶囊：点开是 Obsidian Menu */
-  filterPill(parent, label, items) {
+  filterPill(parent, label, items, active = false) {
     const pill = parent.createEl("button", {
-      cls: "vs-filter-pill",
+      cls: `vs-filter-pill${active ? " is-active" : ""}`,
       attr: { type: "button" }
     });
     pill.createSpan({ text: label });
@@ -12286,24 +12310,10 @@ function currentQuickMode(ctx) {
   if (settings.defaultMode !== "summary") return null;
   return settings.defaultProcessingDepth === "quick" ? "summary" : "evidence";
 }
-async function setQuickMode(ctx, mode) {
-  const { plugin } = ctx;
-  if (mode === "transcript") {
-    plugin.settings.defaultMode = "transcript-only";
-  } else {
-    plugin.settings.defaultMode = "summary";
-    const depth = mode === "summary" ? "quick" : "evidence";
-    plugin.settings.defaultProcessingDepth = depth;
-    plugin.api.setAnalysisDefaults({ processingDepth: depth });
-  }
-  await plugin.saveSettings();
-  ctx.renderAll();
-}
 function renderActionBar(container, ctx) {
   const { state } = ctx;
   const root = container.createDiv({ cls: "vs-action-bar" });
   renderHeader(root, ctx);
-  renderContextStrip(root, ctx);
   const box = root.createDiv({ cls: "vs-add" });
   const input = box.createEl("textarea", {
     cls: "vs-input",
@@ -12318,20 +12328,47 @@ function renderActionBar(container, ctx) {
     state.inputDraft = input.value;
   });
   autoGrow(input);
-  iconButton(box, "folder-open", "\u9009\u62E9\u672C\u673A\u97F3\u89C6\u9891", () => pickLocalFiles(ctx, input), "vs-add-file");
+  const boxBar = box.createDiv({ cls: "vs-add-bar" });
+  boxBar.createSpan({ cls: "vs-add-hint", text: "\u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB" });
+  iconButton(
+    boxBar,
+    "folder-open",
+    "\u9009\u62E9\u672C\u673A\u97F3\u89C6\u9891",
+    () => pickLocalFiles(ctx, input),
+    "vs-add-file"
+  );
+  const submitBtn = boxBar.createEl("button", {
+    text: "\u5F00\u59CB",
+    cls: "vs-primary-btn",
+    attr: { type: "button" }
+  });
   bindFileDrop(box, ctx, input);
-  const controls = root.createDiv({ cls: "vs-add-controls" });
   const quick = currentQuickMode(ctx);
-  segmented(
-    controls,
-    [
-      { value: "transcript", label: "\u53EA\u8981\u6587\u7A3F" },
-      { value: "summary", label: "\u603B\u7ED3" },
-      { value: "evidence", label: "\u8BC1\u636E" }
-    ],
-    quick ?? "",
-    (value) => void setQuickMode(ctx, value)
-  ).addClass("vs-mode-seg");
+  const quickLabels = {
+    transcript: "\u53EA\u8981\u6587\u7A3F",
+    summary: "\u603B\u7ED3",
+    evidence: "\u8BC1\u636E"
+  };
+  const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? " is-open" : ""}` });
+  const foldToggle = fold.createEl("button", {
+    cls: "vs-fold-toggle",
+    attr: { type: "button", "aria-expanded": state.advancedOpen ? "true" : "false" }
+  });
+  foldToggle.createSpan({ text: "\u9009\u9879", cls: "vs-fold-title" });
+  foldToggle.createSpan({
+    cls: "vs-fold-value",
+    text: [
+      quick ? quickLabels[quick] : modeLabel(ctx.plugin.settings.defaultMode),
+      ctx.plugin.settings.generateLearningArtifacts ? "\u5B66\u4E60\u5361" : ""
+    ].filter(Boolean).join(" \xB7 ")
+  });
+  (0, import_obsidian8.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
+  foldToggle.addEventListener("click", () => {
+    state.advancedOpen = !state.advancedOpen;
+    ctx.renderAll();
+  });
+  const foldBody = fold.createDiv({ cls: "vs-fold-body" });
+  const controls = foldBody.createDiv({ cls: "vs-add-controls" });
   const learn = controls.createEl("label", { cls: "vs-check" });
   const learnBox = learn.createEl("input", { attr: { type: "checkbox" } });
   learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
@@ -12340,29 +12377,11 @@ function renderActionBar(container, ctx) {
     ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
     ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
     await ctx.plugin.saveSettings();
-  });
-  const submitBtn = controls.createEl("button", {
-    text: "\u5F00\u59CB",
-    cls: "vs-primary-btn",
-    attr: { type: "button" }
-  });
-  root.createDiv({
-    cls: "vs-add-hint",
-    text: quick === null ? `\u5F53\u524D\uFF1A${modeLabel(ctx.plugin.settings.defaultMode)}\uFF08\u5728\u66F4\u591A\u9009\u9879\u91CC\u6539\uFF09\xB7 \u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB` : "\u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB"
-  });
-  const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? " is-open" : ""}` });
-  const foldToggle = fold.createEl("button", {
-    text: "\u66F4\u591A\u9009\u9879",
-    cls: "vs-fold-toggle",
-    attr: { type: "button", "aria-expanded": state.advancedOpen ? "true" : "false" }
-  });
-  foldToggle.addEventListener("click", () => {
-    state.advancedOpen = !state.advancedOpen;
     ctx.renderAll();
   });
-  const foldBody = fold.createDiv({ cls: "vs-fold-body" });
   renderOptions(foldBody, ctx);
   const advancedFields = renderAdvanced(foldBody, ctx, input);
+  renderContextStrip(root, ctx);
   submitBtn.addEventListener("click", async () => {
     submitBtn.disabled = true;
     try {
@@ -13029,7 +13048,8 @@ function renderJobsPanel(container, ctx) {
       ]);
     });
     const visibleHistory = historyExpanded ? historyRows.slice(0, 60) : historyRows.slice(0, RECENT_HISTORY_LIMIT);
-    visibleHistory.forEach((row) => renderHistoryRow(container, ctx, row));
+    const group = container.createDiv({ cls: "vs-history-group ap-group" });
+    visibleHistory.forEach((row) => renderHistoryRow(group, ctx, row));
     if (historyRows.length > RECENT_HISTORY_LIMIT) {
       const more = container.createEl("button", {
         text: historyExpanded ? "\u6536\u8D77\u6700\u8FD1\u5B8C\u6210" : `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${historyRows.length - RECENT_HISTORY_LIMIT} \u6761`,
@@ -15097,7 +15117,6 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
       renderLibraryPanel(body, this.context());
     } else {
       renderJobsPanel(body, this.context());
-      this.renderFooter(panel);
     }
     panel.scrollTop = scrollTop;
   }
@@ -15121,22 +15140,6 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
         this.renderPanels();
       }
     );
-  }
-  /** 任务页底部：不常去但要找得到的入口，一行安静的文字 */
-  renderFooter(panel) {
-    const foot = panel.createDiv({ cls: "vs-foot-links" });
-    const link = (text, onClick) => {
-      const button = foot.createEl("button", {
-        text,
-        cls: "vs-link-btn",
-        attr: { type: "button" }
-      });
-      button.addEventListener("click", onClick);
-    };
-    const run = (id) => this.app.commands?.executeCommandById?.(`${this.plugin.manifest.id}:${id}`);
-    link("\u590D\u4E60\u5B66\u4E60\u5361", () => run("learning-review-due"));
-    link("\u8DE8\u89C6\u9891\u641C\u7D22", () => run("memory-search"));
-    link("\u8BBE\u7F6E", () => openSettings(this.context()));
   }
   async openNote(path) {
     let file = this.app.vault.getAbstractFileByPath(path);

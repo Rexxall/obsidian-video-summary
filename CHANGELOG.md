@@ -8,6 +8,8 @@ Community-directory release.
 
 - **New glass design.** The side panel, every dialog, the settings page and the browser extension were redone in the style of current macOS: content on solid grouped lists and cards, the tab bar and dialogs on glass, one accent colour (yours from Obsidian), capsule buttons and segmented controls. It follows light/dark mode and falls back to solid surfaces under the system's reduce-transparency and increase-contrast settings. The "Paper & ink style" option is gone, in the plugin and in the extension.
 - Browser extension 0.5.0: the same design, with grouped settings and switches.
+- Side panel reordered: the add box comes first, with 开始 inside it; mode, learning cards and the other defaults sit in one 选项 row that expands; the finished-jobs list is its own group. 复习学习卡, 跨视频搜索 and 设置 moved from the bottom links into the ··· menu next to the title. Videos without a cover show their platform icon instead of a grey block, including YouTube's grey placeholder for missing covers.
+- Batch dialog: centred title; status, folder and date filters are one 筛选 capsule; 全选, 清空 and the select-by-status actions are in the ··· menu at the top of the list.
 - **Quote the transcript into your notes.** In Reader, right-click a transcript line to copy it as
   a quote or insert it at the cursor of the note you were editing, or drag the line into a note.
   The quote links back to that second of the video. Change the format in Settings → 输出 →

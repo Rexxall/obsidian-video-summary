@@ -1,9 +1,14 @@
 import { Menu, setIcon } from 'obsidian';
+import { isPlaceholderCover } from '../core/CoverPlaceholder';
 
 export interface MenuItemSpec {
   title: string;
   icon?: string;
   disabled?: boolean;
+  /** 筛选菜单里标出当前选中的一项 */
+  checked?: boolean;
+  /** 在这一项前面加分隔线，用来分组 */
+  separatorBefore?: boolean;
   onClick: () => void;
 }
 
@@ -71,10 +76,12 @@ export function configChip(
 export function showMenu(event: MouseEvent, items: MenuItemSpec[]) {
   const menu = new Menu();
   items.forEach((spec) => {
+    if (spec.separatorBefore) menu.addSeparator();
     menu.addItem((item) => {
       item.setTitle(spec.title);
       if (spec.icon) item.setIcon(spec.icon);
       if (spec.disabled) item.setDisabled(true);
+      if (spec.checked !== undefined) item.setChecked(spec.checked);
       item.onClick(() => spec.onClick());
     });
   });
@@ -176,13 +183,15 @@ export function thumbnail(parent: HTMLElement, options: ThumbOptions = {}): HTML
     cls: `vs-thumb${options.size === 'lg' ? ' is-lg' : ''} ${platformClass(options.platform)}`,
   });
 
-  // 封面缺失或加载失败时，保留一个低对比的平台占位。它完全在本地生成，
+  // 封面缺失或加载失败时，显示平台图标（平台色浅底），不留灰块。它完全在本地生成，
   // 不会为了填满列表而额外请求第三方元数据，也不会伪装成真实视频截图。
   const placeholder = thumb.createSpan({
     cls: 'vs-thumb-placeholder',
     attr: { 'aria-hidden': 'true' },
   });
   setIcon(placeholder, platformIcon(options.platform));
+  // Obsidian 自带的 lucide 不含品牌图标，缺图时退回播放图标
+  if (!placeholder.firstChild) setIcon(placeholder, 'play');
 
   if (options.cover) {
     const img = thumb.createEl('img', {
@@ -195,7 +204,17 @@ export function thumbnail(parent: HTMLElement, options: ThumbOptions = {}): HTML
         referrerpolicy: 'no-referrer',
       },
     });
-    img.addEventListener('error', () => img.remove());
+    const drop = () => {
+      img.remove();
+      thumb.addClass('is-empty');
+    };
+    img.addEventListener('error', drop);
+    // YouTube 对没有封面的视频返回一张 120×90 的灰色占位图，也当作没有封面
+    img.addEventListener('load', () => {
+      if (isPlaceholderCover(options.cover ?? '', img.naturalWidth, img.naturalHeight)) drop();
+    });
+  } else {
+    thumb.addClass('is-empty');
   }
   thumb.createSpan({ cls: 'vs-thumb-bar' });
   if (options.duration) {
@@ -234,7 +253,7 @@ export function formatClock(ms: number): string {
 export function platformIcon(platform?: string): string {
   switch (platform) {
     case 'youtube':
-      return 'youtube';
+      return 'play';
     case 'bilibili':
       return 'tv';
     case 'douyin':

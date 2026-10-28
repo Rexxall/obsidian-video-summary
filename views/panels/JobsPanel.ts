@@ -83,7 +83,9 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
     const visibleHistory = historyExpanded
       ? historyRows.slice(0, 60)
       : historyRows.slice(0, RECENT_HISTORY_LIMIT);
-    visibleHistory.forEach((row) => renderHistoryRow(container, ctx, row));
+    // 任务列表单独成一组
+    const group = container.createDiv({ cls: 'vs-history-group ap-group' });
+    visibleHistory.forEach((row) => renderHistoryRow(group, ctx, row));
 
     if (historyRows.length > RECENT_HISTORY_LIMIT) {
       const more = container.createEl('button', {

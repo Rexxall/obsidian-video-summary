@@ -50,7 +50,7 @@ interface BackendProbeCache {
 /** 探测缓存跟随插件实例；视图重绘或关闭重开都不会重复请求。 */
 const backendProbeCaches = new WeakMap<object, BackendProbeCache>();
 
-/** 侧栏首屏三档：只要文稿 / 总结（极速）/ 证据（保留时间轴）。其余组合在“更多选项”里。 */
+/** “选项”行右侧的摘要：只要文稿 / 总结（极速）/ 证据（保留时间轴）。 */
 type QuickMode = 'transcript' | 'summary' | 'evidence';
 
 function currentQuickMode(ctx: ViewContext): QuickMode | null {
@@ -60,31 +60,17 @@ function currentQuickMode(ctx: ViewContext): QuickMode | null {
   return settings.defaultProcessingDepth === 'quick' ? 'summary' : 'evidence';
 }
 
-async function setQuickMode(ctx: ViewContext, mode: QuickMode) {
-  const { plugin } = ctx;
-  if (mode === 'transcript') {
-    plugin.settings.defaultMode = 'transcript-only';
-  } else {
-    plugin.settings.defaultMode = 'summary';
-    const depth: ProcessingDepth = mode === 'summary' ? 'quick' : 'evidence';
-    plugin.settings.defaultProcessingDepth = depth;
-    plugin.api.setAnalysisDefaults({ processingDepth: depth });
-  }
-  await plugin.saveSettings();
-  ctx.renderAll();
-}
-
 /**
- * 顶部：标题、后端状态、当前笔记，然后只有一个添加框。
- * 模式只露三档，学习卡一个勾；语言、模型、保存位置等收进“更多选项”，少用的命令在“···”。
+ * 顶部：标题、后端状态，然后是添加框（“开始”在框内）。
+ * 模式、学习卡、语言、模型、保存位置收进一行“选项”展开行；少用的命令在标题旁的“···”。
  */
 export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   const { state } = ctx;
   const root = container.createDiv({ cls: 'vs-action-bar' });
 
   renderHeader(root, ctx);
-  renderContextStrip(root, ctx);
 
+  // 最上面是添加框，“开始”就在框里右下角
   const box = root.createDiv({ cls: 'vs-add' });
   const input = box.createEl('textarea', {
     cls: 'vs-input',
@@ -99,22 +85,53 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     state.inputDraft = input.value;
   });
   autoGrow(input);
-  iconButton(box, 'folder-open', '选择本机音视频', () => pickLocalFiles(ctx, input), 'vs-add-file');
+  const boxBar = box.createDiv({ cls: 'vs-add-bar' });
+  boxBar.createSpan({ cls: 'vs-add-hint', text: '多行即批量 · ⌘ Enter 开始' });
+  iconButton(
+    boxBar,
+    'folder-open',
+    '选择本机音视频',
+    () => pickLocalFiles(ctx, input),
+    'vs-add-file',
+  );
+  const submitBtn = boxBar.createEl('button', {
+    text: '开始',
+    cls: 'vs-primary-btn',
+    attr: { type: 'button' },
+  });
   bindFileDrop(box, ctx, input);
 
-  const controls = root.createDiv({ cls: 'vs-add-controls' });
+  // 模式、学习卡和其余默认值收进一行“选项”展开行，右侧写当前选择
   const quick = currentQuickMode(ctx);
-  segmented<QuickMode>(
-    controls,
-    [
-      { value: 'transcript', label: '只要文稿' },
-      { value: 'summary', label: '总结' },
-      { value: 'evidence', label: '证据' },
-    ],
-    quick ?? ('' as QuickMode),
-    (value) => void setQuickMode(ctx, value),
-  ).addClass('vs-mode-seg');
+  const quickLabels: Record<QuickMode, string> = {
+    transcript: '只要文稿',
+    summary: '总结',
+    evidence: '证据',
+  };
+  const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? ' is-open' : ''}` });
+  const foldToggle = fold.createEl('button', {
+    cls: 'vs-fold-toggle',
+    attr: { type: 'button', 'aria-expanded': state.advancedOpen ? 'true' : 'false' },
+  });
+  foldToggle.createSpan({ text: '选项', cls: 'vs-fold-title' });
+  foldToggle.createSpan({
+    cls: 'vs-fold-value',
+    text: [
+      quick ? quickLabels[quick] : modeLabel(ctx.plugin.settings.defaultMode),
+      ctx.plugin.settings.generateLearningArtifacts ? '学习卡' : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  });
+  setIcon(foldToggle.createSpan({ cls: 'vs-fold-chevron' }), 'chevron-right');
+  foldToggle.addEventListener('click', () => {
+    state.advancedOpen = !state.advancedOpen;
+    ctx.renderAll();
+  });
+  const foldBody = fold.createDiv({ cls: 'vs-fold-body' });
 
+  // 处理方式与理解深度在下面的默认值里各一行，这里只放学习卡开关
+  const controls = foldBody.createDiv({ cls: 'vs-add-controls' });
   const learn = controls.createEl('label', { cls: 'vs-check' });
   const learnBox = learn.createEl('input', { attr: { type: 'checkbox' } });
   learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
@@ -123,35 +140,13 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
     ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
     await ctx.plugin.saveSettings();
-  });
-
-  const submitBtn = controls.createEl('button', {
-    text: '开始',
-    cls: 'vs-primary-btn',
-    attr: { type: 'button' },
-  });
-
-  root.createDiv({
-    cls: 'vs-add-hint',
-    text:
-      quick === null
-        ? `当前：${modeLabel(ctx.plugin.settings.defaultMode)}（在更多选项里改）· 多行即批量 · ⌘ Enter 开始`
-        : '多行即批量 · ⌘ Enter 开始',
-  });
-
-  const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? ' is-open' : ''}` });
-  const foldToggle = fold.createEl('button', {
-    text: '更多选项',
-    cls: 'vs-fold-toggle',
-    attr: { type: 'button', 'aria-expanded': state.advancedOpen ? 'true' : 'false' },
-  });
-  foldToggle.addEventListener('click', () => {
-    state.advancedOpen = !state.advancedOpen;
     ctx.renderAll();
   });
-  const foldBody = fold.createDiv({ cls: 'vs-fold-body' });
+
   renderOptions(foldBody, ctx);
   const advancedFields = renderAdvanced(foldBody, ctx, input);
+
+  renderContextStrip(root, ctx);
 
   submitBtn.addEventListener('click', async () => {
     submitBtn.disabled = true;
@@ -510,7 +505,7 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   }
 }
 
-/** “更多选项”里的默认值：一行一个，标签在左，当前值在右 */
+/** “选项”展开行里的默认值：一行一个，标签在左，当前值在右 */
 function renderOptions(container: HTMLElement, ctx: ViewContext) {
   const { plugin } = ctx;
   const settings = plugin.settings;

@@ -9,7 +9,7 @@ import {
   PlaylistProcessor,
   canonicalizeVideoUrl,
 } from './utils/PlaylistProcessor';
-import { MenuItemSpec, configChip, segmented, showMenu, statusPill } from './views/ui';
+import { MenuItemSpec, configChip, iconButton, segmented, showMenu, statusPill } from './views/ui';
 import { platformLabel } from './core/NoteIndex';
 import { CourseStore, CourseManifest, summarizeCourseProgress } from './core/CourseStore';
 import {
@@ -75,7 +75,9 @@ export class BatchProcessingModal extends Modal {
     contentEl.addClass('batch-processing-modal');
     contentEl.addClass('vs-modal');
 
-    const header = contentEl.createDiv({ cls: 'vs-modal-header' });
+    // 标题居中：左边留一个与关闭按钮等宽的空位
+    const header = contentEl.createDiv({ cls: 'vs-modal-header is-centered' });
+    header.createSpan({ cls: 'vs-modal-header-spacer' });
     header.createSpan({ text: '批量处理', cls: 'vs-modal-title' });
     const closeBtn = header.createEl('button', {
       cls: 'vs-icon-btn',
@@ -141,86 +143,85 @@ export class BatchProcessingModal extends Modal {
       await this.applyFilters();
     });
 
+    // 状态、文件夹、时间合成一个筛选胶囊，菜单里分三组
     const statusLabels: Record<string, string> = {
       all: '全部状态',
       pending: '待处理',
       error: '处理失败',
       processed: '已处理',
     };
-    this.filterPill(this.filterEl, statusLabels[this.statusFilter] || '全部状态', () =>
-      Object.entries(statusLabels).map(([value, label]) => ({
-        title: label,
-        onClick: async () => {
-          this.statusFilter = value;
-          await this.applyFilters();
-          this.refreshFilterPills();
-        },
-      })),
-    );
-
-    this.filterPill(
-      this.filterEl,
-      this.folderFilter === 'all' ? '全部文件夹' : this.folderFilter,
-      () => [
-        {
-          title: '全部文件夹',
-          onClick: async () => {
-            this.folderFilter = 'all';
-            await this.applyFilters();
-            this.refreshFilterPills();
-          },
-        },
-        ...this.collectFolders().map((folder) => ({
-          title: folder,
-          onClick: async () => {
-            this.folderFilter = folder;
-            await this.applyFilters();
-            this.refreshFilterPills();
-          },
-        })),
-      ],
-    );
-
     const dateLabels: Record<string, string> = {
       all: '全部时间',
       today: '今天',
       week: '本周',
       month: '本月',
     };
-    this.filterPill(this.filterEl, dateLabels[this.dateFilter] || '全部时间', () =>
-      Object.entries(dateLabels).map(([value, label]) => ({
-        title: label,
-        onClick: async () => {
-          this.dateFilter = value;
-          await this.applyFilters();
-          this.refreshFilterPills();
-        },
-      })),
+    const applied = [
+      this.statusFilter !== 'all' ? statusLabels[this.statusFilter] : '',
+      this.folderFilter !== 'all' ? this.folderFilter.split('/').pop() || this.folderFilter : '',
+      this.dateFilter !== 'all' ? dateLabels[this.dateFilter] : '',
+    ].filter(Boolean);
+    const pick = (apply: () => void) => async () => {
+      apply();
+      await this.applyFilters();
+      this.refreshFilterPills();
+    };
+    this.filterPill(
+      this.filterEl,
+      applied.length ? applied.join(' · ') : '筛选',
+      () => [
+        ...Object.entries(statusLabels).map(([value, label]) => ({
+          title: label,
+          checked: this.statusFilter === value,
+          onClick: pick(() => (this.statusFilter = value)),
+        })),
+        ...['all', ...this.collectFolders()].map((folder, index) => ({
+          title: folder === 'all' ? '全部文件夹' : folder,
+          checked: this.folderFilter === folder,
+          separatorBefore: index === 0,
+          onClick: pick(() => (this.folderFilter = folder)),
+        })),
+        ...Object.entries(dateLabels).map(([value, label], index) => ({
+          title: label,
+          checked: this.dateFilter === value,
+          separatorBefore: index === 0,
+          onClick: pick(() => (this.dateFilter = value)),
+        })),
+      ],
+      applied.length > 0,
     );
 
+    // 列表头：左边已选数，右边“…”里是全选、清空、按状态选
     const quickRow = fileSelectionEl.createDiv({ cls: 'vs-modal-quick' });
-    const quickChip = (label: string, active: boolean, onClick: () => void) => {
-      const chip = quickRow.createEl('button', {
-        text: label,
-        cls: `vs-quick-chip${active ? ' is-active' : ''}`,
-        attr: { type: 'button' },
-      });
-      chip.addEventListener('click', (event) => {
-        event.preventDefault();
-        onClick();
-      });
-    };
-    quickChip('全选', false, () => void this.selectAllVisible());
-    quickChip('清空', false, () => void this.selectNone());
-    quickChip('选择待处理', false, () => void this.selectByStatus('pending'));
-    quickChip('选择失败', false, () => void this.selectByStatus('error'));
-    quickChip('缺少视频信息', this.infoFilter === 'no-info', async () => {
-      this.infoFilter = this.infoFilter === 'no-info' ? 'all' : 'no-info';
-      await this.applyFilters();
-      this.onOpen();
-    });
-    quickRow.createSpan({ cls: 'vs-quick-spacer' });
     this.countEl = quickRow.createSpan({ cls: 'vs-quick-count' });
+    quickRow.createSpan({ cls: 'vs-quick-spacer' });
+    iconButton(quickRow, 'more-horizontal', '选择', (event) =>
+      showMenu(event, [
+        { title: '全选', icon: 'check-check', onClick: () => void this.selectAllVisible() },
+        { title: '清空', icon: 'x', onClick: () => void this.selectNone() },
+        {
+          title: '选择待处理',
+          icon: 'circle-dashed',
+          separatorBefore: true,
+          onClick: () => void this.selectByStatus('pending'),
+        },
+        {
+          title: '选择失败',
+          icon: 'circle-alert',
+          onClick: () => void this.selectByStatus('error'),
+        },
+        {
+          title: '只看缺少视频信息的',
+          checked: this.infoFilter === 'no-info',
+          separatorBefore: true,
+          onClick: async () => {
+            this.infoFilter = this.infoFilter === 'no-info' ? 'all' : 'no-info';
+            await this.applyFilters();
+            this.onOpen();
+          },
+        },
+      ]),
+    );
 
     this.fileListEl = fileSelectionEl.createDiv({ cls: 'vs-modal-list' });
     this.renderLastBatch(fileSelectionEl);
@@ -296,9 +297,14 @@ export class BatchProcessingModal extends Modal {
   }
 
   /** 一行筛选里的下拉胶囊：点开是 Obsidian Menu */
-  private filterPill(parent: HTMLElement, label: string, items: () => MenuItemSpec[]) {
+  private filterPill(
+    parent: HTMLElement,
+    label: string,
+    items: () => MenuItemSpec[],
+    active = false,
+  ) {
     const pill = parent.createEl('button', {
-      cls: 'vs-filter-pill',
+      cls: `vs-filter-pill${active ? ' is-active' : ''}`,
       attr: { type: 'button' },
     });
     pill.createSpan({ text: label });
