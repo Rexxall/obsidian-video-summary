@@ -8,7 +8,6 @@ import {
   VideoSegment,
   VisualEvidence,
 } from '../types';
-import * as yaml from 'js-yaml';
 import { buildTimestampUrl, formatTimestamp, stableHash } from './KnowledgeModel';
 import {
   safeExternalHttpUrl,
@@ -17,6 +16,7 @@ import {
   safeRemoteImageUrl,
 } from '../utils/SafeExternalUrl';
 
+import { scalarText } from '../utils/json';
 export type ManagedBlockKind = 'generated' | 'evidence' | 'attention' | 'learning';
 export type SafeFrontmatterScalar = string | number | boolean | null;
 
@@ -167,13 +167,30 @@ export function serializeScalarFrontmatter(fields: Record<string, SafeFrontmatte
       throw new TypeError(`Frontmatter field "${key}" must be a scalar value.`);
     }
   }
-  return yaml
-    .dump(fields, {
-      lineWidth: 1000,
-      noRefs: true,
-      sortKeys: false,
-    })
-    .trimEnd();
+  return Object.entries(fields)
+    .map(([key, value]) => `${yamlKey(key)}: ${yamlScalar(value)}`)
+    .join('\n');
+}
+
+/** Words and number- or date-like text that YAML would read as something other than a string. */
+const YAML_AMBIGUOUS =
+  /^(?:true|false|yes|no|on|off|null|~|[-+]?(?:\.?\d|\.(?:inf|nan))[\d.eE_:+-]*|\d{4}-\d\d-\d\d.*)$/i;
+
+function yamlKey(key: string): string {
+  return /^[A-Za-z_][\w-]*$/.test(key) ? key : JSON.stringify(key);
+}
+
+/** One flow scalar: plain when that reads back as the same value, otherwise double-quoted (JSON escapes are valid YAML). */
+function yamlScalar(value: SafeFrontmatterScalar): string {
+  if (value === null) return 'null';
+  if (typeof value !== 'string') return String(value);
+  const plain =
+    value.length > 0 &&
+    value === value.trim() &&
+    !YAML_AMBIGUOUS.test(value) &&
+    !/^[-?:,[\]{}#&*!|>'"%@`]/.test(value) &&
+    !/[\n\r\t]|: | #|:$/.test(value);
+  return plain ? value : JSON.stringify(value);
 }
 
 export function renderGeneratedMarkdown(result: ProcessingResult): string {
@@ -191,7 +208,7 @@ export function sanitizeGeneratedMarkdownActiveResources(markdown: string): stri
 }
 
 export function escapeUntrustedMarkdownInline(value: unknown): string {
-  const escaped = String(value || '')
+  const escaped = scalarText(value)
     .replace(/\\/g, '\\\\')
     .replace(/([*_[\]`()#|>])/g, '\\$1')
     .replace(/\r?\n+/g, ' ');

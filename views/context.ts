@@ -45,7 +45,7 @@ export interface ViewContext {
   renderPanels(): void;
   /** 重画整个视图，包括顶部行动区 */
   renderAll(): void;
-  openNote(path: string): void;
+  openNote(path: string): Promise<void>;
   openDetail(ref: DetailRef): void;
   closeDetail(): void;
   submitOptions(): SubmitOptions;

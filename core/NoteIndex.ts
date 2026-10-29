@@ -2,6 +2,7 @@ import { App, requestUrl, TAbstractFile, TFile } from 'obsidian';
 import { VideoUtils } from '../utils/VideoUtils';
 import { safeInlineRasterDataUrl, safeRemoteImageUrl } from '../utils/SafeExternalUrl';
 
+import type { JsonRecord } from '../utils/json';
 export interface VideoNoteEntry {
   path: string;
   basename: string;
@@ -258,7 +259,7 @@ export class NoteIndex {
     this.emit();
   }
 
-  private entryFromFrontmatter(file: TFile, frontmatter: any): VideoNoteEntry {
+  private entryFromFrontmatter(file: TFile, frontmatter: JsonRecord | undefined): VideoNoteEntry {
     const rawStatus = VideoUtils.getProcessingStatusFromFrontmatter(frontmatter) || 'pending';
     const link = this.readLink(frontmatter);
     const cover = this.resolveCover(frontmatter, file) ?? this.coverForUrl(link);
@@ -298,7 +299,7 @@ export class NoteIndex {
   }
 
   /** 封面：受信平台外链或安全 raster data URL；库内图片转成 app:// 资源地址。 */
-  private resolveCover(frontmatter: any, file: TFile): string | undefined {
+  private resolveCover(frontmatter: JsonRecord | undefined, file: TFile): string | undefined {
     const raw = readCover(frontmatter);
     if (!raw) return undefined;
     const remote = normalizeRemoteCoverUrl(raw);
@@ -321,7 +322,7 @@ export class NoteIndex {
     }
   }
 
-  private readLink(frontmatter: any): string | undefined {
+  private readLink(frontmatter: JsonRecord | undefined): string | undefined {
     const fields = ['link', 'video_url', 'audio_source', 'source_url', 'url'];
     for (const field of fields) {
       const raw = frontmatter?.[field];
@@ -453,7 +454,7 @@ function isVideoCentricFile(file: TFile): boolean {
 }
 
 /** 封面允许几种常见字段名，外链和库内图片都收，解析在 NoteIndex.resolveCover */
-function readCover(frontmatter: any): string | undefined {
+function readCover(frontmatter: JsonRecord | undefined): string | undefined {
   return (
     readString(frontmatter?.video_cover) ??
     readString(frontmatter?.thumbnail_url) ??
@@ -586,9 +587,9 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
         window.clearTimeout(timer);
         resolve(value);
       },
-      (error) => {
+      (error: unknown) => {
         window.clearTimeout(timer);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       },
     );
   });

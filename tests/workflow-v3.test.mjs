@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import test from 'node:test';
 
 import {
@@ -133,7 +134,7 @@ test('active AI prompt expressions remain syntactically executable', () => {
     const node = workflow.nodes.find((candidate) => candidate.name === name);
     assert.ok(node, `Missing node: ${name}`);
     const materialized = materializeN8nPromptExpression(node.parameters.text);
-    assert.doesNotThrow(() => new Function(materialized), name);
+    assert.doesNotThrow(() => new vm.Script(`(function () {\n${materialized}\n})`), name);
   }
 });
 
@@ -255,7 +256,7 @@ test('download commands contain only a URL token and fixed runner arguments', ()
   assert.doesNotMatch(item.json.native_subtitle_command, /video-summary-pwned/);
   assert.doesNotMatch(item.json.ytdlp_command, /--no-check-certificate/);
   assert.match(item.json.ytdlp_command, /spawnSync/);
-  assert.doesNotThrow(() => new Function(MEDIA_RUNNER_PROGRAM));
+  assert.doesNotThrow(() => new vm.Script(`(async function () {\n${MEDIA_RUNNER_PROGRAM}\n})`));
 });
 
 test('public workflow requires unbound n8n credentials instead of inline secrets', () => {
@@ -382,7 +383,7 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
   );
   const expression = assignment.value.slice(3, -2).trim();
   const evaluate = (localFile) =>
-    new Function('$json', `return (${expression});`)({
+    vm.runInThisContext(`(function ($json) { return (${expression}); })`)({
       body: { metadata: { local_file: localFile } },
     });
   assert.equal(evaluate('课程 01.mp4'), '/home/node/uploads/课程 01.mp4');
@@ -428,7 +429,7 @@ test('rich Set node expressions evaluate with representative context', () => {
       assert.match(assignment.value, /^=\{\{[\s\S]*\}\}$/);
       const expression = assignment.value.slice(3, -2).trim();
       assert.doesNotThrow(
-        () => new Function('$json', '$', `return (${expression});`)($json, $),
+        () => vm.runInThisContext(`(function ($json, $) { return (${expression}); })`)($json, $),
         `${name}.${assignment.name}`,
       );
     }

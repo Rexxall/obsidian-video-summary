@@ -3,6 +3,7 @@ import { VideoUtils } from './VideoUtils';
 import { VideoSummaryModal } from '../modals';
 import VideoSummaryPlugin from '../main';
 
+import { errorMessage } from './errors';
 /**
  * 文件处理工具类
  * 包含通用的文件处理逻辑
@@ -23,14 +24,14 @@ export class FileProcessor {
     try {
       const leaf = this.app.workspace.getLeaf();
       await leaf.openFile(file);
-      setTimeout(() => {
+      window.setTimeout(() => {
         const view = leaf.view;
         if (view instanceof MarkdownView) {
           new VideoSummaryModal(this.app, this.plugin, view.editor, view).open();
         }
       }, 100);
     } catch (error) {
-      new Notice(`处理文件失败: ${error.message}`);
+      new Notice(`处理文件失败: ${errorMessage(error)}`);
     }
   }
 

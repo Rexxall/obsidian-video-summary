@@ -184,8 +184,7 @@ async function showToast(tabId, message) {
         });
         document.body.appendChild(toast);
         setTimeout(() => {
-          toast.style.opacity = '0';
-          toast.style.transition = 'opacity .2s ease';
+          toast.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' });
           setTimeout(() => toast.remove(), 240);
         }, 1800);
       },

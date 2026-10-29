@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { load } from 'js-yaml';
+import { parse as load } from 'yaml';
 import {
   VIDEO_SUMMARY_BASE_MARKER,
   generateVideoSummaryBase,
@@ -9,23 +9,28 @@ import {
   upsertVideoSummaryBase,
 } from '../core/BasesGenerator';
 
-test('generated .base is valid YAML with standard properties and five table views', () => {
+void test('generated .base is valid YAML with standard properties and five table views', () => {
   const content = generateVideoSummaryBase({ folder: 'Video Inbox' });
-  const parsed = load(content) as any;
+  const parsed = load(content) as {
+    filters?: unknown;
+    properties?: Record<string, { displayName: string }>;
+    views: { name: string; type: string }[];
+  };
 
   assert.ok(parsed && typeof parsed === 'object');
   assert.ok(parsed.filters);
   assert.ok(parsed.properties);
-  assert.equal(parsed.properties.video_summary.displayName, 'Video Summary');
-  assert.equal(parsed.properties.source_type.displayName, 'Source Type');
-  assert.equal(parsed.properties.video_summary_status.displayName, 'Status');
-  assert.equal(parsed.properties.video_review_due.displayName, 'Review Due');
-  assert.equal(parsed.properties.video_learning_items.displayName, 'Learning Items');
+  const properties = parsed.properties ?? {};
+  assert.equal(properties.video_summary.displayName, 'Video Summary');
+  assert.equal(properties.source_type.displayName, 'Source Type');
+  assert.equal(properties.video_summary_status.displayName, 'Status');
+  assert.equal(properties.video_review_due.displayName, 'Review Due');
+  assert.equal(properties.video_learning_items.displayName, 'Learning Items');
   assert.deepEqual(
-    parsed.views.map((view: any) => view.name),
+    parsed.views.map((view) => view.name),
     ['Inbox', 'Processing', 'Ready', 'Error', 'Review'],
   );
-  assert.ok(parsed.views.every((view: any) => view.type === 'table'));
+  assert.ok(parsed.views.every((view) => view.type === 'table'));
 
   const serialized = JSON.stringify(parsed);
   assert.match(serialized, /video_summary == true/);
@@ -44,7 +49,7 @@ test('generated .base is valid YAML with standard properties and five table view
   assert.match(serialized, /file\.inFolder\(\\"Video Inbox\\"\)/);
 });
 
-test('upsert creates missing files and leaves current managed output unchanged', () => {
+void test('upsert creates missing files and leaves current managed output unchanged', () => {
   const created = upsertVideoSummaryBase(null);
   const unchanged = upsertVideoSummaryBase(created.content);
 
@@ -54,7 +59,7 @@ test('upsert creates missing files and leaves current managed output unchanged',
   assert.equal(unchanged.content, created.content);
 });
 
-test('upsert preserves unmarked user-authored Bases by default', () => {
+void test('upsert preserves unmarked user-authored Bases by default', () => {
   const custom = [
     'filters:',
     '  and:',
@@ -72,7 +77,7 @@ test('upsert preserves unmarked user-authored Bases by default', () => {
   assert.match(result.reason, /保留用户文件/);
 });
 
-test('upsert detects manual edits to a managed Base and requires explicit replacement', () => {
+void test('upsert detects manual edits to a managed Base and requires explicit replacement', () => {
   const generated = generateVideoSummaryBase();
   const modified = `${generated}# user custom column\n`;
   const preserved = upsertVideoSummaryBase(modified);
@@ -86,7 +91,7 @@ test('upsert detects manual edits to a managed Base and requires explicit replac
   assert.equal(replaced.content, generated);
 });
 
-test('force is the only strategy that replaces an unmarked custom Base', () => {
+void test('force is the only strategy that replaces an unmarked custom Base', () => {
   const custom = 'views:\n  - type: cards\n    name: Mine\n';
   const forced = upsertVideoSummaryBase(custom, {}, 'force');
 
@@ -95,7 +100,7 @@ test('force is the only strategy that replaces an unmarked custom Base', () => {
   assert.ok(forced.content.startsWith(VIDEO_SUMMARY_BASE_MARKER));
 });
 
-test('Base folder validation rejects traversal before any Vault write adapter is involved', () => {
+void test('Base folder validation rejects traversal before any Vault write adapter is involved', () => {
   assert.equal(normalizeVideoSummaryBaseFolder('Videos//Courses/'), 'Videos/Courses');
   assert.equal(normalizeVideoSummaryBaseFolder(''), '');
   assert.throws(() => normalizeVideoSummaryBaseFolder('../Outside'), /safe vault-relative/);

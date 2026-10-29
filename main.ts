@@ -25,6 +25,7 @@ import {
   RequestedContentType,
   VideoInput,
   VideoKnowledgeArtifact,
+  ProcessingResult,
 } from './types';
 import {
   DEFAULT_SETTINGS,
@@ -68,6 +69,10 @@ import { DEFAULT_QUOTE_TEMPLATE } from './core/TranscriptQuote';
 import { syncCourseIndexAtomic } from './core/CourseIndexWriter';
 import { Modal } from 'obsidian';
 
+import { fire } from './utils/fire';
+import { errorMessage } from './utils/errors';
+import { asArray, asRecord, isRecord, scalarText } from './utils/json';
+import { desktopRequire, openPathInSystem } from './utils/desktop';
 export default class VideoSummaryPlugin extends Plugin {
   settings: VideoSummarySettings;
   api: VideoSummaryAPI;
@@ -162,7 +167,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 注册 obsidian://video-summary 协议：浏览器扩展一键"建笔记 + 触发处理"直连入口
     this.registerObsidianProtocolHandler('video-summary', (params) => {
-      void this.handleProtocolRequest(params as Record<string, string>);
+      void this.handleProtocolRequest(params);
     });
 
     // 注册设置页面
@@ -214,7 +219,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'quick',
       name: '快速总结当前笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        this.quickProcessCurrentNote(editor, view, 'summary');
+        void this.quickProcessCurrentNote(editor, view, 'summary');
       },
     });
 
@@ -223,7 +228,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'full-text',
       name: '将当前笔记全文作为文稿总结',
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        this.processFullTextAsTranscript(editor, view);
+        void this.processFullTextAsTranscript(editor, view);
       },
     });
 
@@ -232,7 +237,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'transcript-quick',
       name: '快速提取文稿',
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        this.quickProcessCurrentNote(editor, view, 'transcript-only');
+        void this.quickProcessCurrentNote(editor, view, 'transcript-only');
       },
     });
 
@@ -241,7 +246,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'info-update',
       name: '更新视频信息（不改正文）',
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        this.updateVideoInfoOnly(editor, view, false);
+        void this.updateVideoInfoOnly(editor, view, false);
       },
     });
 
@@ -250,7 +255,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'info-update-rename',
       name: '更新视频信息并重命名',
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        this.updateVideoInfoOnly(editor, view, true);
+        void this.updateVideoInfoOnly(editor, view, true);
       },
     });
 
@@ -271,7 +276,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'view',
       name: '打开视频总结侧栏',
       callback: () => {
-        this.activateView();
+        void this.activateView();
       },
     });
 
@@ -289,7 +294,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'reprocess',
       name: '重新处理当前笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        this.reprocessCurrentNote(editor, view);
+        void this.reprocessCurrentNote(editor, view);
       },
     });
 
@@ -298,7 +303,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'process-all-pending',
       name: '处理所有待处理视频',
       callback: () => {
-        this.processAllPendingVideos();
+        void this.processAllPendingVideos();
       },
     });
 
@@ -307,7 +312,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'test-connection',
       name: '测试当前视频处理后端',
       callback: () => {
-        this.testProcessingBackendConnection();
+        void this.testProcessingBackendConnection();
       },
     });
 
@@ -372,7 +377,7 @@ export default class VideoSummaryPlugin extends Plugin {
       id: 'mark-excluded',
       name: '标记为非视频笔记',
       editorCallback: (editor: Editor, view: MarkdownView) => {
-        this.markAsExcluded(editor, view);
+        void this.markAsExcluded(editor, view);
       },
     });
   }
@@ -520,13 +525,13 @@ export default class VideoSummaryPlugin extends Plugin {
         this.addToHistory(file.basename, 'success', 'info-only');
 
         statusNotice.setMessage('✅ 视频信息已更新');
-        setTimeout(() => statusNotice.hide(), 2000);
+        window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, 'error', 0);
         this.addToHistory(file.basename, 'error', 'info-only');
         statusNotice.setMessage(`更新失败: ${this.formatErrorForNotice(error)}`);
-        setTimeout(() => statusNotice.hide(), 3000);
+        window.setTimeout(() => statusNotice.hide(), 3000);
       }
     } catch (error) {
       new Notice(`更新视频信息失败: ${this.formatErrorForNotice(error)}`, 8000);
@@ -608,7 +613,7 @@ export default class VideoSummaryPlugin extends Plugin {
       }
 
       try {
-        let result: any;
+        let result: ProcessingResult;
         let artifactInput: VideoInput = {};
 
         // ===== 多文件合并逻辑 =====
@@ -670,7 +675,7 @@ export default class VideoSummaryPlugin extends Plugin {
             1,
             2000,
             (attempt, error) => {
-              statusNotice.setMessage(`重试中: ${error.message}`);
+              statusNotice.setMessage(`重试中: ${errorMessage(error)}`);
             },
           );
         } else {
@@ -699,7 +704,7 @@ export default class VideoSummaryPlugin extends Plugin {
             1, // 重试1次
             2000, // 2秒延迟
             (attempt, error) => {
-              statusNotice.setMessage(`重试中 (${attempt}/2): ${error.message}`);
+              statusNotice.setMessage(`重试中 (${attempt}/2): ${errorMessage(error)}`);
             },
           );
         }
@@ -736,7 +741,7 @@ export default class VideoSummaryPlugin extends Plugin {
         this.addToHistory(file.basename, 'success', mode);
 
         statusNotice.setMessage(`✅ 处理完成`);
-        setTimeout(() => statusNotice.hide(), 2000);
+        window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         // 更新状态为错误
         await this.noteProcessor.setProcessingError(file, error);
@@ -746,7 +751,7 @@ export default class VideoSummaryPlugin extends Plugin {
         this.addToHistory(file.basename, 'error', mode);
 
         statusNotice.setMessage(`处理失败: ${this.formatErrorForNotice(error)}`);
-        setTimeout(() => statusNotice.hide(), 3000);
+        window.setTimeout(() => statusNotice.hide(), 3000);
       }
     } catch (error) {
       new Notice(`处理失败: ${this.formatErrorForNotice(error)}`, 8000);
@@ -803,7 +808,7 @@ export default class VideoSummaryPlugin extends Plugin {
           1, // 重试1次
           2000, // 2秒延迟
           (attempt, error) => {
-            statusNotice.setMessage(`重试中 (${attempt}/2): ${error.message}`);
+            statusNotice.setMessage(`重试中 (${attempt}/2): ${errorMessage(error)}`);
           },
         );
         const artifactContext = {
@@ -833,13 +838,13 @@ export default class VideoSummaryPlugin extends Plugin {
         this.addToHistory(file.basename, 'success', mode);
 
         statusNotice.setMessage(`✅ 全文处理完成`);
-        setTimeout(() => statusNotice.hide(), 2000);
+        window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, 'error', 0);
         this.addToHistory(file.basename, 'error', mode);
         statusNotice.setMessage(`处理失败: ${this.formatErrorForNotice(error)}`);
-        setTimeout(() => statusNotice.hide(), 5000);
+        window.setTimeout(() => statusNotice.hide(), 5000);
       }
     } catch (error) {
       new Notice(`处理启动失败: ${this.formatErrorForNotice(error)}`, 8000);
@@ -921,7 +926,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
         // 添加延迟避免API限制
         if (i < pendingFiles.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
         }
       }
 
@@ -930,7 +935,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
       // 显示最终结果
       progressNotice.setMessage(`完成！成功: ${successCount}, 失败: ${errorCount}`);
-      setTimeout(() => progressNotice.hide(), 3000);
+      window.setTimeout(() => progressNotice.hide(), 3000);
     } catch (error) {
       new Notice(`批量处理失败: ${this.formatErrorForNotice(error)}`, 8000);
     }
@@ -957,7 +962,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.settings.history.push({
       file: fileName,
       result: result,
-      mode: mode as any,
+      mode: mode as ProcessingMode,
       time: new Date().toLocaleString('zh-CN'),
       language: this.settings.defaultLanguage,
       url: meta?.url,
@@ -977,7 +982,7 @@ export default class VideoSummaryPlugin extends Plugin {
       await this.saveSettings();
       new Notice('处理历史已清理');
     } catch (error) {
-      new Notice(`清理历史失败: ${error.message}`);
+      new Notice(`清理历史失败: ${errorMessage(error)}`);
     }
   }
 
@@ -1114,12 +1119,12 @@ export default class VideoSummaryPlugin extends Plugin {
       });
     }
 
-    workspace.revealLeaf(leaf);
+    void workspace.revealLeaf(leaf);
     return leaf.view instanceof VideoSummaryView ? leaf.view : null;
   }
 
   async loadSettings() {
-    const stored = await this.loadData();
+    const stored = asRecord(await this.loadData());
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
 
     let shouldSave = false;
@@ -1138,8 +1143,10 @@ export default class VideoSummaryPlugin extends Plugin {
     // ===== history 拆分存储（2.2.0）=====
     // history / webhookHistory 持久化在插件目录 history.json；
     // data.json 里若还残留旧数据（首次升级），迁移过去并从 data.json 清除。
-    const legacyHistory = Array.isArray(stored?.history) ? stored.history : [];
-    const legacyWebhookHistory = Array.isArray(stored?.webhookHistory) ? stored.webhookHistory : [];
+    const legacyHistory = asArray(stored.history) as VideoSummarySettings['history'];
+    const legacyWebhookHistory = asArray(
+      stored.webhookHistory,
+    ) as VideoSummarySettings['webhookHistory'];
     const historyFile = await this.readHistoryFile();
 
     if (historyFile) {
@@ -1291,8 +1298,9 @@ export default class VideoSummaryPlugin extends Plugin {
         return null;
       }
       const raw = await adapter.read(this.historyFilePath);
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : null;
+      const parsed: unknown = JSON.parse(raw);
+      if (!isRecord(parsed)) return null;
+      return { history: asArray(parsed.history), webhookHistory: asArray(parsed.webhookHistory) };
     } catch (error) {
       console.error('[VideoSummary] 读取 history.json 失败（历史将从空开始）', error);
       return null;
@@ -1380,10 +1388,12 @@ export default class VideoSummaryPlugin extends Plugin {
     );
     this.api.setWebhookHistory(this.settings.webhookHistory || []);
     this.api.setAiModel(this.settings.aiModel);
-    this.api.onWebhookHistoryChange(async (history) => {
-      this.settings.webhookHistory = history;
-      await this.saveSettings();
-    });
+    this.api.onWebhookHistoryChange(
+      fire(async (history) => {
+        this.settings.webhookHistory = history;
+        await this.saveSettings();
+      }),
+    );
     this.api.setDebug(this.settings.enableDebugMode);
     this.api.setExpandShortLinks(this.settings.expandShortLinks !== false);
     this.api.setAnalysisDefaults({
@@ -1578,7 +1588,7 @@ export default class VideoSummaryPlugin extends Plugin {
         await this.app.fileManager.renameFile(file, newFileName);
       }
     } catch (error) {
-      console.error(`重命名文件失败: ${error.message}`);
+      console.error(`重命名文件失败: ${errorMessage(error)}`);
     }
   }
 
@@ -1623,7 +1633,7 @@ export default class VideoSummaryPlugin extends Plugin {
       await this.noteProcessor.setProcessingStatus(file, 'excluded');
       new Notice('已标记为非视频笔记');
     } catch (error) {
-      new Notice(`标记为非视频笔记失败: ${error.message}`);
+      new Notice(`标记为非视频笔记失败: ${errorMessage(error)}`);
     }
   }
 
@@ -2110,7 +2120,7 @@ export default class VideoSummaryPlugin extends Plugin {
 }
 
 function normalizeSuccessStatusValue(value: unknown): string {
-  const normalized = String(value ?? '').trim();
+  const normalized = scalarText(value).trim();
   if (!normalized) return DEFAULT_SETTINGS.successStatusValue;
 
   const reservedStatuses = new Set([
@@ -2194,18 +2204,21 @@ class VideoSummarySettingTab extends PluginSettingTab {
     });
     const dot = pill.createSpan({ cls: 'vs-backend-dot' });
     const label = pill.createSpan({ text: '未检测' });
-    pill.addEventListener('click', async () => {
-      dot.className = 'vs-backend-dot is-checking';
-      label.setText('检测中…');
-      try {
-        const result = await this.plugin.api.testConnection();
-        dot.className = `vs-backend-dot ${result.success ? 'is-online' : 'is-offline'}`;
-        label.setText(result.success ? `后端在线 · ${result.durationMs ?? 0}ms` : '后端离线');
-      } catch {
-        dot.className = 'vs-backend-dot is-offline';
-        label.setText('后端离线');
-      }
-    });
+    pill.addEventListener(
+      'click',
+      fire(async () => {
+        dot.className = 'vs-backend-dot is-checking';
+        label.setText('检测中…');
+        try {
+          const result = await this.plugin.api.testConnection();
+          dot.className = `vs-backend-dot ${result.success ? 'is-online' : 'is-offline'}`;
+          label.setText(result.success ? `后端在线 · ${result.durationMs ?? 0}ms` : '后端离线');
+        } catch {
+          dot.className = 'vs-backend-dot is-offline';
+          label.setText('后端离线');
+        }
+      }),
+    );
   }
 
   /** 段内小节：一行小标题，不画卡片框 */
@@ -2258,7 +2271,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       row.createSpan({ text: this.getSetupCheckIcon(check.state), cls: 'setup-check-icon' });
       const textWrap = row.createDiv({ cls: 'setup-check-text' });
       textWrap.createEl('strong', { text: check.label });
-      textWrap.createEl('span', { text: check.detail });
+      textWrap.createSpan({ text: check.detail });
     });
 
     const resultBox = section.createDiv({ cls: 'setup-diagnostic-result' });
@@ -2510,12 +2523,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
             return;
           }
           try {
-            const electron = (window as any).require?.('electron');
-            if (!electron?.shell?.openPath) {
+            if (!openPathInSystem(dir)) {
               new Notice('当前环境不支持打开系统目录（仅桌面端可用）');
-              return;
             }
-            electron.shell.openPath(dir);
           } catch (error) {
             new Notice(`打开目录失败: ${(error as Error).message}`);
           }
@@ -2544,12 +2554,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
       return;
     }
 
-    let fs: any;
-    let pathModule: any;
+    let fs: typeof import('fs') | undefined;
+    let pathModule: typeof import('path') | undefined;
     try {
-      const nodeRequire = (window as any).require;
-      fs = nodeRequire?.('fs');
-      pathModule = nodeRequire?.('path');
+      fs = desktopRequire('fs') as typeof import('fs') | undefined;
+      pathModule = desktopRequire('path') as typeof import('path') | undefined;
     } catch {
       // fallthrough
     }
@@ -2620,7 +2629,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
   private createWorkflowCompatibilityCard(containerEl: HTMLElement) {
     const card = containerEl.createDiv({ cls: 'workflow-compatibility-card' });
-    card.createEl('div', { text: '推荐 workflow', cls: 'vs-subsection-title' });
+    card.createDiv({ text: '推荐 workflow', cls: 'vs-subsection-title' });
     card.createEl('p', {
       text: '连接诊断会读取测试分支返回的 workflow 元数据，用来发现旧 workflow、path 不匹配或模型标签不一致。',
       cls: 'setting-item-description',
@@ -2718,7 +2727,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       if (!webhookDropdown) return;
       webhookDropdown.selectEl.empty();
       this.plugin.settings.webhookProfiles.forEach((profile) => {
-        const option = document.createElement('option');
+        const option = createEl('option');
         option.value = profile.id;
         option.textContent = profile.name || profile.url || '未命名 Webhook';
         webhookDropdown!.selectEl.appendChild(option);
@@ -2765,7 +2774,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       }),
     );
 
-    const profilesContainer = section.createEl('div', { cls: 'webhook-profiles-container' });
+    const profilesContainer = section.createDiv({ cls: 'webhook-profiles-container' });
 
     const renderProfiles = () => {
       profilesContainer.empty();
@@ -2993,13 +3002,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     const aiSection = section.createDiv({ cls: 'vs-subsection' });
-    aiSection.createEl('div', { text: '自定义处理模型', cls: 'vs-subsection-title' });
+    aiSection.createDiv({ text: '自定义处理模型', cls: 'vs-subsection-title' });
     aiSection.createEl('p', {
       text: '添加你要在 n8n 中使用的模型名称（需与 n8n Switch 节点的值完全一致）。',
       cls: 'setting-item-description',
     });
 
-    const aiModelsContainer = aiSection.createEl('div', { cls: 'webhook-profiles-container' });
+    const aiModelsContainer = aiSection.createDiv({ cls: 'webhook-profiles-container' });
 
     let aiDropdown: DropdownComponent | null = null;
 
@@ -3007,7 +3016,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       if (!aiDropdown) return;
       aiDropdown.selectEl.empty();
       this.plugin.settings.customAiModels.forEach((model) => {
-        const option = document.createElement('option');
+        const option = createEl('option');
         option.value = model;
         option.textContent = model;
         aiDropdown!.selectEl.appendChild(option);
@@ -3182,8 +3191,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { section } = this.sectionCard(containerEl, 'zap', '命令面板里的一键处理');
 
     // 一键总结配置
-    const summarySubsection = section.createEl('div', { cls: 'vs-subsection' });
-    summarySubsection.createEl('div', { text: '一键总结配置', cls: 'vs-subsection-title' });
+    const summarySubsection = section.createDiv({ cls: 'vs-subsection' });
+    summarySubsection.createDiv({ text: '一键总结配置', cls: 'vs-subsection-title' });
 
     new Setting(summarySubsection)
       .setName('总结语言')
@@ -3215,8 +3224,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 一键提取文稿配置
-    const transcriptSubsection = section.createEl('div', { cls: 'vs-subsection' });
-    transcriptSubsection.createEl('div', { text: '一键提取文稿配置', cls: 'vs-subsection-title' });
+    const transcriptSubsection = section.createDiv({ cls: 'vs-subsection' });
+    transcriptSubsection.createDiv({ text: '一键提取文稿配置', cls: 'vs-subsection-title' });
 
     new Setting(transcriptSubsection)
       .setName('文稿语言')
@@ -3273,7 +3282,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
           .addOption('skip', '跳过')
           .setValue(this.plugin.settings.renameConflictStrategy)
           .onChange(async (v) => {
-            this.plugin.settings.renameConflictStrategy = v as any;
+            this.plugin.settings.renameConflictStrategy =
+              v as VideoSummarySettings['renameConflictStrategy'];
             await this.plugin.saveSettings();
           }),
       );
@@ -3411,8 +3421,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 缓存配置
-    const cacheSubsection = section.createEl('div', { cls: 'vs-subsection' });
-    cacheSubsection.createEl('div', { text: '缓存配置', cls: 'vs-subsection-title' });
+    const cacheSubsection = section.createDiv({ cls: 'vs-subsection' });
+    cacheSubsection.createDiv({ text: '缓存配置', cls: 'vs-subsection-title' });
 
     // 缓存状态概览
     const cacheStatusSetting = new Setting(cacheSubsection)
@@ -3424,11 +3434,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
           .setClass('cache-status-btn')
           .onClick(async () => {
             try {
-              const stats = await this.plugin.api.getCacheStats();
+              const stats = this.plugin.api.getCacheStats();
               await this.showCachePreviewModal(stats);
             } catch (error) {
               console.error('获取缓存统计失败:', error);
-              new Notice(`❌ 获取缓存统计失败: ${error.message}`, 5000);
+              new Notice(`❌ 获取缓存统计失败: ${errorMessage(error)}`, 5000);
             }
           }),
       );
@@ -3472,10 +3482,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
     cacheSubsection.createEl('hr', { cls: 'cache-divider' });
 
     // 缓存管理操作
-    cacheSubsection.createEl('div', { text: '缓存管理', cls: 'vs-subsection-title' });
+    cacheSubsection.createDiv({ text: '缓存管理', cls: 'vs-subsection-title' });
 
     // 快速操作按钮组
-    const quickActionsContainer = cacheSubsection.createEl('div', { cls: 'cache-quick-actions' });
+    const quickActionsContainer = cacheSubsection.createDiv({ cls: 'cache-quick-actions' });
 
     // 测试缓存
     const testBtn = quickActionsContainer.createEl('button', {
@@ -3486,7 +3496,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new Notice(`❌ 添加测试数据失败: ${error.message}`, 5000);
+        new Notice(`❌ 添加测试数据失败: ${errorMessage(error)}`, 5000);
       }
     };
 
@@ -3497,12 +3507,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
     });
     cleanupBtn.onclick = async () => {
       try {
-        await this.plugin.api.cleanupCache();
-        const stats = await this.plugin.api.getCacheStats();
+        this.plugin.api.cleanupCache();
+        const stats = this.plugin.api.getCacheStats();
         new Notice(`🧹 已清理过期缓存，当前缓存 ${stats.size} 项`, 3000);
       } catch (error) {
         console.error('清理过期缓存失败:', error);
-        new Notice(`❌ 清理过期缓存失败: ${error.message}`, 5000);
+        new Notice(`❌ 清理过期缓存失败: ${errorMessage(error)}`, 5000);
       }
     };
 
@@ -3525,18 +3535,18 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       if (confirmed) {
         try {
-          await this.plugin.api.clearCache();
+          this.plugin.api.clearCache();
           new Notice('🗑️ 已清空所有缓存', 3000);
         } catch (error) {
           console.error('清空缓存失败:', error);
-          new Notice(`❌ 清空缓存失败: ${error.message}`, 5000);
+          new Notice(`❌ 清空缓存失败: ${errorMessage(error)}`, 5000);
         }
       }
     };
 
     // 缓存信息提示
-    const cacheInfoContainer = cacheSubsection.createEl('div', { cls: 'cache-info-container' });
-    const cacheInfoTip = cacheInfoContainer.createEl('div', { cls: 'cache-info-tip' });
+    const cacheInfoContainer = cacheSubsection.createDiv({ cls: 'cache-info-container' });
+    const cacheInfoTip = cacheInfoContainer.createDiv({ cls: 'cache-info-tip' });
     cacheInfoTip.createEl('strong', { text: '💡 缓存提示：' });
     const cacheInfoList = cacheInfoTip.createEl('ul');
     const cachePathItem = cacheInfoList.createEl('li');
@@ -3566,23 +3576,23 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 创建刷新函数，用于更新当前模态框内容
     const refreshModalContent = async () => {
       try {
-        const newStats = await this.plugin.api.getCacheStats();
+        const newStats = this.plugin.api.getCacheStats();
         contentEl.empty();
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error('❌ 刷新模态框内容失败:', error);
-        new Notice(`❌ 刷新失败: ${error.message}`, 5000);
+        new Notice(`❌ 刷新失败: ${errorMessage(error)}`, 5000);
       }
     };
 
     // 渲染模态框内容的函数
     const renderModalContent = async (container: HTMLElement, currentStats: typeof stats) => {
       // 统计信息
-      const statsSection = container.createEl('div', { cls: 'cache-preview-stats' });
+      const statsSection = container.createDiv({ cls: 'cache-preview-stats' });
       const addStatCard = (title: string, value: string, valueClass = '') => {
-        const card = statsSection.createEl('div', { cls: 'stat-card' });
-        card.createEl('div', { cls: 'stat-title', text: title });
-        card.createEl('div', {
+        const card = statsSection.createDiv({ cls: 'stat-card' });
+        card.createDiv({ cls: 'stat-title', text: title });
+        card.createDiv({
           cls: `stat-value${valueClass ? ` ${valueClass}` : ''}`,
           text: value,
         });
@@ -3597,14 +3607,14 @@ class VideoSummarySettingTab extends PluginSettingTab {
       addStatCard('总大小', this.formatBytes(currentStats.totalSize));
       // 缓存内容预览
       if (currentStats.size > 0) {
-        const previewSection = container.createEl('div', { cls: 'cache-preview-content' });
+        const previewSection = container.createDiv({ cls: 'cache-preview-content' });
         new Setting(previewSection).setName('缓存内容预览').setHeading();
 
         // 获取缓存内容
         await this.showCacheContentPreview(previewSection);
       } else {
-        const emptySection = container.createEl('div', { cls: 'cache-empty-section' });
-        const emptyMessage = emptySection.createEl('div', { cls: 'cache-empty-message' });
+        const emptySection = container.createDiv({ cls: 'cache-empty-section' });
+        const emptyMessage = emptySection.createDiv({ cls: 'cache-empty-message' });
         emptyMessage.createEl('p', { text: '📭 暂无缓存内容' });
         emptyMessage.createEl('p', {
           cls: 'cache-empty-tip',
@@ -3613,7 +3623,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       }
 
       // 操作按钮
-      const actionsSection = container.createEl('div', { cls: 'cache-preview-actions' });
+      const actionsSection = container.createDiv({ cls: 'cache-preview-actions' });
 
       // 刷新按钮
       actionsSection.createEl('button', {
@@ -3653,19 +3663,19 @@ class VideoSummarySettingTab extends PluginSettingTab {
       }
 
       // 创建缓存项列表
-      const itemsList = container.createEl('div', { cls: 'cache-items-list' });
+      const itemsList = container.createDiv({ cls: 'cache-items-list' });
 
       // 显示前20项
       const displayItems = items.slice(0, 20);
 
       for (const item of displayItems) {
-        const itemEl = itemsList.createEl('div', { cls: 'cache-item' });
+        const itemEl = itemsList.createDiv({ cls: 'cache-item' });
 
         // 缓存项信息
-        const infoEl = itemEl.createEl('div', { cls: 'cache-item-info' });
+        const infoEl = itemEl.createDiv({ cls: 'cache-item-info' });
 
         // URL
-        const urlEl = infoEl.createEl('div', { cls: 'cache-item-url' });
+        const urlEl = infoEl.createDiv({ cls: 'cache-item-url' });
         urlEl.createEl('strong', { text: 'URL:' });
         urlEl.appendText(' ');
         const displayUrl = this.truncateUrl(item.url);
@@ -3680,24 +3690,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
             },
           });
         } else {
-          urlEl.createEl('span', { text: displayUrl });
+          urlEl.createSpan({ text: displayUrl });
         }
 
         // 元数据
-        const metaEl = infoEl.createEl('div', { cls: 'cache-item-meta' });
-        metaEl.createEl('span', {
+        const metaEl = infoEl.createDiv({ cls: 'cache-item-meta' });
+        metaEl.createSpan({
           cls: 'cache-item-mode',
           text: this.getModeLabel(item.mode),
         });
-        metaEl.createEl('span', {
+        metaEl.createSpan({
           cls: 'cache-item-language',
           text: this.getLanguageLabel(item.language),
         });
-        metaEl.createEl('span', {
+        metaEl.createSpan({
           cls: 'cache-item-time',
           text: this.formatTime(item.timestamp),
         });
-        metaEl.createEl('span', {
+        metaEl.createSpan({
           cls: `cache-item-status ${item.isExpired ? 'expired' : 'valid'}`,
           text: item.isExpired ? '已过期' : '有效',
         });
@@ -3713,7 +3723,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
             itemEl.remove();
             new Notice(`✅ 已删除缓存项: ${item.url}`, 3000);
           } catch (error) {
-            new Notice(`❌ 删除失败: ${error.message}`, 5000);
+            new Notice(`❌ 删除失败: ${errorMessage(error)}`, 5000);
           }
         };
       }
@@ -3727,7 +3737,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       }
     } catch (error) {
       container.createEl('p', {
-        text: `获取缓存内容失败: ${error.message}`,
+        text: `获取缓存内容失败: ${errorMessage(error)}`,
         cls: 'cache-error-message',
       });
     }
@@ -3751,8 +3761,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
     try {
       const cacheData = window.localStorage.getItem('video-summary-cache');
       if (cacheData) {
-        const entries = JSON.parse(cacheData);
-        const filteredEntries = entries.filter((entry: [string, any]) => entry[0] !== key);
+        const entries = asArray(JSON.parse(cacheData));
+        const filteredEntries = entries.filter(
+          (entry) => !(Array.isArray(entry) && entry[0] === key),
+        );
         window.localStorage.setItem('video-summary-cache', JSON.stringify(filteredEntries));
       }
     } catch (error) {
@@ -3783,10 +3795,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
       new Notice('✅ 已添加测试缓存项', 3000);
 
       // 读取一次统计，确保写入后的缓存索引仍可解析。
-      await this.plugin.api.getCacheStats();
+      this.plugin.api.getCacheStats();
     } catch (error) {
       console.error('添加测试缓存数据失败:', error);
-      new Notice(`❌ 添加测试缓存数据失败: ${error.message}`, 5000);
+      new Notice(`❌ 添加测试缓存数据失败: ${errorMessage(error)}`, 5000);
     }
   }
 

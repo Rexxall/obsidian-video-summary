@@ -1,5 +1,6 @@
 import { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 
+import { errorMessage } from '../utils/errors';
 export type JobState = 'queued' | 'running' | 'review' | 'success' | 'error' | 'cancelled';
 
 export interface JobLogEntry {
@@ -243,7 +244,7 @@ export class JobStore {
       }
     } catch (error) {
       job.state = this.cancelled.has(job.id) ? 'cancelled' : 'error';
-      job.error = error instanceof Error ? error.message : String(error);
+      job.error = error instanceof Error ? errorMessage(error) : String(error);
       this.log(job.id, job.error);
     } finally {
       this.cancelled.delete(job.id);

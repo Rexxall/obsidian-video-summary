@@ -6,6 +6,7 @@ import type {
   VideoSegment,
 } from '../types';
 
+import { errorMessage } from '../utils/errors';
 /**
  * Machine-readable knowledge artifacts live beside the plugin's other sidecars,
  * never in data.json. Callers should pass the plugin data directory as rootPath,
@@ -341,7 +342,7 @@ export class ArtifactStore {
       throw new ArtifactValidationError([
         {
           path: '$',
-          message: `invalid JSON (${error instanceof Error ? error.message : String(error)})`,
+          message: `invalid JSON (${error instanceof Error ? errorMessage(error) : String(error)})`,
         },
       ]);
     }
@@ -602,9 +603,7 @@ export async function migrateVideoKnowledgeArtifact(
     attention: isRecord(working.attention)
       ? (working.attention as unknown as VideoKnowledgeArtifact['attention'])
       : undefined,
-    learning: isRecord(working.learning)
-      ? (working.learning as unknown as VideoKnowledgeArtifact['learning'])
-      : undefined,
+    learning: isRecord(working.learning) ? working.learning : undefined,
     related_notes: arrayOrEmpty(working.related_notes) as VideoKnowledgeArtifact['related_notes'],
     highlights: normalizeHighlights(
       arrayOrEmpty(working.highlights) as unknown as readonly UserHighlight[],
@@ -783,7 +782,7 @@ function parseCurrentArtifact(text: string): VideoKnowledgeArtifact {
     throw new ArtifactValidationError([
       {
         path: '$',
-        message: `invalid JSON (${error instanceof Error ? error.message : String(error)})`,
+        message: `invalid JSON (${error instanceof Error ? errorMessage(error) : String(error)})`,
       },
     ]);
   }

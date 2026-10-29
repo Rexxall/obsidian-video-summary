@@ -2,7 +2,7 @@ import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JobStore } from '../core/JobStore';
 
-test('retry preserves the preview gate and returns a successful rerun for review', async () => {
+void test('retry preserves the preview gate and returns a successful rerun for review', async () => {
   const jobs = new JobStore();
   let attempts = 0;
   let writerCalls = 0;

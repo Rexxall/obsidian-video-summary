@@ -415,7 +415,7 @@ function serializeStable(value: unknown, ancestors: Set<object>, inArray: boolea
   if (Array.isArray(value)) {
     serialized = `[${value.map((item) => serializeStable(item, ancestors, true)).join(',')}]`;
   } else {
-    const prototype = Object.getPrototypeOf(value);
+    const prototype: unknown = Object.getPrototypeOf(value);
     if (prototype !== Object.prototype && prototype !== null) {
       ancestors.delete(value);
       throw new TypeError('Only plain objects can be fingerprinted.');

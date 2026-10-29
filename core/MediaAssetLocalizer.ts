@@ -1,5 +1,6 @@
 import type { MediaAssetReference, ProcessingResult, VideoSegment, VisualEvidence } from '../types';
 
+import { errorMessage } from '../utils/errors';
 export interface BinaryAssetAdapter {
   exists(path: string): Promise<boolean>;
   mkdir(path: string): Promise<void>;
@@ -139,7 +140,7 @@ export class MediaAssetLocalizer {
         attempted += 1;
         pending = (async () => {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+          const timer = window.setTimeout(() => controller.abort(), this.timeoutMs);
           try {
             const download = await this.fetchBinary(url, controller.signal);
             const bytes = download.data.byteLength;
@@ -177,7 +178,7 @@ export class MediaAssetLocalizer {
               bytes,
             };
           } finally {
-            clearTimeout(timer);
+            window.clearTimeout(timer);
           }
         })();
         memo.set(url, pending);
@@ -381,7 +382,7 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 function messageOf(error: unknown): string {
-  return (error instanceof Error ? error.message : String(error))
+  return (error instanceof Error ? errorMessage(error) : String(error))
     .replace(/\r?\n/g, ' ')
     .slice(0, 240);
 }

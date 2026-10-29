@@ -11,6 +11,8 @@ import {
 import { ViewContext } from '../context';
 import { showMenu } from '../ui';
 
+import { errorMessage } from '../../utils/errors';
+import { asRecord } from '../../utils/json';
 interface PlayerController {
   seek(seconds: number): void;
   onTimeChange(listener: (seconds: number) => void): () => void;
@@ -322,16 +324,17 @@ function createYouTubePlayer(container: HTMLElement, videoId: string): PlayerCon
   const listeners = new Set<(seconds: number) => void>();
   const onMessage = (event: MessageEvent) => {
     if (event.source !== iframe.contentWindow) return;
-    let payload: any = event.data;
+    let payload: unknown = event.data;
     if (typeof payload === 'string') {
       try {
-        payload = JSON.parse(payload);
+        payload = JSON.parse(payload) as unknown;
       } catch {
         return;
       }
     }
-    const currentTime = Number(payload?.info?.currentTime);
-    if (payload?.event === 'infoDelivery' && Number.isFinite(currentTime)) {
+    const message = asRecord(payload);
+    const currentTime = Number(asRecord(message.info).currentTime);
+    if (message.event === 'infoDelivery' && Number.isFinite(currentTime)) {
       listeners.forEach((listener) => listener(currentTime));
     }
   };
@@ -499,7 +502,7 @@ async function toggleHighlight(
   } catch (error) {
     if (removing) highlights.add(segment.id);
     else highlights.delete(segment.id);
-    new Notice(`保存重点失败：${error instanceof Error ? error.message : String(error)}`);
+    new Notice(`保存重点失败：${error instanceof Error ? errorMessage(error) : String(error)}`);
   }
 }
 

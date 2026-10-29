@@ -34,13 +34,27 @@ class MemoryAdapter {
   }
 }
 
-test('API uses one exact fingerprint for lookup, storage, and returned provenance', async () => {
+void test('API uses one exact fingerprint for lookup, storage, and returned provenance', async () => {
   const originalFetch = globalThis.fetch;
   let requests = 0;
-  const requestBodies: any[] = [];
+  const requestBodies: Array<{
+    metadata: {
+      prompt_profile?: string;
+      processing_depth?: string;
+      content_router_contract: {
+        requested_type: string;
+        profiles: unknown[];
+        fallback_type: string;
+      };
+    };
+  }> = [];
   globalThis.fetch = async (_input, init) => {
     requests += 1;
-    requestBodies.push(JSON.parse(String(init?.body || '{}')));
+    requestBodies.push(
+      JSON.parse(
+        typeof init?.body === 'string' ? init.body : '{}',
+      ) as (typeof requestBodies)[number],
+    );
     return new Response(
       JSON.stringify({
         summary: `backend result ${requests}`,
@@ -106,11 +120,15 @@ test('API uses one exact fingerprint for lookup, storage, and returned provenanc
   }
 });
 
-test('reproducible reprocessing sends stored transcript without any source fetch field', async () => {
+void test('reproducible reprocessing sends stored transcript without any source fetch field', async () => {
   const originalFetch = globalThis.fetch;
   const requestBodies: Array<{ metadata: Record<string, unknown> }> = [];
   globalThis.fetch = async (_input, init) => {
-    requestBodies.push(JSON.parse(String(init?.body || '{}')));
+    requestBodies.push(
+      JSON.parse(
+        typeof init?.body === 'string' ? init.body : '{}',
+      ) as (typeof requestBodies)[number],
+    );
     return new Response(
       JSON.stringify({
         summary: 'Reprocessed from local transcript',
@@ -187,11 +205,11 @@ test('reproducible reprocessing sends stored transcript without any source fetch
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     );
     assert.equal(
-      (requestBodies[0].metadata.persisted_video_segments as any[])[0].id,
+      (requestBodies[0].metadata.persisted_video_segments as { id: string }[])[0].id,
       'stored-segment',
     );
     assert.equal(
-      (requestBodies[0].metadata.persisted_evidence_claims as any[])[0].id,
+      (requestBodies[0].metadata.persisted_evidence_claims as { id: string }[])[0].id,
       'stored-claim',
     );
     assert.equal(
@@ -210,7 +228,7 @@ test('reproducible reprocessing sends stored transcript without any source fetch
   }
 });
 
-test('cancelling a Codex Worker task aborts its task-level wait immediately', async () => {
+void test('cancelling a Codex Worker task aborts its task-level wait immediately', async () => {
   const originalFetch = globalThis.fetch;
   let signalFetchStarted = () => {};
   const fetchStarted = new Promise<void>((resolve) => {
@@ -219,7 +237,7 @@ test('cancelling a Codex Worker task aborts its task-level wait immediately', as
   const calls: string[] = [];
   const restoreTransport = useFetchTransport();
   globalThis.fetch = async (input, init) => {
-    calls.push(`${init?.method || 'GET'} ${String(input)}`);
+    calls.push(`${init?.method || 'GET'} ${requestUrlOf(input)}`);
     signalFetchStarted();
     return new Response(JSON.stringify({ id: 'worker-cancel-fixture', status: 'queued' }), {
       status: 202,
@@ -249,7 +267,7 @@ test('cancelling a Codex Worker task aborts its task-level wait immediately', as
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     const cancelledAt = Date.now();
-    api.cancelByNoteName('cancel-me');
+    void api.cancelByNoteName('cancel-me');
     await rejected;
 
     await new Promise<void>((resolve) => setTimeout(resolve, 20));
@@ -269,7 +287,7 @@ test('cancelling a Codex Worker task aborts its task-level wait immediately', as
   }
 });
 
-test('Codex Worker deadline stops waiting on a hanging request instead of overrunning the timeout', async () => {
+void test('Codex Worker deadline stops waiting on a hanging request instead of overrunning the timeout', async () => {
   const originalFetch = globalThis.fetch;
   const restoreTransport = useFetchTransport();
   globalThis.fetch = async () => new Promise<Response>(() => {});
@@ -308,7 +326,7 @@ test('Codex Worker deadline stops waiting on a hanging request instead of overru
   }
 });
 
-test('batch processing waits for asynchronous artifact and note post-processing callbacks', async () => {
+void test('batch processing waits for asynchronous artifact and note post-processing callbacks', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
     new Response(
@@ -376,3 +394,8 @@ test('batch processing waits for asynchronous artifact and note post-processing 
     globalThis.fetch = originalFetch;
   }
 });
+
+function requestUrlOf(input: string | URL | Request): string {
+  if (typeof input === 'string') return input;
+  return input instanceof URL ? input.href : input.url;
+}

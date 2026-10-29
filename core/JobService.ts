@@ -31,6 +31,7 @@ import {
   stripUntrustedPersistedMediaAssetPaths,
 } from './ReprocessPersistence';
 
+import { errorMessage } from '../utils/errors';
 export interface SubmitOptions {
   mode: ProcessingMode;
   language: SupportedLanguage;
@@ -802,7 +803,7 @@ function stripBackendMediaAssetPaths(result: ProcessingResult): void {
 }
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return error instanceof Error ? errorMessage(error) : String(error);
 }
 
 function uniqueStrings(values: string[]): string[] {

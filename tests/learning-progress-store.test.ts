@@ -14,7 +14,7 @@ import {
 
 const START = '2026-07-29T00:00:00.000Z';
 
-test('scheduler returns wrong and low-confidence answers earlier', () => {
+void test('scheduler returns wrong and low-confidence answers earlier', () => {
   const wrongLow = scheduleLearningAttempt(undefined, {
     artifact_id: 'artifact-learning',
     item_id: 'card-one',
@@ -60,7 +60,7 @@ test('scheduler returns wrong and low-confidence answers earlier', () => {
   assert.ok(correctLow.interval_seconds < correctConfident.interval_seconds);
 });
 
-test('consecutive confident correct answers grow intervals and reach mastery', () => {
+void test('consecutive confident correct answers grow intervals and reach mastery', () => {
   let progress = scheduleLearningAttempt(undefined, {
     artifact_id: 'artifact-learning',
     item_id: 'question-one',
@@ -112,7 +112,7 @@ test('consecutive confident correct answers grow intervals and reach mastery', (
   assert.equal(learningReviewState(reset, reset.due_at), 'due');
 });
 
-test('sidecar survives store restart and preserves attempts, due and suspended state', async () => {
+void test('sidecar survives store restart and preserves attempts, due and suspended state', async () => {
   const adapter = new MemoryAdapter();
   let now = new Date(START);
   const firstStore = new LearningProgressStore(adapter, 'plugin-data/learning', {
@@ -164,13 +164,13 @@ test('sidecar survives store restart and preserves attempts, due and suspended s
   assert.equal(suspended && learningReviewState(suspended, now), 'suspended');
 });
 
-test('learning identity includes kind so card and question ids cannot collide', () => {
+void test('learning identity includes kind so card and question ids cannot collide', () => {
   assert.equal(learningItemKey('flashcard', 'same'), 'flashcard:same');
   assert.equal(learningItemKey('question', 'same'), 'question:same');
   assert.notEqual(learningItemKey('flashcard', 'same'), learningItemKey('question', 'same'));
 });
 
-test('evidence resolver links real timestamps and reports missing or untimed evidence', () => {
+void test('evidence resolver links real timestamps and reports missing or untimed evidence', () => {
   const artifact = makeArtifact();
   const items = learningItemsFromArtifact(artifact);
   const available = resolveLearningEvidence(artifact, items[0]);

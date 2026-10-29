@@ -6,6 +6,7 @@ import {
 } from './ReproducibilityManifest';
 import type { ReproducibilityManifest } from './ReproducibilityManifest';
 
+import { errorMessage } from '../utils/errors';
 const MANIFEST_FILE_SUFFIX = '.json';
 const SAFE_ARTIFACT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
 
@@ -274,10 +275,6 @@ function assertArtifactId(value: unknown): asserts value is string {
   if (typeof value !== 'string' || !SAFE_ARTIFACT_ID.test(value)) {
     throw new ReproducibilityStoreValidationError(`unsafe artifact_id ${JSON.stringify(value)}`);
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function clone<T>(value: T): T {

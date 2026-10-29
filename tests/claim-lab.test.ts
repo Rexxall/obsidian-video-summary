@@ -10,7 +10,7 @@ import {
 } from '../core/ClaimLab';
 import type { EvidenceClaim, VideoKnowledgeArtifact } from '../types';
 
-test('claim lab marks an explicit, fully evidenced opposition as conflict', () => {
+void test('claim lab marks an explicit, fully evidenced opposition as conflict', () => {
   const left = artifact('left', 'https://youtu.be/left', {
     claim: '课程指出规律运动会增加记忆表现',
     quote: '规律运动会增加记忆表现',
@@ -34,7 +34,7 @@ test('claim lab marks an explicit, fully evidenced opposition as conflict', () =
   assert.match(report.managed_markdown, /\[左侧视频\]\(<https:\/\/youtu\.be\/left>\)/);
 });
 
-test('missing segment evidence remains unknown and never becomes a fabricated conflict', () => {
+void test('missing segment evidence remains unknown and never becomes a fabricated conflict', () => {
   const left = artifact('left', 'https://youtu.be/left', {
     claim: '治疗会提高生存率',
     quote: '治疗会提高生存率',
@@ -62,7 +62,7 @@ test('missing segment evidence remains unknown and never becomes a fabricated co
   assert.match(report.managed_markdown, /missing \/ needs-review/);
 });
 
-test('identical negative claims never become a conflict through substring matches', () => {
+void test('identical negative claims never become a conflict through substring matches', () => {
   for (const claimText of ['系统不安全', 'The system is unsafe', '这个结论不成立']) {
     const left = artifact('negative-left', 'https://youtu.be/negative-left', {
       claim: claimText,
@@ -82,7 +82,7 @@ test('identical negative claims never become a conflict through substring matche
   }
 });
 
-test('an inference claim with a real segment remains needs-review in Claim Lab', () => {
+void test('an inference claim with a real segment remains needs-review in Claim Lab', () => {
   const left = artifact('inference-left', 'https://youtu.be/inference-left', {
     claim: '治疗可能提高生存率',
     quote: '治疗可能提高生存率',
@@ -106,7 +106,7 @@ test('an inference claim with a real segment remains needs-review in Claim Lab',
   assert.equal(comparison.review_state, 'needs-review');
 });
 
-test('claim lab managed-block rerun preserves the user-authored region byte-for-byte', () => {
+void test('claim lab managed-block rerun preserves the user-authored region byte-for-byte', () => {
   const first = buildClaimLabReport([
     artifact('left', 'https://youtu.be/left', { claim: '初版结论', quote: '初版结论' }),
     artifact('right', 'https://youtu.be/right', { claim: '另一结论', quote: '另一结论' }),
@@ -131,7 +131,7 @@ test('claim lab managed-block rerun preserves the user-authored region byte-for-
   assert.equal(count(after, CLAIM_LAB_MANAGED_END), 1);
 });
 
-test('artifact-column matrix renders every selected artifact and explicit missing cells', () => {
+void test('artifact-column matrix renders every selected artifact and explicit missing cells', () => {
   const first = artifact('matrix-a', 'https://youtu.be/matrix-a', {
     claim: '苹果含有膳食纤维',
     quote: '苹果含有膳食纤维',
@@ -156,7 +156,7 @@ test('artifact-column matrix renders every selected artifact and explicit missin
   assert.match(report.managed_markdown, /\*\*missing\*\*/);
 });
 
-test('claim lab refuses fewer than two persisted artifact selections', () => {
+void test('claim lab refuses fewer than two persisted artifact selections', () => {
   assert.throws(
     () =>
       buildClaimLabReport([

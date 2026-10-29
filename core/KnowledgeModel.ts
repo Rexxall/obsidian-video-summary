@@ -18,6 +18,7 @@ import type {
 } from '../types';
 import { isExactHostOrSubdomain, safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 import { resolveContentRoute } from './ContentRouter';
+import { asArray, asRecord, asText, isRecord } from '../utils/json';
 
 export const VIDEO_ARTIFACT_SCHEMA_VERSION = 3;
 
@@ -49,67 +50,63 @@ const TIMING_QUALITY = new Set<TimingQuality>(['exact', 'aligned', 'estimated', 
  */
 export function normalizeRichProcessingResult(
   base: ProcessingResult,
-  payload: any,
+  payload: unknown,
   context: RichResultContext = {},
 ): ProcessingResult {
+  const p = asRecord(payload);
   const sourceUrl = context.sourceUrl || readString(payload, ['source_url', 'video_url', 'link']);
   const transcript =
     base.video_transcript ||
     readString(payload, ['video_transcript', 'transcript', 'provided_transcript']);
   const rawSegments =
     readArray(payload, ['video_segments', 'segments', 'transcript_segments', 'cues']) ||
-    readArray(payload?.artifact, ['video_segments', 'segments', 'transcript_segments', 'cues']);
+    readArray(p.artifact, ['video_segments', 'segments', 'transcript_segments', 'cues']);
   const fallbackQuality = normalizeTimingQuality(
-    payload?.timing_quality || payload?.artifact?.timing_quality,
+    p.timing_quality || asRecord(p.artifact).timing_quality,
     'none',
   );
   const segments = normalizeSegments(rawSegments, transcript, sourceUrl, fallbackQuality);
   const timingQuality = aggregateTimingQuality(
     segments,
-    normalizeTimingQuality(payload?.timing_quality || payload?.artifact?.timing_quality, 'none'),
+    normalizeTimingQuality(p.timing_quality || asRecord(p.artifact).timing_quality, 'none'),
   );
   const claims = normalizeClaims(
     readArray(payload, ['evidence_claims', 'claims']) ||
-      readArray(payload?.artifact, ['evidence_claims', 'claims']),
+      readArray(p.artifact, ['evidence_claims', 'claims']),
     segments,
   );
   const visualEvidence = normalizeVisualEvidence(
     readArray(payload, ['visual_evidence', 'visual_observations', 'keyframes']) ||
-      readArray(payload?.artifact, ['visual_evidence', 'visual_observations', 'keyframes']),
+      readArray(p.artifact, ['visual_evidence', 'visual_observations', 'keyframes']),
   );
   const backendRouting =
-    objectOrUndefined(payload?.content_routing) ||
-    objectOrUndefined(payload?.routing) ||
-    objectOrUndefined(payload?.artifact?.content_routing);
+    objectOrUndefined(p.content_routing) ||
+    objectOrUndefined(p.routing) ||
+    objectOrUndefined(asRecord(p.artifact).content_routing);
   const contentRouting = resolveContentRoute({
     requestedType: context.requestedContentType,
     autoRoute: context.autoRoute,
     backendType:
-      payload?.content_type ||
-      payload?.resolved_content_type ||
-      payload?.artifact?.content_type ||
+      p.content_type ||
+      p.resolved_content_type ||
+      asRecord(p.artifact).content_type ||
       backendRouting?.type ||
       backendRouting?.content_type,
     backendConfidence:
-      backendRouting?.confidence ?? payload?.content_type_confidence ?? payload?.routing_confidence,
-    backendReasons:
-      backendRouting?.reasons ?? payload?.content_type_reasons ?? payload?.routing_reasons,
+      backendRouting?.confidence ?? p.content_type_confidence ?? p.routing_confidence,
+    backendReasons: backendRouting?.reasons ?? p.content_type_reasons ?? p.routing_reasons,
     title: base.video_title || readString(payload, ['video_title', 'title', 'name']),
     author:
       base.video_author ||
       readString(payload, ['video_author', 'author', 'channel', 'creator', 'uploader']),
     transcript,
-    chapters:
-      context.chapters ||
-      payload?.video_chapters ||
-      payload?.chapters ||
-      payload?.artifact?.chapters,
+    chapters: context.chapters || p.video_chapters || p.chapters || asRecord(p.artifact).chapters,
   });
   const attention = normalizeAttention(
-    payload?.attention || payload?.attention_assessment || payload?.artifact?.attention,
+    p.attention || p.attention_assessment || asRecord(p.artifact).attention,
   );
   const learning = normalizeLearning(
-    payload?.learning || payload?.learning_package || payload?.artifact?.learning,
+    p.learning || p.learning_package || asRecord(p.artifact).learning,
   );
   const provenance = normalizeProvenance(
     payload,
@@ -138,9 +135,7 @@ export function normalizeRichProcessingResult(
     attention,
     learning,
     artifact: provenance,
-    related_notes: normalizeRelatedNotes(
-      payload?.related_notes || payload?.artifact?.related_notes,
-    ),
+    related_notes: normalizeRelatedNotes(p.related_notes || asRecord(p.artifact).related_notes),
   };
 }
 
@@ -233,7 +228,7 @@ export function formatTimestamp(seconds: number | null | undefined): string {
 }
 
 function normalizeSegment(
-  raw: any,
+  raw: unknown,
   index: number,
   sourceUrl: string,
   fallbackQuality: TimingQuality,
@@ -249,7 +244,7 @@ function normalizeSegment(
       timing_quality: 'none',
     };
   }
-  if (!raw || typeof raw !== 'object') return null;
+  if (!isRecord(raw)) return null;
   const text = readString(raw, ['text', 'transcript', 'content', 'quote']);
   if (!text) return null;
   const start = readNumber(raw, ['start', 'start_seconds', 'startTime', 'offset']);
@@ -342,8 +337,8 @@ function normalizeClaims(
 ): EvidenceClaim[] {
   const segmentsById = new Map(segments.map((segment) => [segment.id, segment]));
   return (rawClaims || [])
-    .map((raw: any, index): EvidenceClaim | null => {
-      if (!raw || typeof raw !== 'object') return null;
+    .map((raw: unknown, index): EvidenceClaim | null => {
+      if (!isRecord(raw)) return null;
       const claim = readString(raw, ['claim', 'text', 'summary', 'title']);
       if (!claim) return null;
       const explicitEvidence = Array.isArray(raw.evidence) ? raw.evidence : [];
@@ -355,7 +350,7 @@ function normalizeClaims(
       const fallbackSource = normalizeEvidenceSource(raw.source || raw.source_type, 'ai-inference');
       let rejectedEvidence = false;
       const evidenceCandidates: Array<EvidenceReference | null> = explicitEvidence.map(
-        (item: any) => normalizeEvidenceReference(item, fallbackSource),
+        (item: unknown) => normalizeEvidenceReference(item, fallbackSource),
       );
       const evidence: EvidenceReference[] = evidenceCandidates
         .filter((item: EvidenceReference | null): item is EvidenceReference => {
@@ -438,8 +433,8 @@ function normalizeClaims(
 
 function normalizeVisualEvidence(rawItems: unknown[] | undefined): VisualEvidence[] {
   return (rawItems || [])
-    .map((raw: any, index): VisualEvidence | null => {
-      if (!raw || typeof raw !== 'object') return null;
+    .map((raw: unknown, index): VisualEvidence | null => {
+      if (!isRecord(raw)) return null;
       const description = readString(raw, ['description', 'text', 'caption', 'summary']);
       const ocrText = readString(raw, ['ocr_text', 'visual_text', 'screen_text']);
       if (!description && !ocrText) return null;
@@ -462,9 +457,9 @@ function normalizeVisualEvidence(rawItems: unknown[] | undefined): VisualEvidenc
     .filter((item): item is VisualEvidence => item !== null);
 }
 
-function normalizeAttention(raw: any): AttentionAssessment | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const action = ['watch', 'skim', 'skip'].includes(raw.action) ? raw.action : undefined;
+function normalizeAttention(raw: unknown): AttentionAssessment | undefined {
+  if (!isRecord(raw)) return undefined;
+  const action = oneOf(raw.action, ['watch', 'skim', 'skip'] as const);
   const rationale = readString(raw, ['rationale', 'reason', 'summary']);
   if (!action || !rationale) return undefined;
   return {
@@ -487,11 +482,12 @@ function normalizeAttention(raw: any): AttentionAssessment | undefined {
   };
 }
 
-function normalizeLearning(raw: any): LearningPackage | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
+function normalizeLearning(raw: unknown): LearningPackage | undefined {
+  if (!isRecord(raw)) return undefined;
   const flashcards = Array.isArray(raw.flashcards)
-    ? raw.flashcards
-        .map((item: any) => {
+    ? asArray(raw.flashcards)
+        .map(asRecord)
+        .map((item) => {
           const front = readString(item, ['front', 'question', 'prompt']);
           const back = readString(item, ['back', 'answer']);
           if (!front || !back) return null;
@@ -508,16 +504,15 @@ function normalizeLearning(raw: any): LearningPackage | undefined {
         .filter(Boolean)
     : undefined;
   const questions = Array.isArray(raw.questions)
-    ? raw.questions
-        .map((item: any) => {
+    ? asArray(raw.questions)
+        .map(asRecord)
+        .map((item) => {
           const prompt = readString(item, ['prompt', 'question']);
           const rawAnswer = readString(item, ['answer', 'correct_answer']);
           const choices = normalizeStringArray(item.choices);
           const answer = resolveChoiceAnswer(rawAnswer, choices);
           if (!prompt || !answer) return null;
-          const difficulty = ['easy', 'medium', 'hard'].includes(item.difficulty)
-            ? item.difficulty
-            : undefined;
+          const difficulty = oneOf(item.difficulty, ['easy', 'medium', 'hard'] as const);
           const providerId = readString(item, ['id']);
           return {
             id: `question-${stableHash(`${normalizeText(prompt)}|${normalizeText(answer)}`)}`,
@@ -554,13 +549,16 @@ function resolveChoiceAnswer(answer: string, choices: string[] | undefined): str
 }
 
 function normalizeProvenance(
-  payload: any,
+  payload: unknown,
   context: RichResultContext,
   sourceUrl: string,
   timingQuality: TimingQuality,
   contentRouting: ContentRoutingDecision,
 ): ArtifactProvenance {
-  const raw = payload?.artifact?.provenance || payload?.provenance || payload?.artifact || {};
+  const source = asRecord(payload);
+  const raw = asRecord(
+    asRecord(source.artifact).provenance || source.provenance || source.artifact,
+  );
   const sourceHash = readString(raw, ['source_hash']) || stableHash(normalizeSource(sourceUrl));
   const warnings = normalizeStringArray(raw.warnings) ?? [];
   if (timingQuality === 'estimated') {
@@ -598,14 +596,14 @@ function normalizeProvenance(
 }
 
 function normalizeEvidenceReference(
-  raw: any,
+  raw: unknown,
   fallbackSource: EvidenceSourceType,
 ): EvidenceReference | null {
   if (typeof raw === 'string') {
     const segmentId = raw.trim();
     return segmentId ? { segment_id: sanitizeId(segmentId), source: fallbackSource } : null;
   }
-  if (!raw || typeof raw !== 'object') return null;
+  if (!isRecord(raw)) return null;
   const segmentId = readString(raw, ['segment_id', 'id']);
   if (!segmentId) return null;
   return {
@@ -616,7 +614,7 @@ function normalizeEvidenceReference(
   };
 }
 
-function normalizeAsset(raw: any, fallbackId: string): MediaAssetReference | undefined {
+function normalizeAsset(raw: unknown, fallbackId: string): MediaAssetReference | undefined {
   if (!raw) return undefined;
   if (typeof raw === 'string') {
     const url = safeExternalHttpUrl(raw);
@@ -636,7 +634,7 @@ function normalizeAsset(raw: any, fallbackId: string): MediaAssetReference | und
   };
 }
 
-function normalizeRelatedNotes(raw: any): RelatedNoteSuggestion[] | undefined {
+function normalizeRelatedNotes(raw: unknown): RelatedNoteSuggestion[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const allowed = new Set<RelatedNoteSuggestion['relation']>([
     'supplements',
@@ -646,8 +644,8 @@ function normalizeRelatedNotes(raw: any): RelatedNoteSuggestion[] | undefined {
     'related',
   ]);
   const values = raw
-    .map((item: any): RelatedNoteSuggestion | null => {
-      if (!item || typeof item !== 'object') return null;
+    .map((item: unknown): RelatedNoteSuggestion | null => {
+      if (!isRecord(item)) return null;
       const notePath = readString(item, ['note_path', 'path']);
       const reason = readString(item, ['reason', 'rationale']);
       const relation = allowed.has(item.relation as RelatedNoteSuggestion['relation'])
@@ -665,11 +663,11 @@ function normalizeRelatedNotes(raw: any): RelatedNoteSuggestion[] | undefined {
   return values.length > 0 ? values : undefined;
 }
 
-function normalizeAttentionRanges(raw: any): AttentionRange[] | undefined {
+function normalizeAttentionRanges(raw: unknown): AttentionRange[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const values = raw
-    .map((item: any) => {
-      if (!item || typeof item !== 'object') return null;
+    .map((item: unknown) => {
+      if (!isRecord(item)) return null;
       const start = readNumber(item, ['start', 'start_seconds']);
       const end = readNumber(item, ['end', 'end_seconds']);
       const reason = readString(item, ['reason', 'rationale']);
@@ -775,14 +773,14 @@ function nearestSegment(segments: VideoSegment[], seconds: number): VideoSegment
   return best && best.distance <= MAX_ALIGNMENT_GAP_SECONDS ? best.segment : undefined;
 }
 
-function normalizeTimingQuality(raw: any, fallback: TimingQuality): TimingQuality {
-  return TIMING_QUALITY.has(raw) ? raw : fallback;
+function normalizeTimingQuality(raw: unknown, fallback: TimingQuality): TimingQuality {
+  return typeof raw === 'string' && TIMING_QUALITY.has(raw as TimingQuality)
+    ? (raw as TimingQuality)
+    : fallback;
 }
 
-function normalizeEvidenceSource(raw: any, fallback: EvidenceSourceType): EvidenceSourceType {
-  const value = String(raw || '')
-    .trim()
-    .toLowerCase();
+function normalizeEvidenceSource(raw: unknown, fallback: EvidenceSourceType): EvidenceSourceType {
+  const value = (asText(raw) ?? '').trim().toLowerCase();
   const aliases: Record<string, EvidenceSourceType> = {
     audio: 'speech',
     transcript: 'speech',
@@ -794,61 +792,69 @@ function normalizeEvidenceSource(raw: any, fallback: EvidenceSourceType): Eviden
     inference: 'ai-inference',
     ai: 'ai-inference',
   };
-  const normalized = aliases[value] || value;
-  return EVIDENCE_SOURCES.has(normalized as EvidenceSourceType)
-    ? (normalized as EvidenceSourceType)
-    : fallback;
+  const normalized: string = aliases[value] || value;
+  return [...EVIDENCE_SOURCES].find((source) => source === normalized) ?? fallback;
 }
 
-function normalizeReviewState(raw: any, source: EvidenceSourceType) {
-  if (['supported', 'needs-review', 'inference'].includes(raw)) return raw;
+function normalizeReviewState(
+  raw: unknown,
+  source: EvidenceSourceType,
+): NonNullable<EvidenceClaim['review_state']> {
+  const state = oneOf(raw, ['supported', 'needs-review', 'inference'] as const);
+  if (state) return state;
   return source === 'ai-inference' ? 'inference' : 'supported';
 }
 
-function normalizeVisualKind(raw: any): VisualEvidence['kind'] {
-  const value = String(raw || '')
-    .trim()
-    .toLowerCase();
+function normalizeVisualKind(raw: unknown): VisualEvidence['kind'] {
+  const value = (asText(raw) ?? '').trim().toLowerCase();
   const allowed = new Set(['slide', 'chart', 'code', 'interface', 'object', 'scene', 'other']);
   return allowed.has(value) ? (value as VisualEvidence['kind']) : 'other';
 }
 
-function normalizeProcessingDepth(raw: any): ProcessingDepth | undefined {
-  return ['quick', 'evidence', 'deep-visual'].includes(raw) ? raw : undefined;
+function normalizeProcessingDepth(raw: unknown): ProcessingDepth | undefined {
+  return oneOf(raw, ['quick', 'evidence', 'deep-visual'] as const);
 }
 
-function normalizeBackend(raw: any): ArtifactProvenance['backend'] {
+/** The value when it is one of the allowed strings, otherwise undefined. */
+function oneOf<T extends string>(raw: unknown, allowed: readonly T[]): T | undefined {
+  return typeof raw === 'string' && (allowed as readonly string[]).includes(raw)
+    ? (raw as T)
+    : undefined;
+}
+
+function normalizeBackend(raw: unknown): ArtifactProvenance['backend'] {
   return raw === 'n8n' || raw === 'codex-worker' ? raw : undefined;
 }
 
-function normalizeRatio(raw: any): number | undefined {
+function normalizeRatio(raw: unknown): number | undefined {
   const value = Number(raw);
   if (!Number.isFinite(value)) return undefined;
   return Math.max(0, Math.min(1, value > 1 ? value / 100 : value));
 }
 
-function normalizeStringArray(raw: any): string[] | undefined {
+function normalizeStringArray(raw: unknown): string[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const values = raw.map((item) => String(item || '').trim()).filter(Boolean);
   return values.length > 0 ? Array.from(new Set(values)) : undefined;
 }
 
-function readArray(source: any, keys: string[]): unknown[] | undefined {
-  if (!source || typeof source !== 'object') return undefined;
+function readArray(source: unknown, keys: string[]): unknown[] | undefined {
+  if (!isRecord(source)) return undefined;
   for (const key of keys) {
-    if (Array.isArray(source[key])) return source[key];
+    const value = source[key];
+    if (Array.isArray(value)) return value as unknown[];
   }
   return undefined;
 }
 
-function objectOrUndefined(source: unknown): Record<string, any> | undefined {
+function objectOrUndefined(source: unknown): Record<string, unknown> | undefined {
   return source && typeof source === 'object' && !Array.isArray(source)
     ? (source as Record<string, any>)
     : undefined;
 }
 
-function readString(source: any, keys: string[]): string {
-  if (!source || typeof source !== 'object') return '';
+function readString(source: unknown, keys: string[]): string {
+  if (!isRecord(source)) return '';
   for (const key of keys) {
     const value = source[key];
     if (typeof value === 'string' && value.trim()) return value.trim();
@@ -856,8 +862,8 @@ function readString(source: any, keys: string[]): string {
   return '';
 }
 
-function readNumber(source: any, keys: string[]): number | null {
-  if (!source || typeof source !== 'object') return null;
+function readNumber(source: unknown, keys: string[]): number | null {
+  if (!isRecord(source)) return null;
   for (const key of keys) {
     const raw = source[key];
     // Number(null), Number(''), and Number(false) are all zero. Treating those
@@ -885,7 +891,7 @@ function cleanCueText(value: string): string {
 }
 
 function normalizeText(value: unknown): string {
-  return String(value || '')
+  return (asText(value) ?? '')
     .replace(/\r\n?/g, '\n')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/[ \t]{2,}/g, ' ')

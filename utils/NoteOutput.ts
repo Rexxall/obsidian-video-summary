@@ -52,7 +52,10 @@ export function writeCleanVideoBody(
 
 /** Automatic rename and user rename must update all live task links together. */
 export function relinkVideoJobs(
-  store: { getAll(): any[]; update(id: string, patch: any): void },
+  store: {
+    getAll(): { id: string; notePath?: string }[];
+    update(id: string, patch: { notePath: string; title: string }): void;
+  },
   oldPath: string,
   file: { path: string; basename: string },
 ) {

@@ -39,6 +39,11 @@ try {
       target: 'node20',
       outdir: temporaryDirectory,
       external: ['obsidian'],
+      // CommonJS dependencies (yaml) call require() for Node built-ins; give the ESM bundle one.
+      // Plugin code uses window timers (Obsidian popout windows); in Node, window is the global.
+      banner: {
+        js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url); globalThis.window ??= globalThis;",
+      },
       sourcemap: 'inline',
       logLevel: 'silent',
     });

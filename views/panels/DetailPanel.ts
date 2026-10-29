@@ -1,5 +1,5 @@
 import { Component, MarkdownRenderer, Notice, TFile, setIcon } from 'obsidian';
-import { DetailTab, ViewContext } from '../context';
+import { ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
 import { ProcessingHistory, VideoKnowledgeArtifact } from '../../types';
 import {
@@ -24,6 +24,9 @@ import {
 } from '../../core/KnowledgeMarkdown';
 import { renderReaderPanel } from './ReaderPanel';
 
+import { fire } from '../../utils/fire';
+import { errorMessage } from '../../utils/errors';
+import { openPathInSystem } from '../../utils/desktop';
 /** 详情层：结果预览 + 写入方式 + 失败日志。写入笔记前能先看到要写什么。 */
 export function renderDetailPanel(container: HTMLElement, ctx: ViewContext) {
   const ref = ctx.state.detail;
@@ -165,12 +168,12 @@ function renderJobDetail(
   segmented(
     body,
     [
-      { value: 'reader' as DetailTab, label: '陪读' },
-      { value: 'evidence' as DetailTab, label: '证据' },
-      { value: 'preview' as DetailTab, label: '预览' },
-      { value: 'transcript' as DetailTab, label: '文稿' },
-      { value: 'meta' as DetailTab, label: '元数据' },
-      { value: 'logs' as DetailTab, label: '日志' },
+      { value: 'reader', label: '陪读' },
+      { value: 'evidence', label: '证据' },
+      { value: 'preview', label: '预览' },
+      { value: 'transcript', label: '文稿' },
+      { value: 'meta', label: '元数据' },
+      { value: 'logs', label: '日志' },
     ],
     ctx.state.detailTab,
     (value) => {
@@ -205,12 +208,12 @@ function renderJobDetail(
     const write = textButton(
       actions,
       '写入笔记',
-      async () => {
+      fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
           new Notice('已写入笔记');
           ctx.closeDetail();
         }
-      },
+      }),
       'is-primary is-fill has-icon',
     );
     prependIcon(write, 'check');
@@ -218,7 +221,7 @@ function renderJobDetail(
     const open = textButton(
       actions,
       '打开笔记',
-      () => ctx.openNote(job.notePath!),
+      fire(() => ctx.openNote(job.notePath!)),
       'is-primary is-fill has-icon',
     );
     prependIcon(open, 'file-text');
@@ -234,7 +237,7 @@ function renderJobDetail(
     // 四个低频写入动作收进"更多"，不再六个按钮平铺
     const more = textButton(actions, '更多', () => undefined, 'has-caret');
     more.addEventListener('click', (event) => {
-      showMenu(event as MouseEvent, [
+      showMenu(event, [
         {
           title: '新建笔记',
           icon: 'file-plus',
@@ -274,10 +277,10 @@ function renderJobDetail(
         actions,
         'trash-2',
         '丢弃结果',
-        async () => {
+        fire(async () => {
           await ctx.plugin.jobService.discardResult(job);
           ctx.closeDetail();
-        },
+        }),
         'vs-icon-btn-boxed is-danger',
       );
     }
@@ -318,11 +321,15 @@ function renderStoredArtifactDetail(
         container,
         'alert-triangle',
         '无法打开同步陪读',
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? errorMessage(error) : String(error),
       );
       const actions = container.createDiv({ cls: 'vs-detail-actions' });
       textButton(actions, '返回笔记库', () => ctx.closeDetail(), 'is-primary');
-      textButton(actions, '打开笔记', () => ctx.openNote(notePath));
+      textButton(
+        actions,
+        '打开笔记',
+        fire(() => ctx.openNote(notePath)),
+      );
     });
 }
 
@@ -463,7 +470,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     textButton(
       actionRow,
       '先做观看判断',
-      () => queueKnowledgeUpgrade(ctx, job, 'quick'),
+      fire(() => queueKnowledgeUpgrade(ctx, job, 'quick')),
       'has-icon',
     );
   }
@@ -471,7 +478,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     const upgrade = textButton(
       actionRow,
       '深度看画面',
-      () => queueKnowledgeUpgrade(ctx, job, 'deep-visual'),
+      fire(() => queueKnowledgeUpgrade(ctx, job, 'deep-visual')),
       'has-icon',
     );
     prependIcon(upgrade, 'scan-eye');
@@ -495,7 +502,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     const generate = textButton(
       actionRow,
       '生成学习卡',
-      () => queueLearningUpgrade(ctx, job),
+      fire(() => queueLearningUpgrade(ctx, job)),
       'has-icon',
     );
     prependIcon(generate, 'graduation-cap');
@@ -707,11 +714,20 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
   const actions = body.createDiv({ cls: 'vs-detail-actions' });
   const file = findNote(ctx, record.file);
   if (file) {
-    textButton(actions, '打开笔记', () => ctx.openNote(file.path), 'is-primary is-fill');
-    textButton(actions, '重跑（跳过缓存）', async () => {
-      await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
-      ctx.closeDetail();
-    });
+    textButton(
+      actions,
+      '打开笔记',
+      fire(() => ctx.openNote(file.path)),
+      'is-primary is-fill',
+    );
+    textButton(
+      actions,
+      '重跑（跳过缓存）',
+      fire(async () => {
+        await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
+        ctx.closeDetail();
+      }),
+    );
   } else {
     body.createDiv({ text: `找不到笔记：${record.file}`, cls: 'vs-hint' });
   }
@@ -762,10 +778,7 @@ function openCookiesFolder(ctx: ViewContext) {
     return;
   }
   // 桌面端才有 shell；移动端直接提示
-  const shell = (window as any).require?.('electron')?.shell;
-  if (shell?.openPath) {
-    void shell.openPath(path);
-  } else {
+  if (!openPathInSystem(path)) {
     new Notice(`cookies 目录：${path}`);
   }
 }

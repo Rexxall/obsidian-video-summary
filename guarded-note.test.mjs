@@ -1,9 +1,9 @@
-const test = require('node:test'),
-  assert = require('node:assert/strict'),
-  fs = require('node:fs'),
-  vm = require('node:vm'),
-  ts = require('typescript');
-const bundle = fs.readFileSync(__dirname + '/main.js', 'utf8');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+const bundle = fs.readFileSync(import.meta.dirname + '/main.js', 'utf8');
 const ast = ts.createSourceFile('main.js', bundle, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
 const statement = ast.statements.find(
   (s) =>

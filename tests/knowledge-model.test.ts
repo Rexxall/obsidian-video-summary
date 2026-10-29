@@ -12,7 +12,7 @@ const {
 
 const YOUTUBE_URL = 'https://www.youtube.com/watch?v=knowledge-fixture';
 
-test('parses SRT cues with exact start/end times and strips inline styling', () => {
+void test('parses SRT cues with exact start/end times and strips inline styling', () => {
   const transcript = `1
 00:00:01,250 --> 00:00:03,500
 <i>Hello</i> world
@@ -39,7 +39,7 @@ Second cue`;
   assert.equal(new URL(segments[0].timestamp_url!).searchParams.get('t'), '1s');
 });
 
-test('parses WEBVTT cue identifiers and timing-line settings without turning headers into text', () => {
+void test('parses WEBVTT cue identifiers and timing-line settings without turning headers into text', () => {
   const transcript = `WEBVTT
 Kind: captions
 Language: en
@@ -64,7 +64,7 @@ Another line`;
   );
 });
 
-test('parses [MM:SS], (MM:SS), and H:MM:SS prefixes and closes the previous range', () => {
+void test('parses [MM:SS], (MM:SS), and H:MM:SS prefixes and closes the previous range', () => {
   const transcript = `[00:05] Opening
 (01:02) Main point
 [1:02:03] Long-form conclusion`;
@@ -82,7 +82,7 @@ test('parses [MM:SS], (MM:SS), and H:MM:SS prefixes and closes the previous rang
   assert.ok(segments.every((segment) => segment.timing_quality === 'exact'));
 });
 
-test('plain untimed text remains untimed and never receives a clickable 0:00 link', () => {
+void test('plain untimed text remains untimed and never receives a clickable 0:00 link', () => {
   const result = normalizeRichProcessingResult(
     {
       video_transcript: '第一段没有时间。\n第二段也没有时间。',
@@ -103,7 +103,7 @@ test('plain untimed text remains untimed and never receives a clickable 0:00 lin
   assert.ok(result.artifact?.warnings?.some((warning) => warning.includes('没有可靠时间轴')));
 });
 
-test('null, empty, and boolean timestamp placeholders do not coerce to zero', () => {
+void test('null, empty, and boolean timestamp placeholders do not coerce to zero', () => {
   for (const start of [null, '', false]) {
     const result = normalizeRichProcessingResult(
       {},
@@ -121,7 +121,7 @@ test('null, empty, and boolean timestamp placeholders do not coerce to zero', ()
   }
 });
 
-test('stable IDs repeat for unchanged evidence and change with source, time, or text', () => {
+void test('stable IDs repeat for unchanged evidence and change with source, time, or text', () => {
   const first = stableSegmentId(YOUTUBE_URL, 12.5, '  Same   evidence  ');
   const same = stableSegmentId(YOUTUBE_URL, 12.5, 'Same evidence');
   const hashOnlyDifference = stableSegmentId(`${YOUTUBE_URL}#chapter`, 12.5, 'Same evidence');
@@ -136,7 +136,7 @@ test('stable IDs repeat for unchanged evidence and change with source, time, or 
   );
 });
 
-test('normalizes a legacy flat result without inventing rich timing data', () => {
+void test('normalizes a legacy flat result without inventing rich timing data', () => {
   const result = normalizeRichProcessingResult(
     {
       summary: 'Legacy summary',
@@ -164,7 +164,7 @@ test('normalizes a legacy flat result without inventing rich timing data', () =>
   assert.equal(result.artifact?.model, 'fixture-model');
 });
 
-test('normalizes rich payload aliases, provenance, routing, and attention data', () => {
+void test('normalizes rich payload aliases, provenance, routing, and attention data', () => {
   const result = normalizeRichProcessingResult(
     { summary: 'Rich summary' },
     {
@@ -219,7 +219,7 @@ test('normalizes rich payload aliases, provenance, routing, and attention data',
   assert.equal(result.artifact?.processing_depth, 'evidence');
 });
 
-test('backend media references may provide URLs but never trusted Vault paths', () => {
+void test('backend media references may provide URLs but never trusted Vault paths', () => {
   const result = normalizeRichProcessingResult(
     {},
     {
@@ -246,7 +246,7 @@ test('backend media references may provide URLs but never trusted Vault paths', 
   );
 });
 
-test('learning items use content-stable local ids and resolve labeled choice answers', () => {
+void test('learning items use content-stable local ids and resolve labeled choice answers', () => {
   const payload = {
     learning: {
       flashcards: [
@@ -295,7 +295,7 @@ test('learning items use content-stable local ids and resolve labeled choice ans
   );
 });
 
-test('retains valid multi-channel evidence and rejects references to missing segments', () => {
+void test('retains valid multi-channel evidence and rejects references to missing segments', () => {
   const result = normalizeRichProcessingResult(
     {},
     {
@@ -336,7 +336,7 @@ test('retains valid multi-channel evidence and rejects references to missing seg
   assert.equal(invalid?.review_state, 'needs-review');
 });
 
-test('mixed timed and untimed segments expose per-segment truth but aggregate conservatively', () => {
+void test('mixed timed and untimed segments expose per-segment truth but aggregate conservatively', () => {
   const result = normalizeRichProcessingResult(
     {},
     {
@@ -354,7 +354,7 @@ test('mixed timed and untimed segments expose per-segment truth but aggregate co
   assert.equal(result.timing_quality, 'none');
 });
 
-test('an out-of-range claim timestamp never binds to an unrelated nearest segment', () => {
+void test('an out-of-range claim timestamp never binds to an unrelated nearest segment', () => {
   const result = normalizeRichProcessingResult(
     {},
     {

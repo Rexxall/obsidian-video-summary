@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { VideoUtils } from '../utils/VideoUtils';
 
-test('collecting links from a note reads properties and body, once per video', () => {
+void test('collecting links from a note reads properties and body, once per video', () => {
   const note = [
     '---',
     'source: "https://www.youtube.com/watch?v=abc123"',

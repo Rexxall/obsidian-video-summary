@@ -1,10 +1,13 @@
-// Run with node view-header.test.cjs [path/to/main.js]. No Obsidian or network needed.
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
+// Run with node view-header.test.mjs [path/to/main.js]. No Obsidian or network needed.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
 
-const bundle = fs.readFileSync(process.argv[2] || path.join(__dirname, 'main.js'), 'utf8');
+const bundle = fs.readFileSync(
+  process.argv[2] || path.join(import.meta.dirname, 'main.js'),
+  'utf8',
+);
 const start = bundle.lastIndexOf('// views/VideoSummaryView.ts\n');
 const end = bundle.indexOf('\n// utils/FileProcessor.ts', start);
 assert.ok(start >= 0 && end > start, 'Expected the installed VideoSummaryView bundle section');
@@ -99,8 +102,10 @@ async function check(withHoverEditor) {
 (async () => {
   await check(false);
   await check(true);
-  console.log('PASS: native header preserved; view opens/reopens with and without Hover Editor');
+  process.stdout.write(
+    'PASS: native header preserved; view opens/reopens with and without Hover Editor\n',
+  );
 })().catch((error) => {
-  console.error(error);
+  process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
   process.exitCode = 1;
 });

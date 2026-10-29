@@ -24,7 +24,7 @@ const BASE_REQUEST = {
   promptVersion: 'knowledge-v3.1',
 };
 
-test('sha256Hex matches standard SHA-256 vectors and Unicode input', () => {
+void test('sha256Hex matches standard SHA-256 vectors and Unicode input', () => {
   assert.equal(sha256Hex(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
   assert.equal(
     sha256Hex('abc'),
@@ -34,14 +34,14 @@ test('sha256Hex matches standard SHA-256 vectors and Unicode input', () => {
   assert.equal(sha256Hex(unicode), createHash('sha256').update(unicode).digest('hex'));
 });
 
-test('stableSerialize recursively sorts object keys but preserves array order', () => {
+void test('stableSerialize recursively sorts object keys but preserves array order', () => {
   const first = { z: 1, nested: { b: true, a: 'x' }, rows: [2, 1] };
   const reordered = { rows: [2, 1], nested: { a: 'x', b: true }, z: 1 };
   assert.equal(stableSerialize(first), stableSerialize(reordered));
   assert.notEqual(stableSerialize(first), stableSerialize({ ...first, rows: [1, 2] }));
 });
 
-test('equivalent URL and transcript formatting produce the same fingerprint', () => {
+void test('equivalent URL and transcript formatting produce the same fingerprint', () => {
   const first = buildArtifactFingerprint({
     ...BASE_REQUEST,
     input: {
@@ -61,7 +61,7 @@ test('equivalent URL and transcript formatting produce the same fingerprint', ()
   assert.equal(first.legacy.compatibility, 'unsafe');
 });
 
-test('every requested run dimension invalidates the fingerprint', () => {
+void test('every requested run dimension invalidates the fingerprint', () => {
   const base = buildArtifactFingerprint({
     ...BASE_REQUEST,
     input: { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
@@ -90,7 +90,7 @@ test('every requested run dimension invalidates the fingerprint', () => {
   }
 });
 
-test('local source order and content hashes participate in identity', () => {
+void test('local source order and content hashes participate in identity', () => {
   const first = buildArtifactFingerprint({
     ...BASE_REQUEST,
     input: { localFiles: ['/tmp/a.mp4', '/tmp/b.mp4'] },
@@ -119,7 +119,7 @@ test('local source order and content hashes participate in identity', () => {
   assert.notEqual(first.key, changed.key);
 });
 
-test('legacy marker exposes exact historical keys without claiming exact reuse', () => {
+void test('legacy marker exposes exact historical keys without claiming exact reuse', () => {
   const rawUrl = 'https://youtu.be/dQw4w9WgXcQ?t=42';
   const fingerprint = buildArtifactFingerprint({
     ...BASE_REQUEST,
@@ -135,7 +135,7 @@ test('legacy marker exposes exact historical keys without claiming exact reuse',
   assert.equal(fingerprint.legacy.candidates.length, 2);
 });
 
-test('requests without a source are rejected', () => {
+void test('requests without a source are rejected', () => {
   assert.throws(
     () => buildArtifactFingerprint({ ...BASE_REQUEST, input: {} }),
     /requires a URL, local file, or transcript/,

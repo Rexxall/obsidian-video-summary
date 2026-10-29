@@ -36,7 +36,7 @@ export class RetryUtils {
         }
 
         // 等待后重试
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
     }
 
@@ -50,33 +50,33 @@ export class RetryUtils {
    * @returns 是否应该重试
    */
   static shouldRetry(error: Error): boolean {
-    const errorMessage = error.message.toLowerCase();
+    const message = error.message.toLowerCase();
 
     // 网络相关错误
     if (
-      errorMessage.includes('network') ||
-      errorMessage.includes('timeout') ||
-      errorMessage.includes('connection') ||
-      errorMessage.includes('fetch')
+      message.includes('network') ||
+      message.includes('timeout') ||
+      message.includes('connection') ||
+      message.includes('fetch')
     ) {
       return true;
     }
 
     // HTTP状态码错误
     if (
-      errorMessage.includes('500') ||
-      errorMessage.includes('502') ||
-      errorMessage.includes('503') ||
-      errorMessage.includes('504')
+      message.includes('500') ||
+      message.includes('502') ||
+      message.includes('503') ||
+      message.includes('504')
     ) {
       return true;
     }
 
     // 临时性错误
     if (
-      errorMessage.includes('temporarily') ||
-      errorMessage.includes('rate limit') ||
-      errorMessage.includes('too many requests')
+      message.includes('temporarily') ||
+      message.includes('rate limit') ||
+      message.includes('too many requests')
     ) {
       return true;
     }
@@ -123,7 +123,7 @@ export class RetryUtils {
         }
 
         // 等待后重试
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
     }
 

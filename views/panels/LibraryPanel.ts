@@ -13,6 +13,7 @@ import {
   thumbnail,
 } from '../ui';
 
+import { fire } from '../../utils/fire';
 const PAGE_SIZE = 80;
 
 /** 搜索框失焦问题：面板重建后按这个标记把焦点还回去 */
@@ -94,13 +95,16 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
         title: value === 'running' ? '查看本次会话中进行的任务和上次中断的笔记' : label,
       },
     });
-    chip.addEventListener('click', async () => {
-      state.libraryFilter = value;
-      plugin.settings.statusFilterValue = value;
-      await plugin.saveSettings();
-      resetLibraryPaging();
-      ctx.renderPanels();
-    });
+    chip.addEventListener(
+      'click',
+      fire(async () => {
+        state.libraryFilter = value;
+        plugin.settings.statusFilterValue = value;
+        await plugin.saveSettings();
+        resetLibraryPaging();
+        ctx.renderPanels();
+      }),
+    );
   });
 
   const listEl = container.createDiv({ cls: 'vs-list' });
@@ -215,7 +219,10 @@ function renderRow(
   const sub = body.createDiv({ cls: 'vs-row-sub' });
   platformText(sub, entry.platform, platformLabel(entry.platform));
   sub.createSpan({ text: formatRelative(entry.mtime) });
-  body.addEventListener('click', () => ctx.openNote(entry.path));
+  body.addEventListener(
+    'click',
+    fire(() => ctx.openNote(entry.path)),
+  );
   body.tabIndex = 0;
   body.setAttribute('role', 'button');
   body.setAttribute('aria-label', `打开笔记：${entry.basename}`);
@@ -248,10 +255,10 @@ function renderRow(
       actions,
       'x',
       '取消',
-      async () => {
+      fire(async () => {
         if (liveJob) await ctx.plugin.jobService.cancel(liveJob);
         ctx.renderPanels();
-      },
+      }),
       'is-accent',
     );
   } else if (displayStatus === 'review' && liveJob) {
@@ -267,13 +274,13 @@ function renderRow(
       actions,
       displayStatus === 'interrupted' ? 'refresh-cw' : 'play',
       displayStatus === 'success' || displayStatus === 'interrupted' ? '重跑' : '处理',
-      async () => {
+      fire(async () => {
         const file = fileOf(ctx, entry);
         if (!file) return;
         await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
         ctx.state.tab = 'jobs';
         ctx.renderPanels();
-      },
+      }),
       'is-accent',
     );
   }
@@ -350,14 +357,14 @@ function confirmDelete(ctx: ViewContext, entry: VideoNoteEntry) {
     ctx.plugin.app,
     '删除笔记',
     `确定删除 "${entry.basename}"？会按 Obsidian 的“删除文件”设置移到回收站。`,
-    async (confirmed: boolean) => {
+    fire(async (confirmed: boolean) => {
       if (!confirmed) return;
       const file = fileOf(ctx, entry);
       if (!file) return;
       await ctx.plugin.app.fileManager.trashFile(file);
       new Notice(`已删除 ${entry.basename}`);
       ctx.renderPanels();
-    },
+    }),
   ).open();
 }
 

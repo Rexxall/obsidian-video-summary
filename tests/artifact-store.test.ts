@@ -17,7 +17,7 @@ import type { VideoKnowledgeArtifact } from '../types';
 
 const FIXED_NOW = new Date('2026-07-29T12:00:00.000Z');
 
-test('stable source hashes collapse equivalent YouTube URLs', async () => {
+void test('stable source hashes collapse equivalent YouTube URLs', async () => {
   const left = await stableSourceHash({
     url: 'https://youtu.be/dQw4w9WgXcQ?t=45',
     source_hash: '',
@@ -36,7 +36,7 @@ test('stable source hashes collapse equivalent YouTube URLs', async () => {
   );
 });
 
-test('transcript-only artifact identity survives note renames', async () => {
+void test('transcript-only artifact identity survives note renames', async () => {
   const transcriptHash = await sha256Hex('Transcript-only source');
   const before = await stableSourceHash({
     note_path: 'Video Inbox/Untitled.md',
@@ -53,7 +53,7 @@ test('transcript-only artifact identity survives note renames', async () => {
   assert.equal(before, await sha256Hex(`transcript:${transcriptHash}`));
 });
 
-test('store save, note rename, and resave retain one transcript-only sidecar id', async () => {
+void test('store save, note rename, and resave retain one transcript-only sidecar id', async () => {
   const adapter = new MemoryAdapter();
   const root = 'plugin-data/artifacts';
   const store = new ArtifactStore(adapter, root, { now: () => FIXED_NOW });
@@ -90,7 +90,7 @@ test('store save, note rename, and resave retain one transcript-only sidecar id'
   );
 });
 
-test('an existing note-only source hash remains stable when its Vault path changes', async () => {
+void test('an existing note-only source hash remains stable when its Vault path changes', async () => {
   const adapter = new MemoryAdapter();
   const store = new ArtifactStore(adapter, 'plugin-data/artifacts', { now: () => FIXED_NOW });
   const artifact = makeArtifact();
@@ -108,7 +108,7 @@ test('an existing note-only source hash remains stable when its Vault path chang
   assert.equal(renamed.source.note_path, 'Library/Renamed.md');
 });
 
-test('save/load/list use sidecar files and preserve a stable artifact id', async () => {
+void test('save/load/list use sidecar files and preserve a stable artifact id', async () => {
   const adapter = new MemoryAdapter();
   const store = new ArtifactStore(adapter, '.obsidian/plugins/video-summary/data/artifacts', {
     now: () => FIXED_NOW,
@@ -139,7 +139,7 @@ test('save/load/list use sidecar files and preserve a stable artifact id', async
   );
 });
 
-test('updateHighlights is atomic, validates segment references, and supports transforms', async () => {
+void test('updateHighlights is atomic, validates segment references, and supports transforms', async () => {
   const adapter = new MemoryAdapter();
   const store = new ArtifactStore(adapter, 'plugin-data/artifacts', {
     now: () => FIXED_NOW,
@@ -174,7 +174,7 @@ test('updateHighlights is atomic, validates segment references, and supports tra
   assert.deepEqual((await store.load(saved.artifact_id)).highlights, updated.highlights);
 });
 
-test('updateRelatedNotes atomically writes only valid reviewed relation shapes', async () => {
+void test('updateRelatedNotes atomically writes only valid reviewed relation shapes', async () => {
   const adapter = new MemoryAdapter();
   const store = new ArtifactStore(adapter, 'plugin-data/artifacts', {
     now: () => FIXED_NOW,
@@ -210,7 +210,7 @@ test('updateRelatedNotes atomically writes only valid reviewed relation shapes',
   assert.deepEqual((await store.load(saved.artifact_id)).related_notes, updated.related_notes);
 });
 
-test('processor saves atomically retain newer reviewed state and rebase changed segment ids', async () => {
+void test('processor saves atomically retain newer reviewed state and rebase changed segment ids', async () => {
   const adapter = new MemoryAdapter();
   const store = new ArtifactStore(adapter, 'plugin-data/artifacts', {
     now: () => FIXED_NOW,
@@ -260,7 +260,7 @@ test('processor saves atomically retain newer reviewed state and rebase changed 
   assert.equal(saved.related_notes[0].note_path, 'Videos/Reviewed.md');
 });
 
-test('v1 artifacts migrate to the current canonical id and sidecar path', async () => {
+void test('v1 artifacts migrate to the current canonical id and sidecar path', async () => {
   const adapter = new MemoryAdapter();
   const root = 'plugin-data/artifacts';
   await adapter.mkdir('plugin-data');
@@ -297,7 +297,7 @@ test('v1 artifacts migrate to the current canonical id and sidecar path', async 
   assert.equal(migrated.timing_quality, 'none');
 });
 
-test('validation rejects broken references and future schemas', async () => {
+void test('validation rejects broken references and future schemas', async () => {
   const artifact = makeArtifact();
   artifact.highlights = [
     {
@@ -317,7 +317,7 @@ test('validation rejects broken references and future schemas', async () => {
   );
 });
 
-test('failed atomic writes do not replace a valid existing artifact', async () => {
+void test('failed atomic writes do not replace a valid existing artifact', async () => {
   const adapter = new MemoryAdapter();
   const store = new ArtifactStore(adapter, 'plugin-data/artifacts', {
     now: () => FIXED_NOW,
@@ -331,7 +331,7 @@ test('failed atomic writes do not replace a valid existing artifact', async () =
   assert.equal((await store.load(saved.artifact_id)).title, before.title);
 });
 
-test('missing artifacts fail explicitly', async () => {
+void test('missing artifacts fail explicitly', async () => {
   const store = new ArtifactStore(new MemoryAdapter(), 'plugin-data/artifacts');
   await assert.rejects(() => store.load('valid-missing-id'), ArtifactNotFoundError);
 });

@@ -1,8 +1,8 @@
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const vm = require('node:vm');
-const ts = require('typescript');
-const bundle = fs.readFileSync(process.argv[2] || __dirname + '/main.js', 'utf8');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+const bundle = fs.readFileSync(process.argv[2] || import.meta.dirname + '/main.js', 'utf8');
 const ast = ts.createSourceFile(
   'bundle.js',
   bundle,
@@ -23,6 +23,8 @@ const names = [
   'stableHash',
   'stableSegmentId',
   'buildTimestampUrl',
+  'asText',
+  'scalarText',
 ];
 const context = { URL };
 vm.createContext(context);
@@ -104,7 +106,8 @@ class ItemView {
     this.app = context.app;
   }
 }
-context.import_obsidian13 = {
+// esbuild numbers the obsidian import per module; read the one the view class uses
+context[bundle.match(/var VideoSummaryView = class extends (import_obsidian\d*)\.ItemView/)[1]] = {
   ItemView,
   TFile,
   Notice: class {
@@ -142,10 +145,10 @@ vm.runInContext(bundle.slice(start, end), context);
   await view.openNote('missing.md');
   assert.equal(opened.length, 1, 'Missing file must not create a phantom note');
   assert.equal(notices.length, 1, 'Missing path is visible, not silent');
-  console.log(
-    'PASS: clean output, source preservation, inline captions, rename and navigation recovery',
+  process.stdout.write(
+    'PASS: clean output, source preservation, inline captions, rename and navigation recovery\n',
   );
 })().catch((error) => {
-  console.error(error);
+  process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
   process.exitCode = 1;
 });

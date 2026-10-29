@@ -13,6 +13,7 @@ import {
 } from '../core/CrossModalMemory';
 import { safeExternalHttpUrl, safeManagedVaultImagePath } from '../utils/SafeExternalUrl';
 
+import { errorMessage } from '../utils/errors';
 export type KnowledgeLabMode = 'memory' | 'claim-lab';
 
 /**
@@ -132,7 +133,7 @@ export class KnowledgeLabModal extends Modal {
         value: artifact.artifact_id,
       });
     });
-    relationRow.createEl('span', {
+    relationRow.createSpan({
       text: '建议不会自动写入；每条关系都需要再次明确确认。',
     });
 
@@ -196,11 +197,11 @@ export class KnowledgeLabModal extends Modal {
       } else {
         heading.createEl('strong', { text: result.title });
       }
-      heading.createEl('span', {
+      heading.createSpan({
         cls: 'vs-memory-evidence-type',
         text: result.evidence_type,
       });
-      heading.createEl('span', {
+      heading.createSpan({
         cls: 'vs-memory-score',
         text: result.score.toFixed(2),
         attr: { title: '确定性本地评分' },
@@ -322,7 +323,7 @@ export class KnowledgeLabModal extends Modal {
     const toolbar = this.contentEl.createDiv({ cls: 'vs-claim-lab-toolbar' });
     const title = labeledInput(toolbar, '实验室标题', '多视频论点实验室');
     const artifactSearch = labeledInput(toolbar, '筛选工件', '按标题、作者或平台过滤');
-    const count = toolbar.createEl('span', { cls: 'vs-claim-lab-count' });
+    const count = toolbar.createSpan({ cls: 'vs-claim-lab-count' });
     const list = this.contentEl.createDiv({ cls: 'vs-claim-lab-artifacts' });
     const selected = new Set<string>();
 
@@ -345,7 +346,7 @@ export class KnowledgeLabModal extends Modal {
           checkbox.checked = selected.has(artifact.artifact_id);
           const copy = row.createDiv();
           copy.createEl('strong', { text: artifact.title || artifact.artifact_id });
-          copy.createEl('span', {
+          copy.createSpan({
             text: [
               artifact.author,
               artifact.platform,
@@ -371,7 +372,7 @@ export class KnowledgeLabModal extends Modal {
       text: '生成 / 更新论点实验室',
       cls: 'mod-cta',
     });
-    const status = actions.createEl('span');
+    const status = actions.createSpan();
     generate.onclick = async () => {
       if (selected.size < 2) {
         new Notice('请至少选择两个持久化工件');
@@ -441,7 +442,7 @@ function labeledInput(
   type = 'text',
 ): HTMLInputElement {
   const wrapper = container.createEl('label', { cls: 'vs-knowledge-field' });
-  wrapper.createEl('span', { text: label });
+  wrapper.createSpan({ text: label });
   return wrapper.createEl('input', {
     attr: { type, placeholder, 'aria-label': label },
   });
@@ -453,7 +454,7 @@ function labeledSelect(
   values: readonly string[],
 ): HTMLSelectElement {
   const wrapper = container.createEl('label', { cls: 'vs-knowledge-field' });
-  wrapper.createEl('span', { text: label });
+  wrapper.createSpan({ text: label });
   const select = wrapper.createEl('select', { attr: { 'aria-label': label } });
   values.forEach((value) => {
     select.createEl('option', {
@@ -514,5 +515,5 @@ function formatTime(seconds: number): string {
 }
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return error instanceof Error ? errorMessage(error) : String(error);
 }

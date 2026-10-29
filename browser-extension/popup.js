@@ -135,20 +135,21 @@ function platformLabel(platform) {
 function renderBatch() {
   els.batchCount.textContent = String(state.batch.length);
   if (state.batch.length === 0) {
-    els.batchList.innerHTML = `<div class="empty">本页还没找到视频链接。</div>`;
+    els.batchList.replaceChildren(
+      element('div', { className: 'empty', textContent: '本页还没找到视频链接。' }),
+    );
     return;
   }
-  els.batchList.innerHTML = '';
+  els.batchList.replaceChildren();
   const selectAll = document.createElement('div');
   selectAll.className = 'row';
-  selectAll.innerHTML = `
-    <input type="checkbox" id="batch-select-all" checked />
-    <div>
-      <div class="row-title">全选</div>
-      <div class="row-meta">共 ${state.batch.length} 个</div>
-    </div>
-    <span class="subtle"></span>
-  `;
+  const allBox = element('input', { type: 'checkbox', id: 'batch-select-all' });
+  allBox.checked = true;
+  selectAll.append(
+    allBox,
+    rowText('全选', `共 ${state.batch.length} 个`, false),
+    element('span', { className: 'subtle' }),
+  );
   els.batchList.appendChild(selectAll);
   selectAll.querySelector('input').addEventListener('change', (event) => {
     state.batch.forEach((item) => {
@@ -160,20 +161,37 @@ function renderBatch() {
   for (const item of state.batch) {
     const row = document.createElement('div');
     row.className = 'row';
-    row.innerHTML = `
-      <input type="checkbox" ${item.checked === false ? '' : 'checked'} />
-      <div>
-        <div class="row-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
-        <div class="row-meta">${escapeHtml(getHostname(item.url))}</div>
-      </div>
-      <button data-action="queue">加入队列</button>
-    `;
+    const box = element('input', { type: 'checkbox' });
+    box.checked = item.checked !== false;
+    row.append(
+      box,
+      rowText(item.title, getHostname(item.url)),
+      element('button', { textContent: '加入队列', dataset: { action: 'queue' } }),
+    );
     row.querySelector('input').addEventListener('change', (event) => {
       item.checked = event.target.checked;
     });
     row.querySelector('button').addEventListener('click', () => queueItems([item]));
     els.batchList.appendChild(row);
   }
+}
+
+/** A DOM element with properties set; text always goes in as text, never as HTML. */
+function element(tag, props = {}) {
+  const node = document.createElement(tag);
+  const { dataset, ...rest } = props;
+  Object.assign(node, rest);
+  if (dataset) Object.assign(node.dataset, dataset);
+  return node;
+}
+
+/** Title and one line of metadata, the middle column of every list row. */
+function rowText(title, meta, withTooltip = true) {
+  const box = element('div');
+  const titleEl = element('div', { className: 'row-title', textContent: title || '' });
+  if (withTooltip) titleEl.title = title || '';
+  box.append(titleEl, element('div', { className: 'row-meta', textContent: meta || '' }));
+  return box;
 }
 
 function renderQueue() {
@@ -185,21 +203,25 @@ function renderQueue() {
 
 function fillQueue(list, items) {
   if (items.length === 0) {
-    list.innerHTML = `<div class="empty">队列是空的。</div>`;
+    list.replaceChildren(element('div', { className: 'empty', textContent: '队列是空的。' }));
     return;
   }
-  list.innerHTML = '';
+  list.replaceChildren();
   items.forEach((item) => {
     const row = document.createElement('div');
     row.className = 'row';
-    row.innerHTML = `
-      <span class="platform">${escapeHtml(platformLabel(item.platform || U.detectPlatform(item.url)))}</span>
-      <div>
-        <div class="row-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
-        <div class="row-meta">${escapeHtml(getHostname(item.url))}</div>
-      </div>
-      <button class="danger" data-action="remove">移除</button>
-    `;
+    row.append(
+      element('span', {
+        className: 'platform',
+        textContent: platformLabel(item.platform || U.detectPlatform(item.url)),
+      }),
+      rowText(item.title, getHostname(item.url)),
+      element('button', {
+        className: 'danger',
+        textContent: '移除',
+        dataset: { action: 'remove' },
+      }),
+    );
     row.querySelector('button').addEventListener('click', async () => {
       await send('QUEUE_REMOVE', { url: item.url });
       await refreshState();
@@ -211,10 +233,12 @@ function fillQueue(list, items) {
 
 function renderHistory() {
   if (state.history.length === 0) {
-    els.historyList.innerHTML = `<div class="empty">还没有记录。</div>`;
+    els.historyList.replaceChildren(
+      element('div', { className: 'empty', textContent: '还没有记录。' }),
+    );
     return;
   }
-  els.historyList.innerHTML = '';
+  els.historyList.replaceChildren();
   [...state.history].reverse().forEach((item) => {
     const row = document.createElement('div');
     row.className = 'row';
@@ -231,14 +255,11 @@ function renderHistory() {
       item.jobStatus ? `任务：${item.jobStatus}` : '',
       new Date(item.at).toLocaleString(),
     ].filter(Boolean);
-    row.innerHTML = `
-      <span class="${tone}">${escapeHtml(statusText)}</span>
-      <div>
-        <div class="row-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
-        <div class="row-meta">${escapeHtml(metaParts.join(' · '))}</div>
-      </div>
-      <button data-action="copy">复制</button>
-    `;
+    row.append(
+      element('span', { className: tone, textContent: statusText }),
+      rowText(item.title, metaParts.join(' · ')),
+      element('button', { textContent: '复制', dataset: { action: 'copy' } }),
+    );
     row.querySelector('button').addEventListener('click', async () => {
       await navigator.clipboard.writeText(item.url || '');
       setStatus('已复制链接。', 'success');
@@ -293,14 +314,6 @@ function quickButtonLabel(operation) {
   if (operation === 'append-link') return '追加到链接清单';
   if (operation === 'queue') return '加入队列';
   return '建一篇待处理笔记';
-}
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 async function refreshState() {

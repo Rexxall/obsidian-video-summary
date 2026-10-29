@@ -16,7 +16,7 @@ export function useFetchTransport() {
       headers: {},
       json: null,
       arrayBuffer: new ArrayBuffer(0),
-    } as never;
+    };
   };
   return () => {
     VideoSummaryAPI.transport = original;

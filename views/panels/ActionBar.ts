@@ -22,6 +22,8 @@ import {
 import { VideoUtils } from '../../utils/VideoUtils';
 import { liveJobForNote, noteDisplayStatus } from '../noteStatus';
 
+import { fire } from '../../utils/fire';
+import { errorMessage } from '../../utils/errors';
 const BACKEND_PROBE_TIMEOUT_MS = 8_000;
 const BACKEND_ONLINE_TTL_MS = 5 * 60_000;
 const BACKEND_OFFLINE_TTL_MS = 60_000;
@@ -136,26 +138,32 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   const learnBox = learn.createEl('input', { attr: { type: 'checkbox' } });
   learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
   learn.createSpan({ text: '学习卡' });
-  learnBox.addEventListener('change', async () => {
-    ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
-    ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
-    await ctx.plugin.saveSettings();
-    ctx.renderAll();
-  });
+  learnBox.addEventListener(
+    'change',
+    fire(async () => {
+      ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
+      ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
+      await ctx.plugin.saveSettings();
+      ctx.renderAll();
+    }),
+  );
 
   renderOptions(foldBody, ctx);
   const advancedFields = renderAdvanced(foldBody, ctx, input);
 
   renderContextStrip(root, ctx);
 
-  submitBtn.addEventListener('click', async () => {
-    submitBtn.disabled = true;
-    try {
-      await submit(ctx, input, advancedFields);
-    } finally {
-      submitBtn.disabled = false;
-    }
-  });
+  submitBtn.addEventListener(
+    'click',
+    fire(async () => {
+      submitBtn.disabled = true;
+      try {
+        await submit(ctx, input, advancedFields);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }),
+  );
 
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -212,22 +220,25 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
   const label = statusLine.createSpan();
   updateBackendPill(statusLine, dot, label, backend, initialState, cachedResult);
 
-  statusLine.addEventListener('click', async (event) => {
-    event.preventDefault();
-    if (ctx.backendState() === 'is-checking') return;
+  statusLine.addEventListener(
+    'click',
+    fire(async (event) => {
+      event.preventDefault();
+      if (ctx.backendState() === 'is-checking') return;
 
-    ctx.setBackendState('is-checking');
-    updateBackendPill(statusLine, dot, label, backend, 'is-checking');
-    const result = await probeBackend(ctx, backend, true);
-    updateBackendPill(statusLine, dot, label, backend, result.state, result);
-    new Notice(
-      result.state === 'is-online'
-        ? `${backend.label} 连接正常（${result.durationMs ?? 0}ms）`
-        : `${backend.label} 连接失败：${result.reason || '未知原因'}`,
-      result.state === 'is-online' ? 3000 : 6000,
-    );
-    ctx.renderAll();
-  });
+      ctx.setBackendState('is-checking');
+      updateBackendPill(statusLine, dot, label, backend, 'is-checking');
+      const result = await probeBackend(ctx, backend, true);
+      updateBackendPill(statusLine, dot, label, backend, result.state, result);
+      new Notice(
+        result.state === 'is-online'
+          ? `${backend.label} 连接正常（${result.durationMs ?? 0}ms）`
+          : `${backend.label} 连接失败：${result.reason || '未知原因'}`,
+        result.state === 'is-online' ? 3000 : 6000,
+      );
+      ctx.renderAll();
+    }),
+  );
 
   // 首次打开或缓存过期时才自动检测；重绘会复用 pending/result，不重复发请求。
   if (initialState === 'is-unknown' || initialState === 'is-checking') {
@@ -243,8 +254,10 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
 /** “···”：不常用但保留的入口，都转给已有命令 */
 function showMoreMenu(ctx: ViewContext, event: MouseEvent) {
   const run = (id: string) => {
-    const commands = (ctx.plugin.app as any).commands;
-    commands?.executeCommandById?.(`${ctx.plugin.manifest.id}:${id}`);
+    const commands = (
+      ctx.plugin.app as unknown as { commands?: { executeCommandById(id: string): boolean } }
+    ).commands;
+    commands?.executeCommandById(`${ctx.plugin.manifest.id}:${id}`);
   };
   showMenu(event, [
     { title: '批量处理视频', icon: 'list-plus', onClick: () => run('batch') },
@@ -265,10 +278,12 @@ function showMoreMenu(ctx: ViewContext, event: MouseEvent) {
 }
 
 export function openSettings(ctx: ViewContext) {
-  const settingApi = (ctx.plugin.app as any).setting;
-  if (settingApi?.open) {
+  const settingApi = (
+    ctx.plugin.app as unknown as { setting?: { open(): void; openTabById(id: string): void } }
+  ).setting;
+  if (settingApi) {
     settingApi.open();
-    settingApi.openTabById?.(ctx.plugin.manifest.id);
+    settingApi.openTabById(ctx.plugin.manifest.id);
   }
 }
 
@@ -349,7 +364,7 @@ async function probeBackend(
         state: 'is-offline',
         checkedAt: Date.now(),
         reason: summarizeBackendFailure(
-          error instanceof Error ? error.message : String(error),
+          error instanceof Error ? errorMessage(error) : String(error),
           backend.endpoint,
         ),
       };
@@ -495,11 +510,11 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
     textButton(
       strip,
       status === 'success' || status === 'interrupted' ? '重跑' : '处理',
-      async () => {
+      fire(async () => {
         await ctx.plugin.jobService.submitFile(activeFile, ctx.submitOptions());
         ctx.state.tab = 'jobs';
         ctx.renderPanels();
-      },
+      }),
       'vs-context-action',
     );
   }
@@ -523,11 +538,11 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
       label: modeLabel(mode),
     })),
     settings.defaultMode,
-    async (mode) => {
+    fire(async (mode) => {
       settings.defaultMode = mode;
       await plugin.saveSettings();
       ctx.renderAll();
-    },
+    }),
   );
 
   const depthLabels: Record<ProcessingDepth, string> = {
@@ -542,7 +557,7 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
       label: depthLabels[depth],
     })),
     settings.defaultProcessingDepth,
-    async (depth) => {
+    fire(async (depth) => {
       if (depth === 'deep-visual' && settings.activeBackend !== 'codex-worker') {
         new Notice('深度视觉只由 Codex Worker 执行；当前 n8n 后端可用到证据模式。', 7000);
         return;
@@ -551,7 +566,7 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
       plugin.api.setAnalysisDefaults({ processingDepth: depth });
       await plugin.saveSettings();
       ctx.renderAll();
-    },
+    }),
   );
 
   segmented<SupportedLanguage>(
@@ -561,11 +576,11 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
       label: languageLabel(language),
     })),
     settings.defaultLanguage,
-    async (language) => {
+    fire(async (language) => {
       settings.defaultLanguage = language;
       await plugin.saveSettings();
       ctx.renderAll();
-    },
+    }),
   );
 
   const contentLabels: Record<RequestedContentType, string> = {
@@ -583,13 +598,16 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     contentSelect.createEl('option', { text: contentLabels[value], attr: { value } }),
   );
   contentSelect.value = settings.defaultContentType;
-  contentSelect.addEventListener('change', async () => {
-    const contentType = contentSelect.value as RequestedContentType;
-    settings.defaultContentType = contentType;
-    settings.autoRouteContent = contentType === 'auto';
-    plugin.api.setAnalysisDefaults({ contentType, autoRoute: settings.autoRouteContent });
-    await plugin.saveSettings();
-  });
+  contentSelect.addEventListener(
+    'change',
+    fire(async () => {
+      const contentType = contentSelect.value as RequestedContentType;
+      settings.defaultContentType = contentType;
+      settings.autoRouteContent = contentType === 'auto';
+      plugin.api.setAnalysisDefaults({ contentType, autoRoute: settings.autoRouteContent });
+      await plugin.saveSettings();
+    }),
+  );
 
   const models = (
     settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]
@@ -599,11 +617,14 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     modelSelect.createEl('option', { text: model, attr: { value: model } }),
   );
   modelSelect.value = settings.aiModel || models[0] || '';
-  modelSelect.addEventListener('change', async () => {
-    settings.aiModel = modelSelect.value;
-    plugin.api.setAiModel(modelSelect.value);
-    await plugin.saveSettings();
-  });
+  modelSelect.addEventListener(
+    'change',
+    fire(async () => {
+      settings.aiModel = modelSelect.value;
+      plugin.api.setAiModel(modelSelect.value);
+      await plugin.saveSettings();
+    }),
+  );
 
   const folderBtn = row('保存位置').createEl('button', {
     text: shortenPath(settings.outputFolder || '当前文件夹'),
@@ -617,11 +638,15 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
       .filter((file): file is TFolder => file instanceof TFolder)
       .map((folder) => folder.path)
       .sort();
-    new FolderSelectModal(plugin.app, folders, async (selected: string) => {
-      settings.outputFolder = selected;
-      await plugin.saveSettings();
-      ctx.renderAll();
-    }).open();
+    new FolderSelectModal(
+      plugin.app,
+      folders,
+      fire(async (selected: string) => {
+        settings.outputFolder = selected;
+        await plugin.saveSettings();
+        ctx.renderAll();
+      }),
+    ).open();
   });
 
   const toggles = container.createDiv({ cls: 'vs-opt-checks' });
@@ -692,10 +717,13 @@ function renderAdvanced(
       });
     });
     backendSelect.value = plugin.settings.activeWebhookId || profiles[0]?.id || '';
-    backendSelect.addEventListener('change', async () => {
-      await plugin.setActiveWebhook(backendSelect.value, { silent: false });
-      ctx.renderAll();
-    });
+    backendSelect.addEventListener(
+      'change',
+      fire(async () => {
+        await plugin.setActiveWebhook(backendSelect.value, { silent: false });
+        ctx.renderAll();
+      }),
+    );
   }
 
   const transcriptRow = container.createDiv({ cls: 'vs-field' });
@@ -843,7 +871,7 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
 }
 
 function pickLocalFiles(ctx: ViewContext, input: HTMLTextAreaElement) {
-  const picker = document.createElement('input');
+  const picker = createEl('input');
   picker.type = 'file';
   picker.multiple = true;
   picker.addEventListener('change', () => {

@@ -7,7 +7,7 @@ import {
 } from '../core/CrossModalMemory';
 import type { VideoKnowledgeArtifact } from '../types';
 
-test('cross-modal memory searches title, transcript, segment visual text, OCR, visual evidence and claims', () => {
+void test('cross-modal memory searches title, transcript, segment visual text, OCR, visual evidence and claims', () => {
   const index = new CrossModalMemoryIndex();
   index.rebuild([richArtifact('memory-one')]);
 
@@ -26,7 +26,7 @@ test('cross-modal memory searches title, transcript, segment visual text, OCR, v
   assert.equal(index.search('sparse attention reduces compute')[0].evidence_type, 'claim');
 });
 
-test('memory filters author, platform, generated/updated dates, content type and course id', () => {
+void test('memory filters author, platform, generated/updated dates, content type and course id', () => {
   const first = richArtifact('first');
   const second = richArtifact('second');
   second.author = 'Other Author';
@@ -63,7 +63,7 @@ test('memory filters author, platform, generated/updated dates, content type and
   );
 });
 
-test('a fresh index deterministically rebuilds from ArtifactStore after restart', async () => {
+void test('a fresh index deterministically rebuilds from ArtifactStore after restart', async () => {
   const artifacts = [richArtifact('restart-one'), richArtifact('restart-two')];
   const first = new CrossModalMemoryIndex();
   await first.rebuildFromStore({ list: async () => artifacts });
@@ -77,7 +77,7 @@ test('a fresh index deterministically rebuilds from ArtifactStore after restart'
   assert.equal(restarted.getRecordCount(), first.getRecordCount());
 });
 
-test('relation suggestions are review-gated and only confirmed suggestions write related_notes', async () => {
+void test('relation suggestions are review-gated and only confirmed suggestions write related_notes', async () => {
   const source = richArtifact('source');
   const target = richArtifact('target');
   target.source.note_path = 'Videos/Target.md';
@@ -113,7 +113,7 @@ test('relation suggestions are review-gated and only confirmed suggestions write
   assert.equal(accepted.artifact.related_notes[0].note_path, 'Videos/Target.md');
 });
 
-test('relation engine never suggests conflict when either claim lacks a real segment', () => {
+void test('relation engine never suggests conflict when either claim lacks a real segment', () => {
   const source = richArtifact('source-missing');
   const target = richArtifact('target-missing');
   source.claims[0].claim = '规律运动会增加记忆表现';
@@ -129,7 +129,7 @@ test('relation engine never suggests conflict when either claim lacks a real seg
   );
 });
 
-test('long transcripts retain late OCR and claim records within the bounded index', () => {
+void test('long transcripts retain late OCR and claim records within the bounded index', () => {
   const artifact = richArtifact('long');
   artifact.segments = Array.from({ length: 500 }, (_, index) => ({
     id: `long-segment-${index}`,

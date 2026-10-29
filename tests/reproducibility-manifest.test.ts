@@ -8,7 +8,7 @@ import {
 
 const GENERATED_AT = '2026-07-29T11:00:00.000Z';
 
-test('manifest snapshots raw transcript/evidence and restores a no-fetch reprocess payload', async () => {
+void test('manifest snapshots raw transcript/evidence and restores a no-fetch reprocess payload', async () => {
   const manifest = await createReproducibilityManifest({
     source: {
       url: 'https://youtu.be/dQw4w9WgXcQ?t=15&utm_source=test',
@@ -59,7 +59,7 @@ test('manifest snapshots raw transcript/evidence and restores a no-fetch reproce
   assert.match(serializeReproducibilityManifest(manifest), /"raw": \{/);
 });
 
-test('restore rejects a changed transcript or evidence snapshot', async () => {
+void test('restore rejects a changed transcript or evidence snapshot', async () => {
   const manifest = await createReproducibilityManifest({
     source: { local_file: '/Users/example/video.mp4' },
     transcript: 'Original transcript',
@@ -90,7 +90,7 @@ test('restore rejects a changed transcript or evidence snapshot', async () => {
   await assert.rejects(() => restoreReprocessPayload(changedEvidence), /evidence_hash mismatch/);
 });
 
-test('manifest rejects a provided source hash that disagrees with source identity', async () => {
+void test('manifest rejects a provided source hash that disagrees with source identity', async () => {
   await assert.rejects(
     () =>
       createReproducibilityManifest({
@@ -109,7 +109,7 @@ test('manifest rejects a provided source hash that disagrees with source identit
   );
 });
 
-test('transcript-only manifests retain stable source identity across note renames', async () => {
+void test('transcript-only manifests retain stable source identity across note renames', async () => {
   const transcript = 'Transcript-only reproducibility input.';
   const transcriptHash = await crypto.subtle
     .digest('SHA-256', new TextEncoder().encode(transcript))
@@ -140,7 +140,7 @@ test('transcript-only manifests retain stable source identity across note rename
   assert.equal(restored.source_hash, manifest.source_hash);
 });
 
-test('missing claim segments remain explicit warnings instead of invented evidence', async () => {
+void test('missing claim segments remain explicit warnings instead of invented evidence', async () => {
   const manifest = await createReproducibilityManifest({
     source: { url: 'https://example.com/video/one' },
     transcript: 'Transcript with incomplete evidence.',

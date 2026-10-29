@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import * as yaml from 'js-yaml';
+import { parse as parseYaml } from 'yaml';
 import {
   buildRichFrontmatterFields,
   escapeUntrustedMarkdownInline,
@@ -14,7 +14,7 @@ import type { ProcessingResult } from '../types';
 
 const SOURCE_URL = 'https://www.youtube.com/watch?v=markdown-contract';
 
-test('model-authored Markdown cannot auto-load remote or embedded resources', () => {
+void test('model-authored Markdown cannot auto-load remote or embedded resources', () => {
   const input = [
     '普通 [链接](https://example.com/page) 保留。',
     '![追踪像素](http://127.0.0.1:8787/private.png)',
@@ -41,7 +41,7 @@ test('model-authored Markdown cannot auto-load remote or embedded resources', ()
   assert.match(inline, /&#33;\\\[像素\\\]/);
 });
 
-test('with diagnostics on, new rich notes contain all four marker-delimited managed blocks', () => {
+void test('with diagnostics on, new rich notes contain all four marker-delimited managed blocks', () => {
   const markdown = writeManagedKnowledgeMarkdown('', richResult('第一版总结'), SOURCE_URL, {
     includeDiagnostics: true,
   });
@@ -56,7 +56,7 @@ test('with diagnostics on, new rich notes contain all four marker-delimited mana
   assert.match(markdown, /## 学习练习/);
 });
 
-test('reprocessing replaces only managed blocks and preserves user-authored Markdown', () => {
+void test('reprocessing replaces only managed blocks and preserves user-authored Markdown', () => {
   const generated = writeManagedKnowledgeMarkdown('', richResult('将被替换的旧总结'), SOURCE_URL);
   const userMarkdown = [
     '',
@@ -83,7 +83,7 @@ test('reprocessing replaces only managed blocks and preserves user-authored Mark
   assert.equal(count(after, '<!-- video-summary-evidence:start -->'), 0);
 });
 
-test('by default a note gets the summary and learning blocks, not diagnostics', () => {
+void test('by default a note gets the summary and learning blocks, not diagnostics', () => {
   const markdown = writeManagedKnowledgeMarkdown('', richResult('默认总结'), SOURCE_URL);
   assert.equal(count(markdown, '<!-- video-summary-generated:start -->'), 1);
   assert.equal(count(markdown, '<!-- video-summary-learning:start -->'), 1);
@@ -92,7 +92,7 @@ test('by default a note gets the summary and learning blocks, not diagnostics', 
   assert.match(markdown, /默认总结/);
 });
 
-test('untimed material never renders a fabricated clickable 0:00 timestamp', () => {
+void test('untimed material never renders a fabricated clickable 0:00 timestamp', () => {
   const result: ProcessingResult = {
     summary: '无时间材料',
     timing_quality: 'none',
@@ -139,7 +139,7 @@ test('untimed material never renders a fabricated clickable 0:00 timestamp', () 
   assert.match(markdown, /时间未对齐/);
 });
 
-test('evidence block ids are stable across identical renders and distinct for unicode ids', () => {
+void test('evidence block ids are stable across identical renders and distinct for unicode ids', () => {
   const first = richResult('稳定 ID');
   first.evidence_claims = [
     {
@@ -164,7 +164,7 @@ test('evidence block ids are stable across identical renders and distinct for un
   assert.notEqual(idsOnce[0], idsOnce[1]);
 });
 
-test('only localized worker keyframes render inline', () => {
+void test('only localized worker keyframes render inline', () => {
   const result = richResult('真实关键帧');
   result.visual_evidence = [
     {
@@ -200,7 +200,7 @@ test('only localized worker keyframes render inline', () => {
   );
 });
 
-test('rich frontmatter projects only scalar values and round-trips as safe YAML', () => {
+void test('rich frontmatter projects only scalar values and round-trips as safe YAML', () => {
   const result = richResult('第一行\n第二行: #仍是总结文本');
   result.video_title = '标题: [需要安全转义]\n下一行';
   result.video_author = '作者 #1';
@@ -230,7 +230,7 @@ test('rich frontmatter projects only scalar values and round-trips as safe YAML'
     source_type: 'video',
     ...fields,
   });
-  const parsed = yaml.load(serialized) as Record<string, unknown>;
+  const parsed = parseYaml(serialized) as Record<string, unknown>;
   assert.deepEqual(parsed, {
     video_summary: true,
     source_type: 'video',

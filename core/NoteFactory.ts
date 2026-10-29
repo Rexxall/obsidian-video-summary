@@ -13,6 +13,7 @@ import {
   writeManagedKnowledgeMarkdown,
 } from './KnowledgeMarkdown';
 
+import { isRecord, type JsonRecord } from '../utils/json';
 export interface NoteFactoryOptions {
   outputFolder: string;
   successStatusValue: string;
@@ -176,23 +177,21 @@ export function buildInsertionContent(result: ProcessingResult): string {
 }
 
 /** 从任意 webhook payload 里尽力还原原始输入 */
-export function extractVideoInputFromPayload(raw: any): VideoInput {
-  const sources: any[] = [];
-  const collect = (obj: any) => {
-    if (!obj || typeof obj !== 'object') return;
+export function extractVideoInputFromPayload(raw: unknown): VideoInput {
+  const sources: JsonRecord[] = [];
+  const collect = (obj: unknown) => {
+    if (!isRecord(obj)) return;
     sources.push(obj);
-    if (obj.metadata && typeof obj.metadata === 'object') sources.push(obj.metadata);
-    if (obj.input && typeof obj.input === 'object') sources.push(obj.input);
-    if (obj.artifact && typeof obj.artifact === 'object') sources.push(obj.artifact);
-    if (obj.result && typeof obj.result === 'object') {
+    for (const nested of [obj.metadata, obj.input, obj.artifact]) {
+      if (isRecord(nested)) sources.push(nested);
+    }
+    if (isRecord(obj.result)) {
       sources.push(obj.result);
-      if (obj.result.input && typeof obj.result.input === 'object') sources.push(obj.result.input);
-      if (obj.result.artifact && typeof obj.result.artifact === 'object') {
-        sources.push(obj.result.artifact);
-      }
+      if (isRecord(obj.result.input)) sources.push(obj.result.input);
+      if (isRecord(obj.result.artifact)) sources.push(obj.result.artifact);
     }
   };
-  if (Array.isArray(raw)) raw.forEach(collect);
+  if (Array.isArray(raw)) (raw as unknown[]).forEach(collect);
   else collect(raw);
 
   const pick = (keys: string[]) => {

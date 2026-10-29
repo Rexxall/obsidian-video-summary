@@ -19,6 +19,9 @@ import {
 import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
 import { openSettings } from './ActionBar';
 
+import { fire } from '../../utils/fire';
+import { errorMessage } from '../../utils/errors';
+import type { WebhookHistoryEntry } from '../../types';
 const RECENT_HISTORY_LIMIT = 3;
 let historyExpanded = false;
 
@@ -71,10 +74,10 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
           icon: 'database',
           onClick: async () => {
             try {
-              await ctx.plugin.api.clearCache();
+              ctx.plugin.api.clearCache();
               new Notice('缓存已清空');
             } catch (error) {
-              new Notice(`清空缓存失败: ${error instanceof Error ? error.message : error}`);
+              new Notice(`清空缓存失败: ${error instanceof Error ? errorMessage(error) : error}`);
             }
           },
         },
@@ -139,10 +142,15 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
     label: job.state === 'queued' ? '排队中' : job.stageLabel || '处理中',
     title: job.stageLabel ? undefined : '该后端不上报处理阶段，仅显示计时',
   });
-  iconButton(side, 'x', '取消', async () => {
-    await ctx.plugin.jobService.cancel(job);
-    ctx.renderPanels();
-  });
+  iconButton(
+    side,
+    'x',
+    '取消',
+    fire(async () => {
+      await ctx.plugin.jobService.cancel(job);
+      ctx.renderPanels();
+    }),
+  );
 
   const bar = card.createDiv({ cls: 'vs-progress' });
   const fill = bar.createDiv({
@@ -178,22 +186,22 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   textButton(
     actions,
     '直接写入',
-    async () => {
+    fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
         new Notice('已写入笔记');
         ctx.renderPanels();
       }
-    },
+    }),
     'is-fill',
   );
   iconButton(
     actions,
     'trash-2',
     '丢弃结果',
-    async () => {
+    fire(async () => {
       await ctx.plugin.jobService.discardResult(job);
       ctx.renderPanels();
-    },
+    }),
     'vs-icon-btn-boxed',
   );
 }
@@ -374,9 +382,7 @@ function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRo
       ctx.state.advancedOpen = true;
       ctx.renderAll();
       window.setTimeout(() => {
-        (
-          document.querySelector('.vs-fold .vs-transcript-input') as HTMLTextAreaElement | null
-        )?.focus();
+        document.querySelector<HTMLTextAreaElement>('.vs-fold .vs-transcript-input')?.focus();
       }, 0);
     });
   } else if (kind === 'login') {
@@ -385,7 +391,7 @@ function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRo
   } else {
     strip.createSpan({ text: '处理服务没有连上' });
     textButton(strip, '重新检测 →', () => {
-      (document.querySelector('.vs-backend-line') as HTMLButtonElement | null)?.click();
+      document.querySelector<HTMLButtonElement>('.vs-backend-line')?.click();
     });
   }
 }
@@ -506,7 +512,7 @@ function openNoteByName(ctx: ViewContext, name: string) {
     new Notice(`找不到笔记：${name}`);
     return;
   }
-  ctx.openNote(file.path);
+  void ctx.openNote(file.path);
 }
 
 function findNote(ctx: ViewContext, name: string): TFile | null {
@@ -544,7 +550,7 @@ function showWebhookHistoryMenu(ctx: ViewContext, event: MouseEvent) {
   );
 }
 
-function showWebhookEntryActions(ctx: ViewContext, entry: any, event: MouseEvent) {
+function showWebhookEntryActions(ctx: ViewContext, entry: WebhookHistoryEntry, event: MouseEvent) {
   showMenu(event, [
     {
       title: '新建笔记',

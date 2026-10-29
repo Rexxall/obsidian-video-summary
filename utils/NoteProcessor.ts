@@ -1,5 +1,4 @@
-import { TFile, Vault } from 'obsidian';
-import * as yaml from 'js-yaml';
+import { TFile, Vault, parseYaml, stringifyYaml } from 'obsidian';
 import { ProcessingResult, NoteMetadata, VideoInput, ProcessingMode } from '../types';
 import { SUPPORTED_PLATFORMS } from '../constants';
 import {
@@ -8,6 +7,8 @@ import {
   writeManagedKnowledgeMarkdown,
 } from '../core/KnowledgeMarkdown';
 
+import { errorMessage } from './errors';
+import { asRecord, type JsonRecord } from './json';
 export class NoteProcessor {
   private vault: Vault;
 
@@ -18,13 +19,13 @@ export class NoteProcessor {
   /**
    * 解析 frontmatter 与正文
    */
-  private parseFrontmatter(content: string): { fm: any; body: string } {
+  private parseFrontmatter(content: string): { fm: JsonRecord; body: string } {
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?/);
     if (fmMatch) {
       const fmText = fmMatch[1];
-      let fm: any = {};
+      let fm: JsonRecord = {};
       try {
-        fm = yaml.load(fmText) || {};
+        fm = asRecord(parseYaml(fmText));
       } catch {
         fm = {};
       }
@@ -37,8 +38,8 @@ export class NoteProcessor {
   /**
    * 构建包含 frontmatter 的内容
    */
-  private buildContent(fm: any, body: string): string {
-    const fmText = yaml.dump(fm, { lineWidth: 1000 });
+  private buildContent(fm: JsonRecord, body: string): string {
+    const fmText = stringifyYaml(fm);
     return `---\n${(fmText || '').trim()}\n---\n${body}`;
   }
 
@@ -48,7 +49,7 @@ export class NoteProcessor {
   extractVideoUrl(content: string): string | null {
     const { fm, body } = this.parseFrontmatter(content);
     // frontmatter 优先
-    const linkField = (fm as any)?.link;
+    const linkField = fm.link;
     if (Array.isArray(linkField)) {
       for (const l of linkField) {
         if (typeof l === 'string' && this.isValidVideoUrl(l)) return l;
@@ -72,17 +73,17 @@ export class NoteProcessor {
    */
   extractExistingTranscript(content: string): string | null {
     const { fm } = this.parseFrontmatter(content);
-    const v = (fm as any)?.video_transcript;
+    const v = fm.video_transcript;
     return typeof v === 'string' && v.trim() ? v.trim() : null;
   }
 
   extractProvidedTranscript(content: string): string | null {
     const { fm } = this.parseFrontmatter(content);
-    const provided = (fm as any)?.provided_transcript;
+    const provided = fm.provided_transcript;
     if (typeof provided === 'string' && provided.trim()) {
       return provided.trim();
     }
-    const existing = (fm as any)?.video_transcript;
+    const existing = fm.video_transcript;
     if (typeof existing === 'string' && existing.trim()) {
       return existing.trim();
     }
@@ -94,7 +95,7 @@ export class NoteProcessor {
    */
   extractLocalFileName(content: string): string | null {
     const { fm } = this.parseFrontmatter(content);
-    const v = (fm as any)?.local_file;
+    const v = fm.local_file;
     return typeof v === 'string' && v.trim() ? v.trim() : null;
   }
 
@@ -116,10 +117,10 @@ export class NoteProcessor {
   extractMetadata(content: string): NoteMetadata {
     const { fm } = this.parseFrontmatter(content);
     const md: NoteMetadata = {};
-    if (!fm || typeof fm !== 'object') return md;
-    const copy = (k: keyof NoteMetadata) => {
-      const v = (fm as any)[k];
-      if (typeof v === 'string') (md as any)[k] = v;
+    const fields = md as Record<string, unknown>;
+    const copy = (k: string) => {
+      const v = fm[k];
+      if (typeof v === 'string') fields[k] = v;
     };
     [
       'status',
@@ -138,7 +139,7 @@ export class NoteProcessor {
       'video_transcript',
       'date',
       'updated',
-    ].forEach((k) => copy(k as any));
+    ].forEach((k) => copy(k));
     return md;
   }
 
@@ -147,7 +148,7 @@ export class NoteProcessor {
    * 这里的「info」主要指：视频标题 / 作者 / 时长 等基础字段
    */
   hasBasicVideoInfo(content: string): boolean {
-    const metadata = this.extractMetadata(content) as any;
+    const metadata = this.extractMetadata(content);
     return !!(metadata.video_title || metadata.video_author || metadata.video_duration);
   }
 
@@ -325,8 +326,8 @@ export class NoteProcessor {
   }
 
   private normalizeErrorMessage(error: unknown): string {
-    if (error instanceof Error) return error.message;
-    return String(error || '未知错误');
+    if (error instanceof Error) return errorMessage(error);
+    return typeof error === 'string' && error ? error : '未知错误';
   }
 
   private buildProcessingErrorBlock(errorMessage: string): string {
@@ -513,7 +514,7 @@ export class NoteProcessor {
         await this.vault.rename(file, targetPath);
       }
     } catch (error) {
-      console.error(`重命名文件失败: ${error.message}`);
+      console.error(`重命名文件失败: ${errorMessage(error)}`);
     }
   }
 }
@@ -523,8 +524,9 @@ export class NoteProcessor {
  * 诸如 `status: 🔍` 的用户工作流状态必须原样保留，插件状态写入独立字段。
  */
 function shouldMirrorLegacyStatus(value: unknown): boolean {
-  if (value === undefined || value === null || String(value).trim() === '') return true;
-  const status = String(value).trim().toLowerCase();
+  const text = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  if (text.trim() === '') return true;
+  const status = text.trim().toLowerCase();
   return new Set([
     'pending',
     'running',

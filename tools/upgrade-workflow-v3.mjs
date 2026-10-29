@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const DEFAULT_WORKFLOW_PATH = fileURLToPath(
@@ -300,7 +301,11 @@ export function runValidateVideoUrlNode($input) {
 
   function validateVideoUrl(value) {
     const raw = String(value ?? '');
-    if (!raw || raw.length > 2048 || /[\u0000-\u0020\u007f]/.test(raw)) {
+    if (
+      !raw ||
+      raw.length > 2048 ||
+      [...raw].some((ch) => ch.charCodeAt(0) <= 0x20 || ch.charCodeAt(0) === 0x7f)
+    ) {
       throw new Error('Video URL is empty, too long, or contains control characters');
     }
 
@@ -345,8 +350,8 @@ export function runValidateVideoUrlNode($input) {
  * invokes yt-dlp with an argument array (never a constructed shell fragment).
  */
 async function mediaCommandRunner() {
-  const fs = require('node:fs');
-  const { spawnSync } = require('node:child_process');
+  const fs = await import('node:fs');
+  const { spawnSync } = await import('node:child_process');
 
   const action = process.argv[1];
   const token = process.argv[2];
@@ -465,7 +470,11 @@ async function mediaCommandRunner() {
 
   function validateVideoUrl(value, expectedPlatform = '') {
     const raw = String(value ?? '');
-    if (!raw || raw.length > 2048 || /[\u0000-\u0020\u007f]/.test(raw)) {
+    if (
+      !raw ||
+      raw.length > 2048 ||
+      [...raw].some((ch) => ch.charCodeAt(0) <= 0x20 || ch.charCodeAt(0) === 0x7f)
+    ) {
       throw new Error('Video URL is empty, too long, or contains control characters');
     }
     let parsed;
@@ -564,7 +573,9 @@ async function mediaCommandRunner() {
 
   function cleanLine(value) {
     return String(value ?? '')
-      .replace(/[\r\n\u0000]+/g, ' ')
+      .split(String.fromCharCode(0))
+      .join(' ')
+      .replace(/[\r\n]+/g, ' ')
       .trim();
   }
 
@@ -915,7 +926,11 @@ export function runPrepareDownloadNode($input) {
 
   function validateVideoUrl(value) {
     const raw = String(value ?? '');
-    if (!raw || raw.length > 2048 || /[\u0000-\u0020\u007f]/.test(raw)) {
+    if (
+      !raw ||
+      raw.length > 2048 ||
+      [...raw].some((ch) => ch.charCodeAt(0) <= 0x20 || ch.charCodeAt(0) === 0x7f)
+    ) {
       throw new Error('Video URL is empty, too long, or contains control characters');
     }
     let parsed;
@@ -1296,7 +1311,8 @@ export function executeNodeCode(code, inputItems, nodeContexts = {}) {
       json: nodeContexts[name] || {},
     },
   });
-  return new Function('$input', '$', code)($input, $);
+  const run = vm.runInThisContext(`(function ($input, $) {\n${code}\n})`);
+  return run($input, $);
 }
 
 function buildAiParserCode(switchNodeName) {
@@ -1799,15 +1815,15 @@ export function runCli(argv = process.argv.slice(2)) {
         'Workflow is not upgraded or is not deterministically formatted. Run tools/upgrade-workflow-v3.mjs.',
       );
     }
-    console.log('Workflow v3 check passed.');
+    process.stdout.write('Workflow v3 check passed.\n');
     return;
   }
 
   if (originalText !== upgradedText) {
     writeFileSync(args.workflowPath, upgradedText, 'utf8');
-    console.log(`Upgraded workflow: ${args.workflowPath}`);
+    process.stdout.write(`Upgraded workflow: ${args.workflowPath}\n`);
   } else {
-    console.log(`Workflow already current: ${args.workflowPath}`);
+    process.stdout.write(`Workflow already current: ${args.workflowPath}\n`);
   }
 }
 

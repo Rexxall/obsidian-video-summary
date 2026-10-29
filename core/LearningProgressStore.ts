@@ -3,6 +3,7 @@ import type { LearningCard, QuizQuestion, VideoKnowledgeArtifact, VideoSegment }
 import { buildTimestampUrl, stableHash } from './KnowledgeModel';
 import { safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 
+import { errorMessage } from '../utils/errors';
 export const LEARNING_PROGRESS_SCHEMA_VERSION = 1;
 
 const LEARNING_FILE_SUFFIX = '.learning.json';
@@ -275,7 +276,7 @@ export class LearningProgressStore {
       raw = JSON.parse(await this.adapter.read(path));
     } catch (error) {
       throw new LearningProgressValidationError(
-        `invalid JSON for ${normalized} (${error instanceof Error ? error.message : String(error)})`,
+        `invalid JSON for ${normalized} (${error instanceof Error ? errorMessage(error) : String(error)})`,
       );
     }
     validateLearningProgressSidecar(raw, normalized);
@@ -646,7 +647,7 @@ function nextIntervalSeconds(
   if (input.confidence === 2) {
     return LEARNING_SCHEDULER_POLICY.correctLowConfidenceSeconds[2];
   }
-  const confidence = input.confidence as 3 | 4 | 5;
+  const confidence = input.confidence;
   const firstDays = LEARNING_SCHEDULER_POLICY.firstCorrectDays[confidence];
   const previousDays = (previous?.interval_seconds || 0) / 86_400;
   const days =

@@ -47,12 +47,12 @@ function createApi(secret = 'test-secret') {
   );
 }
 
-test('n8n processing, health, and connection-test requests consistently send Header Auth', async () => {
+void test('n8n processing, health, and connection-test requests consistently send Header Auth', async () => {
   const originalFetch = globalThis.fetch;
   const requests: RequestInit[] = [];
   globalThis.fetch = async (_input, init) => {
     requests.push(init || {});
-    const body = JSON.parse(String(init?.body || '{}'));
+    const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { name?: string };
     if (body.name === 'test') {
       return new Response(
         JSON.stringify({
@@ -96,7 +96,7 @@ test('n8n processing, health, and connection-test requests consistently send Hea
   }
 });
 
-test('static n8n endpoint probes receive auth while empty secrets remain backward compatible', async () => {
+void test('static n8n endpoint probes receive auth while empty secrets remain backward compatible', async () => {
   const originalFetch = globalThis.fetch;
   const seenHeaders: Headers[] = [];
   globalThis.fetch = async (_input, init) => {
@@ -129,7 +129,7 @@ test('static n8n endpoint probes receive auth while empty secrets remain backwar
   }
 });
 
-test('webhook secrets are redacted from connection diagnostics and invalid headers fail safely', async () => {
+void test('webhook secrets are redacted from connection diagnostics and invalid headers fail safely', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
     new Response('backend echoed test-secret', {

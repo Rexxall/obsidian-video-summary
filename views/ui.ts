@@ -1,5 +1,6 @@
 import { Menu, setIcon } from 'obsidian';
 import { isPlaceholderCover } from '../core/CoverPlaceholder';
+import { fire } from '../utils/fire';
 
 export interface MenuItemSpec {
   title: string;
@@ -9,7 +10,7 @@ export interface MenuItemSpec {
   checked?: boolean;
   /** 在这一项前面加分隔线，用来分组 */
   separatorBefore?: boolean;
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
 }
 
 /** 图标按钮，统一走 lucide，不再用 emoji 当图标 */
@@ -82,7 +83,7 @@ export function showMenu(event: MouseEvent, items: MenuItemSpec[]) {
       if (spec.icon) item.setIcon(spec.icon);
       if (spec.disabled) item.setDisabled(true);
       if (spec.checked !== undefined) item.setChecked(spec.checked);
-      item.onClick(() => spec.onClick());
+      item.onClick(fire(spec.onClick));
     });
   });
   menu.showAtMouseEvent(event);
@@ -114,7 +115,7 @@ export function statusMeta(status: string): { label: string; cls: string } {
 export function statusPill(
   parent: HTMLElement,
   status: string,
-  options: { label?: string; onClick?: () => void; title?: string } = {},
+  options: { label?: string; onClick?: () => void | Promise<void>; title?: string } = {},
 ): HTMLElement {
   const meta = statusMeta(status);
   const cls = `vs-pill ${meta.cls}${options.onClick ? ' is-clickable' : ''}`;
@@ -129,7 +130,7 @@ export function statusPill(
     pill.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      options.onClick?.();
+      if (options.onClick) fire(options.onClick)();
     });
   }
   return pill;

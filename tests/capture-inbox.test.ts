@@ -1,6 +1,6 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { load } from 'js-yaml';
+import { parse as load } from 'yaml';
 import {
   CaptureInbox,
   CaptureInboxEntry,
@@ -13,7 +13,7 @@ import {
 
 const CAPTURED_AT = '2026-07-29T10:00:00.000Z';
 
-test('equivalent URLs dedupe to existing and never create a second note', async () => {
+void test('equivalent URLs dedupe to existing and never create a second note', async () => {
   const repository = new MemoryCaptureRepository();
   const inbox = new CaptureInbox(repository);
   const first = await inbox.capture({
@@ -43,7 +43,7 @@ test('equivalent URLs dedupe to existing and never create a second note', async 
   );
 });
 
-test('capture actions emit standard Properties and stay inbox until a real job starts', async () => {
+void test('capture actions emit standard Properties and stay inbox until a real job starts', async () => {
   const captured = await createCaptureNoteDraft({
     url: 'https://offline.invalid/video/123?utm_campaign=test&b=2&a=1',
     title: 'Offline capture',
@@ -74,7 +74,7 @@ test('capture actions emit standard Properties and stay inbox until a real job s
   assert.match(captured.path, /^Video Inbox\//);
 });
 
-test('canonicalization works offline for generic, Bilibili and local sources', async () => {
+void test('canonicalization works offline for generic, Bilibili and local sources', async () => {
   const generic = await canonicalizeCaptureSource({
     url: 'https://Example.com/watch/?z=2&utm_medium=x&a=1#fragment',
   });
@@ -107,7 +107,7 @@ test('canonicalization works offline for generic, Bilibili and local sources', a
   );
 });
 
-test('generic URL canonicalization preserves site semantics while removing universal trackers', async () => {
+void test('generic URL canonicalization preserves site semantics while removing universal trackers', async () => {
   const withWww = await canonicalizeCaptureSource({
     url: 'https://www.example.com/watch?feature=chapter&share_source=library&utm_source=inbox',
   });
@@ -122,7 +122,7 @@ test('generic URL canonicalization preserves site semantics while removing unive
   assert.notEqual(withWww.identity, withoutWww.identity);
 });
 
-test('unsafe source inputs and vault traversal are rejected', async () => {
+void test('unsafe source inputs and vault traversal are rejected', async () => {
   await assert.rejects(
     () =>
       createCaptureNoteDraft({
@@ -161,7 +161,7 @@ test('unsafe source inputs and vault traversal are rejected', async () => {
 function parseFrontmatter(content: string): Record<string, unknown> {
   const match = content.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(match, 'capture note must contain YAML frontmatter');
-  const parsed = load(match[1]);
+  const parsed: unknown = load(match[1]);
   assert.ok(parsed && typeof parsed === 'object' && !Array.isArray(parsed));
   return parsed as Record<string, unknown>;
 }

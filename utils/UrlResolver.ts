@@ -59,14 +59,18 @@ export class UrlResolver {
    */
   private static fetchRedirectLocation(url: string, timeoutMs: number): Promise<string | null> {
     return new Promise((resolve) => {
-      let httpModule: any;
+      let httpModule: typeof import('https') | undefined;
       try {
-        const nodeRequire = (window as any)?.require;
+        const nodeRequire = (window as unknown as { require?: unknown }).require;
         if (typeof nodeRequire !== 'function') {
           resolve(null);
           return;
         }
-        httpModule = url.startsWith('https:') ? nodeRequire('https') : nodeRequire('http');
+        const load = nodeRequire as (id: string) => unknown;
+        // http and https share the get() shape used here
+        httpModule = (
+          url.startsWith('https:') ? load('https') : load('http')
+        ) as typeof import('https');
       } catch {
         resolve(null);
         return;
@@ -81,12 +85,16 @@ export class UrlResolver {
       };
 
       try {
+        if (!httpModule) {
+          finish(null);
+          return;
+        }
         const request = httpModule.get(
           url,
           { headers: { 'user-agent': this.USER_AGENT } },
-          (response: any) => {
-            const status = Number(response?.statusCode) || 0;
-            const location = response?.headers?.location;
+          (response) => {
+            const status = Number(response.statusCode) || 0;
+            const location = response.headers.location;
             // 丢弃 body，避免连接悬挂
             try {
               response.resume();

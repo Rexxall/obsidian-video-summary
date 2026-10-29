@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { DEFAULT_QUOTE_TEMPLATE, formatTranscriptQuote } from '../core/TranscriptQuote';
 
-test('default quote links back to the exact second on YouTube', () => {
+void test('default quote links back to the exact second on YouTube', () => {
   const quote = formatTranscriptQuote(DEFAULT_QUOTE_TEMPLATE, {
     text: 'Spaced  repetition\nbeats cramming.',
     start: 125.7,
@@ -15,12 +15,12 @@ test('default quote links back to the exact second on YouTube', () => {
   );
 });
 
-test('quote without a playable source keeps the time as plain text', () => {
+void test('quote without a playable source keeps the time as plain text', () => {
   const quote = formatTranscriptQuote('', { text: 'local clip', start: 3 });
   assert.equal(quote, '> local clip (0:03)');
 });
 
-test('custom templates fill speaker, title, note link and line breaks', () => {
+void test('custom templates fill speaker, title, note link and line breaks', () => {
   const quote = formatTranscriptQuote(
     '> {{speaker}}: {{text}}\\n> — {{note}} {{time}} {{unknown}}',
     {
@@ -34,7 +34,7 @@ test('custom templates fill speaker, title, note link and line breaks', () => {
   assert.equal(quote, '> Host: hello\n> — [[Videos/Lecture 1|Lecture 1]] 1:01 {{unknown}}');
 });
 
-test('untrusted source URLs never become links', () => {
+void test('untrusted source URLs never become links', () => {
   const quote = formatTranscriptQuote('{{link}}|{{url}}', {
     text: 'x',
     start: 10,

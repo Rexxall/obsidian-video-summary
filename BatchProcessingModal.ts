@@ -1,6 +1,12 @@
 import { App, Modal, Notice, Setting, TFile, setIcon } from 'obsidian';
 import VideoSummaryPlugin from './main';
-import { ProcessingMode, SupportedLanguage, BatchProgress, VideoInput } from './types';
+import {
+  ProcessingMode,
+  SupportedLanguage,
+  BatchProgress,
+  VideoInput,
+  ProcessingResult,
+} from './types';
 import { LANGUAGE_OPTIONS, PROCESSING_MODES } from './constants';
 import { NoteProcessor } from './utils/NoteProcessor';
 import {
@@ -20,6 +26,9 @@ import {
 import { NoteFactory } from './core/NoteFactory';
 import { syncCourseIndexAtomic } from './core/CourseIndexWriter';
 
+import { fire } from './utils/fire';
+import { errorMessage } from './utils/errors';
+import { scalarText } from './utils/json';
 export class BatchProcessingModal extends Modal {
   private plugin: VideoSummaryPlugin;
   private noteProcessor: NoteProcessor;
@@ -138,10 +147,13 @@ export class BatchProcessingModal extends Modal {
       cls: 'vs-search-input',
       attr: { type: 'text', placeholder: '搜索文件名…', value: this.searchFilter },
     });
-    searchInput.addEventListener('input', async () => {
-      this.searchFilter = searchInput.value.toLowerCase();
-      await this.applyFilters();
-    });
+    searchInput.addEventListener(
+      'input',
+      fire(async () => {
+        this.searchFilter = searchInput.value.toLowerCase();
+        await this.applyFilters();
+      }),
+    );
 
     // 状态、文件夹、时间合成一个筛选胶囊，菜单里分三组
     const statusLabels: Record<string, string> = {
@@ -461,7 +473,7 @@ export class BatchProcessingModal extends Modal {
 
       // 显示视频列表
       for (const item of this.playlistItems) {
-        const itemEl = this.playlistEl.createEl('div', { cls: 'playlist-item' });
+        const itemEl = this.playlistEl.createDiv({ cls: 'playlist-item' });
         const isNew = newKeys.has(item.canonicalKey);
         const canCreatePendingNote = selectableKeys.has(item.canonicalKey);
 
@@ -478,22 +490,22 @@ export class BatchProcessingModal extends Modal {
         });
 
         // 视频信息
-        const infoEl = itemEl.createEl('div', { cls: 'playlist-item-info' });
-        infoEl.createEl('div', {
+        const infoEl = itemEl.createDiv({ cls: 'playlist-item-info' });
+        infoEl.createDiv({
           text: item.title,
           cls: 'playlist-item-title',
         });
-        infoEl.createEl('div', {
+        infoEl.createDiv({
           text: `${item.platform === 'youtube' ? '频道' : 'UP主'}: ${item.author || '未知'}`,
           cls: 'playlist-item-author',
         });
         if (item.duration) {
-          infoEl.createEl('div', {
+          infoEl.createDiv({
             text: `时长: ${item.duration}`,
             cls: 'playlist-item-duration',
           });
         }
-        infoEl.createEl('div', {
+        infoEl.createDiv({
           text: `${
             isNew
               ? '新增 · 将进入待处理'
@@ -735,7 +747,7 @@ export class BatchProcessingModal extends Modal {
       // 创建实时进度回调
       const onProgress = async (result: {
         success: boolean;
-        result?: any;
+        result?: ProcessingResult;
         error?: string;
         noteName: string;
         index: number;
@@ -779,7 +791,7 @@ export class BatchProcessingModal extends Modal {
             await this.noteProcessor.setProcessingError(file, updateError);
             await this.plugin.jobService.updateCourseProgressForFile(file, 'error', 0);
             this.progress.failed++;
-            new Notice(`❌ ${file.basename} 更新失败: ${updateError.message}`, 5000);
+            new Notice(`❌ ${file.basename} 更新失败: ${errorMessage(updateError)}`, 5000);
           }
         } else {
           // 设置错误状态
@@ -820,7 +832,7 @@ export class BatchProcessingModal extends Modal {
       console.error('批量处理失败:', error);
       this.progress.status = 'error';
       this.updateProgressDisplay();
-      new Notice(`❌ 批量处理失败: ${error.message}`, 0);
+      new Notice(`❌ 批量处理失败: ${errorMessage(error)}`, 0);
     }
   }
 
@@ -892,13 +904,16 @@ export class BatchProcessingModal extends Modal {
           await this.writeCourseIndex(manifest);
           continue;
         }
-        await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-          frontmatter.video_course_id = manifest.course_id;
-          frontmatter.video_course_item_id = item.item_id;
-          frontmatter.video_course_position = item.recommended_position + 1;
-        });
+        await this.app.fileManager.processFrontMatter(
+          file,
+          (frontmatter: Record<string, unknown>) => {
+            frontmatter.video_course_id = manifest.course_id;
+            frontmatter.video_course_item_id = item.item_id;
+            frontmatter.video_course_position = item.recommended_position + 1;
+          },
+        );
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-        const frontmatterArtifactId = String(frontmatter?.video_artifact_id || '').trim();
+        const frontmatterArtifactId = scalarText(frontmatter?.video_artifact_id).trim();
         let linkedArtifact = reusableArtifacts.get(file.path);
         if (!linkedArtifact && frontmatterArtifactId) {
           try {
@@ -921,9 +936,12 @@ export class BatchProcessingModal extends Modal {
             reusableArtifacts.set(file.path, linkedArtifact);
             this.plugin.memoryIndex.upsert(linkedArtifact);
             if (artifactId !== frontmatterArtifactId) {
-              await this.app.fileManager.processFrontMatter(file, (current) => {
-                current.video_artifact_id = artifactId;
-              });
+              await this.app.fileManager.processFrontMatter(
+                file,
+                (current: Record<string, unknown>) => {
+                  current.video_artifact_id = artifactId;
+                },
+              );
             }
           } catch (error) {
             console.warn(`课程工件关联失败: ${file.path}`, error);
@@ -1044,8 +1062,8 @@ export class BatchProcessingModal extends Modal {
     this.progressEl.createEl('h3', { text: `批量处理状态: ${statusText}` });
 
     if (this.progress.total > 0) {
-      const progressBar = this.progressEl.createEl('div', { cls: 'progress-bar' });
-      const progressFill = progressBar.createEl('div', { cls: 'progress-fill' });
+      const progressBar = this.progressEl.createDiv({ cls: 'progress-bar' });
+      const progressFill = progressBar.createDiv({ cls: 'progress-fill' });
       const progress = (this.progress.completed + this.progress.failed) / this.progress.total;
       progressFill.style.width = `${progress * 100}%`;
 
@@ -1065,22 +1083,22 @@ export class BatchProcessingModal extends Modal {
 
       // 添加实时状态列表
       if (this.progress.status === 'running' || this.progress.status === 'complete') {
-        const statusListEl = this.progressEl.createEl('div', { cls: 'status-list' });
+        const statusListEl = this.progressEl.createDiv({ cls: 'status-list' });
         statusListEl.createEl('h4', { text: '处理状态详情:' });
 
         // 显示已处理的文件状态
         const processedCount = this.progress.completed + this.progress.failed;
         if (processedCount > 0) {
-          const statusSummary = statusListEl.createEl('div', { cls: 'status-summary' });
-          statusSummary.createEl('div', {
+          const statusSummary = statusListEl.createDiv({ cls: 'status-summary' });
+          statusSummary.createDiv({
             cls: 'status-item success',
             text: `✅ 已完成: ${this.progress.completed} 个`,
           });
-          statusSummary.createEl('div', {
+          statusSummary.createDiv({
             cls: 'status-item error',
             text: `❌ 失败: ${this.progress.failed} 个`,
           });
-          statusSummary.createEl('div', {
+          statusSummary.createDiv({
             cls: 'status-item pending',
             text: `⏳ 待处理: ${this.progress.total - processedCount} 个`,
           });
@@ -1096,5 +1114,5 @@ export class BatchProcessingModal extends Modal {
 }
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return error instanceof Error ? errorMessage(error) : String(error);
 }

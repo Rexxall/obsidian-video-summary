@@ -10,7 +10,7 @@ import {
 } from '../core/ContentRouter';
 import { normalizeRichProcessingResult } from '../core/KnowledgeModel';
 
-test('Chinese tutorial fixture combines title, transcript, chapters, and structure', () => {
+void test('Chinese tutorial fixture combines title, transcript, chapters, and structure', () => {
   const route = resolveContentRoute({
     title: '零基础教程：从零开始部署本地服务',
     author: '开源开发者工坊',
@@ -34,7 +34,7 @@ test('Chinese tutorial fixture combines title, transcript, chapters, and structu
   assert.ok(route.reasons.some((reason) => reason.signal === 'structure'));
 });
 
-test('English interview fixture preserves a multi-role question-and-answer signal', () => {
+void test('English interview fixture preserves a multi-role question-and-answer signal', () => {
   const route = resolveContentRoute({
     title: 'Interview with a Neuroscience Researcher',
     author: 'The Research Talks Podcast',
@@ -54,7 +54,7 @@ test('English interview fixture preserves a multi-role question-and-answer signa
   assert.ok((route.candidate_scores?.interview || 0) > (route.candidate_scores?.course || 0));
 });
 
-test('Japanese meeting fixture resolves decisions and action items as meeting structure', () => {
+void test('Japanese meeting fixture resolves decisions and action items as meeting structure', () => {
   const route = resolveContentRoute({
     title: '研究チーム 定例会議 議事録',
     author: '脳科学プロジェクトチーム',
@@ -72,7 +72,7 @@ test('Japanese meeting fixture resolves decisions and action items as meeting st
   assert.ok(route.confidence >= 0.6);
 });
 
-test('a manual type always overrides backend and strong local evidence', () => {
+void test('a manual type always overrides backend and strong local evidence', () => {
   const route = resolveContentRoute({
     requestedType: 'course',
     backendType: 'news',
@@ -87,7 +87,7 @@ test('a manual type always overrides backend and strong local evidence', () => {
   assert.equal(route.prompt_profile.content_type, 'course');
 });
 
-test('a valid confident rich backend type wins, while its provenance remains explicit', () => {
+void test('a valid confident rich backend type wins, while its provenance remains explicit', () => {
   const route = resolveContentRoute({
     requestedType: 'auto',
     backendType: 'interview',
@@ -103,7 +103,7 @@ test('a valid confident rich backend type wins, while its provenance remains exp
   assert.ok(route.reasons.every((reason) => reason.signal === 'backend'));
 });
 
-test('explicitly low backend confidence is rejected and weak local evidence falls back to general', () => {
+void test('explicitly low backend confidence is rejected and weak local evidence falls back to general', () => {
   const route = resolveContentRoute({
     backendType: 'news',
     backendConfidence: BACKEND_ROUTE_CONFIDENCE_THRESHOLD - 0.01,
@@ -117,7 +117,7 @@ test('explicitly low backend confidence is rejected and weak local evidence fall
   assert.ok(route.reasons.some((reason) => reason.message.includes('关键词不单独决定类型')));
 });
 
-test('a backend type without explicit confidence cannot override stronger local evidence', () => {
+void test('a backend type without explicit confidence cannot override stronger local evidence', () => {
   const route = resolveContentRoute({
     backendType: 'news',
     title: 'Step-by-step deployment tutorial',
@@ -131,7 +131,7 @@ test('a backend type without explicit confidence cannot override stronger local 
   assert.ok(route.reasons.some((reason) => reason.message.includes('没有显式置信度')));
 });
 
-test('one title keyword is a weak cue, not an absolute classification fact', () => {
+void test('one title keyword is a weak cue, not an absolute classification fact', () => {
   const route = resolveContentRoute({
     title: 'Tutorial',
     transcript: 'Today I want to share a few unrelated thoughts.',
@@ -142,7 +142,7 @@ test('one title keyword is a weak cue, not an absolute classification fact', () 
   assert.ok((route.candidate_scores?.tutorial || 0) > 0);
 });
 
-test('strong but conflicting tutorial and review cues remain general when the margin is small', () => {
+void test('strong but conflicting tutorial and review cues remain general when the margin is small', () => {
   const route = resolveContentRoute({
     title: 'Step-by-step Tutorial Review and Comparison',
     transcript: [
@@ -160,7 +160,7 @@ test('strong but conflicting tutorial and review cues remain general when the ma
   assert.ok(Math.abs(tutorial - review) < LOCAL_ROUTE_MARGIN_THRESHOLD);
 });
 
-test('disabled auto routing without a manual type returns a deterministic general decision', () => {
+void test('disabled auto routing without a manual type returns a deterministic general decision', () => {
   const route = resolveContentRoute({
     requestedType: 'auto',
     autoRoute: false,
@@ -173,7 +173,7 @@ test('disabled auto routing without a manual type returns a deterministic genera
   assert.equal(route.confidence, 1);
 });
 
-test('all seven prompt profiles expose distinct required section schemas and evidence guardrails', () => {
+void test('all seven prompt profiles expose distinct required section schemas and evidence guardrails', () => {
   assert.deepEqual(Object.keys(CONTENT_PROMPT_PROFILES).sort(), [...VIDEO_CONTENT_TYPES].sort());
   const profileIds = new Set<string>();
   const sectionSignatures = new Set<string>();
@@ -199,7 +199,7 @@ test('all seven prompt profiles expose distinct required section schemas and evi
   assert.equal(sectionSignatures.size, VIDEO_CONTENT_TYPES.length);
 });
 
-test('prompt contract sends one profile for manual routing and all profiles for auto routing', () => {
+void test('prompt contract sends one profile for manual routing and all profiles for auto routing', () => {
   const manual = buildContentRoutingPromptContract('review', true);
   assert.equal(manual.requested_type, 'review');
   assert.deepEqual(
@@ -216,7 +216,7 @@ test('prompt contract sends one profile for manual routing and all profiles for 
   assert.ok(automatic.policies.some((policy) => policy.includes('单个关键词')));
 });
 
-test('KnowledgeModel enforces manual precedence and records selected routing provenance', () => {
+void test('KnowledgeModel enforces manual precedence and records selected routing provenance', () => {
   const result = normalizeRichProcessingResult(
     {
       video_title: 'Breaking news report',
@@ -243,7 +243,7 @@ test('KnowledgeModel enforces manual precedence and records selected routing pro
   assert.equal(result.artifact?.content_routing?.prompt_profile, 'video-content-tutorial-v1');
 });
 
-test('KnowledgeModel uses local fallback when backend content type is absent', () => {
+void test('KnowledgeModel uses local fallback when backend content type is absent', () => {
   const result = normalizeRichProcessingResult(
     {
       video_title: 'Interview with the lab director',

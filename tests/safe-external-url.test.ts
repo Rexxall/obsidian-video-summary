@@ -11,7 +11,7 @@ import {
 } from '../utils/SafeExternalUrl';
 import { buildTimestampUrl } from '../core/KnowledgeModel';
 
-test('external links accept only credential-free HTTP(S) URLs', () => {
+void test('external links accept only credential-free HTTP(S) URLs', () => {
   assert.equal(
     safeExternalHttpUrl('https://example.com/watch?v=1'),
     'https://example.com/watch?v=1',
@@ -32,7 +32,7 @@ test('external links accept only credential-free HTTP(S) URLs', () => {
   }
 });
 
-test('video timestamp links require an exact supported HTTP(S) host', () => {
+void test('video timestamp links require an exact supported HTTP(S) host', () => {
   assert.match(buildTimestampUrl('https://www.youtube.com/watch?v=abc', 12) || '', /t=12s/);
   assert.equal(buildTimestampUrl('https://youtube.com.evil.test/watch?v=abc', 12), undefined);
   assert.equal(buildTimestampUrl('ftp://youtube.com/watch?v=abc', 12), undefined);
@@ -40,7 +40,7 @@ test('video timestamp links require an exact supported HTTP(S) host', () => {
   assert.equal(isExactHostOrSubdomain('bilibili.com.evil.test', 'bilibili.com'), false);
 });
 
-test('inline images require a trusted HTTPS media origin or bounded raster data', () => {
+void test('inline images require a trusted HTTPS media origin or bounded raster data', () => {
   assert.equal(
     safeRemoteImageUrl('https://i.ytimg.com/vi/abc123/hqdefault.jpg'),
     'https://i.ytimg.com/vi/abc123/hqdefault.jpg',

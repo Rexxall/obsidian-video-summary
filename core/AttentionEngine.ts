@@ -578,15 +578,9 @@ function calculatePromotionalRatio(
       if (cueConfidence === undefined || cueConfidence < 0.35) continue;
     }
     if (cue.segment_id && segmentById.has(cue.segment_id)) ids.add(cue.segment_id);
-    if (
-      finiteNonNegative(cue.start) &&
-      finiteNonNegative(cue.end) &&
-      (cue.end as number) > (cue.start as number)
-    ) {
-      const start = cue.start as number;
-      const end = input.durationSeconds
-        ? Math.min(cue.end as number, input.durationSeconds)
-        : (cue.end as number);
+    if (finiteNonNegative(cue.start) && finiteNonNegative(cue.end) && cue.end > cue.start) {
+      const start = cue.start;
+      const end = input.durationSeconds ? Math.min(cue.end, input.durationSeconds) : cue.end;
       if (end > start) cueRanges.push({ start, end });
       for (const segment of input.segments) {
         if (segmentOverlaps(segment, start, end)) ids.add(segment.id);
@@ -869,18 +863,17 @@ function validateBackendRanges(
     if (
       !finiteNonNegative(start) ||
       !finiteNonNegative(end) ||
-      (end as number) <= (start as number) ||
+      end <= start ||
       !reason ||
       !anchors.some(
         (segment) =>
-          (start as number) >= (segment.start as number) - 0.001 &&
-          (end as number) <= (segment.end as number) + 0.001,
+          start >= (segment.start as number) - 0.001 && end <= (segment.end as number) + 0.001,
       )
     ) {
       rejected += 1;
       continue;
     }
-    valid.push({ start: start as number, end: end as number, reason });
+    valid.push({ start: start, end: end, reason });
   }
   if (rejected) {
     limitations.push(`后端有 ${rejected} 个时间段无法锚定到真实片段，已丢弃。`);
@@ -933,7 +926,7 @@ function timedSegments(segments: VideoSegment[], durationSeconds?: number): Vide
       (segment) =>
         finiteNonNegative(segment.start) &&
         finiteNonNegative(segment.end) &&
-        (segment.end as number) > (segment.start as number) &&
+        segment.end > segment.start &&
         segment.timing_quality !== 'none' &&
         segment.timing_quality !== 'estimated',
     )
@@ -1005,9 +998,9 @@ function segmentWeight(segment: VideoSegment): number {
   if (
     finiteNonNegative(segment.start) &&
     finiteNonNegative(segment.end) &&
-    (segment.end as number) > (segment.start as number)
+    segment.end > segment.start
   ) {
-    return Math.max(units, ((segment.end as number) - (segment.start as number)) * 4);
+    return Math.max(units, (segment.end - segment.start) * 4);
   }
   return Math.max(1, units);
 }
@@ -1016,8 +1009,8 @@ function segmentOverlaps(segment: VideoSegment, start: number, end: number): boo
   return (
     finiteNonNegative(segment.start) &&
     finiteNonNegative(segment.end) &&
-    (segment.start as number) < end &&
-    (segment.end as number) > start
+    segment.start < end &&
+    segment.end > start
   );
 }
 

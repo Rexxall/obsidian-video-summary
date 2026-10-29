@@ -59,7 +59,7 @@ async function transcriptOnlyArtifact(transcript: string): Promise<VideoKnowledg
   };
 }
 
-test('no-fetch summary-only response preserves transcript-only artifact identity', async () => {
+void test('no-fetch summary-only response preserves transcript-only artifact identity', async () => {
   const transcript = '[00:00] Integrity checked local transcript.';
   const previous = await transcriptOnlyArtifact(transcript);
   const input: VideoInput = {
@@ -86,7 +86,7 @@ test('no-fetch summary-only response preserves transcript-only artifact identity
   assert.equal(identity.source.note_path, 'Video Inbox/renamed.md');
 });
 
-test('no-fetch reprocess rejects backend transcript normalization as source identity', async () => {
+void test('no-fetch reprocess rejects backend transcript normalization as source identity', async () => {
   const transcript = '[00:00] Original spacing and wording.';
   const previous = await transcriptOnlyArtifact(transcript);
   const input: VideoInput = {
@@ -112,7 +112,7 @@ test('no-fetch reprocess rejects backend transcript normalization as source iden
   assert.equal(identity.sourceHash, previous.source.source_hash);
 });
 
-test('no-fetch reconstruction prefers persisted source URL over backend metadata', async () => {
+void test('no-fetch reconstruction prefers persisted source URL over backend metadata', async () => {
   const input: VideoInput = {
     sourceUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     transcript: '[00:00] Stored transcript',
@@ -137,7 +137,7 @@ test('no-fetch reconstruction prefers persisted source URL over backend metadata
   assert.equal(identity.artifactId, ArtifactStore.artifactId(identity.sourceHash));
 });
 
-test('reprocess strips legacy keyframe paths unless the previous artifact root exactly matches', async () => {
+void test('reprocess strips legacy keyframe paths unless the previous artifact root exactly matches', async () => {
   const managedRoot = 'Video Inbox/_video-summary-assets';
   const previous = await transcriptOnlyArtifact('Stored transcript');
   previous.segments[0].keyframe = {

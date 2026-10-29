@@ -23,14 +23,14 @@ export class ConfirmModal extends Modal {
     contentEl.createEl('h2', { text: this.title });
 
     // 消息内容
-    const messageEl = contentEl.createEl('div', { cls: 'confirm-message' });
+    const messageEl = contentEl.createDiv({ cls: 'confirm-message' });
     this.message.split('\n').forEach((line, index) => {
       if (index > 0) messageEl.createEl('br');
       messageEl.appendText(line);
     });
 
     // 按钮容器
-    const buttonContainer = contentEl.createEl('div', { cls: 'confirm-buttons' });
+    const buttonContainer = contentEl.createDiv({ cls: 'confirm-buttons' });
 
     // 确认按钮
     const confirmBtn = buttonContainer.createEl('button', {

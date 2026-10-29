@@ -1,6 +1,7 @@
 import { SUPPORTED_PLATFORMS } from '../constants';
 import { normalizeStatus as sharedNormalizeStatus, canonicalizeVideoUrl } from '../shared';
 
+import { isRecord, scalarText, type JsonRecord } from './json';
 const VIDEO_STATUS_FIELDS = [
   'video_summary_status',
   'video_processing_status',
@@ -251,14 +252,14 @@ export class VideoUtils {
   /**
    * 基于 frontmatter 判断是否为视频笔记（无需读取正文）
    */
-  static isVideoNoteFromFrontmatter(frontmatter: any): boolean {
-    if (!frontmatter || typeof frontmatter !== 'object') return false;
+  static isVideoNoteFromFrontmatter(frontmatter: unknown): boolean {
+    if (!isRecord(frontmatter)) return false;
 
     if (this.isExplicitlyNonVideoFromFrontmatter(frontmatter)) return false;
     if (this.hasExplicitVideoMarker(frontmatter)) return true;
 
     // 链接字段可能为字符串或数组
-    const linkField = (frontmatter as any).link;
+    const linkField = frontmatter.link;
     if (Array.isArray(linkField)) {
       const videoLinks = new Set<string>();
       for (const l of linkField) {
@@ -274,20 +275,20 @@ export class VideoUtils {
 
     // 其他视频相关元数据
     if (
-      typeof (frontmatter as any).provided_transcript === 'string' &&
-      (frontmatter as any).provided_transcript.trim()
+      typeof frontmatter.provided_transcript === 'string' &&
+      frontmatter.provided_transcript.trim()
     )
       return true;
     if (this.hasLegacyMediaInputFromFrontmatter(frontmatter)) return true;
     if (
-      typeof (frontmatter as any).video_transcript === 'string' &&
-      this.isMeaningfulOutputValue((frontmatter as any).video_transcript)
+      typeof frontmatter.video_transcript === 'string' &&
+      this.isMeaningfulOutputValue(frontmatter.video_transcript)
     )
       return true;
     if (
-      typeof (frontmatter as any).video_title === 'string' &&
-      (frontmatter as any).video_title.trim() &&
-      this.isMeaningfulOutputValue((frontmatter as any).summary)
+      typeof frontmatter.video_title === 'string' &&
+      frontmatter.video_title.trim() &&
+      this.isMeaningfulOutputValue(frontmatter.summary)
     )
       return true;
 
@@ -297,58 +298,48 @@ export class VideoUtils {
   /**
    * 明确声明为非视频的来源优先于链接/正文兜底，避免图片和文章采集笔记混入媒体库。
    */
-  static isExplicitlyNonVideoFromFrontmatter(frontmatter: any): boolean {
-    if (!frontmatter || typeof frontmatter !== 'object') return false;
+  static isExplicitlyNonVideoFromFrontmatter(frontmatter: unknown): boolean {
+    if (!isRecord(frontmatter)) return false;
 
     const pluginStatus = this.readPluginStatusFromFrontmatter(frontmatter);
     if (pluginStatus.present && pluginStatus.normalized === 'excluded') return true;
 
     if (!pluginStatus.present) {
-      const genericStatus = this.normalizeStatus(String(frontmatter.status ?? '').trim());
+      const genericStatus = this.normalizeStatus(scalarText(frontmatter.status).trim());
       if (genericStatus === 'excluded') return true;
     }
 
-    const marker = (frontmatter as any).video_summary;
-    if (
-      marker === false ||
-      String(marker ?? '')
-        .trim()
-        .toLowerCase() === 'false'
-    )
-      return true;
+    const marker = frontmatter.video_summary;
+    if (marker === false || scalarText(marker).trim().toLowerCase() === 'false') return true;
 
     for (const field of ['source_type', 'content_type', 'type']) {
-      const value = String((frontmatter as any)[field] ?? '')
-        .trim()
-        .toLowerCase();
+      const value = scalarText(frontmatter[field]).trim().toLowerCase();
       if (NON_VIDEO_CONTENT_TYPES.has(value)) return true;
     }
 
-    const transcriptStatus = String((frontmatter as any).video_transcript_status ?? '')
-      .trim()
-      .toLowerCase();
+    const transcriptStatus = scalarText(frontmatter.video_transcript_status).trim().toLowerCase();
     return transcriptStatus === 'not-applicable' || transcriptStatus === 'not_applicable';
   }
 
   /**
    * 基于 frontmatter 获取处理状态
    */
-  static getProcessingStatusFromFrontmatter(frontmatter: any): string | null {
-    if (!frontmatter || typeof frontmatter !== 'object') return 'pending';
+  static getProcessingStatusFromFrontmatter(frontmatter: unknown): string | null {
+    if (!isRecord(frontmatter)) return 'pending';
     const hasGeneratedOutput = this.hasGeneratedOutputFromFrontmatter(frontmatter);
     return this.resolveProcessingStatus((field) => {
       if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) {
         return { present: false, value: '' };
       }
-      return { present: true, value: String((frontmatter as any)[field] ?? '').trim() };
+      return { present: true, value: scalarText(frontmatter[field]).trim() };
     }, hasGeneratedOutput);
   }
 
-  static hasGeneratedOutputFromFrontmatter(frontmatter: any): boolean {
-    if (!frontmatter || typeof frontmatter !== 'object') return false;
+  static hasGeneratedOutputFromFrontmatter(frontmatter: unknown): boolean {
+    if (!isRecord(frontmatter)) return false;
     return (
-      this.isMeaningfulOutputValue((frontmatter as any).summary) ||
-      this.isMeaningfulOutputValue((frontmatter as any).video_transcript)
+      this.isMeaningfulOutputValue(frontmatter.summary) ||
+      this.isMeaningfulOutputValue(frontmatter.video_transcript)
     );
   }
 
@@ -376,16 +367,16 @@ export class VideoUtils {
     return /\.(?:mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i.test(value.trim());
   }
 
-  static hasLegacyMediaInputFromFrontmatter(frontmatter: any): boolean {
-    if (!frontmatter || typeof frontmatter !== 'object') return false;
+  static hasLegacyMediaInputFromFrontmatter(frontmatter: unknown): boolean {
+    if (!isRecord(frontmatter)) return false;
     return [
-      (frontmatter as any).local_file,
-      (frontmatter as any).localFileName,
-      (frontmatter as any).localFile,
-      (frontmatter as any).source_file,
-      (frontmatter as any).audio_source,
-      (frontmatter as any).video_file,
-      (frontmatter as any).media_file,
+      frontmatter.local_file,
+      frontmatter.localFileName,
+      frontmatter.localFile,
+      frontmatter.source_file,
+      frontmatter.audio_source,
+      frontmatter.video_file,
+      frontmatter.media_file,
     ].some((value) => typeof value === 'string' && this.isSupportedLocalMediaPath(value));
   }
 
@@ -449,7 +440,7 @@ export class VideoUtils {
     return hasGeneratedOutput ? 'success' : 'pending';
   }
 
-  private static readPluginStatusFromFrontmatter(frontmatter: any): {
+  private static readPluginStatusFromFrontmatter(frontmatter: JsonRecord): {
     present: boolean;
     normalized: ReturnType<typeof VideoUtils.normalizeStatus>;
   } {
@@ -457,41 +448,33 @@ export class VideoUtils {
       if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) continue;
       return {
         present: true,
-        normalized: this.normalizeStatus(String((frontmatter as any)[field] ?? '').trim()),
+        normalized: this.normalizeStatus(scalarText(frontmatter[field]).trim()),
       };
     }
     return { present: false, normalized: 'other' };
   }
 
-  private static hasExplicitVideoMarker(frontmatter: any): boolean {
+  private static hasExplicitVideoMarker(frontmatter: JsonRecord): boolean {
     const pluginStatus = this.readPluginStatusFromFrontmatter(frontmatter);
     if (pluginStatus.present) return true;
 
     const markerValues = [
-      (frontmatter as any).video_summary,
-      (frontmatter as any).video_summary_plugin,
-      (frontmatter as any).video_summary_managed,
+      frontmatter.video_summary,
+      frontmatter.video_summary_plugin,
+      frontmatter.video_summary_managed,
     ];
     if (
       markerValues.some(
         (value) =>
           value === true ||
-          ['true', 'yes', 'managed', 'video'].includes(
-            String(value ?? '')
-              .trim()
-              .toLowerCase(),
-          ),
+          ['true', 'yes', 'managed', 'video'].includes(scalarText(value).trim().toLowerCase()),
       )
     ) {
       return true;
     }
 
-    const source = String((frontmatter as any).source ?? '')
-      .trim()
-      .toLowerCase();
-    const sourceType = String((frontmatter as any).source_type ?? '')
-      .trim()
-      .toLowerCase();
+    const source = scalarText(frontmatter.source).trim().toLowerCase();
+    const sourceType = scalarText(frontmatter.source_type).trim().toLowerCase();
     return (
       ['video-summary', 'video_summary', 'obsidian-video-summary'].includes(source) ||
       ['video', 'audio', 'media'].includes(sourceType)

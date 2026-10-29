@@ -9,7 +9,7 @@ import {
 } from '../core/AttentionEngine';
 import type { EvidenceClaim, ProcessingResult, VideoSegment } from '../types';
 
-test('policy exposes stable weights and thresholds instead of hiding scoring magic', () => {
+void test('policy exposes stable weights and thresholds instead of hiding scoring magic', () => {
   const weights = ATTENTION_ENGINE_POLICY.scoreWeights;
   assert.equal(
     weights.informationDensity +
@@ -24,7 +24,7 @@ test('policy exposes stable weights and thresholds instead of hiding scoring mag
   );
 });
 
-test('high-value Chinese course crosses the watch boundary with explainable metrics', () => {
+void test('high-value Chinese course crosses the watch boundary with explainable metrics', () => {
   const segments = fixtureSegments('zh', 8);
   const claims = supportedClaims(segments, 6);
   const { assessment, diagnostics } = evaluateAttention({
@@ -54,7 +54,7 @@ test('high-value Chinese course crosses the watch boundary with explainable metr
   assertRangesComeFromSegments(assessment.must_watch, segments);
 });
 
-test('short actionable English video is worth watching because the time cost is bounded', () => {
+void test('short actionable English video is worth watching because the time cost is bounded', () => {
   const segments = fixtureSegments('en', 3, 15);
   const result = evaluateAttention({
     segments,
@@ -71,7 +71,7 @@ test('short actionable English video is worth watching because the time cost is 
   assert.ok((result.estimated_useful_seconds || 0) <= 45);
 });
 
-test('Japanese procedural cues are detected without an English-only tokenizer', () => {
+void test('Japanese procedural cues are detected without an English-only tokenizer', () => {
   const segments = fixtureSegments('ja', 5, 20);
   const result = evaluateAttention({
     segments,
@@ -87,7 +87,7 @@ test('Japanese procedural cues are detected without an English-only tokenizer', 
   assert.notEqual(result.action, 'skip');
 });
 
-test('untimed evidence stays low-confidence and never fabricates attention ranges', () => {
+void test('untimed evidence stays low-confidence and never fabricates attention ranges', () => {
   const result = evaluateAttention({
     segments: [
       untimed(
@@ -113,7 +113,7 @@ test('untimed evidence stays low-confidence and never fabricates attention range
   assert.ok(result.assessment.limitations?.some((item) => item.includes('没有可靠的起止时间')));
 });
 
-test('a high promotional share triggers skip and only marks real ad segments skippable', () => {
+void test('a high promotional share triggers skip and only marks real ad segments skippable', () => {
   const segments = fixtureSegments('en', 10, 10);
   const promotionalIds = segments.slice(0, 8).map((segment) => segment.id);
   const result = evaluateAttention({
@@ -142,7 +142,7 @@ test('a high promotional share triggers skip and only marks real ad segments ski
   }
 });
 
-test('vault relevance is evidence-derived and never defaults to a plausible-looking midpoint', () => {
+void test('vault relevance is evidence-derived and never defaults to a plausible-looking midpoint', () => {
   const segments = fixtureSegments('zh', 4, 20);
   const withoutContext = evaluateAttention({
     segments,
@@ -163,7 +163,7 @@ test('vault relevance is evidence-derived and never defaults to a plausible-look
   assert.ok((withContext.vault_relevance || 0) < 1);
 });
 
-test('invalid or incomplete backend attention falls back conservatively', () => {
+void test('invalid or incomplete backend attention falls back conservatively', () => {
   const segments = fixtureSegments('en', 4, 20);
   const evaluation = evaluateAttention({
     segments,
@@ -184,7 +184,7 @@ test('invalid or incomplete backend attention falls back conservatively', () => 
   assert.ok(evaluation.assessment.limitations?.some((item) => item.includes('本地保守回退')));
 });
 
-test('out-of-range backend metrics are rejected instead of clamped into credible output', () => {
+void test('out-of-range backend metrics are rejected instead of clamped into credible output', () => {
   const segments = fixtureSegments('en', 4, 20);
   const evaluation = evaluateAttention({
     segments,
@@ -209,7 +209,7 @@ test('out-of-range backend metrics are rejected instead of clamped into credible
   assertRangesComeFromSegments(evaluation.assessment.skippable, segments);
 });
 
-test('watch/skim/skip thresholds have explicit inclusive boundary behavior', () => {
+void test('watch/skim/skip thresholds have explicit inclusive boundary behavior', () => {
   const thresholds = ATTENTION_ENGINE_POLICY.actionThresholds;
   assert.equal(chooseAttentionAction(thresholds.watch, 0.8, 0.1, 600), 'watch');
   assert.equal(chooseAttentionAction(thresholds.skip, 0.8, 0.1, 600), 'skip');
@@ -228,7 +228,7 @@ test('watch/skim/skip thresholds have explicit inclusive boundary behavior', () 
   );
 });
 
-test('valid backend metrics are used only after ranges and confidence are bounded by evidence', () => {
+void test('valid backend metrics are used only after ranges and confidence are bounded by evidence', () => {
   const segments = fixtureSegments('en', 8, 20);
   const evaluation = evaluateAttention({
     segments,
@@ -266,7 +266,7 @@ test('valid backend metrics are used only after ranges and confidence are bounde
   assert.ok(evaluation.assessment.limitations?.some((item) => item.includes('无法锚定到真实片段')));
 });
 
-test('backend-supplied vault relevance without context is rejected as ungrounded', () => {
+void test('backend-supplied vault relevance without context is rejected as ungrounded', () => {
   const segments = fixtureSegments('ja', 5, 20);
   const evaluation = evaluateAttention({
     segments,
@@ -293,7 +293,7 @@ test('backend-supplied vault relevance without context is rejected as ungrounded
   );
 });
 
-test('JobService integration helper is request-gated and parses common duration forms', () => {
+void test('JobService integration helper is request-gated and parses common duration forms', () => {
   const segments = fixtureSegments('zh', 3, 20);
   const original: ProcessingResult = {
     video_duration: '01:00',

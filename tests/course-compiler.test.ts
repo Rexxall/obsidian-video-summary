@@ -12,7 +12,7 @@ import type { PlaylistInfo, PlaylistItem } from '../utils/PlaylistProcessor';
 
 const NOW = new Date('2026-07-29T10:00:00.000Z');
 
-test('course imports are canonical, incremental, and new lessons remain pending', () => {
+void test('course imports are canonical, incremental, and new lessons remain pending', () => {
   const first = makePlaylist([
     lesson('youtube', 'alpha01', '第 1 课', 0),
     lesson('youtube', 'beta002', '第 2 课', 1),
@@ -68,7 +68,7 @@ test('course imports are canonical, incremental, and new lessons remain pending'
   assert.deepEqual(updated.manifest.missing_concepts, ['来源缺少第 2 课']);
 });
 
-test('course manifests survive a store restart with stable course ids', async () => {
+void test('course manifests survive a store restart with stable course ids', async () => {
   const adapter = new MemoryCourseAdapter();
   const playlist = makePlaylist([lesson('bilibili', 'BV1xx411c7mD', '第一讲', 0)]);
   const compiled = compileCourseImport(playlist, null, { now: NOW });
@@ -92,7 +92,7 @@ test('course manifests survive a store restart with stable course ids', async ()
   );
 });
 
-test('concurrent lesson progress updates retain both changes atomically', async () => {
+void test('concurrent lesson progress updates retain both changes atomically', async () => {
   const adapter = new MemoryCourseAdapter();
   const playlist = makePlaylist([
     lesson('youtube', 'alpha01', 'Lesson 1', 0),
@@ -144,7 +144,7 @@ test('concurrent lesson progress updates retain both changes atomically', async 
   assert.equal(loaded.progress.complete, 2);
 });
 
-test('saving a stale playlist snapshot cannot roll back newer lesson progress', async () => {
+void test('saving a stale playlist snapshot cannot roll back newer lesson progress', async () => {
   const adapter = new MemoryCourseAdapter();
   const playlist = makePlaylist([lesson('youtube', 'alpha01', 'Lesson 1', 0)]);
   const compiled = compileCourseImport(playlist, null, { now: NOW });
@@ -174,7 +174,7 @@ test('saving a stale playlist snapshot cannot roll back newer lesson progress', 
   assert.equal(loaded.progress.complete, 1);
 });
 
-test('saving an older playlist preview cannot delete lessons from a newer import', async () => {
+void test('saving an older playlist preview cannot delete lessons from a newer import', async () => {
   const adapter = new MemoryCourseAdapter();
   const store = new CourseStore(adapter, 'plugin/data/course-manifests', {
     now: () => new Date('2026-07-29T13:00:00.000Z'),
@@ -205,14 +205,14 @@ test('saving an older playlist preview cannot delete lessons from a newer import
   assert.equal(loaded.import_count, newerImport.import_count);
 });
 
-test('opaque playlist ids preserve case when deriving course identity', () => {
+void test('opaque playlist ids preserve case when deriving course identity', () => {
   const upper = makePlaylist([lesson('youtube', 'alpha01', 'Lesson', 0)]);
   const lower = { ...upper, sourceId: upper.sourceId.toLowerCase() };
   assert.notEqual(upper.sourceId, lower.sourceId);
   assert.notEqual(stableCourseId(upper), stableCourseId(lower));
 });
 
-test('course managed block updates preserve free-form user content', () => {
+void test('course managed block updates preserve free-form user content', () => {
   const playlist = makePlaylist([lesson('youtube', 'alpha01', 'Lesson 1', 0)]);
   const first = compileCourseImport(playlist, null, { now: NOW });
   const base = createCourseMarkdown(first.manifest);

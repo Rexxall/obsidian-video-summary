@@ -14,7 +14,7 @@ import {
 
 const ROOT = '.obsidian/plugins/video-summary/data/reproducibility';
 
-test('save/load/list persist versioned manifests across store restarts', async () => {
+void test('save/load/list persist versioned manifests across store restarts', async () => {
   const adapter = new MemoryAdapter();
   const firstStore = new ReproducibilityStore(adapter, ROOT);
   const older = await makeManifest('artifact-older', '2026-07-29T10:00:00.000Z');
@@ -43,7 +43,7 @@ test('save/load/list persist versioned manifests across store restarts', async (
   );
 });
 
-test('save and load reject tampered raw snapshots instead of trusting stored hashes', async () => {
+void test('save and load reject tampered raw snapshots instead of trusting stored hashes', async () => {
   const adapter = new MemoryAdapter();
   const store = new ReproducibilityStore(adapter, ROOT);
   const manifest = await makeManifest('artifact-integrity');
@@ -63,7 +63,7 @@ test('save and load reject tampered raw snapshots instead of trusting stored has
   await assert.rejects(() => store.list({ strict: true }), /evidence_hash mismatch/);
 });
 
-test('safe ids, Vault-relative roots, filename identity, and missing files fail closed', async () => {
+void test('safe ids, Vault-relative roots, filename identity, and missing files fail closed', async () => {
   const adapter = new MemoryAdapter();
   assert.throws(
     () => new ReproducibilityStore(adapter, '../outside'),
@@ -90,7 +90,7 @@ test('safe ids, Vault-relative roots, filename identity, and missing files fail 
   );
 });
 
-test('failed atomic updates preserve the previous valid manifest', async () => {
+void test('failed atomic updates preserve the previous valid manifest', async () => {
   const adapter = new MemoryAdapter();
   const store = new ReproducibilityStore(adapter, ROOT);
   const original = await makeManifest('artifact-atomic');

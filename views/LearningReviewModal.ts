@@ -16,6 +16,8 @@ import {
 import { formatTimestamp } from '../core/KnowledgeModel';
 import { safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 
+import { fire } from '../utils/fire';
+import { errorMessage } from '../utils/errors';
 export type LearningReviewMode = 'due' | 'mistakes' | 'all';
 
 export interface LearningReviewModalOptions {
@@ -108,7 +110,7 @@ export class LearningReviewModal extends Modal {
       this.contentEl.empty();
       this.contentEl.createEl('h3', { text: '无法读取复习进度' });
       this.contentEl.createDiv({
-        text: error instanceof Error ? error.message : String(error),
+        text: error instanceof Error ? errorMessage(error) : String(error),
         cls: 'vs-hint is-error',
       });
     }
@@ -315,7 +317,7 @@ export class LearningReviewModal extends Modal {
       this.completedKeys.add(learningItemKey(item.item_kind, item.item_id));
       this.render();
     } catch (error) {
-      new Notice(error instanceof Error ? error.message : String(error));
+      new Notice(error instanceof Error ? errorMessage(error) : String(error));
     }
   }
 
@@ -346,16 +348,19 @@ export class LearningReviewModal extends Modal {
       text: '暂停这道题',
       attr: { type: 'button' },
     });
-    suspend.addEventListener('click', async () => {
-      await this.options.store.setSuspended(
-        result.item.artifact_id,
-        result.item.item_kind,
-        result.item.item_id,
-        true,
-      );
-      await this.syncNoteReviewDue();
-      await this.refreshQueue();
-    });
+    suspend.addEventListener(
+      'click',
+      fire(async () => {
+        await this.options.store.setSuspended(
+          result.item.artifact_id,
+          result.item.item_kind,
+          result.item.item_id,
+          true,
+        );
+        await this.syncNoteReviewDue();
+        await this.refreshQueue();
+      }),
+    );
     const next = actions.createEl('button', {
       text: '下一题',
       cls: 'mod-cta',
@@ -387,7 +392,7 @@ export class LearningReviewModal extends Modal {
           .filter(Boolean)
           .sort()[0];
     const learningItems = currentItems.length;
-    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+    await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
       frontmatter.video_review_due = nextDue || null;
       frontmatter.video_learning_items = learningItems;
     });

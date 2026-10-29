@@ -10,6 +10,7 @@ import {
   ProcessingDepth,
   RequestedContentType,
   WebhookAuthConfig,
+  PayloadKeys,
 } from '../types';
 import { CacheManager } from '../utils/CacheManager';
 import { UrlResolver } from '../utils/UrlResolver';
@@ -26,6 +27,8 @@ import {
   type VisualFingerprintMode,
 } from '../core/ArtifactFingerprint';
 
+import { errorMessage } from '../utils/errors';
+import { asArray, asRecord, asString, asText, isRecord, type JsonRecord } from '../utils/json';
 const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
 const CACHE_PROMPT_VERSION = 'video-knowledge-v3-clean-note-1';
 
@@ -57,7 +60,7 @@ export class VideoSummaryAPI {
     secret: '',
   };
   private cacheManager: CacheManager;
-  private payloadKeys: any;
+  private payloadKeys: PayloadKeys;
   private expandShortLinksEnabled: boolean = false;
   private analysisDefaults: {
     processingDepth: ProcessingDepth;
@@ -94,7 +97,7 @@ export class VideoSummaryAPI {
     webhookUrl: string,
     vault: Vault,
     pluginDataPath?: string,
-    payloadKeys?: any,
+    payloadKeys?: PayloadKeys,
     backend?: ProcessingBackend,
     webhookAuth?: Partial<WebhookAuthConfig>,
     timeoutMinutes: number = 30,
@@ -117,7 +120,7 @@ export class VideoSummaryAPI {
     };
   }
 
-  setPayloadKeys(keys: any) {
+  setPayloadKeys(keys: PayloadKeys) {
     this.payloadKeys = keys;
   }
 
@@ -281,7 +284,7 @@ export class VideoSummaryAPI {
 
     // n8n 路径以前建了 AbortController 却从不超时，挂起请求会永久卡住；这里挂上真正的超时
     let timedOut = false;
-    const timeoutId = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, requestTimeoutMs);
@@ -336,7 +339,7 @@ export class VideoSummaryAPI {
       }
       throw new Error(this.formatUserFacingError(error));
     } finally {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
       const activeController = this.controllers.get(noteName);
       if (activeController === controller) {
         this.controllers.delete(noteName);
@@ -411,7 +414,7 @@ export class VideoSummaryAPI {
     // 此方法的 n8n 路径以前完全没有超时控制，挂起会永久阻塞；补上 AbortController + 超时
     const controller = new AbortController();
     let timedOut = false;
-    const timeoutId = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, requestTimeoutMs);
@@ -467,7 +470,7 @@ export class VideoSummaryAPI {
       }
       throw new Error(this.formatUserFacingError(error));
     } finally {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
     }
   }
 
@@ -488,7 +491,7 @@ export class VideoSummaryAPI {
     return this.webhookHistory.slice(0, limit).map((entry) => ({ ...entry }));
   }
 
-  normalizeWebhookPayload(data: any): ProcessingResult {
+  normalizeWebhookPayload(data: unknown): ProcessingResult {
     return this.parseSummaryResponse(data);
   }
 
@@ -526,14 +529,14 @@ export class VideoSummaryAPI {
    * 清空缓存
    */
   clearCache() {
-    this.cacheManager.clear();
+    void this.cacheManager.clear();
   }
 
   /**
    * 清理过期缓存
    */
   cleanupCache() {
-    this.cacheManager.cleanup();
+    void this.cacheManager.cleanup();
   }
 
   /**
@@ -621,7 +624,7 @@ export class VideoSummaryAPI {
     }
 
     const keys = this.payloadKeys;
-    const metadata: any = {};
+    const metadata: JsonRecord = {};
     metadata[keys.mode] = mode;
     metadata[keys.language] = language;
     metadata[keys.ai] = this.aiModel;
@@ -655,7 +658,7 @@ export class VideoSummaryAPI {
     mode: ProcessingMode,
     language: SupportedLanguage,
   ) {
-    const metadata: any = {
+    const metadata: JsonRecord = {
       mode,
       language,
       ai: this.aiModel,
@@ -769,20 +772,18 @@ export class VideoSummaryAPI {
     );
   }
 
-  private addAnalysisMetadata(metadata: Record<string, any>, input: VideoInput) {
+  private addAnalysisMetadata(metadata: JsonRecord, input: VideoInput) {
+    const contentType = input.contentType || this.analysisDefaults.contentType;
+    const autoRoute = input.autoRoute ?? this.analysisDefaults.autoRoute;
+    const contract = buildContentRoutingPromptContract(contentType, autoRoute);
     metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
     metadata.prompt_version = CACHE_PROMPT_VERSION;
     metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
-    metadata.content_type = input.contentType || this.analysisDefaults.contentType;
-    metadata.auto_route = input.autoRoute ?? this.analysisDefaults.autoRoute;
-    metadata.content_router_contract = buildContentRoutingPromptContract(
-      metadata.content_type,
-      metadata.auto_route,
-    );
+    metadata.content_type = contentType;
+    metadata.auto_route = autoRoute;
+    metadata.content_router_contract = contract;
     metadata.prompt_profile =
-      metadata.content_type === 'auto'
-        ? CONTENT_ROUTER_CONTRACT_VERSION
-        : metadata.content_router_contract.profiles[0]?.id;
+      contentType === 'auto' ? CONTENT_ROUTER_CONTRACT_VERSION : contract.profiles[0]?.id;
     metadata.attention_assessment =
       input.attentionAssessment ?? this.analysisDefaults.attentionAssessment;
     metadata.generate_learning = input.generateLearning ?? this.analysisDefaults.generateLearning;
@@ -839,7 +840,7 @@ export class VideoSummaryAPI {
 
   private async processCodexWorkerJob(
     controllerKey: string,
-    payload: any,
+    payload: { metadata?: JsonRecord },
     onProgress?: ProcessProgressReporter,
     requestTimeoutMs: number = this.timeout,
   ): Promise<ProcessingResult> {
@@ -857,7 +858,7 @@ export class VideoSummaryAPI {
     const timeoutMs = Math.max(1, Math.floor(Number(requestTimeoutMs) || 1));
     const deadline = Date.now() + timeoutMs;
     let timedOut = false;
-    const timeoutId = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, timeoutMs);
@@ -880,8 +881,8 @@ export class VideoSummaryAPI {
         throw new Error(this.formatNativeHttpError('Codex Worker', response));
       }
 
-      const createdJob = this.readNativeJsonResponse(response, 'Codex Worker 创建任务');
-      if (!createdJob?.id) {
+      const createdJob = asRecord(this.readNativeJsonResponse(response, 'Codex Worker 创建任务'));
+      if (!asText(createdJob.id)) {
         throw new Error('Codex Worker 没有返回任务 ID');
       }
 
@@ -909,9 +910,9 @@ export class VideoSummaryAPI {
           );
         }
 
-        latestJob = this.readNativeJsonResponse(statusResponse, 'Codex Worker job 状态');
+        latestJob = asRecord(this.readNativeJsonResponse(statusResponse, 'Codex Worker job 状态'));
         if (onProgress) {
-          const latestLog = latestJob?.latestLog ?? latestJob?.lastLog;
+          const latestLog = latestJob.latestLog ?? latestJob.lastLog;
           const stageLabel =
             pickString(latestLog, ['stage', 'step', 'phase']) ||
             pickString(latestJob, ['stage', 'step', 'phase', 'status']);
@@ -928,14 +929,15 @@ export class VideoSummaryAPI {
           }
         }
         if (latestJob.status === 'success') {
+          const meta = payload.metadata ?? {};
           return this.parseSummaryResponse(latestJob.result, {
-            url: payload?.metadata?.link,
-            sourceUrl: payload?.metadata?.source_url_for_citation,
-            processingDepth: payload?.metadata?.processing_depth,
-            contentType: payload?.metadata?.content_type,
-            autoRoute: payload?.metadata?.auto_route,
-            attentionAssessment: payload?.metadata?.attention_assessment,
-            generateLearning: payload?.metadata?.generate_learning,
+            url: asString(meta.link),
+            sourceUrl: asString(meta.source_url_for_citation),
+            processingDepth: meta.processing_depth as VideoInput['processingDepth'],
+            contentType: meta.content_type as VideoInput['contentType'],
+            autoRoute: meta.auto_route as VideoInput['autoRoute'],
+            attentionAssessment: meta.attention_assessment as VideoInput['attentionAssessment'],
+            generateLearning: meta.generate_learning as VideoInput['generateLearning'],
           });
         }
         if (
@@ -966,7 +968,7 @@ export class VideoSummaryAPI {
       }
       throw error;
     } finally {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
       this.workerCancelUrls.delete(controller);
       this.workerControllers.delete(controller);
       if (this.controllers.get(controllerKey) === controller) {
@@ -994,21 +996,23 @@ export class VideoSummaryAPI {
     }
   }
 
-  private getCodexWorkerJobStatusUrl(jobsUrl: string, job: any): string {
+  private getCodexWorkerJobStatusUrl(jobsUrl: string, job: JsonRecord): string {
+    const id = asText(job.id) ?? '';
+    const logsUrl = asString(job.logsUrl);
     try {
       const base = new URL(jobsUrl);
-      if (job.logsUrl && typeof job.logsUrl === 'string' && job.logsUrl.startsWith('/')) {
-        base.pathname = job.logsUrl.replace(/\/logs$/, '');
+      if (logsUrl && logsUrl.startsWith('/')) {
+        base.pathname = logsUrl.replace(/\/logs$/, '');
         base.search = '';
         base.hash = '';
         return base.toString();
       }
-      base.pathname = `${base.pathname.replace(/\/+$/, '')}/${encodeURIComponent(job.id)}`;
+      base.pathname = `${base.pathname.replace(/\/+$/, '')}/${encodeURIComponent(id)}`;
       base.search = '';
       base.hash = '';
       return base.toString();
     } catch {
-      return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(job.id)}`;
+      return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(id)}`;
     }
   }
 
@@ -1061,19 +1065,23 @@ export class VideoSummaryAPI {
     }
   }
 
-  private formatCodexJobError(job: any): string {
-    const error = job?.error;
+  private formatCodexJobError(job: JsonRecord): string {
+    const error = job.error;
+    const errorRecord = asRecord(error);
     const errorMessage =
-      typeof error === 'string'
-        ? error
-        : error?.error || error?.message || `Codex Worker 任务状态: ${job?.status || 'unknown'}`;
-    const logs = Array.isArray(job?.logs) ? job.logs : [];
-    const lastDiagnostic = [...logs].reverse().find((entry: any) => {
-      const detail = entry?.detail || {};
-      return detail.error || detail.stderr || entry?.stage;
-    });
+      asString(error) ||
+      asString(errorRecord.error) ||
+      asString(errorRecord.message) ||
+      `Codex Worker 任务状态: ${asText(job.status) || 'unknown'}`;
+    const lastDiagnostic = [...asArray(job.logs)]
+      .reverse()
+      .map(asRecord)
+      .find((entry) => {
+        const detail = asRecord(entry.detail);
+        return detail.error || detail.stderr || entry.stage;
+      });
     const diagnosticText = lastDiagnostic
-      ? `\n最后阶段: ${lastDiagnostic.stage}\n诊断: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}`
+      ? `\n最后阶段: ${asText(lastDiagnostic.stage) ?? ''}\n诊断: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}`
       : '';
     return `${errorMessage}${diagnosticText}\n控制台: ${this.getCodexWorkerDashboardUrl()}`;
   }
@@ -1086,12 +1094,12 @@ export class VideoSummaryAPI {
   private sleep(ms: number, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) return Promise.reject(this.abortError());
     return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
         signal?.removeEventListener('abort', onAbort);
         resolve();
       }, ms);
       const onAbort = () => {
-        clearTimeout(timeoutId);
+        window.clearTimeout(timeoutId);
         signal?.removeEventListener('abort', onAbort);
         reject(this.abortError());
       };
@@ -1118,7 +1126,7 @@ export class VideoSummaryAPI {
     return normalizedMinutes * 60 * 1000;
   }
 
-  private readNativeJsonResponse(response: RequestUrlResponse, label: string): any {
+  private readNativeJsonResponse(response: RequestUrlResponse, label: string): unknown {
     const text = response.text || '';
     if (!text.trim()) {
       throw new Error(`${label}返回空响应`);
@@ -1173,11 +1181,11 @@ export class VideoSummaryAPI {
     signal?: AbortSignal,
   ): Promise<RequestUrlResponse> {
     const safeTimeoutMs = Math.max(1, Math.floor(Number(timeoutMs) || 1));
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let timeoutId: number | undefined;
     let onAbort: (() => void) | undefined;
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
+      timeoutId = window.setTimeout(() => {
         const error = new Error(`${safeTimeoutMs}ms 内无响应（服务可能未启动）`);
         error.name = 'TimeoutError';
         reject(error);
@@ -1208,46 +1216,49 @@ export class VideoSummaryAPI {
     try {
       return await Promise.race(requests);
     } finally {
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       if (signal && onAbort) signal.removeEventListener('abort', onAbort);
     }
   }
 
-  private parseSummaryResponse(data: any, input: VideoInput = {}): ProcessingResult {
+  private parseSummaryResponse(data: unknown, input: VideoInput = {}): ProcessingResult {
     // n8n 可能返回数组，需要合并所有对象的数据
     const preserveKeys = new Set(['summary', 'note', 'video_transcript']);
-    let payload: any = Array.isArray(data) ? {} : data;
+    let merged: unknown = data;
 
     if (Array.isArray(data)) {
+      const combined: JsonRecord = {};
       for (const item of data) {
-        if (!item || typeof item !== 'object') continue;
+        if (!isRecord(item)) continue;
         for (const [key, value] of Object.entries(item)) {
           if (value === undefined || value === null) continue;
           if (preserveKeys.has(key)) {
-            if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
-              payload[key] = value;
+            if (combined[key] === undefined || combined[key] === null || combined[key] === '') {
+              combined[key] = value;
             }
             continue;
           }
-          payload[key] = value;
+          combined[key] = value;
         }
       }
+      merged = combined;
     }
 
-    payload = this.unwrapResponsePayload(payload);
+    const unwrapped = this.unwrapResponsePayload(merged);
 
     // 检查是否是错误响应
-    if (payload?.error) {
-      throw new Error(payload.error);
+    if (isRecord(unwrapped) && unwrapped.error) {
+      throw new Error(asText(unwrapped.error) ?? JSON.stringify(unwrapped.error));
     }
 
     // 检查数据是否为空或无效
-    if (!payload || typeof payload !== 'object') {
+    if (!isRecord(unwrapped)) {
       throw new Error('服务器返回无效的数据格式');
     }
+    const payload = unwrapped;
 
     // 兼容 info-only/summary 混合数据的字段命名（支持嵌套结构）
-    const infoSources: Array<Record<string, any> | undefined> = [
+    const infoSources: unknown[] = [
       payload,
       payload.info,
       payload.videoInfo,
@@ -1257,7 +1268,7 @@ export class VideoSummaryAPI {
 
     const pickField = (aliases: string[]): string | undefined => {
       for (const source of infoSources) {
-        if (!source || typeof source !== 'object') continue;
+        if (!isRecord(source)) continue;
         for (const key of aliases) {
           const value = source[key];
           if (typeof value === 'string' && value.trim()) {
@@ -1350,15 +1361,15 @@ export class VideoSummaryAPI {
     });
   }
 
-  private unwrapResponsePayload(payload: any): any {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  private unwrapResponsePayload(payload: unknown): unknown {
+    if (!isRecord(payload)) {
       return payload;
     }
 
     const candidateKeys = ['data', 'result', 'output', 'response'];
     for (const key of candidateKeys) {
       const candidate = payload[key];
-      if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+      if (isRecord(candidate)) {
         const hasResultField = [
           'summary',
           'note',
@@ -1444,7 +1455,7 @@ export class VideoSummaryAPI {
         } catch (error) {
           const errorObj = {
             success: false,
-            error: error.message,
+            error: errorMessage(error),
             noteName: request.noteName,
           };
 
@@ -1496,7 +1507,7 @@ export class VideoSummaryAPI {
     url: string,
     backend: ProcessingBackend,
     timeoutMs = 4000,
-    n8nBody?: any,
+    n8nBody?: unknown,
     n8nAuth?: Partial<WebhookAuthConfig>,
   ): Promise<EndpointProbeResult> {
     if (!url || !url.trim()) {
@@ -1530,9 +1541,9 @@ export class VideoSummaryAPI {
           };
         }
 
-        let health: any;
+        let health: JsonRecord;
         try {
-          health = JSON.parse(response.text || '');
+          health = asRecord(JSON.parse(response.text || ''));
         } catch {
           return {
             ok: false,
@@ -1541,7 +1552,7 @@ export class VideoSummaryAPI {
             error: 'Codex Worker /health 未返回有效 JSON',
           };
         }
-        if (health?.ok !== true || health?.service !== 'codex-video-worker') {
+        if (health.ok !== true || health.service !== 'codex-video-worker') {
           return {
             ok: false,
             status: response.status,
@@ -1562,15 +1573,13 @@ export class VideoSummaryAPI {
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const body =
-        n8nBody ??
-        ({
-          name: 'preflight-check',
-          metadata: { mode: 'transcript-only', language: 'zh', ai: '' },
-          content: '',
-        } as any);
+      const body = n8nBody ?? {
+        name: 'preflight-check',
+        metadata: { mode: 'transcript-only', language: 'zh', ai: '' },
+        content: '',
+      };
       const response = await VideoSummaryAPI.webhookRequest(
         url,
         VideoSummaryAPI.buildN8nHeaders(n8nAuth),
@@ -1592,7 +1601,7 @@ export class VideoSummaryAPI {
           : (error as Error)?.message || String(error);
       return { ok: false, error: message };
     } finally {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     }
   }
 
@@ -1682,7 +1691,7 @@ export class VideoSummaryAPI {
         };
       }
 
-      if (parsed?.error) {
+      if (isRecord(parsed) && parsed.error) {
         const error = this.redactWebhookSecret(this.errorToString(parsed.error));
         return {
           success: false,
@@ -1729,9 +1738,9 @@ export class VideoSummaryAPI {
     return this.buildPayload('test', {}, 'transcript-only', 'zh');
   }
 
-  private tryParseJson(text: string): any | null {
+  private tryParseJson(text: string): unknown {
     try {
-      return JSON.parse(text);
+      return JSON.parse(text) as unknown;
     } catch {
       return null;
     }
@@ -1742,12 +1751,14 @@ export class VideoSummaryAPI {
     return ['测试成功', '测试成功！', 'ok', 'success'].includes(normalized);
   }
 
-  private extractWorkflowHealthInfo(payload: any): WorkflowHealthInfo | undefined {
-    const workflow =
-      payload?.workflow || payload?.videoSummaryWorkflow || payload?.health?.workflow;
-    if (!workflow || typeof workflow !== 'object') {
+  private extractWorkflowHealthInfo(payload: unknown): WorkflowHealthInfo | undefined {
+    const source = asRecord(payload);
+    const candidate =
+      source.workflow || source.videoSummaryWorkflow || asRecord(source.health).workflow;
+    if (!isRecord(candidate)) {
       return undefined;
     }
+    const workflow = candidate;
 
     return {
       name: this.readString(workflow.name),
@@ -1795,17 +1806,19 @@ export class VideoSummaryAPI {
     return warnings;
   }
 
-  private readString(value: any): string | undefined {
+  private readString(value: unknown): string | undefined {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
-  private readStringArray(value: any): string[] | undefined {
+  private readStringArray(value: unknown): string[] | undefined {
     if (!Array.isArray(value)) return undefined;
-    const values = value.filter((item) => typeof item === 'string' && item.trim());
+    const values = (value as unknown[]).filter(
+      (item): item is string => typeof item === 'string' && item.trim() !== '',
+    );
     return values.length > 0 ? values.map((item) => item.trim()) : undefined;
   }
 
-  private async readJsonResponse(response: Response): Promise<any> {
+  private async readJsonResponse(response: Response): Promise<unknown> {
     const text = await response.text();
     if (!text || text.trim() === '') {
       throw new Error('服务器返回空响应');
@@ -1949,7 +1962,7 @@ export class VideoSummaryAPI {
 
   private errorToString(error: unknown): string {
     if (error instanceof Error) {
-      return error.message;
+      return errorMessage(error);
     }
     if (typeof error === 'string') {
       return error;
@@ -1963,8 +1976,8 @@ export class VideoSummaryAPI {
 }
 
 /** 从后端返回的 job JSON 里挑第一个非空字符串字段 */
-function pickString(source: any, keys: string[]): string | undefined {
-  if (!source || typeof source !== 'object') return undefined;
+function pickString(source: unknown, keys: string[]): string | undefined {
+  if (!isRecord(source)) return undefined;
   for (const key of keys) {
     const value = source[key];
     if (typeof value === 'string' && value.trim()) return value.trim();
@@ -1973,32 +1986,32 @@ function pickString(source: any, keys: string[]): string | undefined {
 }
 
 /** 读取 worker 的 latestLog（也兼容旧 lastLog），避免每秒重复写入同一条日志。 */
-function progressLogMarker(log: any): string | undefined {
+function progressLogMarker(log: unknown): string | undefined {
   if (typeof log === 'string') return log.trim() || undefined;
-  if (!log || typeof log !== 'object') return undefined;
+  if (!isRecord(log)) return undefined;
   return pickString(log, ['at', 'timestamp']) || formatProgressLog(log);
 }
 
-function formatProgressLog(log: any): string | undefined {
+function formatProgressLog(log: unknown): string | undefined {
   if (typeof log === 'string') return log.trim() || undefined;
-  if (!log || typeof log !== 'object') return undefined;
+  if (!isRecord(log)) return undefined;
 
   const direct = pickString(log, ['message', 'text']);
   if (direct) return direct;
   const detail = log.detail;
   if (typeof detail === 'string') return detail.trim() || undefined;
-  if (!detail || typeof detail !== 'object') return undefined;
+  if (!isRecord(detail)) return undefined;
 
   const entries = Object.entries(detail)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
     .slice(0, 4)
-    .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+    .map(([key, value]) => `${key}: ${asText(value) ?? JSON.stringify(value)}`);
   return entries.length > 0 ? entries.join(' · ') : undefined;
 }
 
 /** 把 0-1 或 0-100 的进度字段统一成 0-1 */
-function pickRatio(source: any, keys: string[]): number | undefined {
-  if (!source || typeof source !== 'object') return undefined;
+function pickRatio(source: unknown, keys: string[]): number | undefined {
+  if (!isRecord(source)) return undefined;
   for (const key of keys) {
     const value = source[key];
     if (typeof value === 'number' && Number.isFinite(value)) {

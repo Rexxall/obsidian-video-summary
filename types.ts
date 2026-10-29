@@ -529,6 +529,7 @@ export interface NoteMetadata {
   summary?: string;
   video_transcript?: string;
   date?: string;
+  updated?: string;
 }
 
 // 缓存项类型定义

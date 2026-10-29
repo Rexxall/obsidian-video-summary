@@ -62,8 +62,10 @@ for (const [name, content] of Object.entries(files)) {
   const current = existsSync(target) ? readFileSync(target, 'utf8') : null;
   if (current === content) continue;
   stale += 1;
-  if (CHECK) console.error(`out of date: browser-extension/vendor/${name}`);
+  if (CHECK) process.stderr.write(`out of date: browser-extension/vendor/${name}\n`);
   else writeFileSync(target, content);
 }
 if (CHECK && stale) process.exit(1);
-console.log(CHECK ? 'browser-extension/vendor is up to date' : `wrote ${stale} file(s)`);
+process.stdout.write(
+  `${CHECK ? 'browser-extension/vendor is up to date' : `wrote ${stale} file(s)`}\n`,
+);

@@ -5,6 +5,7 @@ import { LANGUAGE_OPTIONS, PROCESSING_MODES, ERROR_MESSAGES } from '../constants
 import { NoteProcessor } from '../utils/NoteProcessor';
 import { RetryUtils } from '../utils/RetryUtils';
 
+import { errorMessage } from '../utils/errors';
 export class VideoSummaryModal extends Modal {
   private plugin: VideoSummaryPlugin;
   private editor: Editor;
@@ -106,12 +107,12 @@ export class VideoSummaryModal extends Modal {
     // 显示当前文件信息
     const file = this.view.file;
     if (file) {
-      const infoEl = contentEl.createEl('div', { cls: 'video-summary-info' });
+      const infoEl = contentEl.createDiv({ cls: 'video-summary-info' });
       infoEl.createEl('h3', { text: '当前文件信息' });
       infoEl.createEl('p', { text: `文件名: ${file.basename}` });
 
       // 检查是否有视频内容
-      this.app.vault.read(file).then((content) => {
+      void this.app.vault.read(file).then((content) => {
         const hasVideo = this.noteProcessor.hasVideoContent(content);
         const status = this.noteProcessor.getProcessingStatus(content);
 
@@ -128,7 +129,7 @@ export class VideoSummaryModal extends Modal {
     }
 
     // 操作按钮
-    const buttonContainer = contentEl.createEl('div', { cls: 'video-summary-buttons' });
+    const buttonContainer = contentEl.createDiv({ cls: 'video-summary-buttons' });
 
     // 开始处理按钮
     const processButton = buttonContainer.createEl('button', {
@@ -136,7 +137,7 @@ export class VideoSummaryModal extends Modal {
       cls: 'mod-cta',
     });
     processButton.addEventListener('click', () => {
-      this.processVideo();
+      void this.processVideo();
     });
 
     // 取消按钮
@@ -220,7 +221,9 @@ export class VideoSummaryModal extends Modal {
         2000, // 2秒延迟
         (attempt, error) => {
           if (this.progressNotice) {
-            this.progressNotice.setMessage(`🔄 处理失败，第${attempt}次重试: ${error.message}`);
+            this.progressNotice.setMessage(
+              `🔄 处理失败，第${attempt}次重试: ${errorMessage(error)}`,
+            );
           }
         },
       );
@@ -289,7 +292,7 @@ export class VideoSummaryModal extends Modal {
       }
 
       // 显示错误通知
-      new Notice(`❌ 处理失败（已重试）: ${error.message}`, 0);
+      new Notice(`❌ 处理失败（已重试）: ${errorMessage(error)}`, 0);
 
       // 记录历史
       this.recordHistory(file?.basename || 'unknown', 'error');
@@ -314,7 +317,7 @@ export class VideoSummaryModal extends Modal {
       this.plugin.settings.history.shift();
     }
 
-    this.plugin.saveSettings();
+    void this.plugin.saveSettings();
   }
 
   onClose() {

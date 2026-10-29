@@ -7,7 +7,7 @@ import {
   canonicalizeVideoUrl,
 } from '../utils/PlaylistProcessor';
 
-test('YouTube public playlist fixture paginates and canonical-dedupes videos', async () => {
+void test('YouTube public playlist fixture paginates and canonical-dedupes videos', async () => {
   const requests: PlaylistRequest[] = [];
   const requester: PlaylistRequester = async (request) => {
     requests.push(request);
@@ -51,7 +51,7 @@ test('YouTube public playlist fixture paginates and canonical-dedupes videos', a
   assert.equal(requests[1].headers?.['X-Youtube-Client-Version'], 'fixture-client');
 });
 
-test('Bilibili favorites fixture paginates with bounded page size', async () => {
+void test('Bilibili favorites fixture paginates with bounded page size', async () => {
   const requests: PlaylistRequest[] = [];
   const requester: PlaylistRequester = async (request) => {
     requests.push(request);
@@ -98,7 +98,7 @@ test('Bilibili favorites fixture paginates with bounded page size', async () => 
   assert.ok(requests[2].url.includes('pn=2'));
 });
 
-test('Bilibili collection pagination stops at the configured maximum', async () => {
+void test('Bilibili collection pagination stops at the configured maximum', async () => {
   const requester: PlaylistRequester = async (request) => {
     if (request.url.includes('/medialist/info')) {
       return jsonResponse({ code: 0, data: { title: '合集' } });
@@ -122,7 +122,7 @@ test('Bilibili collection pagination stops at the configured maximum', async () 
   assert.equal(result.truncated, true);
 });
 
-test('canonical video URLs collapse tracking and short-link variants', () => {
+void test('canonical video URLs collapse tracking and short-link variants', () => {
   const short = canonicalizeVideoUrl('https://youtu.be/yt_video_1?t=30');
   const watch = canonicalizeVideoUrl('https://www.youtube.com/watch?v=yt_video_1&utm_source=test');
   const bili = canonicalizeVideoUrl(
@@ -135,7 +135,7 @@ test('canonical video URLs collapse tracking and short-link variants', () => {
   assert.equal(bili.canonicalUrl, 'https://www.bilibili.com/video/BV1xx411c7mD');
 });
 
-test('an empty or structurally changed YouTube page fails explicitly', async () => {
+void test('an empty or structurally changed YouTube page fails explicitly', async () => {
   const requester: PlaylistRequester = async () => ({
     status: 200,
     text: `<script>var ytInitialData = ${JSON.stringify({

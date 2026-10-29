@@ -13,6 +13,8 @@ import {
 import { renderDetailPanel } from './panels/DetailPanel';
 import { segmented } from './ui';
 
+import { fire } from '../utils/fire';
+import { errorMessage } from '../utils/errors';
 export const VIDEO_SUMMARY_VIEW_TYPE = 'video-summary-view';
 
 export class VideoSummaryView extends ItemView {
@@ -239,13 +241,13 @@ export class VideoSummaryView extends ItemView {
       wrapper,
       tabs.map(([value, label, count]) => ({ value, label, count })),
       this.state.tab,
-      async (value) => {
+      fire(async (value) => {
         this.state.tab = value;
         this.plugin.settings.activePanelTab = value;
         await this.plugin.saveSettings();
         if (value === 'library') resetLibraryPaging();
         this.renderPanels();
-      },
+      }),
     );
   }
 
@@ -275,7 +277,7 @@ export class VideoSummaryView extends ItemView {
       await leaf.openFile(file, { active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch (error) {
-      new Notice(`打开笔记失败：${error instanceof Error ? error.message : String(error)}`);
+      new Notice(`打开笔记失败：${error instanceof Error ? errorMessage(error) : String(error)}`);
     }
   }
 

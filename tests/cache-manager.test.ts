@@ -71,7 +71,7 @@ function cacheWithAdapter(): { cache: CacheManager; adapter: MemoryAdapter } {
   };
 }
 
-test('fingerprint cache writes, reads, and returns exact provenance', async () => {
+void test('fingerprint cache writes, reads, and returns exact provenance', async () => {
   const { cache } = cacheWithAdapter();
   assert.equal(await cache.whenReady(), true);
   const identity = fingerprint();
@@ -92,7 +92,7 @@ test('fingerprint cache writes, reads, and returns exact provenance', async () =
   assert.equal(items[0].key, identity.key);
 });
 
-test('a changed processing dimension cannot reuse an existing cache artifact', async () => {
+void test('a changed processing dimension cannot reuse an existing cache artifact', async () => {
   const { cache } = cacheWithAdapter();
   await cache.whenReady();
   const original = fingerprint();
@@ -106,7 +106,7 @@ test('a changed processing dimension cannot reuse an existing cache artifact', a
   assert.equal((await cache.getByFingerprint(original))?.summary, 'old model');
 });
 
-test('legacy URL cache is never a silent fallback for a rich fingerprint lookup', async () => {
+void test('legacy URL cache is never a silent fallback for a rich fingerprint lookup', async () => {
   const { cache } = cacheWithAdapter();
   await cache.whenReady();
   const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
@@ -120,7 +120,7 @@ test('legacy URL cache is never a silent fallback for a rich fingerprint lookup'
   assert.equal(await cache.getByFingerprint(identity), null);
 });
 
-test('stored cache provenance is validated before reuse', async () => {
+void test('stored cache provenance is validated before reuse', async () => {
   const { cache, adapter } = cacheWithAdapter();
   await cache.whenReady();
   const identity = fingerprint();

@@ -26,7 +26,7 @@ class MemoryBinaryAdapter implements BinaryAssetAdapter {
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0xff, 0xd9]).buffer;
 
-test('loopback keyframes are hash-checked, deduplicated, and stored as Vault-relative assets', async () => {
+void test('loopback keyframes are hash-checked, deduplicated, and stored as Vault-relative assets', async () => {
   const adapter = new MemoryBinaryAdapter();
   let fetches = 0;
   const localizer = new MediaAssetLocalizer(adapter, 'Video Notes/_video-summary-assets', {
@@ -80,7 +80,7 @@ test('loopback keyframes are hash-checked, deduplicated, and stored as Vault-rel
   assert.equal(input.visual_evidence?.[0].keyframe?.path, shared.path, 'input must not mutate');
 });
 
-test('untrusted origins and digest mismatches remain remote with explicit warnings', async () => {
+void test('untrusted origins and digest mismatches remain remote with explicit warnings', async () => {
   const adapter = new MemoryBinaryAdapter();
   const localizer = new MediaAssetLocalizer(adapter, '_video-summary-assets', {
     workerEndpoint: 'http://127.0.0.1:8787/video-summary/process-sync',
@@ -122,7 +122,7 @@ test('untrusted origins and digest mismatches remain remote with explicit warnin
   assert.ok(localized.warnings.some((warning) => warning.includes('sha256 mismatch')));
 });
 
-test('asset fetches require the configured Worker origin and fixed asset path', async () => {
+void test('asset fetches require the configured Worker origin and fixed asset path', async () => {
   const adapter = new MemoryBinaryAdapter();
   let fetches = 0;
   const localizer = new MediaAssetLocalizer(adapter, '_video-summary-assets', {
@@ -159,13 +159,13 @@ test('asset fetches require the configured Worker origin and fixed asset path', 
   );
 });
 
-test('media asset roots stay Vault-relative and reject traversal-shaped settings', () => {
+void test('media asset roots stay Vault-relative and reject traversal-shaped settings', () => {
   assert.equal(mediaAssetRoot('Video Notes'), 'Video Notes/_video-summary-assets');
   assert.equal(mediaAssetRoot(''), '_video-summary-assets');
   assert.equal(mediaAssetRoot('../outside'), '_video-summary-assets');
 });
 
-test('pre-existing Vault paths must exist inside the managed asset root', async () => {
+void test('pre-existing Vault paths must exist inside the managed asset root', async () => {
   const adapter = new MemoryBinaryAdapter();
   adapter.files.set('_video-summary-assets/artifact-existing/frame.jpg', JPEG);
   const localizer = new MediaAssetLocalizer(adapter, '_video-summary-assets');

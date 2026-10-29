@@ -8,6 +8,7 @@ import type {
   VideoContentType,
 } from '../types';
 
+import { scalarText } from '../utils/json';
 export const CONTENT_ROUTER_CONTRACT_VERSION = 'content-routing-v1';
 export const LOCAL_ROUTE_SCORE_THRESHOLD = 0.52;
 export const LOCAL_ROUTE_MARGIN_THRESHOLD = 0.08;
@@ -25,7 +26,7 @@ const ROUTABLE_TYPES: Exclude<VideoContentType, 'general'>[] = [
 export const VIDEO_CONTENT_TYPES: VideoContentType[] = [...ROUTABLE_TYPES, 'general'];
 
 export interface ContentRouteInput {
-  requestedType?: RequestedContentType | string;
+  requestedType?: string;
   autoRoute?: boolean;
   backendType?: unknown;
   backendConfidence?: unknown;
@@ -558,7 +559,7 @@ export function resolveContentRouting(input: ContentRouteInput): ContentRoutingD
 export const resolveContentRoute = resolveContentRouting;
 
 export function buildContentRoutingPromptContract(
-  requestedType: RequestedContentType | string = 'auto',
+  requestedType: string = 'auto',
   autoRoute = true,
 ): ContentRoutingPromptContract {
   const normalized = normalizeRequestedType(requestedType) || 'auto';
@@ -907,17 +908,13 @@ function cue(pattern: RegExp, label: string): Cue {
 }
 
 function normalizeRequestedType(raw: unknown): RequestedContentType | undefined {
-  const value = String(raw || '')
-    .trim()
-    .toLowerCase();
+  const value = scalarText(raw).trim().toLowerCase();
   if (value === 'auto') return 'auto';
   return normalizeContentType(value);
 }
 
 function normalizeContentType(raw: unknown): VideoContentType | undefined {
-  const value = String(raw || '')
-    .trim()
-    .toLowerCase();
+  const value = scalarText(raw).trim().toLowerCase();
   return VIDEO_CONTENT_TYPES.includes(value as VideoContentType)
     ? (value as VideoContentType)
     : undefined;
@@ -925,7 +922,7 @@ function normalizeContentType(raw: unknown): VideoContentType | undefined {
 
 function normalizeConfidence(raw: unknown): number | undefined {
   if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') return undefined;
-  const value = typeof raw === 'number' ? raw : Number(String(raw).trim());
+  const value = typeof raw === 'number' ? raw : Number(scalarText(raw).trim());
   if (!Number.isFinite(value)) return undefined;
   return clamp(value > 1 && value <= 100 ? value / 100 : value, 0, 1);
 }
@@ -938,7 +935,7 @@ function normalizeBackendReasons(raw: unknown): ContentRoutingReason[] {
       typeof item === 'string'
         ? item
         : item && typeof item === 'object' && 'message' in item
-          ? String((item as { message?: unknown }).message || '')
+          ? scalarText((item as { message?: unknown }).message)
           : '';
     const message = value.replace(/\s+/g, ' ').trim().slice(0, 240);
     if (message) reasons.push({ signal: 'backend', message });
@@ -955,8 +952,9 @@ function normalizeChapters(raw: unknown): string[] {
       if (!item || typeof item !== 'object') return '';
       const record = item as Record<string, unknown>;
       for (const key of ['title', 'name', 'label', 'text', 'summary']) {
-        if (typeof record[key] === 'string' && record[key].trim()) {
-          return normalizeText(record[key] as string);
+        const value = record[key];
+        if (typeof value === 'string' && value.trim()) {
+          return normalizeText(value);
         }
       }
       return '';
@@ -966,7 +964,7 @@ function normalizeChapters(raw: unknown): string[] {
 }
 
 function normalizeText(raw: unknown): string {
-  return String(raw || '')
+  return scalarText(raw)
     .normalize('NFKC')
     .replace(/\r\n?/g, '\n')
     .replace(/[^\S\n]+/g, ' ')
@@ -990,7 +988,11 @@ function countMatches(text: string, pattern: RegExp): number {
 }
 
 function hasValue(value: unknown): boolean {
-  return value !== undefined && value !== null && String(value).trim() !== '';
+  return (
+    value !== undefined &&
+    value !== null &&
+    (scalarText(value).trim() !== '' || typeof value === 'object')
+  );
 }
 
 function formatConfidence(value: number): string {

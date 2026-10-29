@@ -84,10 +84,10 @@ function relinkVideoJobs(store, oldPath, file) {
 }
 
 // main.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // modals/VideoSummaryModal.ts
-var import_obsidian = require("obsidian");
+var import_obsidian2 = require("obsidian");
 
 // utils/SafeExternalUrl.ts
 function safeExternalHttpUrl(value) {
@@ -175,6 +175,28 @@ function safeVaultRelativeMediaPath(value) {
     return void 0;
   }
   return candidate;
+}
+
+// utils/json.ts
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function asRecord(value) {
+  return isRecord(value) ? value : {};
+}
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+function asString(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function asText(value) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return void 0;
+}
+function scalarText(value) {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : "";
 }
 
 // core/ContentRouter.ts
@@ -578,17 +600,17 @@ var PROFILE_OBJECTIVES = {
   general: "\u5728\u7C7B\u578B\u8BC1\u636E\u4E0D\u8DB3\u65F6\u751F\u6210\u4E2D\u6027\u7684\u7ED3\u6784\u5316\u6458\u8981\uFF0C\u4E0D\u5047\u88C5\u5DF2\u8BC6\u522B\u7279\u5B9A\u4F53\u88C1\u3002"
 };
 var CONTENT_PROMPT_PROFILES = Object.fromEntries(
-  VIDEO_CONTENT_TYPES.map((type2) => {
-    const sections = SECTION_DEFINITIONS[type2];
+  VIDEO_CONTENT_TYPES.map((type) => {
+    const sections = SECTION_DEFINITIONS[type];
     return [
-      type2,
+      type,
       {
-        id: `video-content-${type2}-v1`,
+        id: `video-content-${type}-v1`,
         version: 1,
-        content_type: type2,
-        objective: PROFILE_OBJECTIVES[type2],
+        content_type: type,
+        objective: PROFILE_OBJECTIVES[type],
         sections,
-        output_schema: buildOutputSchema(type2, sections),
+        output_schema: buildOutputSchema(type, sections),
         guardrails: [
           "\u53EA\u4F7F\u7528\u6807\u9898\u3001\u4F5C\u8005\u3001\u7AE0\u8282\u3001\u8F6C\u5F55\u548C\u7ED3\u6784\u5316\u8BC1\u636E\u4E2D\u53EF\u89C1\u7684\u4FE1\u606F\u3002",
           "\u5173\u952E\u8BCD\u547D\u4E2D\u53EA\u662F\u5F31\u4FE1\u53F7\uFF0C\u4E0D\u80FD\u5355\u72EC\u5F53\u4F5C\u5185\u5BB9\u7C7B\u578B\u6216\u4E8B\u5B9E\u8BC1\u660E\u3002",
@@ -599,8 +621,8 @@ var CONTENT_PROMPT_PROFILES = Object.fromEntries(
     ];
   })
 );
-function getContentPromptProfile(type2) {
-  return cloneProfile(CONTENT_PROMPT_PROFILES[type2]);
+function getContentPromptProfile(type) {
+  return cloneProfile(CONTENT_PROMPT_PROFILES[type]);
 }
 function resolveContentRouting(input) {
   const requested = normalizeRequestedType(input.requestedType);
@@ -686,7 +708,7 @@ function inferLocalRoute(input) {
   const chapters = normalizeChapters(input.chapters);
   const chapterText = chapters.join("\n").slice(0, 2e4);
   const candidates = ROUTABLE_TYPES.map(
-    (type2) => scoreCandidate(type2, { title, author, transcript, chapterText, chapters })
+    (type) => scoreCandidate(type, { title, author, transcript, chapterText, chapters })
   ).sort((left, right) => right.score - left.score || left.type.localeCompare(right.type));
   const top = candidates[0];
   const second = candidates[1];
@@ -738,8 +760,8 @@ function inferLocalRoute(input) {
   );
   return decision("general", confidence, "fallback", fallbackReasons, candidateScores);
 }
-function scoreCandidate(type2, evidence) {
-  const rules = CUES[type2];
+function scoreCandidate(type, evidence) {
+  const rules = CUES[type];
   const reasons = [];
   let score = 0;
   for (const channel of ["title", "author", "transcript", "chapter"]) {
@@ -756,16 +778,16 @@ function scoreCandidate(type2, evidence) {
       weight: round(contribution)
     });
   }
-  const structural = structuralSignals(type2, evidence.transcript, evidence.chapters);
+  const structural = structuralSignals(type, evidence.transcript, evidence.chapters);
   score += structural.score;
   reasons.push(...structural.reasons);
   return {
-    type: type2,
+    type,
     score: round(clamp(score, 0, 0.95)),
     reasons
   };
 }
-function structuralSignals(type2, transcript, chapters) {
+function structuralSignals(type, transcript, chapters) {
   const reasons = [];
   let score = 0;
   const add = (condition, weight, message) => {
@@ -778,7 +800,7 @@ function structuralSignals(type2, transcript, chapters) {
       chapter
     )
   ).length;
-  if (type2 === "course") {
+  if (type === "course") {
     add(chapters.length >= 3 && sequentialChapters >= 2, 0.16, "\u591A\u4E2A\u8FDE\u7EED\u8BFE\u6B21/\u6A21\u5757\u5F62\u6210\u6559\u5B66\u5E8F\u5217\u3002");
     add(
       countMatches(
@@ -789,7 +811,7 @@ function structuralSignals(type2, transcript, chapters) {
       "\u8F6C\u5F55\u540C\u65F6\u5305\u542B\u76EE\u6807\u3001\u8BB2\u89E3\u548C\u7EC3\u4E60\u5F0F\u6559\u5B66\u7ED3\u6784\u3002"
     );
   }
-  if (type2 === "interview") {
+  if (type === "interview") {
     add(
       countMatches(
         transcript,
@@ -804,7 +826,7 @@ function structuralSignals(type2, transcript, chapters) {
       "\u591A\u8F6E\u95EE\u9898\u4E0E\u7B2C\u4E00\u4EBA\u79F0\u56DE\u7B54\u5171\u540C\u51FA\u73B0\u3002"
     );
   }
-  if (type2 === "tutorial") {
+  if (type === "tutorial") {
     add(
       countMatches(
         transcript,
@@ -815,7 +837,7 @@ function structuralSignals(type2, transcript, chapters) {
     );
     add(chapters.length >= 3 && sequentialChapters >= 2, 0.14, "\u7AE0\u8282\u5F62\u6210\u8FDE\u7EED\u64CD\u4F5C\u6B65\u9AA4\u3002");
   }
-  if (type2 === "news") {
+  if (type === "news") {
     add(
       countMatches(
         transcript,
@@ -833,7 +855,7 @@ function structuralSignals(type2, transcript, chapters) {
       "\u5305\u542B\u591A\u4E2A\u660E\u786E\u65E5\u671F\u6216\u4E8B\u4EF6\u65F6\u95F4\u7EBF\u7D22\u3002"
     );
   }
-  if (type2 === "meeting") {
+  if (type === "meeting") {
     add(
       countMatches(
         transcript,
@@ -848,7 +870,7 @@ function structuralSignals(type2, transcript, chapters) {
       "\u7AE0\u8282\u540C\u65F6\u533A\u5206\u51B3\u7B56\u4E0E\u540E\u7EED\u884C\u52A8\u3002"
     );
   }
-  if (type2 === "review") {
+  if (type === "review") {
     add(
       countMatches(
         transcript,
@@ -869,17 +891,17 @@ function structuralSignals(type2, transcript, chapters) {
   }
   return { score: round(Math.min(score, 0.3)), reasons };
 }
-function decision(type2, confidence, source, reasons, candidateScores) {
+function decision(type, confidence, source, reasons, candidateScores) {
   return {
-    type: type2,
+    type,
     confidence: round(clamp(confidence, 0, 1)),
     source,
     reasons,
-    prompt_profile: getContentPromptProfile(type2),
+    prompt_profile: getContentPromptProfile(type),
     candidate_scores: candidateScores
   };
 }
-function buildOutputSchema(type2, sections) {
+function buildOutputSchema(type, sections) {
   const sectionProperties = Object.fromEntries(
     sections.map((item) => [
       item.key,
@@ -895,7 +917,7 @@ function buildOutputSchema(type2, sections) {
     properties: {
       content_type: {
         type: "string",
-        const: type2,
+        const: type,
         description: "The resolved supported content type."
       },
       summary: {
@@ -924,10 +946,10 @@ function buildOutputSchema(type2, sections) {
         type: "object",
         required: ["type", "confidence", "reasons", "prompt_profile"],
         properties: {
-          type: { type: "string", const: type2 },
+          type: { type: "string", const: type },
           confidence: { type: "number" },
           reasons: { type: "array", items: { type: "string" } },
-          prompt_profile: { type: "string", const: `video-content-${type2}-v1` }
+          prompt_profile: { type: "string", const: `video-content-${type}-v1` }
         }
       }
     }
@@ -940,17 +962,17 @@ function cue(pattern, label) {
   return { pattern, label };
 }
 function normalizeRequestedType(raw) {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = scalarText(raw).trim().toLowerCase();
   if (value === "auto") return "auto";
   return normalizeContentType(value);
 }
 function normalizeContentType(raw) {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = scalarText(raw).trim().toLowerCase();
   return VIDEO_CONTENT_TYPES.includes(value) ? value : void 0;
 }
 function normalizeConfidence(raw) {
   if (raw === null || raw === void 0 || raw === "" || typeof raw === "boolean") return void 0;
-  const value = typeof raw === "number" ? raw : Number(String(raw).trim());
+  const value = typeof raw === "number" ? raw : Number(scalarText(raw).trim());
   if (!Number.isFinite(value)) return void 0;
   return clamp(value > 1 && value <= 100 ? value / 100 : value, 0, 1);
 }
@@ -958,7 +980,7 @@ function normalizeBackendReasons(raw) {
   if (!Array.isArray(raw)) return [];
   const reasons = [];
   for (const item of raw) {
-    const value = typeof item === "string" ? item : item && typeof item === "object" && "message" in item ? String(item.message || "") : "";
+    const value = typeof item === "string" ? item : item && typeof item === "object" && "message" in item ? scalarText(item.message) : "";
     const message = value.replace(/\s+/g, " ").trim().slice(0, 240);
     if (message) reasons.push({ signal: "backend", message });
     if (reasons.length >= 8) break;
@@ -972,15 +994,16 @@ function normalizeChapters(raw) {
     if (!item || typeof item !== "object") return "";
     const record = item;
     for (const key of ["title", "name", "label", "text", "summary"]) {
-      if (typeof record[key] === "string" && record[key].trim()) {
-        return normalizeText(record[key]);
+      const value = record[key];
+      if (typeof value === "string" && value.trim()) {
+        return normalizeText(value);
       }
     }
     return "";
   }).filter(Boolean).slice(0, 100);
 }
 function normalizeText(raw) {
-  return String(raw || "").normalize("NFKC").replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return scalarText(raw).normalize("NFKC").replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 function signalLabel(signal) {
   return {
@@ -996,7 +1019,7 @@ function countMatches(text, pattern) {
   return Array.from(text.matchAll(new RegExp(pattern.source, flags))).length;
 }
 function hasValue(value) {
-  return value !== void 0 && value !== null && String(value).trim() !== "";
+  return value !== void 0 && value !== null && (scalarText(value).trim() !== "" || typeof value === "object");
 }
 function formatConfidence(value) {
   return `${Math.round(value * 100)}%`;
@@ -1022,42 +1045,43 @@ var EVIDENCE_SOURCES = /* @__PURE__ */ new Set([
 ]);
 var TIMING_QUALITY = /* @__PURE__ */ new Set(["exact", "aligned", "estimated", "none"]);
 function normalizeRichProcessingResult(base, payload, context = {}) {
+  const p = asRecord(payload);
   const sourceUrl = context.sourceUrl || readString(payload, ["source_url", "video_url", "link"]);
   const transcript = base.video_transcript || readString(payload, ["video_transcript", "transcript", "provided_transcript"]);
-  const rawSegments = readArray(payload, ["video_segments", "segments", "transcript_segments", "cues"]) || readArray(payload?.artifact, ["video_segments", "segments", "transcript_segments", "cues"]);
+  const rawSegments = readArray(payload, ["video_segments", "segments", "transcript_segments", "cues"]) || readArray(p.artifact, ["video_segments", "segments", "transcript_segments", "cues"]);
   const fallbackQuality = normalizeTimingQuality(
-    payload?.timing_quality || payload?.artifact?.timing_quality,
+    p.timing_quality || asRecord(p.artifact).timing_quality,
     "none"
   );
   const segments = normalizeSegments(rawSegments, transcript, sourceUrl, fallbackQuality);
   const timingQuality = aggregateTimingQuality(
     segments,
-    normalizeTimingQuality(payload?.timing_quality || payload?.artifact?.timing_quality, "none")
+    normalizeTimingQuality(p.timing_quality || asRecord(p.artifact).timing_quality, "none")
   );
   const claims = normalizeClaims(
-    readArray(payload, ["evidence_claims", "claims"]) || readArray(payload?.artifact, ["evidence_claims", "claims"]),
+    readArray(payload, ["evidence_claims", "claims"]) || readArray(p.artifact, ["evidence_claims", "claims"]),
     segments
   );
   const visualEvidence = normalizeVisualEvidence(
-    readArray(payload, ["visual_evidence", "visual_observations", "keyframes"]) || readArray(payload?.artifact, ["visual_evidence", "visual_observations", "keyframes"])
+    readArray(payload, ["visual_evidence", "visual_observations", "keyframes"]) || readArray(p.artifact, ["visual_evidence", "visual_observations", "keyframes"])
   );
-  const backendRouting = objectOrUndefined(payload?.content_routing) || objectOrUndefined(payload?.routing) || objectOrUndefined(payload?.artifact?.content_routing);
+  const backendRouting = objectOrUndefined(p.content_routing) || objectOrUndefined(p.routing) || objectOrUndefined(asRecord(p.artifact).content_routing);
   const contentRouting = resolveContentRoute({
     requestedType: context.requestedContentType,
     autoRoute: context.autoRoute,
-    backendType: payload?.content_type || payload?.resolved_content_type || payload?.artifact?.content_type || backendRouting?.type || backendRouting?.content_type,
-    backendConfidence: backendRouting?.confidence ?? payload?.content_type_confidence ?? payload?.routing_confidence,
-    backendReasons: backendRouting?.reasons ?? payload?.content_type_reasons ?? payload?.routing_reasons,
+    backendType: p.content_type || p.resolved_content_type || asRecord(p.artifact).content_type || backendRouting?.type || backendRouting?.content_type,
+    backendConfidence: backendRouting?.confidence ?? p.content_type_confidence ?? p.routing_confidence,
+    backendReasons: backendRouting?.reasons ?? p.content_type_reasons ?? p.routing_reasons,
     title: base.video_title || readString(payload, ["video_title", "title", "name"]),
     author: base.video_author || readString(payload, ["video_author", "author", "channel", "creator", "uploader"]),
     transcript,
-    chapters: context.chapters || payload?.video_chapters || payload?.chapters || payload?.artifact?.chapters
+    chapters: context.chapters || p.video_chapters || p.chapters || asRecord(p.artifact).chapters
   });
   const attention = normalizeAttention(
-    payload?.attention || payload?.attention_assessment || payload?.artifact?.attention
+    p.attention || p.attention_assessment || asRecord(p.artifact).attention
   );
   const learning = normalizeLearning(
-    payload?.learning || payload?.learning_package || payload?.artifact?.learning
+    p.learning || p.learning_package || asRecord(p.artifact).learning
   );
   const provenance = normalizeProvenance(
     payload,
@@ -1081,9 +1105,7 @@ function normalizeRichProcessingResult(base, payload, context = {}) {
     attention,
     learning,
     artifact: provenance,
-    related_notes: normalizeRelatedNotes(
-      payload?.related_notes || payload?.artifact?.related_notes
-    )
+    related_notes: normalizeRelatedNotes(p.related_notes || asRecord(p.artifact).related_notes)
   };
 }
 function normalizeSegments(rawSegments, transcript = "", sourceUrl = "", fallbackQuality = "none") {
@@ -1157,7 +1179,7 @@ function normalizeSegment(raw, index, sourceUrl, fallbackQuality) {
       timing_quality: "none"
     };
   }
-  if (!raw || typeof raw !== "object") return null;
+  if (!isRecord(raw)) return null;
   const text = readString(raw, ["text", "transcript", "content", "quote"]);
   if (!text) return null;
   const start = readNumber(raw, ["start", "start_seconds", "startTime", "offset"]);
@@ -1240,7 +1262,7 @@ function parseTimestampPrefixedTranscript(text, sourceUrl) {
 function normalizeClaims(rawClaims, segments) {
   const segmentsById = new Map(segments.map((segment) => [segment.id, segment]));
   return (rawClaims || []).map((raw, index) => {
-    if (!raw || typeof raw !== "object") return null;
+    if (!isRecord(raw)) return null;
     const claim = readString(raw, ["claim", "text", "summary", "title"]);
     if (!claim) return null;
     const explicitEvidence = Array.isArray(raw.evidence) ? raw.evidence : [];
@@ -1314,7 +1336,7 @@ function normalizeClaims(rawClaims, segments) {
 }
 function normalizeVisualEvidence(rawItems) {
   return (rawItems || []).map((raw, index) => {
-    if (!raw || typeof raw !== "object") return null;
+    if (!isRecord(raw)) return null;
     const description = readString(raw, ["description", "text", "caption", "summary"]);
     const ocrText = readString(raw, ["ocr_text", "visual_text", "screen_text"]);
     if (!description && !ocrText) return null;
@@ -1334,8 +1356,8 @@ function normalizeVisualEvidence(rawItems) {
   }).filter((item) => item !== null);
 }
 function normalizeAttention(raw) {
-  if (!raw || typeof raw !== "object") return void 0;
-  const action = ["watch", "skim", "skip"].includes(raw.action) ? raw.action : void 0;
+  if (!isRecord(raw)) return void 0;
+  const action = oneOf(raw.action, ["watch", "skim", "skip"]);
   const rationale = readString(raw, ["rationale", "reason", "summary"]);
   if (!action || !rationale) return void 0;
   return {
@@ -1357,8 +1379,8 @@ function normalizeAttention(raw) {
   };
 }
 function normalizeLearning(raw) {
-  if (!raw || typeof raw !== "object") return void 0;
-  const flashcards = Array.isArray(raw.flashcards) ? raw.flashcards.map((item) => {
+  if (!isRecord(raw)) return void 0;
+  const flashcards = Array.isArray(raw.flashcards) ? asArray(raw.flashcards).map(asRecord).map((item) => {
     const front = readString(item, ["front", "question", "prompt"]);
     const back = readString(item, ["back", "answer"]);
     if (!front || !back) return null;
@@ -1372,13 +1394,13 @@ function normalizeLearning(raw) {
       tags: normalizeStringArray(item.tags)
     };
   }).filter(Boolean) : void 0;
-  const questions = Array.isArray(raw.questions) ? raw.questions.map((item) => {
+  const questions = Array.isArray(raw.questions) ? asArray(raw.questions).map(asRecord).map((item) => {
     const prompt = readString(item, ["prompt", "question"]);
     const rawAnswer = readString(item, ["answer", "correct_answer"]);
     const choices = normalizeStringArray(item.choices);
     const answer = resolveChoiceAnswer(rawAnswer, choices);
     if (!prompt || !answer) return null;
-    const difficulty = ["easy", "medium", "hard"].includes(item.difficulty) ? item.difficulty : void 0;
+    const difficulty = oneOf(item.difficulty, ["easy", "medium", "hard"]);
     const providerId = readString(item, ["id"]);
     return {
       id: `question-${stableHash(`${normalizeText2(prompt)}|${normalizeText2(answer)}`)}`,
@@ -1409,7 +1431,10 @@ function resolveChoiceAnswer(answer, choices) {
   return choices[index] || raw;
 }
 function normalizeProvenance(payload, context, sourceUrl, timingQuality, contentRouting) {
-  const raw = payload?.artifact?.provenance || payload?.provenance || payload?.artifact || {};
+  const source = asRecord(payload);
+  const raw = asRecord(
+    asRecord(source.artifact).provenance || source.provenance || source.artifact
+  );
   const sourceHash = readString(raw, ["source_hash"]) || stableHash(normalizeSource(sourceUrl));
   const warnings = normalizeStringArray(raw.warnings) ?? [];
   if (timingQuality === "estimated") {
@@ -1445,7 +1470,7 @@ function normalizeEvidenceReference(raw, fallbackSource) {
     const segmentId2 = raw.trim();
     return segmentId2 ? { segment_id: sanitizeId(segmentId2), source: fallbackSource } : null;
   }
-  if (!raw || typeof raw !== "object") return null;
+  if (!isRecord(raw)) return null;
   const segmentId = readString(raw, ["segment_id", "id"]);
   if (!segmentId) return null;
   return {
@@ -1484,7 +1509,7 @@ function normalizeRelatedNotes(raw) {
     "related"
   ]);
   const values = raw.map((item) => {
-    if (!item || typeof item !== "object") return null;
+    if (!isRecord(item)) return null;
     const notePath = readString(item, ["note_path", "path"]);
     const reason = readString(item, ["reason", "rationale"]);
     const relation = allowed.has(item.relation) ? item.relation : "related";
@@ -1501,7 +1526,7 @@ function normalizeRelatedNotes(raw) {
 function normalizeAttentionRanges(raw) {
   if (!Array.isArray(raw)) return void 0;
   const values = raw.map((item) => {
-    if (!item || typeof item !== "object") return null;
+    if (!isRecord(item)) return null;
     const start = readNumber(item, ["start", "start_seconds"]);
     const end = readNumber(item, ["end", "end_seconds"]);
     const reason = readString(item, ["reason", "rationale"]);
@@ -1582,10 +1607,10 @@ function nearestSegment(segments, seconds) {
   return best && best.distance <= MAX_ALIGNMENT_GAP_SECONDS ? best.segment : void 0;
 }
 function normalizeTimingQuality(raw, fallback) {
-  return TIMING_QUALITY.has(raw) ? raw : fallback;
+  return typeof raw === "string" && TIMING_QUALITY.has(raw) ? raw : fallback;
 }
 function normalizeEvidenceSource(raw, fallback) {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = (asText(raw) ?? "").trim().toLowerCase();
   const aliases = {
     audio: "speech",
     transcript: "speech",
@@ -1598,19 +1623,23 @@ function normalizeEvidenceSource(raw, fallback) {
     ai: "ai-inference"
   };
   const normalized = aliases[value] || value;
-  return EVIDENCE_SOURCES.has(normalized) ? normalized : fallback;
+  return [...EVIDENCE_SOURCES].find((source) => source === normalized) ?? fallback;
 }
 function normalizeReviewState(raw, source) {
-  if (["supported", "needs-review", "inference"].includes(raw)) return raw;
+  const state = oneOf(raw, ["supported", "needs-review", "inference"]);
+  if (state) return state;
   return source === "ai-inference" ? "inference" : "supported";
 }
 function normalizeVisualKind(raw) {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = (asText(raw) ?? "").trim().toLowerCase();
   const allowed = /* @__PURE__ */ new Set(["slide", "chart", "code", "interface", "object", "scene", "other"]);
   return allowed.has(value) ? value : "other";
 }
 function normalizeProcessingDepth(raw) {
-  return ["quick", "evidence", "deep-visual"].includes(raw) ? raw : void 0;
+  return oneOf(raw, ["quick", "evidence", "deep-visual"]);
+}
+function oneOf(raw, allowed) {
+  return typeof raw === "string" && allowed.includes(raw) ? raw : void 0;
 }
 function normalizeBackend(raw) {
   return raw === "n8n" || raw === "codex-worker" ? raw : void 0;
@@ -1626,9 +1655,10 @@ function normalizeStringArray(raw) {
   return values.length > 0 ? Array.from(new Set(values)) : void 0;
 }
 function readArray(source, keys) {
-  if (!source || typeof source !== "object") return void 0;
+  if (!isRecord(source)) return void 0;
   for (const key of keys) {
-    if (Array.isArray(source[key])) return source[key];
+    const value = source[key];
+    if (Array.isArray(value)) return value;
   }
   return void 0;
 }
@@ -1636,7 +1666,7 @@ function objectOrUndefined(source) {
   return source && typeof source === "object" && !Array.isArray(source) ? source : void 0;
 }
 function readString(source, keys) {
-  if (!source || typeof source !== "object") return "";
+  if (!isRecord(source)) return "";
   for (const key of keys) {
     const value = source[key];
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -1644,7 +1674,7 @@ function readString(source, keys) {
   return "";
 }
 function readNumber(source, keys) {
-  if (!source || typeof source !== "object") return null;
+  if (!isRecord(source)) return null;
   for (const key of keys) {
     const raw = source[key];
     if (raw === null || raw === void 0 || typeof raw === "boolean" || typeof raw === "string" && !raw.trim()) {
@@ -1659,7 +1689,7 @@ function cleanCueText(value) {
   return value.replace(/<[^>]+>/g, "").replace(/\{\\[^}]+\}/g, "").replace(/\s+/g, " ").trim();
 }
 function normalizeText2(value) {
-  return String(value || "").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
+  return (asText(value) ?? "").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
 }
 function normalizeSource(value) {
   return String(value || "").trim().replace(/#.*$/, "");
@@ -1955,3063 +1985,8 @@ var ERROR_MESSAGES = {
   NETWORK_ERROR: "\u7F51\u7EDC\u8FDE\u63A5\u9519\u8BEF"
 };
 
-// node_modules/js-yaml/dist/js-yaml.mjs
-function getDefaultExportFromCjs(x) {
-  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
-}
-var jsYaml = {};
-var loader = {};
-var common = {};
-var hasRequiredCommon;
-function requireCommon() {
-  if (hasRequiredCommon) return common;
-  hasRequiredCommon = 1;
-  function isNothing(subject) {
-    return typeof subject === "undefined" || subject === null;
-  }
-  function isObject(subject) {
-    return typeof subject === "object" && subject !== null;
-  }
-  function toArray(sequence) {
-    if (Array.isArray(sequence)) return sequence;
-    else if (isNothing(sequence)) return [];
-    return [sequence];
-  }
-  function extend(target, source) {
-    if (source) {
-      const sourceKeys = Object.keys(source);
-      for (let index = 0, length = sourceKeys.length; index < length; index += 1) {
-        const key = sourceKeys[index];
-        target[key] = source[key];
-      }
-    }
-    return target;
-  }
-  function repeat(string, count) {
-    let result = "";
-    for (let cycle = 0; cycle < count; cycle += 1) {
-      result += string;
-    }
-    return result;
-  }
-  function isNegativeZero(number) {
-    return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
-  }
-  common.isNothing = isNothing;
-  common.isObject = isObject;
-  common.toArray = toArray;
-  common.repeat = repeat;
-  common.isNegativeZero = isNegativeZero;
-  common.extend = extend;
-  return common;
-}
-var exception;
-var hasRequiredException;
-function requireException() {
-  if (hasRequiredException) return exception;
-  hasRequiredException = 1;
-  function formatError(exception2, compact) {
-    let where = "";
-    const message = exception2.reason || "(unknown reason)";
-    if (!exception2.mark) return message;
-    if (exception2.mark.name) {
-      where += 'in "' + exception2.mark.name + '" ';
-    }
-    where += "(" + (exception2.mark.line + 1) + ":" + (exception2.mark.column + 1) + ")";
-    if (!compact && exception2.mark.snippet) {
-      where += "\n\n" + exception2.mark.snippet;
-    }
-    return message + " " + where;
-  }
-  function YAMLException2(reason, mark) {
-    Error.call(this);
-    this.name = "YAMLException";
-    this.reason = reason;
-    this.mark = mark;
-    this.message = formatError(this, false);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor);
-    } else {
-      this.stack = new Error().stack || "";
-    }
-  }
-  YAMLException2.prototype = Object.create(Error.prototype);
-  YAMLException2.prototype.constructor = YAMLException2;
-  YAMLException2.prototype.toString = function toString(compact) {
-    return this.name + ": " + formatError(this, compact);
-  };
-  exception = YAMLException2;
-  return exception;
-}
-var snippet;
-var hasRequiredSnippet;
-function requireSnippet() {
-  if (hasRequiredSnippet) return snippet;
-  hasRequiredSnippet = 1;
-  const common2 = requireCommon();
-  function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
-    let head = "";
-    let tail = "";
-    const maxHalfLength = Math.floor(maxLineLength / 2) - 1;
-    if (position - lineStart > maxHalfLength) {
-      head = " ... ";
-      lineStart = position - maxHalfLength + head.length;
-    }
-    if (lineEnd - position > maxHalfLength) {
-      tail = " ...";
-      lineEnd = position + maxHalfLength - tail.length;
-    }
-    return {
-      str: head + buffer.slice(lineStart, lineEnd).replace(/\t/g, "\u2192") + tail,
-      pos: position - lineStart + head.length
-      // relative position
-    };
-  }
-  function padStart(string, max) {
-    return common2.repeat(" ", max - string.length) + string;
-  }
-  function makeSnippet2(mark, options) {
-    options = Object.create(options || null);
-    if (!mark.buffer) return null;
-    if (!options.maxLength) options.maxLength = 79;
-    if (typeof options.indent !== "number") options.indent = 1;
-    if (typeof options.linesBefore !== "number") options.linesBefore = 3;
-    if (typeof options.linesAfter !== "number") options.linesAfter = 2;
-    const re = /\r?\n|\r|\0/g;
-    const lineStarts = [0];
-    const lineEnds = [];
-    let match;
-    let foundLineNo = -1;
-    while (match = re.exec(mark.buffer)) {
-      lineEnds.push(match.index);
-      lineStarts.push(match.index + match[0].length);
-      if (mark.position <= match.index && foundLineNo < 0) {
-        foundLineNo = lineStarts.length - 2;
-      }
-    }
-    if (foundLineNo < 0) foundLineNo = lineStarts.length - 1;
-    let result = "";
-    const lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
-    const maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
-    for (let i = 1; i <= options.linesBefore; i++) {
-      if (foundLineNo - i < 0) break;
-      const line2 = getLine(
-        mark.buffer,
-        lineStarts[foundLineNo - i],
-        lineEnds[foundLineNo - i],
-        mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i]),
-        maxLineLength
-      );
-      result = common2.repeat(" ", options.indent) + padStart((mark.line - i + 1).toString(), lineNoLength) + " | " + line2.str + "\n" + result;
-    }
-    const line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
-    result += common2.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + "\n";
-    result += common2.repeat("-", options.indent + lineNoLength + 3 + line.pos) + "^\n";
-    for (let i = 1; i <= options.linesAfter; i++) {
-      if (foundLineNo + i >= lineEnds.length) break;
-      const line2 = getLine(
-        mark.buffer,
-        lineStarts[foundLineNo + i],
-        lineEnds[foundLineNo + i],
-        mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i]),
-        maxLineLength
-      );
-      result += common2.repeat(" ", options.indent) + padStart((mark.line + i + 1).toString(), lineNoLength) + " | " + line2.str + "\n";
-    }
-    return result.replace(/\n$/, "");
-  }
-  snippet = makeSnippet2;
-  return snippet;
-}
-var type;
-var hasRequiredType;
-function requireType() {
-  if (hasRequiredType) return type;
-  hasRequiredType = 1;
-  const YAMLException2 = requireException();
-  const TYPE_CONSTRUCTOR_OPTIONS = [
-    "kind",
-    "multi",
-    "resolve",
-    "construct",
-    "instanceOf",
-    "predicate",
-    "represent",
-    "representName",
-    "defaultStyle",
-    "styleAliases"
-  ];
-  const YAML_NODE_KINDS = [
-    "scalar",
-    "sequence",
-    "mapping"
-  ];
-  function compileStyleAliases(map2) {
-    const result = {};
-    if (map2 !== null) {
-      Object.keys(map2).forEach(function(style) {
-        map2[style].forEach(function(alias) {
-          result[String(alias)] = style;
-        });
-      });
-    }
-    return result;
-  }
-  function Type2(tag, options) {
-    options = options || {};
-    Object.keys(options).forEach(function(name) {
-      if (TYPE_CONSTRUCTOR_OPTIONS.indexOf(name) === -1) {
-        throw new YAMLException2('Unknown option "' + name + '" is met in definition of "' + tag + '" YAML type.');
-      }
-    });
-    this.options = options;
-    this.tag = tag;
-    this.kind = options["kind"] || null;
-    this.resolve = options["resolve"] || function() {
-      return true;
-    };
-    this.construct = options["construct"] || function(data) {
-      return data;
-    };
-    this.instanceOf = options["instanceOf"] || null;
-    this.predicate = options["predicate"] || null;
-    this.represent = options["represent"] || null;
-    this.representName = options["representName"] || null;
-    this.defaultStyle = options["defaultStyle"] || null;
-    this.multi = options["multi"] || false;
-    this.styleAliases = compileStyleAliases(options["styleAliases"] || null);
-    if (YAML_NODE_KINDS.indexOf(this.kind) === -1) {
-      throw new YAMLException2('Unknown kind "' + this.kind + '" is specified for "' + tag + '" YAML type.');
-    }
-  }
-  type = Type2;
-  return type;
-}
-var schema;
-var hasRequiredSchema;
-function requireSchema() {
-  if (hasRequiredSchema) return schema;
-  hasRequiredSchema = 1;
-  const YAMLException2 = requireException();
-  const Type2 = requireType();
-  function compileList(schema2, name) {
-    const result = [];
-    schema2[name].forEach(function(currentType) {
-      let newIndex = result.length;
-      result.forEach(function(previousType, previousIndex) {
-        if (previousType.tag === currentType.tag && previousType.kind === currentType.kind && previousType.multi === currentType.multi) {
-          newIndex = previousIndex;
-        }
-      });
-      result[newIndex] = currentType;
-    });
-    return result;
-  }
-  function compileMap() {
-    const result = {
-      scalar: {},
-      sequence: {},
-      mapping: {},
-      fallback: {},
-      multi: {
-        scalar: [],
-        sequence: [],
-        mapping: [],
-        fallback: []
-      }
-    };
-    function collectType(type2) {
-      if (type2.multi) {
-        result.multi[type2.kind].push(type2);
-        result.multi["fallback"].push(type2);
-      } else {
-        result[type2.kind][type2.tag] = result["fallback"][type2.tag] = type2;
-      }
-    }
-    for (let index = 0, length = arguments.length; index < length; index += 1) {
-      arguments[index].forEach(collectType);
-    }
-    return result;
-  }
-  function Schema2(definition) {
-    return this.extend(definition);
-  }
-  Schema2.prototype.extend = function extend(definition) {
-    let implicit = [];
-    let explicit = [];
-    if (definition instanceof Type2) {
-      explicit.push(definition);
-    } else if (Array.isArray(definition)) {
-      explicit = explicit.concat(definition);
-    } else if (definition && (Array.isArray(definition.implicit) || Array.isArray(definition.explicit))) {
-      if (definition.implicit) implicit = implicit.concat(definition.implicit);
-      if (definition.explicit) explicit = explicit.concat(definition.explicit);
-    } else {
-      throw new YAMLException2("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
-    }
-    implicit.forEach(function(type2) {
-      if (!(type2 instanceof Type2)) {
-        throw new YAMLException2("Specified list of YAML types (or a single Type object) contains a non-Type object.");
-      }
-      if (type2.loadKind && type2.loadKind !== "scalar") {
-        throw new YAMLException2("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
-      }
-      if (type2.multi) {
-        throw new YAMLException2("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
-      }
-    });
-    explicit.forEach(function(type2) {
-      if (!(type2 instanceof Type2)) {
-        throw new YAMLException2("Specified list of YAML types (or a single Type object) contains a non-Type object.");
-      }
-    });
-    const result = Object.create(Schema2.prototype);
-    result.implicit = (this.implicit || []).concat(implicit);
-    result.explicit = (this.explicit || []).concat(explicit);
-    result.compiledImplicit = compileList(result, "implicit");
-    result.compiledExplicit = compileList(result, "explicit");
-    result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
-    return result;
-  };
-  schema = Schema2;
-  return schema;
-}
-var str;
-var hasRequiredStr;
-function requireStr() {
-  if (hasRequiredStr) return str;
-  hasRequiredStr = 1;
-  const Type2 = requireType();
-  str = new Type2("tag:yaml.org,2002:str", {
-    kind: "scalar",
-    construct: function(data) {
-      return data !== null ? data : "";
-    }
-  });
-  return str;
-}
-var seq;
-var hasRequiredSeq;
-function requireSeq() {
-  if (hasRequiredSeq) return seq;
-  hasRequiredSeq = 1;
-  const Type2 = requireType();
-  seq = new Type2("tag:yaml.org,2002:seq", {
-    kind: "sequence",
-    construct: function(data) {
-      return data !== null ? data : [];
-    }
-  });
-  return seq;
-}
-var map;
-var hasRequiredMap;
-function requireMap() {
-  if (hasRequiredMap) return map;
-  hasRequiredMap = 1;
-  const Type2 = requireType();
-  map = new Type2("tag:yaml.org,2002:map", {
-    kind: "mapping",
-    construct: function(data) {
-      return data !== null ? data : {};
-    }
-  });
-  return map;
-}
-var failsafe;
-var hasRequiredFailsafe;
-function requireFailsafe() {
-  if (hasRequiredFailsafe) return failsafe;
-  hasRequiredFailsafe = 1;
-  const Schema2 = requireSchema();
-  failsafe = new Schema2({
-    explicit: [
-      requireStr(),
-      requireSeq(),
-      requireMap()
-    ]
-  });
-  return failsafe;
-}
-var _null;
-var hasRequired_null;
-function require_null() {
-  if (hasRequired_null) return _null;
-  hasRequired_null = 1;
-  const Type2 = requireType();
-  function resolveYamlNull(data) {
-    if (data === null) return true;
-    const max = data.length;
-    return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
-  }
-  function constructYamlNull() {
-    return null;
-  }
-  function isNull(object) {
-    return object === null;
-  }
-  _null = new Type2("tag:yaml.org,2002:null", {
-    kind: "scalar",
-    resolve: resolveYamlNull,
-    construct: constructYamlNull,
-    predicate: isNull,
-    represent: {
-      canonical: function() {
-        return "~";
-      },
-      lowercase: function() {
-        return "null";
-      },
-      uppercase: function() {
-        return "NULL";
-      },
-      camelcase: function() {
-        return "Null";
-      },
-      empty: function() {
-        return "";
-      }
-    },
-    defaultStyle: "lowercase"
-  });
-  return _null;
-}
-var bool;
-var hasRequiredBool;
-function requireBool() {
-  if (hasRequiredBool) return bool;
-  hasRequiredBool = 1;
-  const Type2 = requireType();
-  function resolveYamlBoolean(data) {
-    if (data === null) return false;
-    const max = data.length;
-    return max === 4 && (data === "true" || data === "True" || data === "TRUE") || max === 5 && (data === "false" || data === "False" || data === "FALSE");
-  }
-  function constructYamlBoolean(data) {
-    return data === "true" || data === "True" || data === "TRUE";
-  }
-  function isBoolean(object) {
-    return Object.prototype.toString.call(object) === "[object Boolean]";
-  }
-  bool = new Type2("tag:yaml.org,2002:bool", {
-    kind: "scalar",
-    resolve: resolveYamlBoolean,
-    construct: constructYamlBoolean,
-    predicate: isBoolean,
-    represent: {
-      lowercase: function(object) {
-        return object ? "true" : "false";
-      },
-      uppercase: function(object) {
-        return object ? "TRUE" : "FALSE";
-      },
-      camelcase: function(object) {
-        return object ? "True" : "False";
-      }
-    },
-    defaultStyle: "lowercase"
-  });
-  return bool;
-}
-var int;
-var hasRequiredInt;
-function requireInt() {
-  if (hasRequiredInt) return int;
-  hasRequiredInt = 1;
-  const common2 = requireCommon();
-  const Type2 = requireType();
-  function isHexCode(c) {
-    return c >= 48 && c <= 57 || c >= 65 && c <= 70 || c >= 97 && c <= 102;
-  }
-  function isOctCode(c) {
-    return c >= 48 && c <= 55;
-  }
-  function isDecCode(c) {
-    return c >= 48 && c <= 57;
-  }
-  function resolveYamlInteger(data) {
-    if (data === null) return false;
-    const max = data.length;
-    let index = 0;
-    let hasDigits = false;
-    if (!max) return false;
-    let ch = data[index];
-    if (ch === "-" || ch === "+") {
-      ch = data[++index];
-    }
-    if (ch === "0") {
-      if (index + 1 === max) return true;
-      ch = data[++index];
-      if (ch === "b") {
-        index++;
-        for (; index < max; index++) {
-          ch = data[index];
-          if (ch !== "0" && ch !== "1") return false;
-          hasDigits = true;
-        }
-        return hasDigits && isFinite(parseYamlInteger(data));
-      }
-      if (ch === "x") {
-        index++;
-        for (; index < max; index++) {
-          if (!isHexCode(data.charCodeAt(index))) return false;
-          hasDigits = true;
-        }
-        return hasDigits && isFinite(parseYamlInteger(data));
-      }
-      if (ch === "o") {
-        index++;
-        for (; index < max; index++) {
-          if (!isOctCode(data.charCodeAt(index))) return false;
-          hasDigits = true;
-        }
-        return hasDigits && isFinite(parseYamlInteger(data));
-      }
-    }
-    for (; index < max; index++) {
-      if (!isDecCode(data.charCodeAt(index))) {
-        return false;
-      }
-      hasDigits = true;
-    }
-    if (!hasDigits) return false;
-    return isFinite(parseYamlInteger(data));
-  }
-  function parseYamlInteger(data) {
-    let value = data;
-    let sign = 1;
-    let ch = value[0];
-    if (ch === "-" || ch === "+") {
-      if (ch === "-") sign = -1;
-      value = value.slice(1);
-      ch = value[0];
-    }
-    if (value === "0") return 0;
-    if (ch === "0") {
-      if (value[1] === "b") return sign * parseInt(value.slice(2), 2);
-      if (value[1] === "x") return sign * parseInt(value.slice(2), 16);
-      if (value[1] === "o") return sign * parseInt(value.slice(2), 8);
-    }
-    return sign * parseInt(value, 10);
-  }
-  function constructYamlInteger(data) {
-    return parseYamlInteger(data);
-  }
-  function isInteger(object) {
-    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common2.isNegativeZero(object));
-  }
-  int = new Type2("tag:yaml.org,2002:int", {
-    kind: "scalar",
-    resolve: resolveYamlInteger,
-    construct: constructYamlInteger,
-    predicate: isInteger,
-    represent: {
-      binary: function(obj) {
-        return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
-      },
-      octal: function(obj) {
-        return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
-      },
-      decimal: function(obj) {
-        return obj.toString(10);
-      },
-      hexadecimal: function(obj) {
-        return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
-      }
-    },
-    defaultStyle: "decimal",
-    styleAliases: {
-      binary: [2, "bin"],
-      octal: [8, "oct"],
-      decimal: [10, "dec"],
-      hexadecimal: [16, "hex"]
-    }
-  });
-  return int;
-}
-var float;
-var hasRequiredFloat;
-function requireFloat() {
-  if (hasRequiredFloat) return float;
-  hasRequiredFloat = 1;
-  const common2 = requireCommon();
-  const Type2 = requireType();
-  const YAML_FLOAT_PATTERN = new RegExp(
-    // 2.5e4, 2.5 and integers
-    "^(?:[-+]?(?:[0-9]+)(?:\\.[0-9]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
-  );
-  const YAML_FLOAT_SPECIAL_PATTERN = new RegExp(
-    "^(?:[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
-  );
-  function resolveYamlFloat(data) {
-    if (data === null) return false;
-    if (!YAML_FLOAT_PATTERN.test(data)) {
-      return false;
-    }
-    if (isFinite(parseFloat(data, 10))) {
-      return true;
-    }
-    return YAML_FLOAT_SPECIAL_PATTERN.test(data);
-  }
-  function constructYamlFloat(data) {
-    let value = data.toLowerCase();
-    const sign = value[0] === "-" ? -1 : 1;
-    if ("+-".indexOf(value[0]) >= 0) {
-      value = value.slice(1);
-    }
-    if (value === ".inf") {
-      return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-    } else if (value === ".nan") {
-      return NaN;
-    }
-    return sign * parseFloat(value, 10);
-  }
-  const SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-  function representYamlFloat(object, style) {
-    if (isNaN(object)) {
-      switch (style) {
-        case "lowercase":
-          return ".nan";
-        case "uppercase":
-          return ".NAN";
-        case "camelcase":
-          return ".NaN";
-      }
-    } else if (Number.POSITIVE_INFINITY === object) {
-      switch (style) {
-        case "lowercase":
-          return ".inf";
-        case "uppercase":
-          return ".INF";
-        case "camelcase":
-          return ".Inf";
-      }
-    } else if (Number.NEGATIVE_INFINITY === object) {
-      switch (style) {
-        case "lowercase":
-          return "-.inf";
-        case "uppercase":
-          return "-.INF";
-        case "camelcase":
-          return "-.Inf";
-      }
-    } else if (common2.isNegativeZero(object)) {
-      return "-0.0";
-    }
-    const res = object.toString(10);
-    return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
-  }
-  function isFloat(object) {
-    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common2.isNegativeZero(object));
-  }
-  float = new Type2("tag:yaml.org,2002:float", {
-    kind: "scalar",
-    resolve: resolveYamlFloat,
-    construct: constructYamlFloat,
-    predicate: isFloat,
-    represent: representYamlFloat,
-    defaultStyle: "lowercase"
-  });
-  return float;
-}
-var json;
-var hasRequiredJson;
-function requireJson() {
-  if (hasRequiredJson) return json;
-  hasRequiredJson = 1;
-  json = requireFailsafe().extend({
-    implicit: [
-      require_null(),
-      requireBool(),
-      requireInt(),
-      requireFloat()
-    ]
-  });
-  return json;
-}
-var core;
-var hasRequiredCore;
-function requireCore() {
-  if (hasRequiredCore) return core;
-  hasRequiredCore = 1;
-  core = requireJson();
-  return core;
-}
-var timestamp;
-var hasRequiredTimestamp;
-function requireTimestamp() {
-  if (hasRequiredTimestamp) return timestamp;
-  hasRequiredTimestamp = 1;
-  const Type2 = requireType();
-  const YAML_DATE_REGEXP = new RegExp(
-    "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
-  );
-  const YAML_TIMESTAMP_REGEXP = new RegExp(
-    "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
-  );
-  function resolveYamlTimestamp(data) {
-    if (data === null) return false;
-    if (YAML_DATE_REGEXP.exec(data) !== null) return true;
-    if (YAML_TIMESTAMP_REGEXP.exec(data) !== null) return true;
-    return false;
-  }
-  function constructYamlTimestamp(data) {
-    let fraction = 0;
-    let delta = null;
-    let match = YAML_DATE_REGEXP.exec(data);
-    if (match === null) match = YAML_TIMESTAMP_REGEXP.exec(data);
-    if (match === null) throw new Error("Date resolve error");
-    const year = +match[1];
-    const month = +match[2] - 1;
-    const day = +match[3];
-    if (!match[4]) {
-      return new Date(Date.UTC(year, month, day));
-    }
-    const hour = +match[4];
-    const minute = +match[5];
-    const second = +match[6];
-    if (match[7]) {
-      fraction = match[7].slice(0, 3);
-      while (fraction.length < 3) {
-        fraction += "0";
-      }
-      fraction = +fraction;
-    }
-    if (match[9]) {
-      const tzHour = +match[10];
-      const tzMinute = +(match[11] || 0);
-      delta = (tzHour * 60 + tzMinute) * 6e4;
-      if (match[9] === "-") delta = -delta;
-    }
-    const date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
-    if (delta) date.setTime(date.getTime() - delta);
-    return date;
-  }
-  function representYamlTimestamp(object) {
-    return object.toISOString();
-  }
-  timestamp = new Type2("tag:yaml.org,2002:timestamp", {
-    kind: "scalar",
-    resolve: resolveYamlTimestamp,
-    construct: constructYamlTimestamp,
-    instanceOf: Date,
-    represent: representYamlTimestamp
-  });
-  return timestamp;
-}
-var merge;
-var hasRequiredMerge;
-function requireMerge() {
-  if (hasRequiredMerge) return merge;
-  hasRequiredMerge = 1;
-  const Type2 = requireType();
-  function resolveYamlMerge(data) {
-    return data === "<<" || data === null;
-  }
-  merge = new Type2("tag:yaml.org,2002:merge", {
-    kind: "scalar",
-    resolve: resolveYamlMerge
-  });
-  return merge;
-}
-var binary;
-var hasRequiredBinary;
-function requireBinary() {
-  if (hasRequiredBinary) return binary;
-  hasRequiredBinary = 1;
-  const Type2 = requireType();
-  const BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
-  function resolveYamlBinary(data) {
-    if (data === null) return false;
-    let bitlen = 0;
-    const max = data.length;
-    const map2 = BASE64_MAP;
-    for (let idx = 0; idx < max; idx++) {
-      const code = map2.indexOf(data.charAt(idx));
-      if (code > 64) continue;
-      if (code < 0) return false;
-      bitlen += 6;
-    }
-    return bitlen % 8 === 0;
-  }
-  function constructYamlBinary(data) {
-    const input = data.replace(/[\r\n=]/g, "");
-    const max = input.length;
-    const map2 = BASE64_MAP;
-    let bits = 0;
-    const result = [];
-    for (let idx = 0; idx < max; idx++) {
-      if (idx % 4 === 0 && idx) {
-        result.push(bits >> 16 & 255);
-        result.push(bits >> 8 & 255);
-        result.push(bits & 255);
-      }
-      bits = bits << 6 | map2.indexOf(input.charAt(idx));
-    }
-    const tailbits = max % 4 * 6;
-    if (tailbits === 0) {
-      result.push(bits >> 16 & 255);
-      result.push(bits >> 8 & 255);
-      result.push(bits & 255);
-    } else if (tailbits === 18) {
-      result.push(bits >> 10 & 255);
-      result.push(bits >> 2 & 255);
-    } else if (tailbits === 12) {
-      result.push(bits >> 4 & 255);
-    }
-    return new Uint8Array(result);
-  }
-  function representYamlBinary(object) {
-    let result = "";
-    let bits = 0;
-    const max = object.length;
-    const map2 = BASE64_MAP;
-    for (let idx = 0; idx < max; idx++) {
-      if (idx % 3 === 0 && idx) {
-        result += map2[bits >> 18 & 63];
-        result += map2[bits >> 12 & 63];
-        result += map2[bits >> 6 & 63];
-        result += map2[bits & 63];
-      }
-      bits = (bits << 8) + object[idx];
-    }
-    const tail = max % 3;
-    if (tail === 0) {
-      result += map2[bits >> 18 & 63];
-      result += map2[bits >> 12 & 63];
-      result += map2[bits >> 6 & 63];
-      result += map2[bits & 63];
-    } else if (tail === 2) {
-      result += map2[bits >> 10 & 63];
-      result += map2[bits >> 4 & 63];
-      result += map2[bits << 2 & 63];
-      result += map2[64];
-    } else if (tail === 1) {
-      result += map2[bits >> 2 & 63];
-      result += map2[bits << 4 & 63];
-      result += map2[64];
-      result += map2[64];
-    }
-    return result;
-  }
-  function isBinary(obj) {
-    return Object.prototype.toString.call(obj) === "[object Uint8Array]";
-  }
-  binary = new Type2("tag:yaml.org,2002:binary", {
-    kind: "scalar",
-    resolve: resolveYamlBinary,
-    construct: constructYamlBinary,
-    predicate: isBinary,
-    represent: representYamlBinary
-  });
-  return binary;
-}
-var omap;
-var hasRequiredOmap;
-function requireOmap() {
-  if (hasRequiredOmap) return omap;
-  hasRequiredOmap = 1;
-  const Type2 = requireType();
-  const _hasOwnProperty = Object.prototype.hasOwnProperty;
-  const _toString = Object.prototype.toString;
-  function resolveYamlOmap(data) {
-    if (data === null) return true;
-    const objectKeys = [];
-    const object = data;
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      const pair = object[index];
-      let pairHasKey = false;
-      if (_toString.call(pair) !== "[object Object]") return false;
-      let pairKey;
-      for (pairKey in pair) {
-        if (_hasOwnProperty.call(pair, pairKey)) {
-          if (!pairHasKey) pairHasKey = true;
-          else return false;
-        }
-      }
-      if (!pairHasKey) return false;
-      if (objectKeys.indexOf(pairKey) === -1) objectKeys.push(pairKey);
-      else return false;
-    }
-    return true;
-  }
-  function constructYamlOmap(data) {
-    return data !== null ? data : [];
-  }
-  omap = new Type2("tag:yaml.org,2002:omap", {
-    kind: "sequence",
-    resolve: resolveYamlOmap,
-    construct: constructYamlOmap
-  });
-  return omap;
-}
-var pairs;
-var hasRequiredPairs;
-function requirePairs() {
-  if (hasRequiredPairs) return pairs;
-  hasRequiredPairs = 1;
-  const Type2 = requireType();
-  const _toString = Object.prototype.toString;
-  function resolveYamlPairs(data) {
-    if (data === null) return true;
-    const object = data;
-    const result = new Array(object.length);
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      const pair = object[index];
-      if (_toString.call(pair) !== "[object Object]") return false;
-      const keys = Object.keys(pair);
-      if (keys.length !== 1) return false;
-      result[index] = [keys[0], pair[keys[0]]];
-    }
-    return true;
-  }
-  function constructYamlPairs(data) {
-    if (data === null) return [];
-    const object = data;
-    const result = new Array(object.length);
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      const pair = object[index];
-      const keys = Object.keys(pair);
-      result[index] = [keys[0], pair[keys[0]]];
-    }
-    return result;
-  }
-  pairs = new Type2("tag:yaml.org,2002:pairs", {
-    kind: "sequence",
-    resolve: resolveYamlPairs,
-    construct: constructYamlPairs
-  });
-  return pairs;
-}
-var set;
-var hasRequiredSet;
-function requireSet() {
-  if (hasRequiredSet) return set;
-  hasRequiredSet = 1;
-  const Type2 = requireType();
-  const _hasOwnProperty = Object.prototype.hasOwnProperty;
-  function resolveYamlSet(data) {
-    if (data === null) return true;
-    const object = data;
-    for (const key in object) {
-      if (_hasOwnProperty.call(object, key)) {
-        if (object[key] !== null) return false;
-      }
-    }
-    return true;
-  }
-  function constructYamlSet(data) {
-    return data !== null ? data : {};
-  }
-  set = new Type2("tag:yaml.org,2002:set", {
-    kind: "mapping",
-    resolve: resolveYamlSet,
-    construct: constructYamlSet
-  });
-  return set;
-}
-var _default;
-var hasRequired_default;
-function require_default() {
-  if (hasRequired_default) return _default;
-  hasRequired_default = 1;
-  _default = requireCore().extend({
-    implicit: [
-      requireTimestamp(),
-      requireMerge()
-    ],
-    explicit: [
-      requireBinary(),
-      requireOmap(),
-      requirePairs(),
-      requireSet()
-    ]
-  });
-  return _default;
-}
-var hasRequiredLoader;
-function requireLoader() {
-  if (hasRequiredLoader) return loader;
-  hasRequiredLoader = 1;
-  const common2 = requireCommon();
-  const YAMLException2 = requireException();
-  const makeSnippet2 = requireSnippet();
-  const DEFAULT_SCHEMA2 = require_default();
-  const _hasOwnProperty = Object.prototype.hasOwnProperty;
-  const CONTEXT_FLOW_IN = 1;
-  const CONTEXT_FLOW_OUT = 2;
-  const CONTEXT_BLOCK_IN = 3;
-  const CONTEXT_BLOCK_OUT = 4;
-  const CHOMPING_CLIP = 1;
-  const CHOMPING_STRIP = 2;
-  const CHOMPING_KEEP = 3;
-  const PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-  const PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
-  const PATTERN_FLOW_INDICATORS = /[,\[\]{}]/;
-  const PATTERN_TAG_HANDLE = /^(?:!|!!|![0-9A-Za-z-]+!)$/;
-  const PATTERN_TAG_URI = /^(?:!|[^,\[\]{}])(?:%[0-9a-f]{2}|[0-9a-z\-#;/?:@&=+$,_.!~*'()\[\]])*$/i;
-  function _class(obj) {
-    return Object.prototype.toString.call(obj);
-  }
-  function isEol(c) {
-    return c === 10 || c === 13;
-  }
-  function isWhiteSpace(c) {
-    return c === 9 || c === 32;
-  }
-  function isWsOrEol(c) {
-    return c === 9 || c === 32 || c === 10 || c === 13;
-  }
-  function isFlowIndicator(c) {
-    return c === 44 || c === 91 || c === 93 || c === 123 || c === 125;
-  }
-  function fromHexCode(c) {
-    if (c >= 48 && c <= 57) {
-      return c - 48;
-    }
-    const lc = c | 32;
-    if (lc >= 97 && lc <= 102) {
-      return lc - 97 + 10;
-    }
-    return -1;
-  }
-  function escapedHexLen(c) {
-    if (c === 120) {
-      return 2;
-    }
-    if (c === 117) {
-      return 4;
-    }
-    if (c === 85) {
-      return 8;
-    }
-    return 0;
-  }
-  function fromDecimalCode(c) {
-    if (c >= 48 && c <= 57) {
-      return c - 48;
-    }
-    return -1;
-  }
-  function simpleEscapeSequence(c) {
-    switch (c) {
-      case 48:
-        return "\0";
-      case 97:
-        return "\x07";
-      case 98:
-        return "\b";
-      case 116:
-        return "	";
-      case 9:
-        return "	";
-      case 110:
-        return "\n";
-      case 118:
-        return "\v";
-      case 102:
-        return "\f";
-      case 114:
-        return "\r";
-      case 101:
-        return "\x1B";
-      case 32:
-        return " ";
-      case 34:
-        return '"';
-      case 47:
-        return "/";
-      case 92:
-        return "\\";
-      case 78:
-        return "\x85";
-      case 95:
-        return "\xA0";
-      case 76:
-        return "\u2028";
-      case 80:
-        return "\u2029";
-      default:
-        return "";
-    }
-  }
-  function charFromCodepoint(c) {
-    if (c <= 65535) {
-      return String.fromCharCode(c);
-    }
-    return String.fromCharCode(
-      (c - 65536 >> 10) + 55296,
-      (c - 65536 & 1023) + 56320
-    );
-  }
-  function setProperty(object, key, value) {
-    if (key === "__proto__") {
-      Object.defineProperty(object, key, {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value
-      });
-    } else {
-      object[key] = value;
-    }
-  }
-  const simpleEscapeCheck = new Array(256);
-  const simpleEscapeMap = new Array(256);
-  for (let i = 0; i < 256; i++) {
-    simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
-    simpleEscapeMap[i] = simpleEscapeSequence(i);
-  }
-  function State(input, options) {
-    this.input = input;
-    this.filename = options["filename"] || null;
-    this.schema = options["schema"] || DEFAULT_SCHEMA2;
-    this.onWarning = options["onWarning"] || null;
-    this.legacy = options["legacy"] || false;
-    this.json = options["json"] || false;
-    this.listener = options["listener"] || null;
-    this.maxDepth = typeof options["maxDepth"] === "number" ? options["maxDepth"] : 100;
-    this.maxTotalMergeKeys = typeof options["maxTotalMergeKeys"] === "number" ? options["maxTotalMergeKeys"] : 1e4;
-    this.implicitTypes = this.schema.compiledImplicit;
-    this.typeMap = this.schema.compiledTypeMap;
-    this.length = input.length;
-    this.position = 0;
-    this.line = 0;
-    this.lineStart = 0;
-    this.lineIndent = 0;
-    this.depth = 0;
-    this.totalMergeKeys = 0;
-    this.firstTabInLine = -1;
-    this.documents = [];
-    this.anchorMapTransactions = [];
-  }
-  function generateError(state, message) {
-    const mark = {
-      name: state.filename,
-      buffer: state.input.slice(0, -1),
-      // omit trailing \0
-      position: state.position,
-      line: state.line,
-      column: state.position - state.lineStart
-    };
-    mark.snippet = makeSnippet2(mark);
-    return new YAMLException2(message, mark);
-  }
-  function throwError(state, message) {
-    throw generateError(state, message);
-  }
-  function throwWarning(state, message) {
-    if (state.onWarning) {
-      state.onWarning.call(null, generateError(state, message));
-    }
-  }
-  function storeAnchor(state, name, value) {
-    const transactions = state.anchorMapTransactions;
-    if (transactions.length !== 0) {
-      const transaction = transactions[transactions.length - 1];
-      if (!_hasOwnProperty.call(transaction, name)) {
-        transaction[name] = {
-          existed: _hasOwnProperty.call(state.anchorMap, name),
-          value: state.anchorMap[name]
-        };
-      }
-    }
-    state.anchorMap[name] = value;
-  }
-  function beginAnchorTransaction(state) {
-    state.anchorMapTransactions.push(/* @__PURE__ */ Object.create(null));
-  }
-  function commitAnchorTransaction(state) {
-    const transaction = state.anchorMapTransactions.pop();
-    const transactions = state.anchorMapTransactions;
-    if (transactions.length === 0) return;
-    const parent = transactions[transactions.length - 1];
-    const names = Object.keys(transaction);
-    for (let index = 0, length = names.length; index < length; index += 1) {
-      const name = names[index];
-      if (!_hasOwnProperty.call(parent, name)) {
-        parent[name] = transaction[name];
-      }
-    }
-  }
-  function rollbackAnchorTransaction(state) {
-    const transaction = state.anchorMapTransactions.pop();
-    const names = Object.keys(transaction);
-    for (let index = names.length - 1; index >= 0; index -= 1) {
-      const entry = transaction[names[index]];
-      if (entry.existed) {
-        state.anchorMap[names[index]] = entry.value;
-      } else {
-        delete state.anchorMap[names[index]];
-      }
-    }
-  }
-  function snapshotState(state) {
-    return {
-      position: state.position,
-      line: state.line,
-      lineStart: state.lineStart,
-      lineIndent: state.lineIndent,
-      firstTabInLine: state.firstTabInLine,
-      tag: state.tag,
-      anchor: state.anchor,
-      kind: state.kind,
-      result: state.result
-    };
-  }
-  function restoreState(state, snapshot) {
-    state.position = snapshot.position;
-    state.line = snapshot.line;
-    state.lineStart = snapshot.lineStart;
-    state.lineIndent = snapshot.lineIndent;
-    state.firstTabInLine = snapshot.firstTabInLine;
-    state.tag = snapshot.tag;
-    state.anchor = snapshot.anchor;
-    state.kind = snapshot.kind;
-    state.result = snapshot.result;
-  }
-  const directiveHandlers = {
-    YAML: function handleYamlDirective(state, name, args) {
-      if (state.version !== null) {
-        throwError(state, "duplication of %YAML directive");
-      }
-      if (args.length !== 1) {
-        throwError(state, "YAML directive accepts exactly one argument");
-      }
-      const match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
-      if (match === null) {
-        throwError(state, "ill-formed argument of the YAML directive");
-      }
-      const major = parseInt(match[1], 10);
-      const minor = parseInt(match[2], 10);
-      if (major !== 1) {
-        throwError(state, "unacceptable YAML version of the document");
-      }
-      state.version = args[0];
-      state.checkLineBreaks = minor < 2;
-      if (minor !== 1 && minor !== 2) {
-        throwWarning(state, "unsupported YAML version of the document");
-      }
-    },
-    TAG: function handleTagDirective(state, name, args) {
-      let prefix;
-      if (args.length !== 2) {
-        throwError(state, "TAG directive accepts exactly two arguments");
-      }
-      const handle = args[0];
-      prefix = args[1];
-      if (!PATTERN_TAG_HANDLE.test(handle)) {
-        throwError(state, "ill-formed tag handle (first argument) of the TAG directive");
-      }
-      if (_hasOwnProperty.call(state.tagMap, handle)) {
-        throwError(state, 'there is a previously declared suffix for "' + handle + '" tag handle');
-      }
-      if (!PATTERN_TAG_URI.test(prefix)) {
-        throwError(state, "ill-formed tag prefix (second argument) of the TAG directive");
-      }
-      try {
-        prefix = decodeURIComponent(prefix);
-      } catch (err) {
-        throwError(state, "tag prefix is malformed: " + prefix);
-      }
-      state.tagMap[handle] = prefix;
-    }
-  };
-  function captureSegment(state, start, end, checkJson) {
-    if (start < end) {
-      const _result = state.input.slice(start, end);
-      if (checkJson) {
-        for (let _position = 0, _length = _result.length; _position < _length; _position += 1) {
-          const _character = _result.charCodeAt(_position);
-          if (!(_character === 9 || _character >= 32 && _character <= 1114111)) {
-            throwError(state, "expected valid JSON character");
-          }
-        }
-      } else if (PATTERN_NON_PRINTABLE.test(_result)) {
-        throwError(state, "the stream contains non-printable characters");
-      }
-      state.result += _result;
-    }
-  }
-  function mergeMappings(state, destination, source, overridableKeys) {
-    if (!common2.isObject(source)) {
-      throwError(state, "cannot merge mappings; the provided source object is unacceptable");
-    }
-    const sourceKeys = Object.keys(source);
-    for (let index = 0, quantity = sourceKeys.length; index < quantity; index += 1) {
-      const key = sourceKeys[index];
-      if (state.maxTotalMergeKeys !== -1 && ++state.totalMergeKeys > state.maxTotalMergeKeys) {
-        throwError(state, "merge keys exceeded maxTotalMergeKeys (" + state.maxTotalMergeKeys + ")");
-      }
-      if (!_hasOwnProperty.call(destination, key)) {
-        setProperty(destination, key, source[key]);
-        overridableKeys[key] = true;
-      }
-    }
-  }
-  function storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, startLine, startLineStart, startPos) {
-    if (Array.isArray(keyNode)) {
-      keyNode = Array.prototype.slice.call(keyNode);
-      for (let index = 0, quantity = keyNode.length; index < quantity; index += 1) {
-        if (Array.isArray(keyNode[index])) {
-          throwError(state, "nested arrays are not supported inside keys");
-        }
-        if (typeof keyNode === "object" && _class(keyNode[index]) === "[object Object]") {
-          keyNode[index] = "[object Object]";
-        }
-      }
-    }
-    if (typeof keyNode === "object" && _class(keyNode) === "[object Object]") {
-      keyNode = "[object Object]";
-    }
-    keyNode = String(keyNode);
-    if (_result === null) {
-      _result = {};
-    }
-    if (keyTag === "tag:yaml.org,2002:merge") {
-      if (Array.isArray(valueNode)) {
-        for (let index = 0, quantity = valueNode.length; index < quantity; index += 1) {
-          mergeMappings(state, _result, valueNode[index], overridableKeys);
-        }
-      } else {
-        mergeMappings(state, _result, valueNode, overridableKeys);
-      }
-    } else {
-      if (!state.json && !_hasOwnProperty.call(overridableKeys, keyNode) && _hasOwnProperty.call(_result, keyNode)) {
-        state.line = startLine || state.line;
-        state.lineStart = startLineStart || state.lineStart;
-        state.position = startPos || state.position;
-        throwError(state, "duplicated mapping key");
-      }
-      setProperty(_result, keyNode, valueNode);
-      delete overridableKeys[keyNode];
-    }
-    return _result;
-  }
-  function readLineBreak(state) {
-    const ch = state.input.charCodeAt(state.position);
-    if (ch === 10) {
-      state.position++;
-    } else if (ch === 13) {
-      state.position++;
-      if (state.input.charCodeAt(state.position) === 10) {
-        state.position++;
-      }
-    } else {
-      throwError(state, "a line break is expected");
-    }
-    state.line += 1;
-    state.lineStart = state.position;
-    state.firstTabInLine = -1;
-  }
-  function skipSeparationSpace(state, allowComments, checkIndent) {
-    let lineBreaks = 0;
-    let ch = state.input.charCodeAt(state.position);
-    while (ch !== 0) {
-      while (isWhiteSpace(ch)) {
-        if (ch === 9 && state.firstTabInLine === -1) {
-          state.firstTabInLine = state.position;
-        }
-        ch = state.input.charCodeAt(++state.position);
-      }
-      if (allowComments && ch === 35) {
-        do {
-          ch = state.input.charCodeAt(++state.position);
-        } while (ch !== 10 && ch !== 13 && ch !== 0);
-      }
-      if (isEol(ch)) {
-        readLineBreak(state);
-        ch = state.input.charCodeAt(state.position);
-        lineBreaks++;
-        state.lineIndent = 0;
-        while (ch === 32) {
-          state.lineIndent++;
-          ch = state.input.charCodeAt(++state.position);
-        }
-      } else {
-        break;
-      }
-    }
-    if (checkIndent !== -1 && lineBreaks !== 0 && state.lineIndent < checkIndent) {
-      throwWarning(state, "deficient indentation");
-    }
-    return lineBreaks;
-  }
-  function testDocumentSeparator(state) {
-    let _position = state.position;
-    let ch = state.input.charCodeAt(_position);
-    if ((ch === 45 || ch === 46) && ch === state.input.charCodeAt(_position + 1) && ch === state.input.charCodeAt(_position + 2)) {
-      _position += 3;
-      ch = state.input.charCodeAt(_position);
-      if (ch === 0 || isWsOrEol(ch)) {
-        return true;
-      }
-    }
-    return false;
-  }
-  function writeFoldedLines(state, count) {
-    if (count === 1) {
-      state.result += " ";
-    } else if (count > 1) {
-      state.result += common2.repeat("\n", count - 1);
-    }
-  }
-  function readPlainScalar(state, nodeIndent, withinFlowCollection) {
-    let captureStart;
-    let captureEnd;
-    let hasPendingContent;
-    let _line;
-    let _lineStart;
-    let _lineIndent;
-    const _kind = state.kind;
-    const _result = state.result;
-    let ch = state.input.charCodeAt(state.position);
-    if (isWsOrEol(ch) || isFlowIndicator(ch) || ch === 35 || ch === 38 || ch === 42 || ch === 33 || ch === 124 || ch === 62 || ch === 39 || ch === 34 || ch === 37 || ch === 64 || ch === 96) {
-      return false;
-    }
-    if (ch === 63 || ch === 45) {
-      const following = state.input.charCodeAt(state.position + 1);
-      if (isWsOrEol(following) || withinFlowCollection && isFlowIndicator(following)) {
-        return false;
-      }
-    }
-    state.kind = "scalar";
-    state.result = "";
-    captureStart = captureEnd = state.position;
-    hasPendingContent = false;
-    while (ch !== 0) {
-      if (ch === 58) {
-        const following = state.input.charCodeAt(state.position + 1);
-        if (isWsOrEol(following) || withinFlowCollection && isFlowIndicator(following)) {
-          break;
-        }
-      } else if (ch === 35) {
-        const preceding = state.input.charCodeAt(state.position - 1);
-        if (isWsOrEol(preceding)) {
-          break;
-        }
-      } else if (state.position === state.lineStart && testDocumentSeparator(state) || withinFlowCollection && isFlowIndicator(ch)) {
-        break;
-      } else if (isEol(ch)) {
-        _line = state.line;
-        _lineStart = state.lineStart;
-        _lineIndent = state.lineIndent;
-        skipSeparationSpace(state, false, -1);
-        if (state.lineIndent >= nodeIndent) {
-          hasPendingContent = true;
-          ch = state.input.charCodeAt(state.position);
-          continue;
-        } else {
-          state.position = captureEnd;
-          state.line = _line;
-          state.lineStart = _lineStart;
-          state.lineIndent = _lineIndent;
-          break;
-        }
-      }
-      if (hasPendingContent) {
-        captureSegment(state, captureStart, captureEnd, false);
-        writeFoldedLines(state, state.line - _line);
-        captureStart = captureEnd = state.position;
-        hasPendingContent = false;
-      }
-      if (!isWhiteSpace(ch)) {
-        captureEnd = state.position + 1;
-      }
-      ch = state.input.charCodeAt(++state.position);
-    }
-    captureSegment(state, captureStart, captureEnd, false);
-    if (state.result) {
-      return true;
-    }
-    state.kind = _kind;
-    state.result = _result;
-    return false;
-  }
-  function readSingleQuotedScalar(state, nodeIndent) {
-    let captureStart;
-    let captureEnd;
-    let ch = state.input.charCodeAt(state.position);
-    if (ch !== 39) {
-      return false;
-    }
-    state.kind = "scalar";
-    state.result = "";
-    state.position++;
-    captureStart = captureEnd = state.position;
-    while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-      if (ch === 39) {
-        captureSegment(state, captureStart, state.position, true);
-        ch = state.input.charCodeAt(++state.position);
-        if (ch === 39) {
-          captureStart = state.position;
-          state.position++;
-          captureEnd = state.position;
-        } else {
-          return true;
-        }
-      } else if (isEol(ch)) {
-        captureSegment(state, captureStart, captureEnd, true);
-        writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
-        captureStart = captureEnd = state.position;
-      } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
-        throwError(state, "unexpected end of the document within a single quoted scalar");
-      } else {
-        state.position++;
-        if (!isWhiteSpace(ch)) {
-          captureEnd = state.position;
-        }
-      }
-    }
-    throwError(state, "unexpected end of the stream within a single quoted scalar");
-  }
-  function readDoubleQuotedScalar(state, nodeIndent) {
-    let captureStart;
-    let captureEnd;
-    let tmp;
-    let ch = state.input.charCodeAt(state.position);
-    if (ch !== 34) {
-      return false;
-    }
-    state.kind = "scalar";
-    state.result = "";
-    state.position++;
-    captureStart = captureEnd = state.position;
-    while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-      if (ch === 34) {
-        captureSegment(state, captureStart, state.position, true);
-        state.position++;
-        return true;
-      } else if (ch === 92) {
-        captureSegment(state, captureStart, state.position, true);
-        ch = state.input.charCodeAt(++state.position);
-        if (isEol(ch)) {
-          skipSeparationSpace(state, false, nodeIndent);
-        } else if (ch < 256 && simpleEscapeCheck[ch]) {
-          state.result += simpleEscapeMap[ch];
-          state.position++;
-        } else if ((tmp = escapedHexLen(ch)) > 0) {
-          let hexLength = tmp;
-          let hexResult = 0;
-          for (; hexLength > 0; hexLength--) {
-            ch = state.input.charCodeAt(++state.position);
-            if ((tmp = fromHexCode(ch)) >= 0) {
-              hexResult = (hexResult << 4) + tmp;
-            } else {
-              throwError(state, "expected hexadecimal character");
-            }
-          }
-          state.result += charFromCodepoint(hexResult);
-          state.position++;
-        } else {
-          throwError(state, "unknown escape sequence");
-        }
-        captureStart = captureEnd = state.position;
-      } else if (isEol(ch)) {
-        captureSegment(state, captureStart, captureEnd, true);
-        writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
-        captureStart = captureEnd = state.position;
-      } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
-        throwError(state, "unexpected end of the document within a double quoted scalar");
-      } else {
-        state.position++;
-        if (!isWhiteSpace(ch)) {
-          captureEnd = state.position;
-        }
-      }
-    }
-    throwError(state, "unexpected end of the stream within a double quoted scalar");
-  }
-  function readFlowCollection(state, nodeIndent) {
-    let readNext = true;
-    let _line;
-    let _lineStart;
-    let _pos;
-    const _tag = state.tag;
-    let _result;
-    const _anchor = state.anchor;
-    let terminator;
-    let isPair;
-    let isExplicitPair;
-    let isMapping;
-    const overridableKeys = /* @__PURE__ */ Object.create(null);
-    let keyNode;
-    let keyTag;
-    let valueNode;
-    let ch = state.input.charCodeAt(state.position);
-    if (ch === 91) {
-      terminator = 93;
-      isMapping = false;
-      _result = [];
-    } else if (ch === 123) {
-      terminator = 125;
-      isMapping = true;
-      _result = {};
-    } else {
-      return false;
-    }
-    if (state.anchor !== null) {
-      storeAnchor(state, state.anchor, _result);
-    }
-    ch = state.input.charCodeAt(++state.position);
-    while (ch !== 0) {
-      skipSeparationSpace(state, true, nodeIndent);
-      ch = state.input.charCodeAt(state.position);
-      if (ch === terminator) {
-        state.position++;
-        state.tag = _tag;
-        state.anchor = _anchor;
-        state.kind = isMapping ? "mapping" : "sequence";
-        state.result = _result;
-        return true;
-      } else if (!readNext) {
-        throwError(state, "missed comma between flow collection entries");
-      } else if (ch === 44) {
-        throwError(state, "expected the node content, but found ','");
-      }
-      keyTag = keyNode = valueNode = null;
-      isPair = isExplicitPair = false;
-      if (ch === 63) {
-        const following = state.input.charCodeAt(state.position + 1);
-        if (isWsOrEol(following)) {
-          isPair = isExplicitPair = true;
-          state.position++;
-          skipSeparationSpace(state, true, nodeIndent);
-        }
-      }
-      _line = state.line;
-      _lineStart = state.lineStart;
-      _pos = state.position;
-      composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
-      keyTag = state.tag;
-      keyNode = state.result;
-      skipSeparationSpace(state, true, nodeIndent);
-      ch = state.input.charCodeAt(state.position);
-      if ((isExplicitPair || state.line === _line) && ch === 58) {
-        isPair = true;
-        ch = state.input.charCodeAt(++state.position);
-        skipSeparationSpace(state, true, nodeIndent);
-        composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
-        valueNode = state.result;
-      }
-      if (isMapping) {
-        storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos);
-      } else if (isPair) {
-        _result.push(storeMappingPair(state, null, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos));
-      } else {
-        _result.push(keyNode);
-      }
-      skipSeparationSpace(state, true, nodeIndent);
-      ch = state.input.charCodeAt(state.position);
-      if (ch === 44) {
-        readNext = true;
-        ch = state.input.charCodeAt(++state.position);
-      } else {
-        readNext = false;
-      }
-    }
-    throwError(state, "unexpected end of the stream within a flow collection");
-  }
-  function readBlockScalar(state, nodeIndent) {
-    let folding;
-    let chomping = CHOMPING_CLIP;
-    let didReadContent = false;
-    let detectedIndent = false;
-    let textIndent = nodeIndent;
-    let emptyLines = 0;
-    let atMoreIndented = false;
-    let tmp;
-    let ch = state.input.charCodeAt(state.position);
-    if (ch === 124) {
-      folding = false;
-    } else if (ch === 62) {
-      folding = true;
-    } else {
-      return false;
-    }
-    state.kind = "scalar";
-    state.result = "";
-    while (ch !== 0) {
-      ch = state.input.charCodeAt(++state.position);
-      if (ch === 43 || ch === 45) {
-        if (CHOMPING_CLIP === chomping) {
-          chomping = ch === 43 ? CHOMPING_KEEP : CHOMPING_STRIP;
-        } else {
-          throwError(state, "repeat of a chomping mode identifier");
-        }
-      } else if ((tmp = fromDecimalCode(ch)) >= 0) {
-        if (tmp === 0) {
-          throwError(state, "bad explicit indentation width of a block scalar; it cannot be less than one");
-        } else if (!detectedIndent) {
-          textIndent = nodeIndent + tmp - 1;
-          detectedIndent = true;
-        } else {
-          throwError(state, "repeat of an indentation width identifier");
-        }
-      } else {
-        break;
-      }
-    }
-    if (isWhiteSpace(ch)) {
-      do {
-        ch = state.input.charCodeAt(++state.position);
-      } while (isWhiteSpace(ch));
-      if (ch === 35) {
-        do {
-          ch = state.input.charCodeAt(++state.position);
-        } while (!isEol(ch) && ch !== 0);
-      }
-    }
-    while (ch !== 0) {
-      readLineBreak(state);
-      state.lineIndent = 0;
-      ch = state.input.charCodeAt(state.position);
-      while ((!detectedIndent || state.lineIndent < textIndent) && ch === 32) {
-        state.lineIndent++;
-        ch = state.input.charCodeAt(++state.position);
-      }
-      if (!detectedIndent && state.lineIndent > textIndent) {
-        textIndent = state.lineIndent;
-      }
-      if (isEol(ch)) {
-        emptyLines++;
-        continue;
-      }
-      if (!detectedIndent && textIndent === 0) {
-        throwError(state, "missing indentation for block scalar");
-      }
-      if (state.lineIndent < textIndent) {
-        if (chomping === CHOMPING_KEEP) {
-          state.result += common2.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-        } else if (chomping === CHOMPING_CLIP) {
-          if (didReadContent) {
-            state.result += "\n";
-          }
-        }
-        break;
-      }
-      if (folding) {
-        if (isWhiteSpace(ch)) {
-          atMoreIndented = true;
-          state.result += common2.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-        } else if (atMoreIndented) {
-          atMoreIndented = false;
-          state.result += common2.repeat("\n", emptyLines + 1);
-        } else if (emptyLines === 0) {
-          if (didReadContent) {
-            state.result += " ";
-          }
-        } else {
-          state.result += common2.repeat("\n", emptyLines);
-        }
-      } else {
-        state.result += common2.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-      }
-      didReadContent = true;
-      detectedIndent = true;
-      emptyLines = 0;
-      const captureStart = state.position;
-      while (!isEol(ch) && ch !== 0) {
-        ch = state.input.charCodeAt(++state.position);
-      }
-      captureSegment(state, captureStart, state.position, false);
-    }
-    return true;
-  }
-  function readBlockSequence(state, nodeIndent) {
-    const _tag = state.tag;
-    const _anchor = state.anchor;
-    const _result = [];
-    let detected = false;
-    if (state.firstTabInLine !== -1) return false;
-    if (state.anchor !== null) {
-      storeAnchor(state, state.anchor, _result);
-    }
-    let ch = state.input.charCodeAt(state.position);
-    while (ch !== 0) {
-      if (state.firstTabInLine !== -1) {
-        state.position = state.firstTabInLine;
-        throwError(state, "tab characters must not be used in indentation");
-      }
-      if (ch !== 45) {
-        break;
-      }
-      const following = state.input.charCodeAt(state.position + 1);
-      if (!isWsOrEol(following)) {
-        break;
-      }
-      detected = true;
-      state.position++;
-      if (skipSeparationSpace(state, true, -1)) {
-        if (state.lineIndent <= nodeIndent) {
-          _result.push(null);
-          ch = state.input.charCodeAt(state.position);
-          continue;
-        }
-      }
-      const _line = state.line;
-      composeNode(state, nodeIndent, CONTEXT_BLOCK_IN, false, true);
-      _result.push(state.result);
-      skipSeparationSpace(state, true, -1);
-      ch = state.input.charCodeAt(state.position);
-      if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
-        throwError(state, "bad indentation of a sequence entry");
-      } else if (state.lineIndent < nodeIndent) {
-        break;
-      }
-    }
-    if (detected) {
-      state.tag = _tag;
-      state.anchor = _anchor;
-      state.kind = "sequence";
-      state.result = _result;
-      return true;
-    }
-    return false;
-  }
-  function readBlockMapping(state, nodeIndent, flowIndent) {
-    let allowCompact;
-    let _keyLine;
-    let _keyLineStart;
-    let _keyPos;
-    const _tag = state.tag;
-    const _anchor = state.anchor;
-    const _result = {};
-    const overridableKeys = /* @__PURE__ */ Object.create(null);
-    let keyTag = null;
-    let keyNode = null;
-    let valueNode = null;
-    let atExplicitKey = false;
-    let detected = false;
-    if (state.firstTabInLine !== -1) return false;
-    if (state.anchor !== null) {
-      storeAnchor(state, state.anchor, _result);
-    }
-    let ch = state.input.charCodeAt(state.position);
-    while (ch !== 0) {
-      if (!atExplicitKey && state.firstTabInLine !== -1) {
-        state.position = state.firstTabInLine;
-        throwError(state, "tab characters must not be used in indentation");
-      }
-      const following = state.input.charCodeAt(state.position + 1);
-      const _line = state.line;
-      if ((ch === 63 || ch === 58) && isWsOrEol(following)) {
-        if (ch === 63) {
-          if (atExplicitKey) {
-            storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-            keyTag = keyNode = valueNode = null;
-          }
-          detected = true;
-          atExplicitKey = true;
-          allowCompact = true;
-        } else if (atExplicitKey) {
-          atExplicitKey = false;
-          allowCompact = true;
-        } else {
-          throwError(state, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line");
-        }
-        state.position += 1;
-        ch = following;
-      } else {
-        _keyLine = state.line;
-        _keyLineStart = state.lineStart;
-        _keyPos = state.position;
-        if (!composeNode(state, flowIndent, CONTEXT_FLOW_OUT, false, true)) {
-          break;
-        }
-        if (state.line === _line) {
-          ch = state.input.charCodeAt(state.position);
-          while (isWhiteSpace(ch)) {
-            ch = state.input.charCodeAt(++state.position);
-          }
-          if (ch === 58) {
-            ch = state.input.charCodeAt(++state.position);
-            if (!isWsOrEol(ch)) {
-              throwError(state, "a whitespace character is expected after the key-value separator within a block mapping");
-            }
-            if (atExplicitKey) {
-              storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-              keyTag = keyNode = valueNode = null;
-            }
-            detected = true;
-            atExplicitKey = false;
-            allowCompact = false;
-            keyTag = state.tag;
-            keyNode = state.result;
-          } else if (detected) {
-            throwError(state, "can not read an implicit mapping pair; a colon is missed");
-          } else {
-            state.tag = _tag;
-            state.anchor = _anchor;
-            return true;
-          }
-        } else if (detected) {
-          throwError(state, "can not read a block mapping entry; a multiline key may not be an implicit key");
-        } else {
-          state.tag = _tag;
-          state.anchor = _anchor;
-          return true;
-        }
-      }
-      if (state.line === _line || state.lineIndent > nodeIndent) {
-        if (atExplicitKey) {
-          _keyLine = state.line;
-          _keyLineStart = state.lineStart;
-          _keyPos = state.position;
-        }
-        if (composeNode(state, nodeIndent, CONTEXT_BLOCK_OUT, true, allowCompact)) {
-          if (atExplicitKey) {
-            keyNode = state.result;
-          } else {
-            valueNode = state.result;
-          }
-        }
-        if (!atExplicitKey) {
-          storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _keyLine, _keyLineStart, _keyPos);
-          keyTag = keyNode = valueNode = null;
-        }
-        skipSeparationSpace(state, true, -1);
-        ch = state.input.charCodeAt(state.position);
-      }
-      if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
-        throwError(state, "bad indentation of a mapping entry");
-      } else if (state.lineIndent < nodeIndent) {
-        break;
-      }
-    }
-    if (atExplicitKey) {
-      storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-    }
-    if (detected) {
-      state.tag = _tag;
-      state.anchor = _anchor;
-      state.kind = "mapping";
-      state.result = _result;
-    }
-    return detected;
-  }
-  function readTagProperty(state) {
-    let isVerbatim = false;
-    let isNamed = false;
-    let tagHandle;
-    let tagName;
-    let ch = state.input.charCodeAt(state.position);
-    if (ch !== 33) return false;
-    if (state.tag !== null) {
-      throwError(state, "duplication of a tag property");
-    }
-    ch = state.input.charCodeAt(++state.position);
-    if (ch === 60) {
-      isVerbatim = true;
-      ch = state.input.charCodeAt(++state.position);
-    } else if (ch === 33) {
-      isNamed = true;
-      tagHandle = "!!";
-      ch = state.input.charCodeAt(++state.position);
-    } else {
-      tagHandle = "!";
-    }
-    let _position = state.position;
-    if (isVerbatim) {
-      do {
-        ch = state.input.charCodeAt(++state.position);
-      } while (ch !== 0 && ch !== 62);
-      if (state.position < state.length) {
-        tagName = state.input.slice(_position, state.position);
-        ch = state.input.charCodeAt(++state.position);
-      } else {
-        throwError(state, "unexpected end of the stream within a verbatim tag");
-      }
-    } else {
-      while (ch !== 0 && !isWsOrEol(ch)) {
-        if (ch === 33) {
-          if (!isNamed) {
-            tagHandle = state.input.slice(_position - 1, state.position + 1);
-            if (!PATTERN_TAG_HANDLE.test(tagHandle)) {
-              throwError(state, "named tag handle cannot contain such characters");
-            }
-            isNamed = true;
-            _position = state.position + 1;
-          } else {
-            throwError(state, "tag suffix cannot contain exclamation marks");
-          }
-        }
-        ch = state.input.charCodeAt(++state.position);
-      }
-      tagName = state.input.slice(_position, state.position);
-      if (PATTERN_FLOW_INDICATORS.test(tagName)) {
-        throwError(state, "tag suffix cannot contain flow indicator characters");
-      }
-    }
-    if (tagName && !PATTERN_TAG_URI.test(tagName)) {
-      throwError(state, "tag name cannot contain such characters: " + tagName);
-    }
-    try {
-      tagName = decodeURIComponent(tagName);
-    } catch (err) {
-      throwError(state, "tag name is malformed: " + tagName);
-    }
-    if (isVerbatim) {
-      state.tag = tagName;
-    } else if (_hasOwnProperty.call(state.tagMap, tagHandle)) {
-      state.tag = state.tagMap[tagHandle] + tagName;
-    } else if (tagHandle === "!") {
-      state.tag = "!" + tagName;
-    } else if (tagHandle === "!!") {
-      state.tag = "tag:yaml.org,2002:" + tagName;
-    } else {
-      throwError(state, 'undeclared tag handle "' + tagHandle + '"');
-    }
-    return true;
-  }
-  function readAnchorProperty(state) {
-    let ch = state.input.charCodeAt(state.position);
-    if (ch !== 38) return false;
-    if (state.anchor !== null) {
-      throwError(state, "duplication of an anchor property");
-    }
-    ch = state.input.charCodeAt(++state.position);
-    const _position = state.position;
-    while (ch !== 0 && !isWsOrEol(ch) && !isFlowIndicator(ch)) {
-      ch = state.input.charCodeAt(++state.position);
-    }
-    if (state.position === _position) {
-      throwError(state, "name of an anchor node must contain at least one character");
-    }
-    state.anchor = state.input.slice(_position, state.position);
-    return true;
-  }
-  function readAlias(state) {
-    let ch = state.input.charCodeAt(state.position);
-    if (ch !== 42) return false;
-    ch = state.input.charCodeAt(++state.position);
-    const _position = state.position;
-    while (ch !== 0 && !isWsOrEol(ch) && !isFlowIndicator(ch)) {
-      ch = state.input.charCodeAt(++state.position);
-    }
-    if (state.position === _position) {
-      throwError(state, "name of an alias node must contain at least one character");
-    }
-    const alias = state.input.slice(_position, state.position);
-    if (!_hasOwnProperty.call(state.anchorMap, alias)) {
-      throwError(state, 'unidentified alias "' + alias + '"');
-    }
-    state.result = state.anchorMap[alias];
-    skipSeparationSpace(state, true, -1);
-    return true;
-  }
-  function tryReadBlockMappingFromProperty(state, propertyStart, nodeIndent, flowIndent) {
-    const fallbackState = snapshotState(state);
-    beginAnchorTransaction(state);
-    restoreState(state, propertyStart);
-    state.tag = null;
-    state.anchor = null;
-    state.kind = null;
-    state.result = null;
-    if (readBlockMapping(state, nodeIndent, flowIndent) && state.kind === "mapping") {
-      commitAnchorTransaction(state);
-      return true;
-    }
-    rollbackAnchorTransaction(state);
-    restoreState(state, fallbackState);
-    return false;
-  }
-  function composeNode(state, parentIndent, nodeContext, allowToSeek, allowCompact) {
-    let allowBlockScalars;
-    let allowBlockCollections;
-    let indentStatus = 1;
-    let atNewLine = false;
-    let hasContent = false;
-    let propertyStart = null;
-    let type2;
-    let flowIndent;
-    let blockIndent;
-    if (state.depth >= state.maxDepth) {
-      throwError(state, "nesting exceeded maxDepth (" + state.maxDepth + ")");
-    }
-    state.depth += 1;
-    if (state.listener !== null) {
-      state.listener("open", state);
-    }
-    state.tag = null;
-    state.anchor = null;
-    state.kind = null;
-    state.result = null;
-    const allowBlockStyles = allowBlockScalars = allowBlockCollections = CONTEXT_BLOCK_OUT === nodeContext || CONTEXT_BLOCK_IN === nodeContext;
-    if (allowToSeek) {
-      if (skipSeparationSpace(state, true, -1)) {
-        atNewLine = true;
-        if (state.lineIndent > parentIndent) {
-          indentStatus = 1;
-        } else if (state.lineIndent === parentIndent) {
-          indentStatus = 0;
-        } else if (state.lineIndent < parentIndent) {
-          indentStatus = -1;
-        }
-      }
-    }
-    if (indentStatus === 1) {
-      while (true) {
-        const ch = state.input.charCodeAt(state.position);
-        const propertyState = snapshotState(state);
-        if (atNewLine && (ch === 33 && state.tag !== null || ch === 38 && state.anchor !== null)) {
-          break;
-        }
-        if (!readTagProperty(state) && !readAnchorProperty(state)) {
-          break;
-        }
-        if (propertyStart === null) {
-          propertyStart = propertyState;
-        }
-        if (skipSeparationSpace(state, true, -1)) {
-          atNewLine = true;
-          allowBlockCollections = allowBlockStyles;
-          if (state.lineIndent > parentIndent) {
-            indentStatus = 1;
-          } else if (state.lineIndent === parentIndent) {
-            indentStatus = 0;
-          } else if (state.lineIndent < parentIndent) {
-            indentStatus = -1;
-          }
-        } else {
-          allowBlockCollections = false;
-        }
-      }
-    }
-    if (allowBlockCollections) {
-      allowBlockCollections = atNewLine || allowCompact;
-    }
-    if (indentStatus === 1 || CONTEXT_BLOCK_OUT === nodeContext) {
-      if (CONTEXT_FLOW_IN === nodeContext || CONTEXT_FLOW_OUT === nodeContext) {
-        flowIndent = parentIndent;
-      } else {
-        flowIndent = parentIndent + 1;
-      }
-      blockIndent = state.position - state.lineStart;
-      if (indentStatus === 1) {
-        if (allowBlockCollections && (readBlockSequence(state, blockIndent) || readBlockMapping(state, blockIndent, flowIndent)) || readFlowCollection(state, flowIndent)) {
-          hasContent = true;
-        } else {
-          const ch = state.input.charCodeAt(state.position);
-          if (propertyStart !== null && allowBlockStyles && !allowBlockCollections && ch !== 124 && ch !== 62 && tryReadBlockMappingFromProperty(
-            state,
-            propertyStart,
-            propertyStart.position - propertyStart.lineStart,
-            flowIndent
-          )) {
-            hasContent = true;
-          } else if (allowBlockScalars && readBlockScalar(state, flowIndent) || readSingleQuotedScalar(state, flowIndent) || readDoubleQuotedScalar(state, flowIndent)) {
-            hasContent = true;
-          } else if (readAlias(state)) {
-            hasContent = true;
-            if (state.tag !== null || state.anchor !== null) {
-              throwError(state, "alias node should not have any properties");
-            }
-          } else if (readPlainScalar(state, flowIndent, CONTEXT_FLOW_IN === nodeContext)) {
-            hasContent = true;
-            if (state.tag === null) {
-              state.tag = "?";
-            }
-          }
-          if (state.anchor !== null) {
-            storeAnchor(state, state.anchor, state.result);
-          }
-        }
-      } else if (indentStatus === 0) {
-        hasContent = allowBlockCollections && readBlockSequence(state, blockIndent);
-      }
-    }
-    if (state.tag === null) {
-      if (state.anchor !== null) {
-        storeAnchor(state, state.anchor, state.result);
-      }
-    } else if (state.tag === "?") {
-      if (state.result !== null && state.kind !== "scalar") {
-        throwError(state, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state.kind + '"');
-      }
-      for (let typeIndex = 0, typeQuantity = state.implicitTypes.length; typeIndex < typeQuantity; typeIndex += 1) {
-        type2 = state.implicitTypes[typeIndex];
-        if (type2.resolve(state.result)) {
-          state.result = type2.construct(state.result);
-          state.tag = type2.tag;
-          if (state.anchor !== null) {
-            storeAnchor(state, state.anchor, state.result);
-          }
-          break;
-        }
-      }
-    } else if (state.tag !== "!") {
-      if (_hasOwnProperty.call(state.typeMap[state.kind || "fallback"], state.tag)) {
-        type2 = state.typeMap[state.kind || "fallback"][state.tag];
-      } else {
-        type2 = null;
-        const typeList = state.typeMap.multi[state.kind || "fallback"];
-        for (let typeIndex = 0, typeQuantity = typeList.length; typeIndex < typeQuantity; typeIndex += 1) {
-          if (state.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
-            type2 = typeList[typeIndex];
-            break;
-          }
-        }
-      }
-      if (!type2) {
-        throwError(state, "unknown tag !<" + state.tag + ">");
-      }
-      if (state.result !== null && type2.kind !== state.kind) {
-        throwError(state, "unacceptable node kind for !<" + state.tag + '> tag; it should be "' + type2.kind + '", not "' + state.kind + '"');
-      }
-      if (!type2.resolve(state.result, state.tag)) {
-        throwError(state, "cannot resolve a node with !<" + state.tag + "> explicit tag");
-      } else {
-        state.result = type2.construct(state.result, state.tag);
-        if (state.anchor !== null) {
-          storeAnchor(state, state.anchor, state.result);
-        }
-      }
-    }
-    if (state.listener !== null) {
-      state.listener("close", state);
-    }
-    state.depth -= 1;
-    return state.tag !== null || state.anchor !== null || hasContent;
-  }
-  function readDocument(state) {
-    const documentStart = state.position;
-    let hasDirectives = false;
-    let ch;
-    state.version = null;
-    state.checkLineBreaks = state.legacy;
-    state.tagMap = /* @__PURE__ */ Object.create(null);
-    state.anchorMap = /* @__PURE__ */ Object.create(null);
-    while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-      skipSeparationSpace(state, true, -1);
-      ch = state.input.charCodeAt(state.position);
-      if (state.lineIndent > 0 || ch !== 37) {
-        break;
-      }
-      hasDirectives = true;
-      ch = state.input.charCodeAt(++state.position);
-      let _position = state.position;
-      while (ch !== 0 && !isWsOrEol(ch)) {
-        ch = state.input.charCodeAt(++state.position);
-      }
-      const directiveName = state.input.slice(_position, state.position);
-      const directiveArgs = [];
-      if (directiveName.length < 1) {
-        throwError(state, "directive name must not be less than one character in length");
-      }
-      while (ch !== 0) {
-        while (isWhiteSpace(ch)) {
-          ch = state.input.charCodeAt(++state.position);
-        }
-        if (ch === 35) {
-          do {
-            ch = state.input.charCodeAt(++state.position);
-          } while (ch !== 0 && !isEol(ch));
-          break;
-        }
-        if (isEol(ch)) break;
-        _position = state.position;
-        while (ch !== 0 && !isWsOrEol(ch)) {
-          ch = state.input.charCodeAt(++state.position);
-        }
-        directiveArgs.push(state.input.slice(_position, state.position));
-      }
-      if (ch !== 0) readLineBreak(state);
-      if (_hasOwnProperty.call(directiveHandlers, directiveName)) {
-        directiveHandlers[directiveName](state, directiveName, directiveArgs);
-      } else {
-        throwWarning(state, 'unknown document directive "' + directiveName + '"');
-      }
-    }
-    skipSeparationSpace(state, true, -1);
-    if (state.lineIndent === 0 && state.input.charCodeAt(state.position) === 45 && state.input.charCodeAt(state.position + 1) === 45 && state.input.charCodeAt(state.position + 2) === 45) {
-      state.position += 3;
-      skipSeparationSpace(state, true, -1);
-    } else if (hasDirectives) {
-      throwError(state, "directives end mark is expected");
-    }
-    composeNode(state, state.lineIndent - 1, CONTEXT_BLOCK_OUT, false, true);
-    skipSeparationSpace(state, true, -1);
-    if (state.checkLineBreaks && PATTERN_NON_ASCII_LINE_BREAKS.test(state.input.slice(documentStart, state.position))) {
-      throwWarning(state, "non-ASCII line breaks are interpreted as content");
-    }
-    state.documents.push(state.result);
-    if (state.position === state.lineStart && testDocumentSeparator(state)) {
-      if (state.input.charCodeAt(state.position) === 46) {
-        state.position += 3;
-        skipSeparationSpace(state, true, -1);
-      }
-      return;
-    }
-    if (state.position < state.length - 1) {
-      throwError(state, "end of the stream or a document separator is expected");
-    }
-  }
-  function loadDocuments(input, options) {
-    input = String(input);
-    options = options || {};
-    if (input.length !== 0) {
-      if (input.charCodeAt(input.length - 1) !== 10 && input.charCodeAt(input.length - 1) !== 13) {
-        input += "\n";
-      }
-      if (input.charCodeAt(0) === 65279) {
-        input = input.slice(1);
-      }
-    }
-    const state = new State(input, options);
-    const nullpos = input.indexOf("\0");
-    if (nullpos !== -1) {
-      state.position = nullpos;
-      throwError(state, "null byte is not allowed in input");
-    }
-    state.input += "\0";
-    while (state.input.charCodeAt(state.position) === 32) {
-      state.lineIndent += 1;
-      state.position += 1;
-    }
-    while (state.position < state.length - 1) {
-      readDocument(state);
-    }
-    return state.documents;
-  }
-  function loadAll2(input, iterator, options) {
-    if (iterator !== null && typeof iterator === "object" && typeof options === "undefined") {
-      options = iterator;
-      iterator = null;
-    }
-    const documents = loadDocuments(input, options);
-    if (typeof iterator !== "function") {
-      return documents;
-    }
-    for (let index = 0, length = documents.length; index < length; index += 1) {
-      iterator(documents[index]);
-    }
-  }
-  function load2(input, options) {
-    const documents = loadDocuments(input, options);
-    if (documents.length === 0) {
-      return void 0;
-    } else if (documents.length === 1) {
-      return documents[0];
-    }
-    throw new YAMLException2("expected a single document in the stream, but found more");
-  }
-  loader.loadAll = loadAll2;
-  loader.load = load2;
-  return loader;
-}
-var dumper = {};
-var hasRequiredDumper;
-function requireDumper() {
-  if (hasRequiredDumper) return dumper;
-  hasRequiredDumper = 1;
-  const common2 = requireCommon();
-  const YAMLException2 = requireException();
-  const DEFAULT_SCHEMA2 = require_default();
-  const _toString = Object.prototype.toString;
-  const _hasOwnProperty = Object.prototype.hasOwnProperty;
-  const CHAR_BOM = 65279;
-  const CHAR_TAB = 9;
-  const CHAR_LINE_FEED = 10;
-  const CHAR_CARRIAGE_RETURN = 13;
-  const CHAR_SPACE = 32;
-  const CHAR_EXCLAMATION = 33;
-  const CHAR_DOUBLE_QUOTE = 34;
-  const CHAR_SHARP = 35;
-  const CHAR_PERCENT = 37;
-  const CHAR_AMPERSAND = 38;
-  const CHAR_SINGLE_QUOTE = 39;
-  const CHAR_ASTERISK = 42;
-  const CHAR_COMMA = 44;
-  const CHAR_MINUS = 45;
-  const CHAR_COLON = 58;
-  const CHAR_EQUALS = 61;
-  const CHAR_GREATER_THAN = 62;
-  const CHAR_QUESTION = 63;
-  const CHAR_COMMERCIAL_AT = 64;
-  const CHAR_LEFT_SQUARE_BRACKET = 91;
-  const CHAR_RIGHT_SQUARE_BRACKET = 93;
-  const CHAR_GRAVE_ACCENT = 96;
-  const CHAR_LEFT_CURLY_BRACKET = 123;
-  const CHAR_VERTICAL_LINE = 124;
-  const CHAR_RIGHT_CURLY_BRACKET = 125;
-  const ESCAPE_SEQUENCES = {};
-  ESCAPE_SEQUENCES[0] = "\\0";
-  ESCAPE_SEQUENCES[7] = "\\a";
-  ESCAPE_SEQUENCES[8] = "\\b";
-  ESCAPE_SEQUENCES[9] = "\\t";
-  ESCAPE_SEQUENCES[10] = "\\n";
-  ESCAPE_SEQUENCES[11] = "\\v";
-  ESCAPE_SEQUENCES[12] = "\\f";
-  ESCAPE_SEQUENCES[13] = "\\r";
-  ESCAPE_SEQUENCES[27] = "\\e";
-  ESCAPE_SEQUENCES[34] = '\\"';
-  ESCAPE_SEQUENCES[92] = "\\\\";
-  ESCAPE_SEQUENCES[133] = "\\N";
-  ESCAPE_SEQUENCES[160] = "\\_";
-  ESCAPE_SEQUENCES[8232] = "\\L";
-  ESCAPE_SEQUENCES[8233] = "\\P";
-  const DEPRECATED_BOOLEANS_SYNTAX = [
-    "y",
-    "Y",
-    "yes",
-    "Yes",
-    "YES",
-    "on",
-    "On",
-    "ON",
-    "n",
-    "N",
-    "no",
-    "No",
-    "NO",
-    "off",
-    "Off",
-    "OFF"
-  ];
-  const DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
-  function compileStyleMap(schema2, map2) {
-    if (map2 === null) return {};
-    const result = {};
-    const keys = Object.keys(map2);
-    for (let index = 0, length = keys.length; index < length; index += 1) {
-      let tag = keys[index];
-      let style = String(map2[tag]);
-      if (tag.slice(0, 2) === "!!") {
-        tag = "tag:yaml.org,2002:" + tag.slice(2);
-      }
-      const type2 = schema2.compiledTypeMap["fallback"][tag];
-      if (type2 && _hasOwnProperty.call(type2.styleAliases, style)) {
-        style = type2.styleAliases[style];
-      }
-      result[tag] = style;
-    }
-    return result;
-  }
-  function encodeHex(character) {
-    let handle;
-    let length;
-    const string = character.toString(16).toUpperCase();
-    if (character <= 255) {
-      handle = "x";
-      length = 2;
-    } else if (character <= 65535) {
-      handle = "u";
-      length = 4;
-    } else if (character <= 4294967295) {
-      handle = "U";
-      length = 8;
-    } else {
-      throw new YAMLException2("code point within a string may not be greater than 0xFFFFFFFF");
-    }
-    return "\\" + handle + common2.repeat("0", length - string.length) + string;
-  }
-  const QUOTING_TYPE_SINGLE = 1;
-  const QUOTING_TYPE_DOUBLE = 2;
-  function State(options) {
-    this.schema = options["schema"] || DEFAULT_SCHEMA2;
-    this.indent = Math.max(1, options["indent"] || 2);
-    this.noArrayIndent = options["noArrayIndent"] || false;
-    this.skipInvalid = options["skipInvalid"] || false;
-    this.flowLevel = common2.isNothing(options["flowLevel"]) ? -1 : options["flowLevel"];
-    this.styleMap = compileStyleMap(this.schema, options["styles"] || null);
-    this.sortKeys = options["sortKeys"] || false;
-    this.lineWidth = options["lineWidth"] || 80;
-    this.noRefs = options["noRefs"] || false;
-    this.noCompatMode = options["noCompatMode"] || false;
-    this.condenseFlow = options["condenseFlow"] || false;
-    this.quotingType = options["quotingType"] === '"' ? QUOTING_TYPE_DOUBLE : QUOTING_TYPE_SINGLE;
-    this.forceQuotes = options["forceQuotes"] || false;
-    this.replacer = typeof options["replacer"] === "function" ? options["replacer"] : null;
-    this.implicitTypes = this.schema.compiledImplicit;
-    this.explicitTypes = this.schema.compiledExplicit;
-    this.tag = null;
-    this.result = "";
-    this.duplicates = [];
-    this.usedDuplicates = null;
-  }
-  function indentString(string, spaces) {
-    const ind = common2.repeat(" ", spaces);
-    let position = 0;
-    let result = "";
-    const length = string.length;
-    while (position < length) {
-      let line;
-      const next = string.indexOf("\n", position);
-      if (next === -1) {
-        line = string.slice(position);
-        position = length;
-      } else {
-        line = string.slice(position, next + 1);
-        position = next + 1;
-      }
-      if (line.length && line !== "\n") result += ind;
-      result += line;
-    }
-    return result;
-  }
-  function generateNextLine(state, level) {
-    return "\n" + common2.repeat(" ", state.indent * level);
-  }
-  function testImplicitResolving(state, str2) {
-    for (let index = 0, length = state.implicitTypes.length; index < length; index += 1) {
-      const type2 = state.implicitTypes[index];
-      if (type2.resolve(str2)) {
-        return true;
-      }
-    }
-    return false;
-  }
-  function isWhitespace(c) {
-    return c === CHAR_SPACE || c === CHAR_TAB;
-  }
-  function isPrintable(c) {
-    return c >= 32 && c <= 126 || c >= 161 && c <= 55295 && c !== 8232 && c !== 8233 || c >= 57344 && c <= 65533 && c !== CHAR_BOM || c >= 65536 && c <= 1114111;
-  }
-  function isNsCharOrWhitespace(c) {
-    return isPrintable(c) && c !== CHAR_BOM && // - b-char
-    c !== CHAR_CARRIAGE_RETURN && c !== CHAR_LINE_FEED;
-  }
-  function isPlainSafe(c, prev, inblock) {
-    const cIsNsCharOrWhitespace = isNsCharOrWhitespace(c);
-    const cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c);
-    return (
-      // ns-plain-safe
-      (inblock ? cIsNsCharOrWhitespace : cIsNsCharOrWhitespace && // - c-flow-indicator
-      c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET) && // ns-plain-char
-      c !== CHAR_SHARP && // false on '#'
-      !(prev === CHAR_COLON && !cIsNsChar) || // false on ': '
-      isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c === CHAR_SHARP || // change to true on '[^ ]#'
-      prev === CHAR_COLON && cIsNsChar
-    );
-  }
-  function isPlainSafeFirst(c) {
-    return isPrintable(c) && c !== CHAR_BOM && !isWhitespace(c) && // - s-white
-    // - (c-indicator ::=
-    // “-” | “?” | “:” | “,” | “[” | “]” | “{” | “}”
-    c !== CHAR_MINUS && c !== CHAR_QUESTION && c !== CHAR_COLON && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET && // | “#” | “&” | “*” | “!” | “|” | “=” | “>” | “'” | “"”
-    c !== CHAR_SHARP && c !== CHAR_AMPERSAND && c !== CHAR_ASTERISK && c !== CHAR_EXCLAMATION && c !== CHAR_VERTICAL_LINE && c !== CHAR_EQUALS && c !== CHAR_GREATER_THAN && c !== CHAR_SINGLE_QUOTE && c !== CHAR_DOUBLE_QUOTE && // | “%” | “@” | “`”)
-    c !== CHAR_PERCENT && c !== CHAR_COMMERCIAL_AT && c !== CHAR_GRAVE_ACCENT;
-  }
-  function isPlainSafeLast(c) {
-    return !isWhitespace(c) && c !== CHAR_COLON;
-  }
-  function codePointAt(string, pos) {
-    const first = string.charCodeAt(pos);
-    let second;
-    if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
-      second = string.charCodeAt(pos + 1);
-      if (second >= 56320 && second <= 57343) {
-        return (first - 55296) * 1024 + second - 56320 + 65536;
-      }
-    }
-    return first;
-  }
-  function needIndentIndicator(string) {
-    const leadingSpaceRe = /^\n* /;
-    return leadingSpaceRe.test(string);
-  }
-  const STYLE_PLAIN = 1;
-  const STYLE_SINGLE = 2;
-  const STYLE_LITERAL = 3;
-  const STYLE_FOLDED = 4;
-  const STYLE_DOUBLE = 5;
-  function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
-    let i;
-    let char = 0;
-    let prevChar = null;
-    let hasLineBreak = false;
-    let hasFoldableLine = false;
-    const shouldTrackWidth = lineWidth !== -1;
-    let previousLineBreak = -1;
-    let plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
-    if (singleLineOnly || forceQuotes) {
-      for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string, i);
-        if (!isPrintable(char)) {
-          return STYLE_DOUBLE;
-        }
-        plain = plain && isPlainSafe(char, prevChar, inblock);
-        prevChar = char;
-      }
-    } else {
-      for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string, i);
-        if (char === CHAR_LINE_FEED) {
-          hasLineBreak = true;
-          if (shouldTrackWidth) {
-            hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
-            i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
-            previousLineBreak = i;
-          }
-        } else if (!isPrintable(char)) {
-          return STYLE_DOUBLE;
-        }
-        plain = plain && isPlainSafe(char, prevChar, inblock);
-        prevChar = char;
-      }
-      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
-    }
-    if (!hasLineBreak && !hasFoldableLine) {
-      if (plain && !forceQuotes && !testAmbiguousType(string)) {
-        return STYLE_PLAIN;
-      }
-      return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
-    }
-    if (indentPerLevel > 9 && needIndentIndicator(string)) {
-      return STYLE_DOUBLE;
-    }
-    if (!forceQuotes) {
-      return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
-    }
-    return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
-  }
-  function writeScalar(state, string, level, iskey, inblock) {
-    state.dump = (function() {
-      if (string.length === 0) {
-        return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
-      }
-      if (!state.noCompatMode) {
-        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
-          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
-        }
-      }
-      const indent = state.indent * Math.max(1, level);
-      const lineWidth = state.lineWidth === -1 ? -1 : Math.max(Math.min(state.lineWidth, 40), state.lineWidth - indent);
-      const singleLineOnly = iskey || // No block styles in flow mode.
-      state.flowLevel > -1 && level >= state.flowLevel;
-      function testAmbiguity(string2) {
-        return testImplicitResolving(state, string2);
-      }
-      switch (chooseScalarStyle(
-        string,
-        singleLineOnly,
-        state.indent,
-        lineWidth,
-        testAmbiguity,
-        state.quotingType,
-        state.forceQuotes && !iskey,
-        inblock
-      )) {
-        case STYLE_PLAIN:
-          return string;
-        case STYLE_SINGLE:
-          return "'" + string.replace(/'/g, "''") + "'";
-        case STYLE_LITERAL:
-          return "|" + blockHeader(string, state.indent) + dropEndingNewline(indentString(string, indent));
-        case STYLE_FOLDED:
-          return ">" + blockHeader(string, state.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent));
-        case STYLE_DOUBLE:
-          return '"' + escapeString(string) + '"';
-        default:
-          throw new YAMLException2("impossible error: invalid scalar style");
-      }
-    })();
-  }
-  function blockHeader(string, indentPerLevel) {
-    const indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
-    const clip = string[string.length - 1] === "\n";
-    const keep = clip && (string[string.length - 2] === "\n" || string === "\n");
-    const chomp = keep ? "+" : clip ? "" : "-";
-    return indentIndicator + chomp + "\n";
-  }
-  function dropEndingNewline(string) {
-    return string[string.length - 1] === "\n" ? string.slice(0, -1) : string;
-  }
-  function foldString(string, width) {
-    const lineRe = /(\n+)([^\n]*)/g;
-    let result = (function() {
-      let nextLF = string.indexOf("\n");
-      nextLF = nextLF !== -1 ? nextLF : string.length;
-      lineRe.lastIndex = nextLF;
-      return foldLine(string.slice(0, nextLF), width);
-    })();
-    let prevMoreIndented = string[0] === "\n" || string[0] === " ";
-    let moreIndented;
-    let match;
-    while (match = lineRe.exec(string)) {
-      const prefix = match[1];
-      const line = match[2];
-      moreIndented = line[0] === " ";
-      result += prefix + (!prevMoreIndented && !moreIndented && line !== "" ? "\n" : "") + foldLine(line, width);
-      prevMoreIndented = moreIndented;
-    }
-    return result;
-  }
-  function foldLine(line, width) {
-    if (line === "" || line[0] === " ") return line;
-    const breakRe = / [^ ]/g;
-    let match;
-    let start = 0;
-    let end;
-    let curr = 0;
-    let next = 0;
-    let result = "";
-    while (match = breakRe.exec(line)) {
-      next = match.index;
-      if (next - start > width) {
-        end = curr > start ? curr : next;
-        result += "\n" + line.slice(start, end);
-        start = end + 1;
-      }
-      curr = next;
-    }
-    result += "\n";
-    if (line.length - start > width && curr > start) {
-      result += line.slice(start, curr) + "\n" + line.slice(curr + 1);
-    } else {
-      result += line.slice(start);
-    }
-    return result.slice(1);
-  }
-  function escapeString(string) {
-    let result = "";
-    let char = 0;
-    for (let i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string, i);
-      const escapeSeq = ESCAPE_SEQUENCES[char];
-      if (!escapeSeq && isPrintable(char)) {
-        result += string[i];
-        if (char >= 65536) result += string[i + 1];
-      } else {
-        result += escapeSeq || encodeHex(char);
-      }
-    }
-    return result;
-  }
-  function writeFlowSequence(state, level, object) {
-    let _result = "";
-    const _tag = state.tag;
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      let value = object[index];
-      if (state.replacer) {
-        value = state.replacer.call(object, String(index), value);
-      }
-      if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
-        if (_result !== "") _result += "," + (!state.condenseFlow ? " " : "");
-        _result += state.dump;
-      }
-    }
-    state.tag = _tag;
-    state.dump = "[" + _result + "]";
-  }
-  function writeBlockSequence(state, level, object, compact) {
-    let _result = "";
-    const _tag = state.tag;
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      let value = object[index];
-      if (state.replacer) {
-        value = state.replacer.call(object, String(index), value);
-      }
-      if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
-        if (!compact || _result !== "") {
-          _result += generateNextLine(state, level);
-        }
-        if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-          _result += "-";
-        } else {
-          _result += "- ";
-        }
-        _result += state.dump;
-      }
-    }
-    state.tag = _tag;
-    state.dump = _result || "[]";
-  }
-  function writeFlowMapping(state, level, object) {
-    let _result = "";
-    const _tag = state.tag;
-    const objectKeyList = Object.keys(object);
-    for (let index = 0, length = objectKeyList.length; index < length; index += 1) {
-      let pairBuffer = "";
-      if (_result !== "") pairBuffer += ", ";
-      if (state.condenseFlow) pairBuffer += '"';
-      const objectKey = objectKeyList[index];
-      let objectValue = object[objectKey];
-      if (state.replacer) {
-        objectValue = state.replacer.call(object, objectKey, objectValue);
-      }
-      if (!writeNode(state, level, objectKey, false, false)) {
-        continue;
-      }
-      if (state.dump.length > 1024) pairBuffer += "? ";
-      pairBuffer += state.dump + (state.condenseFlow ? '"' : "") + ":" + (state.condenseFlow ? "" : " ");
-      if (!writeNode(state, level, objectValue, false, false)) {
-        continue;
-      }
-      pairBuffer += state.dump;
-      _result += pairBuffer;
-    }
-    state.tag = _tag;
-    state.dump = "{" + _result + "}";
-  }
-  function writeBlockMapping(state, level, object, compact) {
-    let _result = "";
-    const _tag = state.tag;
-    const objectKeyList = Object.keys(object);
-    if (state.sortKeys === true) {
-      objectKeyList.sort();
-    } else if (typeof state.sortKeys === "function") {
-      objectKeyList.sort(state.sortKeys);
-    } else if (state.sortKeys) {
-      throw new YAMLException2("sortKeys must be a boolean or a function");
-    }
-    for (let index = 0, length = objectKeyList.length; index < length; index += 1) {
-      let pairBuffer = "";
-      if (!compact || _result !== "") {
-        pairBuffer += generateNextLine(state, level);
-      }
-      const objectKey = objectKeyList[index];
-      let objectValue = object[objectKey];
-      if (state.replacer) {
-        objectValue = state.replacer.call(object, objectKey, objectValue);
-      }
-      if (!writeNode(state, level + 1, objectKey, true, true, true)) {
-        continue;
-      }
-      const explicitPair = state.tag !== null && state.tag !== "?" || state.dump && state.dump.length > 1024;
-      if (explicitPair) {
-        if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-          pairBuffer += "?";
-        } else {
-          pairBuffer += "? ";
-        }
-      }
-      pairBuffer += state.dump;
-      if (explicitPair) {
-        pairBuffer += generateNextLine(state, level);
-      }
-      if (!writeNode(state, level + 1, objectValue, true, explicitPair)) {
-        continue;
-      }
-      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-        pairBuffer += ":";
-      } else {
-        pairBuffer += ": ";
-      }
-      pairBuffer += state.dump;
-      _result += pairBuffer;
-    }
-    state.tag = _tag;
-    state.dump = _result || "{}";
-  }
-  function detectType(state, object, explicit) {
-    const typeList = explicit ? state.explicitTypes : state.implicitTypes;
-    for (let index = 0, length = typeList.length; index < length; index += 1) {
-      const type2 = typeList[index];
-      if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
-        if (explicit) {
-          if (type2.multi && type2.representName) {
-            state.tag = type2.representName(object);
-          } else {
-            state.tag = type2.tag;
-          }
-        } else {
-          state.tag = "?";
-        }
-        if (type2.represent) {
-          const style = state.styleMap[type2.tag] || type2.defaultStyle;
-          let _result;
-          if (_toString.call(type2.represent) === "[object Function]") {
-            _result = type2.represent(object, style);
-          } else if (_hasOwnProperty.call(type2.represent, style)) {
-            _result = type2.represent[style](object, style);
-          } else {
-            throw new YAMLException2("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
-          }
-          state.dump = _result;
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-  function writeNode(state, level, object, block, compact, iskey, isblockseq) {
-    state.tag = null;
-    state.dump = object;
-    if (!detectType(state, object, false)) {
-      detectType(state, object, true);
-    }
-    const type2 = _toString.call(state.dump);
-    const inblock = block;
-    if (block) {
-      block = state.flowLevel < 0 || state.flowLevel > level;
-    }
-    const objectOrArray = type2 === "[object Object]" || type2 === "[object Array]";
-    let duplicateIndex;
-    let duplicate;
-    if (objectOrArray) {
-      duplicateIndex = state.duplicates.indexOf(object);
-      duplicate = duplicateIndex !== -1;
-    }
-    if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) {
-      compact = false;
-    }
-    if (duplicate && state.usedDuplicates[duplicateIndex]) {
-      state.dump = "*ref_" + duplicateIndex;
-    } else {
-      if (objectOrArray && duplicate && !state.usedDuplicates[duplicateIndex]) {
-        state.usedDuplicates[duplicateIndex] = true;
-      }
-      if (type2 === "[object Object]") {
-        if (block && Object.keys(state.dump).length !== 0) {
-          writeBlockMapping(state, level, state.dump, compact);
-          if (duplicate) {
-            state.dump = "&ref_" + duplicateIndex + state.dump;
-          }
-        } else {
-          writeFlowMapping(state, level, state.dump);
-          if (duplicate) {
-            state.dump = "&ref_" + duplicateIndex + " " + state.dump;
-          }
-        }
-      } else if (type2 === "[object Array]") {
-        if (block && state.dump.length !== 0) {
-          if (state.noArrayIndent && !isblockseq && level > 0) {
-            writeBlockSequence(state, level - 1, state.dump, compact);
-          } else {
-            writeBlockSequence(state, level, state.dump, compact);
-          }
-          if (duplicate) {
-            state.dump = "&ref_" + duplicateIndex + state.dump;
-          }
-        } else {
-          writeFlowSequence(state, level, state.dump);
-          if (duplicate) {
-            state.dump = "&ref_" + duplicateIndex + " " + state.dump;
-          }
-        }
-      } else if (type2 === "[object String]") {
-        if (state.tag !== "?") {
-          writeScalar(state, state.dump, level, iskey, inblock);
-        }
-      } else if (type2 === "[object Undefined]") {
-        return false;
-      } else {
-        if (state.skipInvalid) return false;
-        throw new YAMLException2("unacceptable kind of an object to dump " + type2);
-      }
-      if (state.tag !== null && state.tag !== "?") {
-        let tagStr = encodeURI(
-          state.tag[0] === "!" ? state.tag.slice(1) : state.tag
-        ).replace(/!/g, "%21");
-        if (state.tag[0] === "!") {
-          tagStr = "!" + tagStr;
-        } else if (tagStr.slice(0, 18) === "tag:yaml.org,2002:") {
-          tagStr = "!!" + tagStr.slice(18);
-        } else {
-          tagStr = "!<" + tagStr + ">";
-        }
-        state.dump = tagStr + " " + state.dump;
-      }
-    }
-    return true;
-  }
-  function getDuplicateReferences(object, state) {
-    const objects = [];
-    const duplicatesIndexes = [];
-    inspectNode(object, objects, duplicatesIndexes);
-    const length = duplicatesIndexes.length;
-    for (let index = 0; index < length; index += 1) {
-      state.duplicates.push(objects[duplicatesIndexes[index]]);
-    }
-    state.usedDuplicates = new Array(length);
-  }
-  function inspectNode(object, objects, duplicatesIndexes) {
-    if (object !== null && typeof object === "object") {
-      const index = objects.indexOf(object);
-      if (index !== -1) {
-        if (duplicatesIndexes.indexOf(index) === -1) {
-          duplicatesIndexes.push(index);
-        }
-      } else {
-        objects.push(object);
-        if (Array.isArray(object)) {
-          for (let i = 0, length = object.length; i < length; i += 1) {
-            inspectNode(object[i], objects, duplicatesIndexes);
-          }
-        } else {
-          const objectKeyList = Object.keys(object);
-          for (let i = 0, length = objectKeyList.length; i < length; i += 1) {
-            inspectNode(object[objectKeyList[i]], objects, duplicatesIndexes);
-          }
-        }
-      }
-    }
-  }
-  function dump2(input, options) {
-    options = options || {};
-    const state = new State(options);
-    if (!state.noRefs) getDuplicateReferences(input, state);
-    let value = input;
-    if (state.replacer) {
-      value = state.replacer.call({ "": value }, "", value);
-    }
-    if (writeNode(state, 0, value, true, true)) return state.dump + "\n";
-    return "";
-  }
-  dumper.dump = dump2;
-  return dumper;
-}
-var hasRequiredJsYaml;
-function requireJsYaml() {
-  if (hasRequiredJsYaml) return jsYaml;
-  hasRequiredJsYaml = 1;
-  const loader2 = requireLoader();
-  const dumper2 = requireDumper();
-  function renamed(from, to) {
-    return function() {
-      throw new Error("Function yaml." + from + " is removed in js-yaml 4. Use yaml." + to + " instead, which is now safe by default.");
-    };
-  }
-  jsYaml.Type = requireType();
-  jsYaml.Schema = requireSchema();
-  jsYaml.FAILSAFE_SCHEMA = requireFailsafe();
-  jsYaml.JSON_SCHEMA = requireJson();
-  jsYaml.CORE_SCHEMA = requireCore();
-  jsYaml.DEFAULT_SCHEMA = require_default();
-  jsYaml.load = loader2.load;
-  jsYaml.loadAll = loader2.loadAll;
-  jsYaml.dump = dumper2.dump;
-  jsYaml.YAMLException = requireException();
-  jsYaml.types = {
-    binary: requireBinary(),
-    float: requireFloat(),
-    map: requireMap(),
-    null: require_null(),
-    pairs: requirePairs(),
-    set: requireSet(),
-    timestamp: requireTimestamp(),
-    bool: requireBool(),
-    int: requireInt(),
-    merge: requireMerge(),
-    omap: requireOmap(),
-    seq: requireSeq(),
-    str: requireStr()
-  };
-  jsYaml.safeLoad = renamed("safeLoad", "load");
-  jsYaml.safeLoadAll = renamed("safeLoadAll", "loadAll");
-  jsYaml.safeDump = renamed("safeDump", "dump");
-  return jsYaml;
-}
-var jsYamlExports = requireJsYaml();
-var yaml = /* @__PURE__ */ getDefaultExportFromCjs(jsYamlExports);
-var {
-  Type,
-  Schema,
-  FAILSAFE_SCHEMA,
-  JSON_SCHEMA,
-  CORE_SCHEMA,
-  DEFAULT_SCHEMA,
-  load,
-  loadAll,
-  dump,
-  YAMLException,
-  types,
-  safeLoad,
-  safeLoadAll,
-  safeDump
-} = yaml;
+// utils/NoteProcessor.ts
+var import_obsidian = require("obsidian");
 
 // core/KnowledgeMarkdown.ts
 var SOURCE_LABELS = {
@@ -5124,11 +2099,17 @@ function serializeScalarFrontmatter(fields) {
       throw new TypeError(`Frontmatter field "${key}" must be a scalar value.`);
     }
   }
-  return dump(fields, {
-    lineWidth: 1e3,
-    noRefs: true,
-    sortKeys: false
-  }).trimEnd();
+  return Object.entries(fields).map(([key, value]) => `${yamlKey(key)}: ${yamlScalar(value)}`).join("\n");
+}
+var YAML_AMBIGUOUS = /^(?:true|false|yes|no|on|off|null|~|[-+]?(?:\.?\d|\.(?:inf|nan))[\d.eE_:+-]*|\d{4}-\d\d-\d\d.*)$/i;
+function yamlKey(key) {
+  return /^[A-Za-z_][\w-]*$/.test(key) ? key : JSON.stringify(key);
+}
+function yamlScalar(value) {
+  if (value === null) return "null";
+  if (typeof value !== "string") return String(value);
+  const plain = value.length > 0 && value === value.trim() && !YAML_AMBIGUOUS.test(value) && !/^[-?:,[\]{}#&*!|>'"%@`]/.test(value) && !/[\n\r\t]|: | #|:$/.test(value);
+  return plain ? value : JSON.stringify(value);
 }
 function renderGeneratedMarkdown(result) {
   return sanitizeGeneratedMarkdownActiveResources(result.note || result.summary || "").trim();
@@ -5137,7 +2118,7 @@ function sanitizeGeneratedMarkdownActiveResources(markdown) {
   return String(markdown || "").replace(/!/g, "&#33;").replace(/</g, "&lt;");
 }
 function escapeUntrustedMarkdownInline(value) {
-  const escaped = String(value || "").replace(/\\/g, "\\\\").replace(/([*_[\]`()#|>])/g, "\\$1").replace(/\r?\n+/g, " ");
+  const escaped = scalarText(value).replace(/\\/g, "\\\\").replace(/([*_[\]`()#|>])/g, "\\$1").replace(/\r?\n+/g, " ");
   return sanitizeGeneratedMarkdownActiveResources(escaped).trim();
 }
 function renderEvidenceMarkdown(result, sourceUrl = "", limits = {}) {
@@ -5257,9 +2238,9 @@ function renderClaim(lines, claim, segments, sourceUrl, allowTimestamps) {
   const firstSegment = claim.evidence.map((reference) => segments.get(reference.segment_id)).find(Boolean);
   const start = allowTimestamps ? claim.start ?? firstSegment?.start ?? null : null;
   const timestampUrl2 = buildTimestampUrl(sourceUrl, start);
-  const timestamp2 = start === null ? "\u6587\u672C\u8BC1\u636E" : timestampUrl2 ? `[${formatTimestamp(start)}](${timestampUrl2})` : formatTimestamp(start);
+  const timestamp = start === null ? "\u6587\u672C\u8BC1\u636E" : timestampUrl2 ? `[${formatTimestamp(start)}](${timestampUrl2})` : formatTimestamp(start);
   const review = claim.review_state === "needs-review" ? " \xB7 **\u9700\u590D\u6838**" : claim.review_state === "inference" ? " \xB7 AI \u63A8\u65AD" : "";
-  lines.push(`- ${timestamp2} ${escapeInline(claim.claim)}${review} ^${sanitizeBlockId(claim.id)}`);
+  lines.push(`- ${timestamp} ${escapeInline(claim.claim)}${review} ^${sanitizeBlockId(claim.id)}`);
   if (claim.evidence.length === 0) {
     lines.push("  - \u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u6765\u6E90\u5F15\u7528");
     return;
@@ -5282,8 +2263,8 @@ function renderVisual(lines, item, sourceUrl, allowTimestamps, managedMediaRoot)
     return;
   }
   const timestampUrl2 = buildTimestampUrl(sourceUrl, item.start);
-  const timestamp2 = timestampUrl2 ? `[${formatTimestamp(item.start)}](${timestampUrl2})` : formatTimestamp(item.start);
-  lines.push(`- ${timestamp2} ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`);
+  const timestamp = timestampUrl2 ? `[${formatTimestamp(item.start)}](${timestampUrl2})` : formatTimestamp(item.start);
+  lines.push(`- ${timestamp} ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`);
   if (item.ocr_text) lines.push(`  - \u5C4F\u5E55\u6587\u5B57\uFF1A${escapeInline(item.ocr_text)}`);
   appendKeyframe(lines, item, managedMediaRoot);
 }
@@ -5355,6 +2336,17 @@ function isSafeFrontmatterScalar(value) {
   return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
 }
 
+// utils/errors.ts
+function errorMessage(error) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error) ?? String(error);
+  } catch {
+    return String(error);
+  }
+}
+
 // utils/NoteProcessor.ts
 var NoteProcessor = class {
   constructor(vault) {
@@ -5369,7 +2361,7 @@ var NoteProcessor = class {
       const fmText = fmMatch[1];
       let fm = {};
       try {
-        fm = load(fmText) || {};
+        fm = asRecord((0, import_obsidian.parseYaml)(fmText));
       } catch {
         fm = {};
       }
@@ -5382,7 +2374,7 @@ var NoteProcessor = class {
    * 构建包含 frontmatter 的内容
    */
   buildContent(fm, body) {
-    const fmText = dump(fm, { lineWidth: 1e3 });
+    const fmText = (0, import_obsidian.stringifyYaml)(fm);
     return `---
 ${(fmText || "").trim()}
 ---
@@ -5393,7 +2385,7 @@ ${body}`;
    */
   extractVideoUrl(content) {
     const { fm, body } = this.parseFrontmatter(content);
-    const linkField = fm?.link;
+    const linkField = fm.link;
     if (Array.isArray(linkField)) {
       for (const l of linkField) {
         if (typeof l === "string" && this.isValidVideoUrl(l)) return l;
@@ -5415,16 +2407,16 @@ ${body}`;
    */
   extractExistingTranscript(content) {
     const { fm } = this.parseFrontmatter(content);
-    const v = fm?.video_transcript;
+    const v = fm.video_transcript;
     return typeof v === "string" && v.trim() ? v.trim() : null;
   }
   extractProvidedTranscript(content) {
     const { fm } = this.parseFrontmatter(content);
-    const provided = fm?.provided_transcript;
+    const provided = fm.provided_transcript;
     if (typeof provided === "string" && provided.trim()) {
       return provided.trim();
     }
-    const existing = fm?.video_transcript;
+    const existing = fm.video_transcript;
     if (typeof existing === "string" && existing.trim()) {
       return existing.trim();
     }
@@ -5435,7 +2427,7 @@ ${body}`;
    */
   extractLocalFileName(content) {
     const { fm } = this.parseFrontmatter(content);
-    const v = fm?.local_file;
+    const v = fm.local_file;
     return typeof v === "string" && v.trim() ? v.trim() : null;
   }
   /**
@@ -5452,10 +2444,10 @@ ${body}`;
   extractMetadata(content) {
     const { fm } = this.parseFrontmatter(content);
     const md = {};
-    if (!fm || typeof fm !== "object") return md;
+    const fields = md;
     const copy = (k) => {
       const v = fm[k];
-      if (typeof v === "string") md[k] = v;
+      if (typeof v === "string") fields[k] = v;
     };
     [
       "status",
@@ -5631,8 +2623,8 @@ ${fieldLine}`;
     return fmText.replace(regex, "").replace(/\n\n+/g, "\n").trim();
   }
   normalizeErrorMessage(error) {
-    if (error instanceof Error) return error.message;
-    return String(error || "\u672A\u77E5\u9519\u8BEF");
+    if (error instanceof Error) return errorMessage(error);
+    return typeof error === "string" && error ? error : "\u672A\u77E5\u9519\u8BEF";
   }
   buildProcessingErrorBlock(errorMessage2) {
     const lines = errorMessage2.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").map((line) => `> ${line}`).join("\n");
@@ -5768,13 +2760,14 @@ ${fieldLine}`;
         await this.vault.rename(file, targetPath);
       }
     } catch (error) {
-      console.error(`\u91CD\u547D\u540D\u6587\u4EF6\u5931\u8D25: ${error.message}`);
+      console.error(`\u91CD\u547D\u540D\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
 };
 function shouldMirrorLegacyStatus(value) {
-  if (value === void 0 || value === null || String(value).trim() === "") return true;
-  const status = String(value).trim().toLowerCase();
+  const text = typeof value === "string" || typeof value === "number" ? String(value) : "";
+  if (text.trim() === "") return true;
+  const status = text.trim().toLowerCase();
   return (/* @__PURE__ */ new Set([
     "pending",
     "running",
@@ -5827,7 +2820,7 @@ var RetryUtils = class {
         if (onRetry) {
           onRetry(attempt + 1, lastError);
         }
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
     }
     throw lastError;
@@ -5838,14 +2831,14 @@ var RetryUtils = class {
    * @returns 是否应该重试
    */
   static shouldRetry(error) {
-    const errorMessage2 = error.message.toLowerCase();
-    if (errorMessage2.includes("network") || errorMessage2.includes("timeout") || errorMessage2.includes("connection") || errorMessage2.includes("fetch")) {
+    const message = error.message.toLowerCase();
+    if (message.includes("network") || message.includes("timeout") || message.includes("connection") || message.includes("fetch")) {
       return true;
     }
-    if (errorMessage2.includes("500") || errorMessage2.includes("502") || errorMessage2.includes("503") || errorMessage2.includes("504")) {
+    if (message.includes("500") || message.includes("502") || message.includes("503") || message.includes("504")) {
       return true;
     }
-    if (errorMessage2.includes("temporarily") || errorMessage2.includes("rate limit") || errorMessage2.includes("too many requests")) {
+    if (message.includes("temporarily") || message.includes("rate limit") || message.includes("too many requests")) {
       return true;
     }
     return false;
@@ -5874,7 +2867,7 @@ var RetryUtils = class {
         if (onRetry) {
           onRetry(attempt + 1, lastError);
         }
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise((resolve) => window.setTimeout(resolve, delay));
       }
     }
     throw lastError;
@@ -5882,7 +2875,7 @@ var RetryUtils = class {
 };
 
 // modals/VideoSummaryModal.ts
-var VideoSummaryModal = class extends import_obsidian.Modal {
+var VideoSummaryModal = class extends import_obsidian2.Modal {
   constructor(app, plugin, editor, view) {
     super(app);
     this.mode = "summary";
@@ -5902,7 +2895,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "\u{1F4FA} \u89C6\u9891\u603B\u7ED3\u5904\u7406" });
-    new import_obsidian.Setting(contentEl).setName("\u5904\u7406\u6A21\u5F0F").setDesc("\u9009\u62E9\u5904\u7406\u65B9\u5F0F").addDropdown((dropdown) => {
+    new import_obsidian2.Setting(contentEl).setName("\u5904\u7406\u6A21\u5F0F").setDesc("\u9009\u62E9\u5904\u7406\u65B9\u5F0F").addDropdown((dropdown) => {
       PROCESSING_MODES.forEach((mode) => {
         dropdown.addOption(mode.value, mode.label);
       });
@@ -5911,7 +2904,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
         this.mode = value;
       });
     });
-    const languageSetting = new import_obsidian.Setting(contentEl).setName("\u8F93\u51FA\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u8BED\u8A00").addDropdown((dropdown) => {
+    const languageSetting = new import_obsidian2.Setting(contentEl).setName("\u8F93\u51FA\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u8BED\u8A00").addDropdown((dropdown) => {
       LANGUAGE_OPTIONS.forEach((lang) => {
         dropdown.addOption(lang.value, lang.label);
       });
@@ -5929,24 +2922,24 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
         updateLanguageVisibility();
       }
     });
-    const videoUrlSetting = new import_obsidian.Setting(contentEl).setName("\u89C6\u9891\u94FE\u63A5").setDesc("\u8F93\u5165\u89C6\u9891\u94FE\u63A5 (YouTube/Bilibili/\u6296\u97F3/TikTok)");
+    const videoUrlSetting = new import_obsidian2.Setting(contentEl).setName("\u89C6\u9891\u94FE\u63A5").setDesc("\u8F93\u5165\u89C6\u9891\u94FE\u63A5 (YouTube/Bilibili/\u6296\u97F3/TikTok)");
     this.videoUrlInput = videoUrlSetting.controlEl.createEl("input");
     this.videoUrlInput.type = "text";
     this.videoUrlInput.placeholder = "https://...";
-    const transcriptSetting = new import_obsidian.Setting(contentEl).setName("\u63D0\u4F9B\u7684\u6587\u7A3F").setDesc("\u8F93\u5165\u6587\u7A3F\u5185\u5BB9\uFF08\u53EF\u9009\uFF09");
+    const transcriptSetting = new import_obsidian2.Setting(contentEl).setName("\u63D0\u4F9B\u7684\u6587\u7A3F").setDesc("\u8F93\u5165\u6587\u7A3F\u5185\u5BB9\uFF08\u53EF\u9009\uFF09");
     this.providedTranscriptInput = transcriptSetting.controlEl.createEl("textarea");
     this.providedTranscriptInput.placeholder = "\u5728\u8FD9\u91CC\u8F93\u5165\u6587\u7A3F\u5185\u5BB9...";
     this.providedTranscriptInput.rows = 4;
-    const localFileSetting = new import_obsidian.Setting(contentEl).setName("\u672C\u5730\u6587\u4EF6").setDesc("Bundled Docker/n8n \u53EA\u63A5\u53D7 uploads \u6839\u76EE\u5F55\u5185\u7684\u6587\u4EF6\u540D\u3002");
+    const localFileSetting = new import_obsidian2.Setting(contentEl).setName("\u672C\u5730\u6587\u4EF6").setDesc("Bundled Docker/n8n \u53EA\u63A5\u53D7 uploads \u6839\u76EE\u5F55\u5185\u7684\u6587\u4EF6\u540D\u3002");
     this.localFileInput = localFileSetting.controlEl.createEl("input");
     this.localFileInput.type = "text";
     this.localFileInput.placeholder = "lecture-01.mp4";
     const file = this.view.file;
     if (file) {
-      const infoEl = contentEl.createEl("div", { cls: "video-summary-info" });
+      const infoEl = contentEl.createDiv({ cls: "video-summary-info" });
       infoEl.createEl("h3", { text: "\u5F53\u524D\u6587\u4EF6\u4FE1\u606F" });
       infoEl.createEl("p", { text: `\u6587\u4EF6\u540D: ${file.basename}` });
-      this.app.vault.read(file).then((content) => {
+      void this.app.vault.read(file).then((content) => {
         const hasVideo = this.noteProcessor.hasVideoContent(content);
         const status = this.noteProcessor.getProcessingStatus(content);
         infoEl.createEl("p", {
@@ -5959,13 +2952,13 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
         }
       });
     }
-    const buttonContainer = contentEl.createEl("div", { cls: "video-summary-buttons" });
+    const buttonContainer = contentEl.createDiv({ cls: "video-summary-buttons" });
     const processButton = buttonContainer.createEl("button", {
       text: "\u5F00\u59CB\u5904\u7406",
       cls: "mod-cta"
     });
     processButton.addEventListener("click", () => {
-      this.processVideo();
+      void this.processVideo();
     });
     const cancelButton = buttonContainer.createEl("button", {
       text: "\u53D6\u6D88",
@@ -5979,7 +2972,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
   async processVideo() {
     const file = this.view.file;
     if (!file) {
-      new import_obsidian.Notice(ERROR_MESSAGES.NO_FILE);
+      new import_obsidian2.Notice(ERROR_MESSAGES.NO_FILE);
       return;
     }
     try {
@@ -5995,7 +2988,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
         videoInput.localFile = this.localFileInput.value.trim();
       }
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian.Notice(ERROR_MESSAGES.NO_INPUT);
+        new import_obsidian2.Notice(ERROR_MESSAGES.NO_INPUT);
         return;
       }
       if (!await this.plugin.ensureBackendReady()) return;
@@ -6012,7 +3005,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
             return "\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019...";
         }
       })();
-      this.progressNotice = new import_obsidian.Notice(noticeText, 0);
+      this.progressNotice = new import_obsidian2.Notice(noticeText, 0);
       const result = await RetryUtils.withSmartRetry(
         async () => {
           return await this.plugin.api.processVideo(
@@ -6030,7 +3023,9 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
         // 2秒延迟
         (attempt, error) => {
           if (this.progressNotice) {
-            this.progressNotice.setMessage(`\u{1F504} \u5904\u7406\u5931\u8D25\uFF0C\u7B2C${attempt}\u6B21\u91CD\u8BD5: ${error.message}`);
+            this.progressNotice.setMessage(
+              `\u{1F504} \u5904\u7406\u5931\u8D25\uFF0C\u7B2C${attempt}\u6B21\u91CD\u8BD5: ${errorMessage(error)}`
+            );
           }
         }
       );
@@ -6069,7 +3064,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
             return "\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u83B7\u53D6\uFF01";
         }
       })();
-      new import_obsidian.Notice(successText, 5e3);
+      new import_obsidian2.Notice(successText, 5e3);
       this.recordHistory(file.basename, "success");
       this.close();
     } catch (error) {
@@ -6081,7 +3076,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
         await this.noteProcessor.setProcessingError(file, error);
         await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
       }
-      new import_obsidian.Notice(`\u274C \u5904\u7406\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5\uFF09: ${error.message}`, 0);
+      new import_obsidian2.Notice(`\u274C \u5904\u7406\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5\uFF09: ${errorMessage(error)}`, 0);
       this.recordHistory(file?.basename || "unknown", "error");
     }
   }
@@ -6099,7 +3094,7 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
     if (this.plugin.settings.history.length > 200) {
       this.plugin.settings.history.shift();
     }
-    this.plugin.saveSettings();
+    void this.plugin.saveSettings();
   }
   onClose() {
     const { contentEl } = this;
@@ -6111,8 +3106,8 @@ var VideoSummaryModal = class extends import_obsidian.Modal {
 };
 
 // modals/ConfirmModal.ts
-var import_obsidian2 = require("obsidian");
-var ConfirmModal = class extends import_obsidian2.Modal {
+var import_obsidian3 = require("obsidian");
+var ConfirmModal = class extends import_obsidian3.Modal {
   constructor(app, title, message, resolve) {
     super(app);
     this.title = title;
@@ -6125,12 +3120,12 @@ var ConfirmModal = class extends import_obsidian2.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: this.title });
-    const messageEl = contentEl.createEl("div", { cls: "confirm-message" });
+    const messageEl = contentEl.createDiv({ cls: "confirm-message" });
     this.message.split("\n").forEach((line, index) => {
       if (index > 0) messageEl.createEl("br");
       messageEl.appendText(line);
     });
-    const buttonContainer = contentEl.createEl("div", { cls: "confirm-buttons" });
+    const buttonContainer = contentEl.createDiv({ cls: "confirm-buttons" });
     const confirmBtn = buttonContainer.createEl("button", {
       text: "\u786E\u8BA4",
       cls: "mod-cta"
@@ -6162,7 +3157,7 @@ var ConfirmModal = class extends import_obsidian2.Modal {
 };
 
 // BatchProcessingModal.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // utils/PlaylistProcessor.ts
 var DEFAULT_MAX_ITEMS = 500;
@@ -6539,7 +3534,7 @@ function appendYouTubeItems(root, output, seen, maxItems) {
 }
 function appendBilibiliItems(records, output, seen, maxItems) {
   for (const value of records) {
-    if (output.length >= maxItems || !isRecord(value)) break;
+    if (output.length >= maxItems || !isRecord2(value)) break;
     const bvid = stringField(value, "bvid");
     if (!bvid || !PlaylistProcessor.isValidBvid(bvid)) continue;
     const key = canonicalVideoKey("bilibili", bvid);
@@ -6601,49 +3596,49 @@ function parseJson(text, label) {
   }
 }
 function assertBilibiliSuccess(value, action) {
-  if (!isRecord(value)) throw new Error(`${action}\u8FD4\u56DE\u683C\u5F0F\u65E0\u6548`);
+  if (!isRecord2(value)) throw new Error(`${action}\u8FD4\u56DE\u683C\u5F0F\u65E0\u6548`);
   const code = numberField(value, "code");
   if (code !== 0) {
     throw new Error(`${action}\u5931\u8D25: ${stringField(value, "message") || `code ${String(code)}`}`);
   }
 }
-function isRecord(value) {
+function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function hasOwn(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 function recordField(value, key) {
-  if (!isRecord(value)) return {};
+  if (!isRecord2(value)) return {};
   const result = value[key];
-  return isRecord(result) ? result : {};
+  return isRecord2(result) ? result : {};
 }
 function arrayField(value, key) {
-  if (!isRecord(value)) return [];
+  if (!isRecord2(value)) return [];
   const result = value[key];
   return Array.isArray(result) ? result : [];
 }
 function stringField(value, key) {
-  if (!isRecord(value)) return "";
+  if (!isRecord2(value)) return "";
   const result = value[key];
   return typeof result === "string" ? result.trim() : "";
 }
 function numberField(value, key) {
-  if (!isRecord(value)) return void 0;
+  if (!isRecord2(value)) return void 0;
   const result = value[key];
   return typeof result === "number" && Number.isFinite(result) ? result : void 0;
 }
 function booleanField(value, key) {
-  if (!isRecord(value)) return void 0;
+  if (!isRecord2(value)) return void 0;
   const result = value[key];
   return typeof result === "boolean" ? result : void 0;
 }
 function textFromRenderer(value) {
-  if (!isRecord(value)) return "";
+  if (!isRecord2(value)) return "";
   const simpleText = stringField(value, "simpleText");
   if (simpleText) return simpleText;
   const runs = arrayField(value, "runs");
-  return runs.map((run) => isRecord(run) ? stringField(run, "text") : "").filter(Boolean).join("").trim();
+  return runs.map((run) => isRecord2(run) ? stringField(run, "text") : "").filter(Boolean).join("").trim();
 }
 function findFirstRecordAtKey(root, key) {
   return findAllRecordsAtKey(root, key)[0] ?? {};
@@ -6655,9 +3650,9 @@ function findAllRecordsAtKey(root, key) {
       for (const item of value) visit(item);
       return;
     }
-    if (!isRecord(value)) return;
+    if (!isRecord2(value)) return;
     const candidate = value[key];
-    if (isRecord(candidate)) results.push(candidate);
+    if (isRecord2(candidate)) results.push(candidate);
     for (const child of Object.values(value)) visit(child);
   };
   visit(root);
@@ -6671,7 +3666,7 @@ function firstStringAtKey(root, key, parentPredicate) {
       for (const item of value) visit(item, parent);
       return;
     }
-    if (!isRecord(value)) return;
+    if (!isRecord2(value)) return;
     const candidate = value[key];
     if (typeof candidate === "string" && (!parentPredicate || (parent ? parentPredicate(parent) : parentPredicate(value)))) {
       found = candidate;
@@ -6734,7 +3729,7 @@ function balancedJsonObject(text, start) {
 }
 
 // views/ui.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // core/CoverPlaceholder.ts
 function isPlaceholderCover(url, width, height) {
@@ -6747,13 +3742,22 @@ function isPlaceholderCover(url, width, height) {
   return /(^|\.)ytimg\.com$/.test(host) && width === 120 && height === 90;
 }
 
+// utils/fire.ts
+function fire(handler) {
+  return (...args) => {
+    void Promise.resolve(handler(...args)).catch(
+      (error) => console.error("[Video Summary]", error)
+    );
+  };
+}
+
 // views/ui.ts
 function iconButton(parent, icon, label, onClick, extraCls) {
   const button = parent.createEl("button", {
     cls: `vs-icon-btn${extraCls ? ` ${extraCls}` : ""}`,
     attr: { type: "button", "aria-label": label, title: label }
   });
-  (0, import_obsidian3.setIcon)(button, icon);
+  (0, import_obsidian4.setIcon)(button, icon);
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -6780,7 +3784,7 @@ function configChip(parent, label, value, items) {
   });
   chip.createSpan({ text: value, cls: "vs-chip-value" });
   const caret = chip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian3.setIcon)(caret, "chevron-down");
+  (0, import_obsidian4.setIcon)(caret, "chevron-down");
   chip.addEventListener("click", (event) => {
     event.preventDefault();
     showMenu(event, items);
@@ -6788,7 +3792,7 @@ function configChip(parent, label, value, items) {
   return chip;
 }
 function showMenu(event, items) {
-  const menu = new import_obsidian3.Menu();
+  const menu = new import_obsidian4.Menu();
   items.forEach((spec) => {
     if (spec.separatorBefore) menu.addSeparator();
     menu.addItem((item) => {
@@ -6796,7 +3800,7 @@ function showMenu(event, items) {
       if (spec.icon) item.setIcon(spec.icon);
       if (spec.disabled) item.setDisabled(true);
       if (spec.checked !== void 0) item.setChecked(spec.checked);
-      item.onClick(() => spec.onClick());
+      item.onClick(fire(spec.onClick));
     });
   });
   menu.showAtMouseEvent(event);
@@ -6833,7 +3837,7 @@ function statusPill(parent, status, options = {}) {
     pill.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      options.onClick?.();
+      if (options.onClick) fire(options.onClick)();
     });
   }
   return pill;
@@ -6851,7 +3855,7 @@ function segmented(parent, items, active, onSelect) {
     });
     if (item.icon) {
       const icon = seg.createSpan({ cls: "vs-seg-icon" });
-      (0, import_obsidian3.setIcon)(icon, item.icon);
+      (0, import_obsidian4.setIcon)(icon, item.icon);
     }
     seg.createSpan({ text: item.label });
     if (item.count) seg.createSpan({ text: item.count, cls: "vs-seg-count" });
@@ -6870,8 +3874,8 @@ function thumbnail(parent, options = {}) {
     cls: "vs-thumb-placeholder",
     attr: { "aria-hidden": "true" }
   });
-  (0, import_obsidian3.setIcon)(placeholder, platformIcon(options.platform));
-  if (!placeholder.firstChild) (0, import_obsidian3.setIcon)(placeholder, "play");
+  (0, import_obsidian4.setIcon)(placeholder, platformIcon(options.platform));
+  if (!placeholder.firstChild) (0, import_obsidian4.setIcon)(placeholder, "play");
   if (options.cover) {
     const img = thumb.createEl("img", {
       cls: "vs-thumb-img",
@@ -6967,14 +3971,14 @@ function formatElapsed(ms) {
   if (minutes === 0) return `${seconds}s`;
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
-function formatRelative(timestamp2) {
-  const diff = Date.now() - timestamp2;
+function formatRelative(timestamp) {
+  const diff = Date.now() - timestamp;
   if (diff < 6e4) return "\u521A\u521A";
   if (diff < 36e5) return `${Math.floor(diff / 6e4)} \u5206\u949F\u524D`;
   if (diff < 864e5) return `${Math.floor(diff / 36e5)} \u5C0F\u65F6\u524D`;
   const days = Math.floor(diff / 864e5);
   if (days < 30) return `${days} \u5929\u524D`;
-  return new Date(timestamp2).toLocaleDateString("zh-CN");
+  return new Date(timestamp).toLocaleDateString("zh-CN");
 }
 function parseLocaleTime(value) {
   const parsed = Date.parse(value);
@@ -6994,13 +3998,13 @@ function parseLocaleTime(value) {
 function emptyState(parent, icon, title, hint) {
   const wrapper = parent.createDiv({ cls: "vs-empty" });
   const iconEl = wrapper.createDiv({ cls: "vs-empty-icon" });
-  (0, import_obsidian3.setIcon)(iconEl, icon);
+  (0, import_obsidian4.setIcon)(iconEl, icon);
   wrapper.createDiv({ text: title, cls: "vs-empty-title" });
   if (hint) wrapper.createDiv({ text: hint, cls: "vs-empty-hint" });
 }
 
 // core/NoteIndex.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // utils/VideoUtils.ts
 var VIDEO_STATUS_FIELDS = [
@@ -7198,7 +4202,7 @@ var VideoUtils = class {
    * 基于 frontmatter 判断是否为视频笔记（无需读取正文）
    */
   static isVideoNoteFromFrontmatter(frontmatter) {
-    if (!frontmatter || typeof frontmatter !== "object") return false;
+    if (!isRecord(frontmatter)) return false;
     if (this.isExplicitlyNonVideoFromFrontmatter(frontmatter)) return false;
     if (this.hasExplicitVideoMarker(frontmatter)) return true;
     const linkField = frontmatter.link;
@@ -7226,38 +4230,37 @@ var VideoUtils = class {
    * 明确声明为非视频的来源优先于链接/正文兜底，避免图片和文章采集笔记混入媒体库。
    */
   static isExplicitlyNonVideoFromFrontmatter(frontmatter) {
-    if (!frontmatter || typeof frontmatter !== "object") return false;
+    if (!isRecord(frontmatter)) return false;
     const pluginStatus = this.readPluginStatusFromFrontmatter(frontmatter);
     if (pluginStatus.present && pluginStatus.normalized === "excluded") return true;
     if (!pluginStatus.present) {
-      const genericStatus = this.normalizeStatus(String(frontmatter.status ?? "").trim());
+      const genericStatus = this.normalizeStatus(scalarText(frontmatter.status).trim());
       if (genericStatus === "excluded") return true;
     }
     const marker = frontmatter.video_summary;
-    if (marker === false || String(marker ?? "").trim().toLowerCase() === "false")
-      return true;
+    if (marker === false || scalarText(marker).trim().toLowerCase() === "false") return true;
     for (const field of ["source_type", "content_type", "type"]) {
-      const value = String(frontmatter[field] ?? "").trim().toLowerCase();
+      const value = scalarText(frontmatter[field]).trim().toLowerCase();
       if (NON_VIDEO_CONTENT_TYPES.has(value)) return true;
     }
-    const transcriptStatus = String(frontmatter.video_transcript_status ?? "").trim().toLowerCase();
+    const transcriptStatus = scalarText(frontmatter.video_transcript_status).trim().toLowerCase();
     return transcriptStatus === "not-applicable" || transcriptStatus === "not_applicable";
   }
   /**
    * 基于 frontmatter 获取处理状态
    */
   static getProcessingStatusFromFrontmatter(frontmatter) {
-    if (!frontmatter || typeof frontmatter !== "object") return "pending";
+    if (!isRecord(frontmatter)) return "pending";
     const hasGeneratedOutput = this.hasGeneratedOutputFromFrontmatter(frontmatter);
     return this.resolveProcessingStatus((field) => {
       if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) {
         return { present: false, value: "" };
       }
-      return { present: true, value: String(frontmatter[field] ?? "").trim() };
+      return { present: true, value: scalarText(frontmatter[field]).trim() };
     }, hasGeneratedOutput);
   }
   static hasGeneratedOutputFromFrontmatter(frontmatter) {
-    if (!frontmatter || typeof frontmatter !== "object") return false;
+    if (!isRecord(frontmatter)) return false;
     return this.isMeaningfulOutputValue(frontmatter.summary) || this.isMeaningfulOutputValue(frontmatter.video_transcript);
   }
   static hasGeneratedOutput(content) {
@@ -7276,7 +4279,7 @@ var VideoUtils = class {
     return /\.(?:mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i.test(value.trim());
   }
   static hasLegacyMediaInputFromFrontmatter(frontmatter) {
-    if (!frontmatter || typeof frontmatter !== "object") return false;
+    if (!isRecord(frontmatter)) return false;
     return [
       frontmatter.local_file,
       frontmatter.localFileName,
@@ -7336,7 +4339,7 @@ var VideoUtils = class {
       if (!Object.prototype.hasOwnProperty.call(frontmatter, field)) continue;
       return {
         present: true,
-        normalized: this.normalizeStatus(String(frontmatter[field] ?? "").trim())
+        normalized: this.normalizeStatus(scalarText(frontmatter[field]).trim())
       };
     }
     return { present: false, normalized: "other" };
@@ -7350,14 +4353,12 @@ var VideoUtils = class {
       frontmatter.video_summary_managed
     ];
     if (markerValues.some(
-      (value) => value === true || ["true", "yes", "managed", "video"].includes(
-        String(value ?? "").trim().toLowerCase()
-      )
+      (value) => value === true || ["true", "yes", "managed", "video"].includes(scalarText(value).trim().toLowerCase())
     )) {
       return true;
     }
-    const source = String(frontmatter.source ?? "").trim().toLowerCase();
-    const sourceType = String(frontmatter.source_type ?? "").trim().toLowerCase();
+    const source = scalarText(frontmatter.source).trim().toLowerCase();
+    const sourceType = scalarText(frontmatter.source_type).trim().toLowerCase();
     return ["video-summary", "video_summary", "obsidian-video-summary"].includes(source) || ["video", "audio", "media"].includes(sourceType);
   }
   static hasExplicitVideoMarkerFromRawFrontmatter(fmText) {
@@ -7697,7 +4698,7 @@ var NoteIndex = class {
   handleRename(file, oldPath) {
     const existing = this.entries.get(oldPath);
     this.entries.delete(oldPath);
-    if (existing && file instanceof import_obsidian4.TFile) {
+    if (existing && file instanceof import_obsidian5.TFile) {
       this.entries.set(file.path, {
         ...existing,
         path: file.path,
@@ -7931,7 +4932,7 @@ async function fetchBilibiliCover(value) {
   if (!id) return void 0;
   const query = id.type === "bvid" ? `bvid=${encodeURIComponent(id.id)}` : `aid=${id.id}`;
   const response = await withTimeout(
-    (0, import_obsidian4.requestUrl)({
+    (0, import_obsidian5.requestUrl)({
       url: `https://api.bilibili.com/x/web-interface/view?${query}`,
       headers: {
         Accept: "application/json",
@@ -7969,7 +4970,7 @@ function withTimeout(promise, timeoutMs) {
       },
       (error) => {
         window.clearTimeout(timer);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     );
   });
@@ -8177,23 +5178,23 @@ function summarizeCourseProgress(items) {
   return summary;
 }
 function validateCourseManifest(value) {
-  if (!isRecord2(value)) throw new Error("Course manifest must be an object");
+  if (!isRecord3(value)) throw new Error("Course manifest must be an object");
   if (value.schema_version !== COURSE_MANIFEST_SCHEMA_VERSION) {
     throw new Error(`Unsupported course schema: ${String(value.schema_version)}`);
   }
   assertCourseId(value.course_id);
-  if (!isRecord2(value.source)) throw new Error("Course manifest source is required");
+  if (!isRecord3(value.source)) throw new Error("Course manifest source is required");
   if (!Array.isArray(value.items)) throw new Error("Course manifest items must be an array");
   const keys = /* @__PURE__ */ new Set();
   for (const item of value.items) {
-    if (!isRecord2(item)) throw new Error("Course item must be an object");
+    if (!isRecord3(item)) throw new Error("Course item must be an object");
     const key = requiredString(item, "canonical_key");
     if (keys.has(key)) throw new Error(`Duplicate course item: ${key}`);
     keys.add(key);
     requiredString(item, "item_id");
     requiredString(item, "canonical_url");
     requiredString(item, "title");
-    if (!isRecord2(item.progress)) throw new Error(`Course item ${key} progress is required`);
+    if (!isRecord3(item.progress)) throw new Error(`Course item ${key} progress is required`);
     const status = requiredString(item.progress, "status");
     if (!["pending", "queued", "processing", "complete", "error"].includes(status)) {
       throw new Error(`Course item ${key} has invalid progress status`);
@@ -8287,7 +5288,7 @@ function requiredString(value, key) {
   }
   return result;
 }
-function isRecord2(value) {
+function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function clone(value) {
@@ -8690,8 +5691,8 @@ function titleForTranscript(text) {
     String(now.getMinutes()).padStart(2, "0"),
     String(now.getSeconds()).padStart(2, "0")
   ].join("");
-  const snippet2 = text.split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
-  return snippet2 ? `\u6587\u7A3F_${stamp}_${snippet2}` : `\u6587\u7A3F\u5904\u7406_${stamp}`;
+  const snippet = text.split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
+  return snippet ? `\u6587\u7A3F_${stamp}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp}`;
 }
 function buildInput(parts) {
   const input = {};
@@ -8853,17 +5854,15 @@ function buildInsertionContent(result) {
 function extractVideoInputFromPayload(raw) {
   const sources = [];
   const collect = (obj) => {
-    if (!obj || typeof obj !== "object") return;
+    if (!isRecord(obj)) return;
     sources.push(obj);
-    if (obj.metadata && typeof obj.metadata === "object") sources.push(obj.metadata);
-    if (obj.input && typeof obj.input === "object") sources.push(obj.input);
-    if (obj.artifact && typeof obj.artifact === "object") sources.push(obj.artifact);
-    if (obj.result && typeof obj.result === "object") {
+    for (const nested of [obj.metadata, obj.input, obj.artifact]) {
+      if (isRecord(nested)) sources.push(nested);
+    }
+    if (isRecord(obj.result)) {
       sources.push(obj.result);
-      if (obj.result.input && typeof obj.result.input === "object") sources.push(obj.result.input);
-      if (obj.result.artifact && typeof obj.result.artifact === "object") {
-        sources.push(obj.result.artifact);
-      }
+      if (isRecord(obj.result.input)) sources.push(obj.result.input);
+      if (isRecord(obj.result.artifact)) sources.push(obj.result.artifact);
     }
   };
   if (Array.isArray(raw)) raw.forEach(collect);
@@ -8901,7 +5900,7 @@ function formatDateTime(date) {
 }
 
 // core/CourseIndexWriter.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 var courseIndexLocks = /* @__PURE__ */ new Map();
 async function syncCourseIndexAtomic(vault, store, courseId, createIfMissing = true) {
   const previous = courseIndexLocks.get(courseId) ?? Promise.resolve();
@@ -8921,7 +5920,7 @@ async function writeLatestCourseIndex(vault, manifest, createIfMissing) {
   const path = manifest.index_note_path;
   if (!path) throw new Error("\u8BFE\u7A0B\u7D22\u5F15\u8DEF\u5F84\u5C1A\u672A\u521D\u59CB\u5316");
   const existing = vault.getAbstractFileByPath(path);
-  if (existing instanceof import_obsidian5.TFile) {
+  if (existing instanceof import_obsidian6.TFile) {
     await vault.process(existing, (current) => updateCourseMarkdown(current, manifest));
     return;
   }
@@ -8930,13 +5929,13 @@ async function writeLatestCourseIndex(vault, manifest, createIfMissing) {
     await vault.create(path, createCourseMarkdown(manifest));
   } catch (error) {
     const raced = vault.getAbstractFileByPath(path);
-    if (!(raced instanceof import_obsidian5.TFile)) throw error;
+    if (!(raced instanceof import_obsidian6.TFile)) throw error;
     await vault.process(raced, (current) => updateCourseMarkdown(current, manifest));
   }
 }
 
 // BatchProcessingModal.ts
-var BatchProcessingModal = class extends import_obsidian6.Modal {
+var BatchProcessingModal = class extends import_obsidian7.Modal {
   constructor(app, plugin) {
     super(app);
     this.mode = "summary";
@@ -8990,7 +5989,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
       cls: "vs-icon-btn",
       attr: { type: "button", "aria-label": "\u5173\u95ED" }
     });
-    (0, import_obsidian6.setIcon)(closeBtn, "x");
+    (0, import_obsidian7.setIcon)(closeBtn, "x");
     closeBtn.onclick = () => this.close();
     const bodyEl = contentEl.createDiv({ cls: "vs-modal-body" });
     segmented(
@@ -9034,15 +6033,18 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     this.filterEl = fileSelectionEl.createDiv({ cls: "vs-modal-filters" });
     const search = this.filterEl.createDiv({ cls: "vs-search" });
     const searchIcon = search.createSpan({ cls: "vs-search-icon" });
-    (0, import_obsidian6.setIcon)(searchIcon, "search");
+    (0, import_obsidian7.setIcon)(searchIcon, "search");
     const searchInput = search.createEl("input", {
       cls: "vs-search-input",
       attr: { type: "text", placeholder: "\u641C\u7D22\u6587\u4EF6\u540D\u2026", value: this.searchFilter }
     });
-    searchInput.addEventListener("input", async () => {
-      this.searchFilter = searchInput.value.toLowerCase();
-      await this.applyFilters();
-    });
+    searchInput.addEventListener(
+      "input",
+      fire(async () => {
+        this.searchFilter = searchInput.value.toLowerCase();
+        await this.applyFilters();
+      })
+    );
     const statusLabels = {
       all: "\u5168\u90E8\u72B6\u6001",
       pending: "\u5F85\u5904\u7406",
@@ -9125,7 +6127,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     this.fileListEl = fileSelectionEl.createDiv({ cls: "vs-modal-list" });
     this.renderLastBatch(fileSelectionEl);
     const playlistSelectionEl = bodyEl.createDiv({ cls: "batch-playlist-selection" });
-    new import_obsidian6.Setting(playlistSelectionEl).setName("\u8BFE\u7A0B\u6765\u6E90\u94FE\u63A5").setDesc("\u652F\u6301 YouTube \u64AD\u653E\u5217\u8868\u4E0E B\u7AD9\u5408\u96C6/\u6536\u85CF\u5939\uFF1B\u89E3\u6790\u548C\u5BFC\u5165\u4E0D\u4F1A\u8C03\u7528 AI").addText(
+    new import_obsidian7.Setting(playlistSelectionEl).setName("\u8BFE\u7A0B\u6765\u6E90\u94FE\u63A5").setDesc("\u652F\u6301 YouTube \u64AD\u653E\u5217\u8868\u4E0E B\u7AD9\u5408\u96C6/\u6536\u85CF\u5939\uFF1B\u89E3\u6790\u548C\u5BFC\u5165\u4E0D\u4F1A\u8C03\u7528 AI").addText(
       (text) => text.setPlaceholder("YouTube playlist \u6216 B\u7AD9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5").setValue(this.playlistUrl).onChange((value) => {
         this.playlistUrl = value;
       })
@@ -9174,7 +6176,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
       attr: { type: "button" }
     });
     const startIcon = this.startButtonEl.createSpan({ cls: "vs-btn-icon" });
-    (0, import_obsidian6.setIcon)(startIcon, "play");
+    (0, import_obsidian7.setIcon)(startIcon, "play");
     this.startLabelEl = this.startButtonEl.createSpan({ text: "\u5F00\u59CB\u5904\u7406" });
     this.startButtonEl.addEventListener("click", () => {
       void this.startBatchProcessing();
@@ -9190,7 +6192,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     });
     pill.createSpan({ text: label });
     const caret = pill.createSpan({ cls: "vs-chip-caret" });
-    (0, import_obsidian6.setIcon)(caret, "chevron-down");
+    (0, import_obsidian7.setIcon)(caret, "chevron-down");
     pill.addEventListener("click", (event) => {
       event.preventDefault();
       showMenu(event, items());
@@ -9270,11 +6272,11 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
   }
   async parsePlaylist() {
     if (!this.playlistUrl.trim()) {
-      new import_obsidian6.Notice("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5");
+      new import_obsidian7.Notice("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5");
       return;
     }
     if (!PlaylistProcessor.isPlaylistUrl(this.playlistUrl)) {
-      new import_obsidian6.Notice("\u8BF7\u8F93\u5165\u6709\u6548\u7684 YouTube \u64AD\u653E\u5217\u8868\u6216 B\u7AD9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5");
+      new import_obsidian7.Notice("\u8BF7\u8F93\u5165\u6709\u6548\u7684 YouTube \u64AD\u653E\u5217\u8868\u6216 B\u7AD9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5");
       return;
     }
     if (!this.playlistEl) return;
@@ -9313,7 +6315,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
         });
       }
       for (const item of this.playlistItems) {
-        const itemEl = this.playlistEl.createEl("div", { cls: "playlist-item" });
+        const itemEl = this.playlistEl.createDiv({ cls: "playlist-item" });
         const isNew = newKeys.has(item.canonicalKey);
         const canCreatePendingNote = selectableKeys.has(item.canonicalKey);
         const checkbox = itemEl.createEl("input", {
@@ -9326,28 +6328,28 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
           else this.selectedPlaylistKeys.delete(item.canonicalKey);
           this.updateStartButton();
         });
-        const infoEl = itemEl.createEl("div", { cls: "playlist-item-info" });
-        infoEl.createEl("div", {
+        const infoEl = itemEl.createDiv({ cls: "playlist-item-info" });
+        infoEl.createDiv({
           text: item.title,
           cls: "playlist-item-title"
         });
-        infoEl.createEl("div", {
+        infoEl.createDiv({
           text: `${item.platform === "youtube" ? "\u9891\u9053" : "UP\u4E3B"}: ${item.author || "\u672A\u77E5"}`,
           cls: "playlist-item-author"
         });
         if (item.duration) {
-          infoEl.createEl("div", {
+          infoEl.createDiv({
             text: `\u65F6\u957F: ${item.duration}`,
             cls: "playlist-item-duration"
           });
         }
-        infoEl.createEl("div", {
+        infoEl.createDiv({
           text: `${isNew ? "\u65B0\u589E \xB7 \u5C06\u8FDB\u5165\u5F85\u5904\u7406" : canCreatePendingNote ? "\u5DF2\u5728\u8BFE\u7A0B\u4E2D \xB7 \u53EF\u8865\u5EFA\u5F85\u5904\u7406\u7B14\u8BB0" : "\u5DF2\u5BFC\u5165 \xB7 \u4E0D\u91CD\u590D\u521B\u5EFA"} \xB7 ${item.videoId}`,
           cls: "playlist-item-bvid"
         });
       }
       this.updateStartButton();
-      new import_obsidian6.Notice(`\u8BFE\u7A0B\u589E\u91CF\u5DF2\u5C31\u7EEA\uFF1A${courseImport.diff.new.length} \u4E2A\u65B0\u589E\u89C6\u9891\uFF08\u5C1A\u672A\u8C03\u7528 AI\uFF09`);
+      new import_obsidian7.Notice(`\u8BFE\u7A0B\u589E\u91CF\u5DF2\u5C31\u7EEA\uFF1A${courseImport.diff.new.length} \u4E2A\u65B0\u589E\u89C6\u9891\uFF08\u5C1A\u672A\u8C03\u7528 AI\uFF09`);
     } catch (error) {
       console.error("\u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25:", error);
       const message = messageOf(error);
@@ -9356,7 +6358,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
         text: `\u274C \u89E3\u6790\u5931\u8D25: ${message}`,
         cls: "mod-warning"
       });
-      new import_obsidian6.Notice(`\u274C \u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${message}`);
+      new import_obsidian7.Notice(`\u274C \u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${message}`);
     }
   }
   /** 扫描视频笔记：直接用插件已有的索引，不再全库读正文 */
@@ -9366,7 +6368,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     const files = [];
     for (const entry of entries) {
       const file = this.app.vault.getAbstractFileByPath(entry.path);
-      if (file instanceof import_obsidian6.TFile) files.push(file);
+      if (file instanceof import_obsidian7.TFile) files.push(file);
     }
     this.allVideoFiles = files;
     this.selectedFiles = this.selectedFiles.filter(
@@ -9391,7 +6393,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
       const row = this.fileListEl.createDiv({ cls: "vs-modal-row" });
       const checked = this.selectedFiles.some((selected) => selected.path === file.path);
       const box = row.createDiv({ cls: `vs-checkbox${checked ? " is-checked" : ""}` });
-      if (checked) (0, import_obsidian6.setIcon)(box, "check");
+      if (checked) (0, import_obsidian7.setIcon)(box, "check");
       const body = row.createDiv({ cls: "vs-modal-row-body" });
       body.createDiv({
         text: file.basename,
@@ -9476,7 +6478,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
   }
   async processFiles() {
     if (this.selectedFiles.length === 0) {
-      new import_obsidian6.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6");
+      new import_obsidian7.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6");
       return;
     }
     if (!await this.plugin.ensureBackendReady()) return;
@@ -9525,7 +6527,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
           this.progress.failed++;
           this.progress.current = file.basename;
           this.updateProgressDisplay();
-          new import_obsidian6.Notice(`\u274C ${file.basename} \u65E0\u6CD5\u52A0\u5165\u6279\u91CF\u4EFB\u52A1: ${normalizedError.message}`, 5e3);
+          new import_obsidian7.Notice(`\u274C ${file.basename} \u65E0\u6CD5\u52A0\u5165\u6279\u91CF\u4EFB\u52A1: ${normalizedError.message}`, 5e3);
         }
       }
       const onProgress = async (result) => {
@@ -9558,13 +6560,13 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
               result.result.artifact?.artifact_id
             );
             this.progress.completed++;
-            new import_obsidian6.Notice(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, 3e3);
+            new import_obsidian7.Notice(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, 3e3);
           } catch (updateError) {
             console.error(`\u66F4\u65B0\u7B14\u8BB0\u5931\u8D25: ${file.basename}`, updateError);
             await this.noteProcessor.setProcessingError(file, updateError);
             await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
             this.progress.failed++;
-            new import_obsidian6.Notice(`\u274C ${file.basename} \u66F4\u65B0\u5931\u8D25: ${updateError.message}`, 5e3);
+            new import_obsidian7.Notice(`\u274C ${file.basename} \u66F4\u65B0\u5931\u8D25: ${errorMessage(updateError)}`, 5e3);
           }
         } else {
           try {
@@ -9574,7 +6576,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
             );
             await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
             this.progress.failed++;
-            new import_obsidian6.Notice(`\u274C ${file.basename} \u5904\u7406\u5931\u8D25: ${result.error}`, 5e3);
+            new import_obsidian7.Notice(`\u274C ${file.basename} \u5904\u7406\u5931\u8D25: ${result.error}`, 5e3);
           } catch (statusError) {
             console.error(`\u8BBE\u7F6E\u72B6\u6001\u5931\u8D25: ${file.basename}`, statusError);
           }
@@ -9591,17 +6593,17 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
       this.progress.current = "";
       this.updateProgressDisplay();
       const successText = `\u6279\u91CF\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`;
-      new import_obsidian6.Notice(successText, 5e3);
+      new import_obsidian7.Notice(successText, 5e3);
     } catch (error) {
       console.error("\u6279\u91CF\u5904\u7406\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian6.Notice(`\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${error.message}`, 0);
+      new import_obsidian7.Notice(`\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${errorMessage(error)}`, 0);
     }
   }
   async processPlaylist() {
     if (!this.courseImport || !this.playlistInfo) {
-      new import_obsidian6.Notice("\u8BF7\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF");
+      new import_obsidian7.Notice("\u8BF7\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF");
       return;
     }
     const selectedKeys = new Set(this.selectedPlaylistKeys);
@@ -9658,13 +6660,16 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
           await this.writeCourseIndex(manifest);
           continue;
         }
-        await this.app.fileManager.processFrontMatter(file, (frontmatter2) => {
-          frontmatter2.video_course_id = manifest.course_id;
-          frontmatter2.video_course_item_id = item.item_id;
-          frontmatter2.video_course_position = item.recommended_position + 1;
-        });
+        await this.app.fileManager.processFrontMatter(
+          file,
+          (frontmatter2) => {
+            frontmatter2.video_course_id = manifest.course_id;
+            frontmatter2.video_course_item_id = item.item_id;
+            frontmatter2.video_course_position = item.recommended_position + 1;
+          }
+        );
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-        const frontmatterArtifactId = String(frontmatter?.video_artifact_id || "").trim();
+        const frontmatterArtifactId = scalarText(frontmatter?.video_artifact_id).trim();
         let linkedArtifact = reusableArtifacts.get(file.path);
         if (!linkedArtifact && frontmatterArtifactId) {
           try {
@@ -9686,9 +6691,12 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
             reusableArtifacts.set(file.path, linkedArtifact);
             this.plugin.memoryIndex.upsert(linkedArtifact);
             if (artifactId !== frontmatterArtifactId) {
-              await this.app.fileManager.processFrontMatter(file, (current) => {
-                current.video_artifact_id = artifactId;
-              });
+              await this.app.fileManager.processFrontMatter(
+                file,
+                (current) => {
+                  current.video_artifact_id = artifactId;
+                }
+              );
             }
           } catch (error) {
             console.warn(`\u8BFE\u7A0B\u5DE5\u4EF6\u5173\u8054\u5931\u8D25: ${file.path}`, error);
@@ -9718,7 +6726,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
       this.selectedPlaylistKeys.clear();
       this.courseImport = compileCourseImport(this.playlistInfo, manifest);
       this.updateStartButton();
-      new import_obsidian6.Notice(
+      new import_obsidian7.Notice(
         `\u8BFE\u7A0B\u5DF2\u5BFC\u5165\uFF1A${this.progress.completed} \u6761\u5F85\u5904\u7406\u7B14\u8BB0\uFF0C\u672A\u8C03\u7528 AI${this.progress.failed > 0 ? `\uFF0C${this.progress.failed} \u6761\u521B\u5EFA\u5931\u8D25` : ""}`,
         5e3
       );
@@ -9726,7 +6734,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
       console.error("\u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian6.Notice(`\u274C \u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25: ${messageOf(error)}`, 0);
+      new import_obsidian7.Notice(`\u274C \u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25: ${messageOf(error)}`, 0);
     }
   }
   /**
@@ -9762,7 +6770,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     let suffix = 1;
     while (await this.app.vault.adapter.exists(path)) {
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian6.TFile) {
+      if (file instanceof import_obsidian7.TFile) {
         const content = await this.app.vault.read(file);
         if (content.includes(`course_id: ${manifest.course_id}`)) return path;
       }
@@ -9790,8 +6798,8 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
     const statusText = this.progress.status === "running" ? "\u23F3 \u5904\u7406\u4E2D" : this.progress.status === "complete" ? "\u2705 \u5B8C\u6210" : this.progress.status === "error" ? "\u274C \u9519\u8BEF" : "\u{1F4FA} \u5C31\u7EEA";
     this.progressEl.createEl("h3", { text: `\u6279\u91CF\u5904\u7406\u72B6\u6001: ${statusText}` });
     if (this.progress.total > 0) {
-      const progressBar = this.progressEl.createEl("div", { cls: "progress-bar" });
-      const progressFill = progressBar.createEl("div", { cls: "progress-fill" });
+      const progressBar = this.progressEl.createDiv({ cls: "progress-bar" });
+      const progressFill = progressBar.createDiv({ cls: "progress-fill" });
       const progress = (this.progress.completed + this.progress.failed) / this.progress.total;
       progressFill.style.width = `${progress * 100}%`;
       this.progressEl.createEl("p", {
@@ -9807,20 +6815,20 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
         });
       }
       if (this.progress.status === "running" || this.progress.status === "complete") {
-        const statusListEl = this.progressEl.createEl("div", { cls: "status-list" });
+        const statusListEl = this.progressEl.createDiv({ cls: "status-list" });
         statusListEl.createEl("h4", { text: "\u5904\u7406\u72B6\u6001\u8BE6\u60C5:" });
         const processedCount = this.progress.completed + this.progress.failed;
         if (processedCount > 0) {
-          const statusSummary = statusListEl.createEl("div", { cls: "status-summary" });
-          statusSummary.createEl("div", {
+          const statusSummary = statusListEl.createDiv({ cls: "status-summary" });
+          statusSummary.createDiv({
             cls: "status-item success",
             text: `\u2705 \u5DF2\u5B8C\u6210: ${this.progress.completed} \u4E2A`
           });
-          statusSummary.createEl("div", {
+          statusSummary.createDiv({
             cls: "status-item error",
             text: `\u274C \u5931\u8D25: ${this.progress.failed} \u4E2A`
           });
-          statusSummary.createEl("div", {
+          statusSummary.createDiv({
             cls: "status-item pending",
             text: `\u23F3 \u5F85\u5904\u7406: ${this.progress.total - processedCount} \u4E2A`
           });
@@ -9834,7 +6842,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
   }
 };
 function messageOf(error) {
-  return error instanceof Error ? error.message : String(error);
+  return error instanceof Error ? errorMessage(error) : String(error);
 }
 
 // utils/CacheManager.ts
@@ -10031,14 +7039,14 @@ var CacheManager = class {
   async writeLegacyEntry(url, mode, language, result) {
     const key = this.legacyKey(url, mode, language);
     const filePath = this.legacyFilePath(key);
-    const timestamp2 = Date.now();
+    const timestamp = Date.now();
     const cacheItem = {
       url,
       mode,
       language,
       result,
-      timestamp: timestamp2,
-      expiryTimestamp: timestamp2 + this.defaultExpiryDays * 24 * 60 * 60 * 1e3
+      timestamp,
+      expiryTimestamp: timestamp + this.defaultExpiryDays * 24 * 60 * 60 * 1e3
     };
     const cacheData = JSON.stringify(cacheItem, null, 2);
     await this.vault.adapter.write(filePath, cacheData);
@@ -10046,7 +7054,7 @@ var CacheManager = class {
       url,
       mode,
       language,
-      timestamp: timestamp2,
+      timestamp,
       expiryTimestamp: cacheItem.expiryTimestamp,
       size: cacheData.length,
       path: filePath,
@@ -10059,7 +7067,7 @@ var CacheManager = class {
     if (!this.enabled || !this.isInitialized) return;
     const key = fingerprint.key;
     const filePath = this.fingerprintFilePath(fingerprint);
-    const timestamp2 = Date.now();
+    const timestamp = Date.now();
     const resultWithProvenance = this.withFingerprintProvenance(result, fingerprint);
     const cacheItem = {
       scheme: "fingerprint-v2",
@@ -10074,8 +7082,8 @@ var CacheManager = class {
       mode: fingerprint.run.mode,
       language: fingerprint.run.language,
       result: resultWithProvenance,
-      timestamp: timestamp2,
-      expiryTimestamp: timestamp2 + this.defaultExpiryDays * 24 * 60 * 60 * 1e3
+      timestamp,
+      expiryTimestamp: timestamp + this.defaultExpiryDays * 24 * 60 * 60 * 1e3
     };
     const cacheData = JSON.stringify(cacheItem, null, 2);
     await this.vault.adapter.write(filePath, cacheData);
@@ -10083,7 +7091,7 @@ var CacheManager = class {
       url: sourceLabel,
       mode: fingerprint.run.mode,
       language: fingerprint.run.language,
-      timestamp: timestamp2,
+      timestamp,
       expiryTimestamp: cacheItem.expiryTimestamp,
       size: cacheData.length,
       path: filePath,
@@ -10277,12 +7285,13 @@ var UrlResolver = class {
     return new Promise((resolve) => {
       let httpModule;
       try {
-        const nodeRequire = window?.require;
+        const nodeRequire = window.require;
         if (typeof nodeRequire !== "function") {
           resolve(null);
           return;
         }
-        httpModule = url.startsWith("https:") ? nodeRequire("https") : nodeRequire("http");
+        const load = nodeRequire;
+        httpModule = url.startsWith("https:") ? load("https") : load("http");
       } catch {
         resolve(null);
         return;
@@ -10295,12 +7304,16 @@ var UrlResolver = class {
         }
       };
       try {
+        if (!httpModule) {
+          finish(null);
+          return;
+        }
         const request = httpModule.get(
           url,
           { headers: { "user-agent": this.USER_AGENT } },
           (response) => {
-            const status = Number(response?.statusCode) || 0;
-            const location = response?.headers?.location;
+            const status = Number(response.statusCode) || 0;
+            const location = response.headers.location;
             try {
               response.resume();
             } catch {
@@ -10837,7 +7850,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     this.controllers.set(noteName, controller);
     let timedOut = false;
-    const timeoutId = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, requestTimeoutMs);
@@ -10881,7 +7894,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       }
       throw new Error(this.formatUserFacingError(error));
     } finally {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
       const activeController = this.controllers.get(noteName);
       if (activeController === controller) {
         this.controllers.delete(noteName);
@@ -10939,7 +7952,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     const controller = new AbortController();
     let timedOut = false;
-    const timeoutId = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, requestTimeoutMs);
@@ -10983,7 +7996,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       }
       throw new Error(this.formatUserFacingError(error));
     } finally {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
     }
   }
   /**
@@ -11027,13 +8040,13 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
    * 清空缓存
    */
   clearCache() {
-    this.cacheManager.clear();
+    void this.cacheManager.clear();
   }
   /**
    * 清理过期缓存
    */
   cleanupCache() {
-    this.cacheManager.cleanup();
+    void this.cacheManager.cleanup();
   }
   /**
    * 设置缓存配置
@@ -11216,16 +8229,16 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     return input.url || input.sourceUrl || input.localFile || input.localFiles?.filter(Boolean).join(", ") || (input.transcript ? "provided-transcript" : "");
   }
   addAnalysisMetadata(metadata, input) {
+    const contentType = input.contentType || this.analysisDefaults.contentType;
+    const autoRoute = input.autoRoute ?? this.analysisDefaults.autoRoute;
+    const contract = buildContentRoutingPromptContract(contentType, autoRoute);
     metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
     metadata.prompt_version = CACHE_PROMPT_VERSION;
     metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
-    metadata.content_type = input.contentType || this.analysisDefaults.contentType;
-    metadata.auto_route = input.autoRoute ?? this.analysisDefaults.autoRoute;
-    metadata.content_router_contract = buildContentRoutingPromptContract(
-      metadata.content_type,
-      metadata.auto_route
-    );
-    metadata.prompt_profile = metadata.content_type === "auto" ? CONTENT_ROUTER_CONTRACT_VERSION : metadata.content_router_contract.profiles[0]?.id;
+    metadata.content_type = contentType;
+    metadata.auto_route = autoRoute;
+    metadata.content_router_contract = contract;
+    metadata.prompt_profile = contentType === "auto" ? CONTENT_ROUTER_CONTRACT_VERSION : contract.profiles[0]?.id;
     metadata.attention_assessment = input.attentionAssessment ?? this.analysisDefaults.attentionAssessment;
     metadata.generate_learning = input.generateLearning ?? this.analysisDefaults.generateLearning;
     if (input.skipSourceFetch) {
@@ -11286,7 +8299,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     const timeoutMs = Math.max(1, Math.floor(Number(requestTimeoutMs) || 1));
     const deadline = Date.now() + timeoutMs;
     let timedOut = false;
-    const timeoutId = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, timeoutMs);
@@ -11305,8 +8318,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       if (!_VideoSummaryAPI.isSuccessfulStatus(response.status)) {
         throw new Error(this.formatNativeHttpError("Codex Worker", response));
       }
-      const createdJob = this.readNativeJsonResponse(response, "Codex Worker \u521B\u5EFA\u4EFB\u52A1");
-      if (!createdJob?.id) {
+      const createdJob = asRecord(this.readNativeJsonResponse(response, "Codex Worker \u521B\u5EFA\u4EFB\u52A1"));
+      if (!asText(createdJob.id)) {
         throw new Error("Codex Worker \u6CA1\u6709\u8FD4\u56DE\u4EFB\u52A1 ID");
       }
       const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
@@ -11329,9 +8342,9 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
             this.formatNativeHttpError("Codex Worker job \u72B6\u6001\u8BFB\u53D6\u5931\u8D25", statusResponse)
           );
         }
-        latestJob = this.readNativeJsonResponse(statusResponse, "Codex Worker job \u72B6\u6001");
+        latestJob = asRecord(this.readNativeJsonResponse(statusResponse, "Codex Worker job \u72B6\u6001"));
         if (onProgress) {
-          const latestLog = latestJob?.latestLog ?? latestJob?.lastLog;
+          const latestLog = latestJob.latestLog ?? latestJob.lastLog;
           const stageLabel = pickString(latestLog, ["stage", "step", "phase"]) || pickString(latestJob, ["stage", "step", "phase", "status"]);
           const logMarker = progressLogMarker(latestLog);
           const message = pickString(latestJob, ["message", "detail"]) || (logMarker && logMarker !== lastProgressLogMarker ? formatProgressLog(latestLog) : void 0);
@@ -11342,14 +8355,15 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
           }
         }
         if (latestJob.status === "success") {
+          const meta = payload.metadata ?? {};
           return this.parseSummaryResponse(latestJob.result, {
-            url: payload?.metadata?.link,
-            sourceUrl: payload?.metadata?.source_url_for_citation,
-            processingDepth: payload?.metadata?.processing_depth,
-            contentType: payload?.metadata?.content_type,
-            autoRoute: payload?.metadata?.auto_route,
-            attentionAssessment: payload?.metadata?.attention_assessment,
-            generateLearning: payload?.metadata?.generate_learning
+            url: asString(meta.link),
+            sourceUrl: asString(meta.source_url_for_citation),
+            processingDepth: meta.processing_depth,
+            contentType: meta.content_type,
+            autoRoute: meta.auto_route,
+            attentionAssessment: meta.attention_assessment,
+            generateLearning: meta.generate_learning
           });
         }
         if (latestJob.status === "needs-review" || latestJob.status === "error" || latestJob.status === "cancelled") {
@@ -11371,7 +8385,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       }
       throw error;
     } finally {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
       this.workerCancelUrls.delete(controller);
       this.workerControllers.delete(controller);
       if (this.controllers.get(controllerKey) === controller) {
@@ -11398,20 +8412,22 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
   }
   getCodexWorkerJobStatusUrl(jobsUrl, job) {
+    const id = asText(job.id) ?? "";
+    const logsUrl = asString(job.logsUrl);
     try {
       const base = new URL(jobsUrl);
-      if (job.logsUrl && typeof job.logsUrl === "string" && job.logsUrl.startsWith("/")) {
-        base.pathname = job.logsUrl.replace(/\/logs$/, "");
+      if (logsUrl && logsUrl.startsWith("/")) {
+        base.pathname = logsUrl.replace(/\/logs$/, "");
         base.search = "";
         base.hash = "";
         return base.toString();
       }
-      base.pathname = `${base.pathname.replace(/\/+$/, "")}/${encodeURIComponent(job.id)}`;
+      base.pathname = `${base.pathname.replace(/\/+$/, "")}/${encodeURIComponent(id)}`;
       base.search = "";
       base.hash = "";
       return base.toString();
     } catch {
-      return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(job.id)}`;
+      return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(id)}`;
     }
   }
   getCodexWorkerJobCancelUrl(statusUrl) {
@@ -11459,15 +8475,15 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
   }
   formatCodexJobError(job) {
-    const error = job?.error;
-    const errorMessage2 = typeof error === "string" ? error : error?.error || error?.message || `Codex Worker \u4EFB\u52A1\u72B6\u6001: ${job?.status || "unknown"}`;
-    const logs = Array.isArray(job?.logs) ? job.logs : [];
-    const lastDiagnostic = [...logs].reverse().find((entry) => {
-      const detail = entry?.detail || {};
-      return detail.error || detail.stderr || entry?.stage;
+    const error = job.error;
+    const errorRecord = asRecord(error);
+    const errorMessage2 = asString(error) || asString(errorRecord.error) || asString(errorRecord.message) || `Codex Worker \u4EFB\u52A1\u72B6\u6001: ${asText(job.status) || "unknown"}`;
+    const lastDiagnostic = [...asArray(job.logs)].reverse().map(asRecord).find((entry) => {
+      const detail = asRecord(entry.detail);
+      return detail.error || detail.stderr || entry.stage;
     });
     const diagnosticText = lastDiagnostic ? `
-\u6700\u540E\u9636\u6BB5: ${lastDiagnostic.stage}
+\u6700\u540E\u9636\u6BB5: ${asText(lastDiagnostic.stage) ?? ""}
 \u8BCA\u65AD: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}` : "";
     return `${errorMessage2}${diagnosticText}
 \u63A7\u5236\u53F0: ${this.getCodexWorkerDashboardUrl()}`;
@@ -11479,12 +8495,12 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   sleep(ms, signal) {
     if (signal?.aborted) return Promise.reject(this.abortError());
     return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
         signal?.removeEventListener("abort", onAbort);
         resolve();
       }, ms);
       const onAbort = () => {
-        clearTimeout(timeoutId);
+        window.clearTimeout(timeoutId);
         signal?.removeEventListener("abort", onAbort);
         reject(this.abortError());
       };
@@ -11520,8 +8536,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
   formatNativeHttpError(label, response) {
     const text = response.text || "";
-    const snippet2 = text ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text, 180)}` : "";
-    return `${label}: HTTP ${response.status}${snippet2}`;
+    const snippet = text ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text, 180)}` : "";
+    return `${label}: HTTP ${response.status}${snippet}`;
   }
   static isSuccessfulStatus(status) {
     return status >= 200 && status < 300;
@@ -11547,7 +8563,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     let timeoutId;
     let onAbort;
     const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
+      timeoutId = window.setTimeout(() => {
         const error = new Error(`${safeTimeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09`);
         error.name = "TimeoutError";
         reject(error);
@@ -11576,35 +8592,38 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     try {
       return await Promise.race(requests);
     } finally {
-      if (timeoutId !== void 0) clearTimeout(timeoutId);
+      if (timeoutId !== void 0) window.clearTimeout(timeoutId);
       if (signal && onAbort) signal.removeEventListener("abort", onAbort);
     }
   }
   parseSummaryResponse(data, input = {}) {
     const preserveKeys = /* @__PURE__ */ new Set(["summary", "note", "video_transcript"]);
-    let payload = Array.isArray(data) ? {} : data;
+    let merged = data;
     if (Array.isArray(data)) {
+      const combined = {};
       for (const item of data) {
-        if (!item || typeof item !== "object") continue;
+        if (!isRecord(item)) continue;
         for (const [key, value] of Object.entries(item)) {
           if (value === void 0 || value === null) continue;
           if (preserveKeys.has(key)) {
-            if (payload[key] === void 0 || payload[key] === null || payload[key] === "") {
-              payload[key] = value;
+            if (combined[key] === void 0 || combined[key] === null || combined[key] === "") {
+              combined[key] = value;
             }
             continue;
           }
-          payload[key] = value;
+          combined[key] = value;
         }
       }
+      merged = combined;
     }
-    payload = this.unwrapResponsePayload(payload);
-    if (payload?.error) {
-      throw new Error(payload.error);
+    const unwrapped = this.unwrapResponsePayload(merged);
+    if (isRecord(unwrapped) && unwrapped.error) {
+      throw new Error(asText(unwrapped.error) ?? JSON.stringify(unwrapped.error));
     }
-    if (!payload || typeof payload !== "object") {
+    if (!isRecord(unwrapped)) {
       throw new Error("\u670D\u52A1\u5668\u8FD4\u56DE\u65E0\u6548\u7684\u6570\u636E\u683C\u5F0F");
     }
+    const payload = unwrapped;
     const infoSources = [
       payload,
       payload.info,
@@ -11614,7 +8633,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     ];
     const pickField = (aliases) => {
       for (const source of infoSources) {
-        if (!source || typeof source !== "object") continue;
+        if (!isRecord(source)) continue;
         for (const key of aliases) {
           const value = source[key];
           if (typeof value === "string" && value.trim()) {
@@ -11697,13 +8716,13 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     });
   }
   unwrapResponsePayload(payload) {
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    if (!isRecord(payload)) {
       return payload;
     }
     const candidateKeys = ["data", "result", "output", "response"];
     for (const key of candidateKeys) {
       const candidate = payload[key];
-      if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      if (isRecord(candidate)) {
         const hasResultField = [
           "summary",
           "note",
@@ -11759,7 +8778,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         } catch (error) {
           const errorObj = {
             success: false,
-            error: error.message,
+            error: errorMessage(error),
             noteName: request.noteName
           };
           if (onProgress) {
@@ -11830,7 +8849,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         }
         let health;
         try {
-          health = JSON.parse(response.text || "");
+          health = asRecord(JSON.parse(response.text || ""));
         } catch {
           return {
             ok: false,
@@ -11839,7 +8858,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
             error: "Codex Worker /health \u672A\u8FD4\u56DE\u6709\u6548 JSON"
           };
         }
-        if (health?.ok !== true || health?.service !== "codex-video-worker") {
+        if (health.ok !== true || health.service !== "codex-video-worker") {
           return {
             ok: false,
             status: response.status,
@@ -11856,7 +8875,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       }
     }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
     try {
       const body = n8nBody ?? {
         name: "preflight-check",
@@ -11881,7 +8900,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       const message = error?.name === "AbortError" ? `${timeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09` : error?.message || String(error);
       return { ok: false, error: message };
     } finally {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     }
   }
   // 测试连接（返回耗时、响应片段和下一步建议，便于诊断）
@@ -11919,14 +8938,14 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       );
       const durationMs = Date.now() - started;
       const text = await response.text();
-      const snippet2 = this.redactWebhookSecret((text || "").slice(0, 180));
+      const snippet = this.redactWebhookSecret((text || "").slice(0, 180));
       if (!response.ok) {
         const error = await this.formatHttpError(response, text);
         return {
           success: false,
           durationMs,
           status: response.status,
-          bodySnippet: snippet2,
+          bodySnippet: snippet,
           error,
           hint: this.getConnectionHint(error)
         };
@@ -11948,7 +8967,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
             success: true,
             durationMs,
             status: response.status,
-            bodySnippet: snippet2,
+            bodySnippet: snippet,
             warnings: ["\u5F53\u524D\u5DE5\u4F5C\u6D41\u6D4B\u8BD5\u5206\u652F\u672A\u8FD4\u56DE\u7248\u672C\u4FE1\u606F\u3002\u5EFA\u8BAE\u91CD\u65B0\u5BFC\u5165\u4ED3\u5E93\u5185\u6700\u65B0 workflow\u3002"]
           };
         }
@@ -11957,18 +8976,18 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
           success: false,
           durationMs,
           status: response.status,
-          bodySnippet: snippet2,
+          bodySnippet: snippet,
           error,
           hint: this.getConnectionHint(error)
         };
       }
-      if (parsed?.error) {
+      if (isRecord(parsed) && parsed.error) {
         const error = this.redactWebhookSecret(this.errorToString(parsed.error));
         return {
           success: false,
           durationMs,
           status: response.status,
-          bodySnippet: snippet2,
+          bodySnippet: snippet,
           error,
           hint: this.getConnectionHint(error)
         };
@@ -11978,7 +8997,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         success: true,
         durationMs,
         status: response.status,
-        bodySnippet: snippet2,
+        bodySnippet: snippet,
         workflow,
         warnings: this.getWorkflowCompatibilityWarnings(workflow)
       };
@@ -12017,10 +9036,12 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     return ["\u6D4B\u8BD5\u6210\u529F", "\u6D4B\u8BD5\u6210\u529F\uFF01", "ok", "success"].includes(normalized);
   }
   extractWorkflowHealthInfo(payload) {
-    const workflow = payload?.workflow || payload?.videoSummaryWorkflow || payload?.health?.workflow;
-    if (!workflow || typeof workflow !== "object") {
+    const source = asRecord(payload);
+    const candidate = source.workflow || source.videoSummaryWorkflow || asRecord(source.health).workflow;
+    if (!isRecord(candidate)) {
       return void 0;
     }
+    const workflow = candidate;
     return {
       name: this.readString(workflow.name),
       version: this.readString(workflow.version),
@@ -12067,7 +9088,9 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
   readStringArray(value) {
     if (!Array.isArray(value)) return void 0;
-    const values = value.filter((item) => typeof item === "string" && item.trim());
+    const values = value.filter(
+      (item) => typeof item === "string" && item.trim() !== ""
+    );
     return values.length > 0 ? values.map((item) => item.trim()) : void 0;
   }
   async readJsonResponse(response) {
@@ -12092,8 +9115,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         text = "";
       }
     }
-    const snippet2 = text ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.redactWebhookSecret(this.truncateError(text, 180))}` : "";
-    return `HTTP ${response.status} ${response.statusText}${snippet2}`;
+    const snippet = text ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.redactWebhookSecret(this.truncateError(text, 180))}` : "";
+    return `HTTP ${response.status} ${response.statusText}${snippet}`;
   }
   formatUserFacingError(error) {
     const message = this.redactWebhookSecret(this.errorToString(error));
@@ -12174,7 +9197,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
   errorToString(error) {
     if (error instanceof Error) {
-      return error.message;
+      return errorMessage(error);
     }
     if (typeof error === "string") {
       return error;
@@ -12190,7 +9213,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
 _VideoSummaryAPI.transport = (request) => import("obsidian").then(({ requestUrl: requestUrl2 }) => requestUrl2(request));
 var VideoSummaryAPI = _VideoSummaryAPI;
 function pickString(source, keys) {
-  if (!source || typeof source !== "object") return void 0;
+  if (!isRecord(source)) return void 0;
   for (const key of keys) {
     const value = source[key];
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -12199,22 +9222,22 @@ function pickString(source, keys) {
 }
 function progressLogMarker(log) {
   if (typeof log === "string") return log.trim() || void 0;
-  if (!log || typeof log !== "object") return void 0;
+  if (!isRecord(log)) return void 0;
   return pickString(log, ["at", "timestamp"]) || formatProgressLog(log);
 }
 function formatProgressLog(log) {
   if (typeof log === "string") return log.trim() || void 0;
-  if (!log || typeof log !== "object") return void 0;
+  if (!isRecord(log)) return void 0;
   const direct = pickString(log, ["message", "text"]);
   if (direct) return direct;
   const detail = log.detail;
   if (typeof detail === "string") return detail.trim() || void 0;
-  if (!detail || typeof detail !== "object") return void 0;
-  const entries = Object.entries(detail).filter(([, value]) => value !== void 0 && value !== null && value !== "").slice(0, 4).map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`);
+  if (!isRecord(detail)) return void 0;
+  const entries = Object.entries(detail).filter(([, value]) => value !== void 0 && value !== null && value !== "").slice(0, 4).map(([key, value]) => `${key}: ${asText(value) ?? JSON.stringify(value)}`);
   return entries.length > 0 ? entries.join(" \xB7 ") : void 0;
 }
 function pickRatio(source, keys) {
-  if (!source || typeof source !== "object") return void 0;
+  if (!isRecord(source)) return void 0;
   for (const key of keys) {
     const value = source[key];
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -12226,14 +9249,14 @@ function pickRatio(source, keys) {
 }
 
 // views/VideoSummaryView.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // views/panels/ActionBar.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // modals/FolderSelectModal.ts
-var import_obsidian7 = require("obsidian");
-var FolderSelectModal = class extends import_obsidian7.Modal {
+var import_obsidian8 = require("obsidian");
+var FolderSelectModal = class extends import_obsidian8.Modal {
   constructor(app, folders, onSelect) {
     super(app);
     this.folderContainer = null;
@@ -12362,7 +9385,7 @@ function renderActionBar(container, ctx) {
       ctx.plugin.settings.generateLearningArtifacts ? "\u5B66\u4E60\u5361" : ""
     ].filter(Boolean).join(" \xB7 ")
   });
-  (0, import_obsidian8.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
+  (0, import_obsidian9.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
   foldToggle.addEventListener("click", () => {
     state.advancedOpen = !state.advancedOpen;
     ctx.renderAll();
@@ -12373,23 +9396,29 @@ function renderActionBar(container, ctx) {
   const learnBox = learn.createEl("input", { attr: { type: "checkbox" } });
   learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
   learn.createSpan({ text: "\u5B66\u4E60\u5361" });
-  learnBox.addEventListener("change", async () => {
-    ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
-    ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
-    await ctx.plugin.saveSettings();
-    ctx.renderAll();
-  });
+  learnBox.addEventListener(
+    "change",
+    fire(async () => {
+      ctx.plugin.settings.generateLearningArtifacts = learnBox.checked;
+      ctx.plugin.api.setAnalysisDefaults({ generateLearning: learnBox.checked });
+      await ctx.plugin.saveSettings();
+      ctx.renderAll();
+    })
+  );
   renderOptions(foldBody, ctx);
   const advancedFields = renderAdvanced(foldBody, ctx, input);
   renderContextStrip(root, ctx);
-  submitBtn.addEventListener("click", async () => {
-    submitBtn.disabled = true;
-    try {
-      await submit(ctx, input, advancedFields);
-    } finally {
-      submitBtn.disabled = false;
-    }
-  });
+  submitBtn.addEventListener(
+    "click",
+    fire(async () => {
+      submitBtn.disabled = true;
+      try {
+        await submit(ctx, input, advancedFields);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    })
+  );
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
@@ -12434,19 +9463,22 @@ function renderHeader(root, ctx) {
   const dot = statusLine.createSpan({ cls: "vs-backend-dot" });
   const label = statusLine.createSpan();
   updateBackendPill(statusLine, dot, label, backend, initialState, cachedResult);
-  statusLine.addEventListener("click", async (event) => {
-    event.preventDefault();
-    if (ctx.backendState() === "is-checking") return;
-    ctx.setBackendState("is-checking");
-    updateBackendPill(statusLine, dot, label, backend, "is-checking");
-    const result = await probeBackend(ctx, backend, true);
-    updateBackendPill(statusLine, dot, label, backend, result.state, result);
-    new import_obsidian8.Notice(
-      result.state === "is-online" ? `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend.label} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.reason || "\u672A\u77E5\u539F\u56E0"}`,
-      result.state === "is-online" ? 3e3 : 6e3
-    );
-    ctx.renderAll();
-  });
+  statusLine.addEventListener(
+    "click",
+    fire(async (event) => {
+      event.preventDefault();
+      if (ctx.backendState() === "is-checking") return;
+      ctx.setBackendState("is-checking");
+      updateBackendPill(statusLine, dot, label, backend, "is-checking");
+      const result = await probeBackend(ctx, backend, true);
+      updateBackendPill(statusLine, dot, label, backend, result.state, result);
+      new import_obsidian9.Notice(
+        result.state === "is-online" ? `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend.label} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.reason || "\u672A\u77E5\u539F\u56E0"}`,
+        result.state === "is-online" ? 3e3 : 6e3
+      );
+      ctx.renderAll();
+    })
+  );
   if (initialState === "is-unknown" || initialState === "is-checking") {
     ctx.setBackendState("is-checking");
     updateBackendPill(statusLine, dot, label, backend, "is-checking");
@@ -12459,7 +9491,7 @@ function renderHeader(root, ctx) {
 function showMoreMenu(ctx, event) {
   const run = (id) => {
     const commands = ctx.plugin.app.commands;
-    commands?.executeCommandById?.(`${ctx.plugin.manifest.id}:${id}`);
+    commands?.executeCommandById(`${ctx.plugin.manifest.id}:${id}`);
   };
   showMenu(event, [
     { title: "\u6279\u91CF\u5904\u7406\u89C6\u9891", icon: "list-plus", onClick: () => run("batch") },
@@ -12480,9 +9512,9 @@ function showMoreMenu(ctx, event) {
 }
 function openSettings(ctx) {
   const settingApi = ctx.plugin.app.setting;
-  if (settingApi?.open) {
+  if (settingApi) {
     settingApi.open();
-    settingApi.openTabById?.(ctx.plugin.manifest.id);
+    settingApi.openTabById(ctx.plugin.manifest.id);
   }
 }
 function activeBackendInfo(ctx) {
@@ -12544,7 +9576,7 @@ async function probeBackend(ctx, backend, force = false) {
         state: "is-offline",
         checkedAt: Date.now(),
         reason: summarizeBackendFailure(
-          error instanceof Error ? error.message : String(error),
+          error instanceof Error ? errorMessage(error) : String(error),
           backend.endpoint
         )
       };
@@ -12597,8 +9629,8 @@ function updateBackendPill(pill, dot, label, backend, state, result) {
   label.setText(`${backend.label} \u672A\u68C0\u6D4B \xB7 \u70B9\u6B64\u6D4B\u8BD5`);
   pill.setAttr("title", `${backend.label}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5`);
 }
-function formatProbeTime(timestamp2) {
-  return new Date(timestamp2).toLocaleTimeString("zh-CN", {
+function formatProbeTime(timestamp) {
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit"
   });
@@ -12634,7 +9666,7 @@ function renderContextStrip(root, ctx) {
   const meta = statusMeta(status);
   const strip = root.createDiv({ cls: "vs-context-strip" });
   const icon = strip.createDiv({ cls: "vs-context-icon" });
-  (0, import_obsidian8.setIcon)(icon, "file-text");
+  (0, import_obsidian9.setIcon)(icon, "file-text");
   const body = strip.createDiv({ cls: "vs-context-body" });
   body.createDiv({ text: activeFile.basename, cls: "vs-context-title" });
   const sub = body.createDiv({ cls: "vs-context-sub" });
@@ -12665,11 +9697,11 @@ function renderContextStrip(root, ctx) {
     textButton(
       strip,
       status === "success" || status === "interrupted" ? "\u91CD\u8DD1" : "\u5904\u7406",
-      async () => {
+      fire(async () => {
         await ctx.plugin.jobService.submitFile(activeFile, ctx.submitOptions());
         ctx.state.tab = "jobs";
         ctx.renderPanels();
-      },
+      }),
       "vs-context-action"
     );
   }
@@ -12690,11 +9722,11 @@ function renderOptions(container, ctx) {
       label: modeLabel(mode)
     })),
     settings.defaultMode,
-    async (mode) => {
+    fire(async (mode) => {
       settings.defaultMode = mode;
       await plugin.saveSettings();
       ctx.renderAll();
-    }
+    })
   );
   const depthLabels = {
     quick: "\u6781\u901F",
@@ -12708,16 +9740,16 @@ function renderOptions(container, ctx) {
       label: depthLabels[depth]
     })),
     settings.defaultProcessingDepth,
-    async (depth) => {
+    fire(async (depth) => {
       if (depth === "deep-visual" && settings.activeBackend !== "codex-worker") {
-        new import_obsidian8.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u7531 Codex Worker \u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u53EF\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
+        new import_obsidian9.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u7531 Codex Worker \u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u53EF\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
         return;
       }
       settings.defaultProcessingDepth = depth;
       plugin.api.setAnalysisDefaults({ processingDepth: depth });
       await plugin.saveSettings();
       ctx.renderAll();
-    }
+    })
   );
   segmented(
     row("\u8F93\u51FA\u8BED\u8A00"),
@@ -12726,11 +9758,11 @@ function renderOptions(container, ctx) {
       label: languageLabel(language)
     })),
     settings.defaultLanguage,
-    async (language) => {
+    fire(async (language) => {
       settings.defaultLanguage = language;
       await plugin.saveSettings();
       ctx.renderAll();
-    }
+    })
   );
   const contentLabels = {
     auto: "\u81EA\u52A8\u8BC6\u522B",
@@ -12747,24 +9779,30 @@ function renderOptions(container, ctx) {
     (value) => contentSelect.createEl("option", { text: contentLabels[value], attr: { value } })
   );
   contentSelect.value = settings.defaultContentType;
-  contentSelect.addEventListener("change", async () => {
-    const contentType = contentSelect.value;
-    settings.defaultContentType = contentType;
-    settings.autoRouteContent = contentType === "auto";
-    plugin.api.setAnalysisDefaults({ contentType, autoRoute: settings.autoRouteContent });
-    await plugin.saveSettings();
-  });
+  contentSelect.addEventListener(
+    "change",
+    fire(async () => {
+      const contentType = contentSelect.value;
+      settings.defaultContentType = contentType;
+      settings.autoRouteContent = contentType === "auto";
+      plugin.api.setAnalysisDefaults({ contentType, autoRoute: settings.autoRouteContent });
+      await plugin.saveSettings();
+    })
+  );
   const models = (settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]).filter(Boolean);
   const modelSelect = row("\u5904\u7406\u6A21\u578B").createEl("select", { cls: "dropdown" });
   models.forEach(
     (model) => modelSelect.createEl("option", { text: model, attr: { value: model } })
   );
   modelSelect.value = settings.aiModel || models[0] || "";
-  modelSelect.addEventListener("change", async () => {
-    settings.aiModel = modelSelect.value;
-    plugin.api.setAiModel(modelSelect.value);
-    await plugin.saveSettings();
-  });
+  modelSelect.addEventListener(
+    "change",
+    fire(async () => {
+      settings.aiModel = modelSelect.value;
+      plugin.api.setAiModel(modelSelect.value);
+      await plugin.saveSettings();
+    })
+  );
   const folderBtn = row("\u4FDD\u5B58\u4F4D\u7F6E").createEl("button", {
     text: shortenPath(settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"),
     cls: "vs-link-btn",
@@ -12772,12 +9810,16 @@ function renderOptions(container, ctx) {
   });
   folderBtn.addEventListener("click", (event) => {
     event.preventDefault();
-    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian8.TFolder).map((folder) => folder.path).sort();
-    new FolderSelectModal(plugin.app, folders, async (selected) => {
-      settings.outputFolder = selected;
-      await plugin.saveSettings();
-      ctx.renderAll();
-    }).open();
+    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian9.TFolder).map((folder) => folder.path).sort();
+    new FolderSelectModal(
+      plugin.app,
+      folders,
+      fire(async (selected) => {
+        settings.outputFolder = selected;
+        await plugin.saveSettings();
+        ctx.renderAll();
+      })
+    ).open();
   });
   const toggles = container.createDiv({ cls: "vs-opt-checks" });
   const check = (label, title, value, onChange) => {
@@ -12829,10 +9871,13 @@ function renderAdvanced(container, ctx, mainInput) {
       });
     });
     backendSelect.value = plugin.settings.activeWebhookId || profiles[0]?.id || "";
-    backendSelect.addEventListener("change", async () => {
-      await plugin.setActiveWebhook(backendSelect.value, { silent: false });
-      ctx.renderAll();
-    });
+    backendSelect.addEventListener(
+      "change",
+      fire(async () => {
+        await plugin.setActiveWebhook(backendSelect.value, { silent: false });
+        ctx.renderAll();
+      })
+    );
   }
   const transcriptRow = container.createDiv({ cls: "vs-field" });
   transcriptRow.createEl("label", { text: "\u624B\u52A8\u6587\u7A3F", cls: "vs-field-label" });
@@ -12860,7 +9905,7 @@ function renderAdvanced(container, ctx, mainInput) {
   });
   localFile.addEventListener("blur", () => {
     if (isAbsoluteLocalPath(localFile.value)) {
-      new import_obsidian8.Notice("\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002Docker \u573A\u666F\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002");
+      new import_obsidian9.Notice("\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002Docker \u573A\u666F\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002");
     }
   });
   const partsRow = container.createDiv({ cls: "vs-field vs-field-inline" });
@@ -12899,7 +9944,7 @@ async function submit(ctx, input, fields) {
   const transcript = fields.transcript.value.trim();
   const localFiles = fields.localFile.value.trim();
   if (!raw && !transcript && !localFiles) {
-    new import_obsidian8.Notice("\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F");
+    new import_obsidian9.Notice("\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F");
     return;
   }
   let drafts = parseInput(raw, {
@@ -12910,18 +9955,18 @@ async function submit(ctx, input, fields) {
   if (fields.partsToggle.checked) {
     const url = drafts.find((draft) => draft.source === "url")?.input.url;
     if (!url) {
-      new import_obsidian8.Notice("\u5206P\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5");
+      new import_obsidian9.Notice("\u5206P\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5");
       return;
     }
     const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
     const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
     if (end - start + 1 > 100) {
-      new import_obsidian8.Notice("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u4E2A\u5206P");
+      new import_obsidian9.Notice("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u4E2A\u5206P");
       return;
     }
     const expanded = expandParts(url, start, end, { transcript, localFiles });
     if (expanded.length === 0) {
-      new import_obsidian8.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427");
+      new import_obsidian9.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427");
       return;
     }
     drafts = expanded;
@@ -12929,19 +9974,19 @@ async function submit(ctx, input, fields) {
     ctx.state.partsEnd = end;
   }
   if (drafts.length === 0) {
-    new import_obsidian8.Notice("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9");
+    new import_obsidian9.Notice("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9");
     return;
   }
   const looksAccidental = drafts.length === 1 && drafts[0].source === "transcript" && !transcript && raw.length > 0 && raw.length < 40 && !raw.includes("\n");
   if (looksAccidental) {
-    new import_obsidian8.Notice(
+    new import_obsidian9.Notice(
       `"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`,
       8e3
     );
     return;
   }
   if (drafts.length > 50) {
-    new import_obsidian8.Notice("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761");
+    new import_obsidian9.Notice("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761");
     return;
   }
   const queued = await ctx.plugin.jobService.submit(drafts, ctx.submitOptions());
@@ -12953,13 +9998,13 @@ async function submit(ctx, input, fields) {
     ctx.state.transcriptDraft = "";
     ctx.state.localFileDraft = "";
     input.dispatchEvent(new Event("input"));
-    new import_obsidian8.Notice(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`);
+    new import_obsidian9.Notice(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`);
     ctx.state.tab = "jobs";
     ctx.renderPanels();
   }
 }
 function pickLocalFiles(ctx, input) {
-  const picker = document.createElement("input");
+  const picker = createEl("input");
   picker.type = "file";
   picker.multiple = true;
   picker.addEventListener("change", () => {
@@ -12974,7 +10019,7 @@ function appendFileNames(ctx, input, names) {
 ${names.join("\n")}` : names.join("\n");
   ctx.state.inputDraft = input.value;
   input.dispatchEvent(new Event("input"));
-  new import_obsidian8.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
+  new import_obsidian9.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
 }
 function autoGrow(input) {
   const resize = () => {
@@ -12990,7 +10035,7 @@ function shortenPath(path) {
 }
 
 // views/panels/JobsPanel.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 var RECENT_HISTORY_LIMIT = 3;
 var historyExpanded = false;
 function renderJobsPanel(container, ctx) {
@@ -13038,10 +10083,10 @@ function renderJobsPanel(container, ctx) {
           icon: "database",
           onClick: async () => {
             try {
-              await ctx.plugin.api.clearCache();
-              new import_obsidian9.Notice("\u7F13\u5B58\u5DF2\u6E05\u7A7A");
+              ctx.plugin.api.clearCache();
+              new import_obsidian10.Notice("\u7F13\u5B58\u5DF2\u6E05\u7A7A");
             } catch (error) {
-              new import_obsidian9.Notice(`\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? error.message : error}`);
+              new import_obsidian10.Notice(`\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? errorMessage(error) : error}`);
             }
           }
         }
@@ -13093,10 +10138,15 @@ function renderActiveJob(container, ctx, job) {
     label: job.state === "queued" ? "\u6392\u961F\u4E2D" : job.stageLabel || "\u5904\u7406\u4E2D",
     title: job.stageLabel ? void 0 : "\u8BE5\u540E\u7AEF\u4E0D\u4E0A\u62A5\u5904\u7406\u9636\u6BB5\uFF0C\u4EC5\u663E\u793A\u8BA1\u65F6"
   });
-  iconButton(side, "x", "\u53D6\u6D88", async () => {
-    await ctx.plugin.jobService.cancel(job);
-    ctx.renderPanels();
-  });
+  iconButton(
+    side,
+    "x",
+    "\u53D6\u6D88",
+    fire(async () => {
+      await ctx.plugin.jobService.cancel(job);
+      ctx.renderPanels();
+    })
+  );
   const bar = card.createDiv({ cls: "vs-progress" });
   const fill = bar.createDiv({
     cls: `vs-progress-fill${job.progress === void 0 ? " is-indeterminate" : ""}`
@@ -13126,22 +10176,22 @@ function renderReviewJob(container, ctx, job) {
   textButton(
     actions,
     "\u76F4\u63A5\u5199\u5165",
-    async () => {
+    fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
-        new import_obsidian9.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+        new import_obsidian10.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
         ctx.renderPanels();
       }
-    },
+    }),
     "is-fill"
   );
   iconButton(
     actions,
     "trash-2",
     "\u4E22\u5F03\u7ED3\u679C",
-    async () => {
+    fire(async () => {
       await ctx.plugin.jobService.discardResult(job);
       ctx.renderPanels();
-    },
+    }),
     "vs-icon-btn-boxed"
   );
 }
@@ -13268,7 +10318,7 @@ function renderHistoryRow(container, ctx, row) {
         disabled: !row.error,
         onClick: () => {
           void navigator.clipboard.writeText(row.error || "");
-          new import_obsidian9.Notice("\u5DF2\u590D\u5236");
+          new import_obsidian10.Notice("\u5DF2\u590D\u5236");
         }
       }
     ]);
@@ -13385,7 +10435,7 @@ async function rerun(ctx, row) {
   }
   const file = findNote(ctx, row.title);
   if (!file) {
-    new import_obsidian9.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`);
+    new import_obsidian10.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`);
     return;
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
@@ -13394,14 +10444,14 @@ async function rerun(ctx, row) {
 function openNoteByName(ctx, name) {
   const file = findNote(ctx, name);
   if (!file) {
-    new import_obsidian9.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`);
+    new import_obsidian10.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`);
     return;
   }
-  ctx.openNote(file.path);
+  void ctx.openNote(file.path);
 }
 function findNote(ctx, name) {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian9.TFile) return direct;
+  if (direct instanceof import_obsidian10.TFile) return direct;
   const files = ctx.plugin.app.vault.getMarkdownFiles();
   return files.find((file) => file.basename === name) || null;
 }
@@ -13418,7 +10468,7 @@ function summarize(job) {
 function showWebhookHistoryMenu(ctx, event) {
   const history = ctx.plugin.api.getWebhookHistory();
   if (!history || history.length === 0) {
-    new import_obsidian9.Notice("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C");
+    new import_obsidian10.Notice("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C");
     return;
   }
   showMenu(
@@ -13461,14 +10511,14 @@ function showWebhookEntryActions(ctx, entry, event) {
       icon: "clipboard",
       onClick: () => {
         void navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
-        new import_obsidian9.Notice("\u5DF2\u590D\u5236");
+        new import_obsidian10.Notice("\u5DF2\u590D\u5236");
       }
     }
   ]);
 }
 
 // views/panels/LibraryPanel.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 var PAGE_SIZE = 80;
 var searchHadFocus = false;
 var visibleCount = PAGE_SIZE;
@@ -13486,7 +10536,7 @@ function renderLibraryPanel(container, ctx) {
   const header = container.createDiv({ cls: "vs-library-header" });
   const searchWrap = header.createDiv({ cls: "vs-search" });
   const searchIcon = searchWrap.createDiv({ cls: "vs-search-icon" });
-  (0, import_obsidian10.setIcon)(searchIcon, "search");
+  (0, import_obsidian11.setIcon)(searchIcon, "search");
   const search = searchWrap.createEl("input", {
     cls: "vs-search-input",
     attr: { type: "text", placeholder: "\u641C\u7D22\u7B14\u8BB0\u540D\u2026", value: state.librarySearch }
@@ -13532,13 +10582,16 @@ function renderLibraryPanel(container, ctx) {
         title: value === "running" ? "\u67E5\u770B\u672C\u6B21\u4F1A\u8BDD\u4E2D\u8FDB\u884C\u7684\u4EFB\u52A1\u548C\u4E0A\u6B21\u4E2D\u65AD\u7684\u7B14\u8BB0" : label
       }
     });
-    chip.addEventListener("click", async () => {
-      state.libraryFilter = value;
-      plugin.settings.statusFilterValue = value;
-      await plugin.saveSettings();
-      resetLibraryPaging();
-      ctx.renderPanels();
-    });
+    chip.addEventListener(
+      "click",
+      fire(async () => {
+        state.libraryFilter = value;
+        plugin.settings.statusFilterValue = value;
+        await plugin.saveSettings();
+        resetLibraryPaging();
+        ctx.renderPanels();
+      })
+    );
   });
   const listEl = container.createDiv({ cls: "vs-list" });
   const filtered = filterAndSort(
@@ -13637,7 +10690,10 @@ function renderRow(listEl, ctx, entry, observer) {
   const sub = body.createDiv({ cls: "vs-row-sub" });
   platformText(sub, entry.platform, platformLabel(entry.platform));
   sub.createSpan({ text: formatRelative(entry.mtime) });
-  body.addEventListener("click", () => ctx.openNote(entry.path));
+  body.addEventListener(
+    "click",
+    fire(() => ctx.openNote(entry.path))
+  );
   body.tabIndex = 0;
   body.setAttribute("role", "button");
   body.setAttribute("aria-label", `\u6253\u5F00\u7B14\u8BB0\uFF1A${entry.basename}`);
@@ -13664,10 +10720,10 @@ function renderRow(listEl, ctx, entry, observer) {
       actions,
       "x",
       "\u53D6\u6D88",
-      async () => {
+      fire(async () => {
         if (liveJob) await ctx.plugin.jobService.cancel(liveJob);
         ctx.renderPanels();
-      },
+      }),
       "is-accent"
     );
   } else if (displayStatus === "review" && liveJob) {
@@ -13683,13 +10739,13 @@ function renderRow(listEl, ctx, entry, observer) {
       actions,
       displayStatus === "interrupted" ? "refresh-cw" : "play",
       displayStatus === "success" || displayStatus === "interrupted" ? "\u91CD\u8DD1" : "\u5904\u7406",
-      async () => {
+      fire(async () => {
         const file = fileOf(ctx, entry);
         if (!file) return;
         await ctx.plugin.jobService.submitFile(file, ctx.submitOptions());
         ctx.state.tab = "jobs";
         ctx.renderPanels();
-      },
+      }),
       "is-accent"
     );
   }
@@ -13737,7 +10793,7 @@ function renderRow(listEl, ctx, entry, observer) {
         disabled: !entry.link,
         onClick: () => {
           void navigator.clipboard.writeText(entry.link || "");
-          new import_obsidian10.Notice("\u5DF2\u590D\u5236\u94FE\u63A5");
+          new import_obsidian11.Notice("\u5DF2\u590D\u5236\u94FE\u63A5");
         }
       },
       {
@@ -13759,19 +10815,19 @@ function confirmDelete(ctx, entry) {
     ctx.plugin.app,
     "\u5220\u9664\u7B14\u8BB0",
     `\u786E\u5B9A\u5220\u9664 "${entry.basename}"\uFF1F\u4F1A\u6309 Obsidian \u7684\u201C\u5220\u9664\u6587\u4EF6\u201D\u8BBE\u7F6E\u79FB\u5230\u56DE\u6536\u7AD9\u3002`,
-    async (confirmed) => {
+    fire(async (confirmed) => {
       if (!confirmed) return;
       const file = fileOf(ctx, entry);
       if (!file) return;
       await ctx.plugin.app.fileManager.trashFile(file);
-      new import_obsidian10.Notice(`\u5DF2\u5220\u9664 ${entry.basename}`);
+      new import_obsidian11.Notice(`\u5DF2\u5220\u9664 ${entry.basename}`);
       ctx.renderPanels();
-    }
+    })
   ).open();
 }
 function fileOf(ctx, entry) {
   const file = ctx.plugin.app.vault.getAbstractFileByPath(entry.path);
-  return file instanceof import_obsidian10.TFile ? file : null;
+  return file instanceof import_obsidian11.TFile ? file : null;
 }
 function countByStatus(entries, ctx) {
   const counts = { pending: 0, active: 0, interrupted: 0, success: 0, error: 0 };
@@ -13828,10 +10884,10 @@ function filterForDisplayStatus(status) {
 }
 
 // views/panels/DetailPanel.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 
 // views/panels/ReaderPanel.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 var PAGE_SIZE2 = 240;
 function renderReaderPanel(container, ctx, job) {
   const segments = job.result?.video_segments || [];
@@ -13915,7 +10971,7 @@ function renderReaderPanel(container, ctx, job) {
           "aria-pressed": String(highlighted)
         }
       });
-      (0, import_obsidian11.setIcon)(star, highlighted ? "star" : "star-off");
+      (0, import_obsidian12.setIcon)(star, highlighted ? "star" : "star-off");
       const activateHighlight = (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -13936,7 +10992,7 @@ function renderReaderPanel(container, ctx, job) {
             title: "\u590D\u5236\u5F15\u7528",
             icon: "quote",
             onClick: () => {
-              void navigator.clipboard.writeText(quote).then(() => new import_obsidian11.Notice("\u5DF2\u590D\u5236\u5F15\u7528"));
+              void navigator.clipboard.writeText(quote).then(() => new import_obsidian12.Notice("\u5DF2\u590D\u5236\u5F15\u7528"));
             }
           },
           {
@@ -13953,7 +11009,7 @@ function renderReaderPanel(container, ctx, job) {
       });
       row.addEventListener("click", () => {
         if (segment.start === null || segment.timing_quality === "none") {
-          new import_obsidian11.Notice("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+          new import_obsidian12.Notice("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
           return;
         }
         activeId = segment.id;
@@ -14025,13 +11081,13 @@ function quoteFor(ctx, job, sourceUrl, segment) {
 function insertIntoRecentNote(ctx, text) {
   const { workspace } = ctx.plugin.app;
   const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
-  if (!(view instanceof import_obsidian11.MarkdownView)) {
-    new import_obsidian11.Notice("\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528");
+  if (!(view instanceof import_obsidian12.MarkdownView)) {
+    new import_obsidian12.Notice("\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528");
     return;
   }
   view.editor.replaceSelection(`${text}
 `);
-  new import_obsidian11.Notice(`\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`);
+  new import_obsidian12.Notice(`\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`);
 }
 function createPlayer(container, ctx, job, sourceUrl) {
   const localSource = resolveLocalSource(ctx, job.input.localFile);
@@ -14042,7 +11098,7 @@ function createPlayer(container, ctx, job, sourceUrl) {
   if (bilibiliId) return createBilibiliPlayer(container, bilibiliId);
   const fallback = container.createDiv({ cls: "vs-reader-player-fallback" });
   const icon = fallback.createDiv({ cls: "vs-reader-player-icon" });
-  (0, import_obsidian11.setIcon)(icon, "external-link");
+  (0, import_obsidian12.setIcon)(icon, "external-link");
   fallback.createDiv({ text: "\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", cls: "vs-reader-player-title" });
   fallback.createDiv({
     text: "\u70B9\u51FB\u6587\u7A3F\u65F6\u95F4\u70B9\u65F6\u4F1A\u6253\u5F00\u5BF9\u5E94\u7684\u89C6\u9891\u4F4D\u7F6E\u3002",
@@ -14117,8 +11173,9 @@ function createYouTubePlayer(container, videoId) {
         return;
       }
     }
-    const currentTime = Number(payload?.info?.currentTime);
-    if (payload?.event === "infoDelivery" && Number.isFinite(currentTime)) {
+    const message = asRecord(payload);
+    const currentTime = Number(asRecord(message.info).currentTime);
+    if (message.event === "infoDelivery" && Number.isFinite(currentTime)) {
       listeners.forEach((listener) => listener(currentTime));
     }
   };
@@ -14188,7 +11245,7 @@ function resolveLocalSource(ctx, localFile) {
   const vaultPath = safeVaultRelativeMediaPath(localFile);
   if (!vaultPath) return "";
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(vaultPath);
-  if (direct instanceof import_obsidian11.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
+  if (direct instanceof import_obsidian12.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
   return "";
 }
 function extractYouTubeId(sourceUrl) {
@@ -14273,11 +11330,24 @@ async function toggleHighlight(ctx, job, segment, highlights) {
   } catch (error) {
     if (removing) highlights.add(segment.id);
     else highlights.delete(segment.id);
-    new import_obsidian11.Notice(`\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`);
+    new import_obsidian12.Notice(`\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
   }
 }
 function cssEscape(value) {
   return value.replace(/["\\]/g, "\\$&");
+}
+
+// utils/desktop.ts
+function desktopRequire(id) {
+  const nodeRequire = window.require;
+  return nodeRequire?.(id);
+}
+function openPathInSystem(path) {
+  const electron = desktopRequire("electron");
+  const openPath = electron?.shell?.openPath;
+  if (!openPath) return false;
+  void openPath(path);
+  return true;
 }
 
 // views/panels/DetailPanel.ts
@@ -14369,7 +11439,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (job.state === "error" && job.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian12.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian13.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
     const actions2 = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
@@ -14383,7 +11453,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     );
     textButton(actions2, "\u590D\u5236\u9519\u8BEF", () => {
       void navigator.clipboard.writeText(job.error || "");
-      new import_obsidian12.Notice("\u5DF2\u590D\u5236");
+      new import_obsidian13.Notice("\u5DF2\u590D\u5236");
     });
     if (isCookieError(job.error)) {
       textButton(actions2, "\u6253\u5F00 cookies \u76EE\u5F55", () => openCookiesFolder(ctx));
@@ -14436,12 +11506,12 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     const write = textButton(
       actions,
       "\u5199\u5165\u7B14\u8BB0",
-      async () => {
+      fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
-          new import_obsidian12.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+          new import_obsidian13.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
           ctx.closeDetail();
         }
-      },
+      }),
       "is-primary is-fill has-icon"
     );
     prependIcon(write, "check");
@@ -14449,7 +11519,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     const open = textButton(
       actions,
       "\u6253\u5F00\u7B14\u8BB0",
-      () => ctx.openNote(job.notePath),
+      fire(() => ctx.openNote(job.notePath)),
       "is-primary is-fill has-icon"
     );
     prependIcon(open, "file-text");
@@ -14457,7 +11527,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (persistedArtifact) {
     const copy = textButton(actions, "\u590D\u5236\u5DE5\u4EF6 JSON", () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-      new import_obsidian12.Notice("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON");
+      new import_obsidian13.Notice("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON");
     });
     prependIcon(copy, "clipboard");
   } else {
@@ -14491,7 +11561,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
           icon: "clipboard",
           onClick: () => {
             void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-            new import_obsidian12.Notice("\u5DF2\u590D\u5236 JSON");
+            new import_obsidian13.Notice("\u5DF2\u590D\u5236 JSON");
           }
         }
       ]);
@@ -14502,10 +11572,10 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
         actions,
         "trash-2",
         "\u4E22\u5F03\u7ED3\u679C",
-        async () => {
+        fire(async () => {
           await ctx.plugin.jobService.discardResult(job);
           ctx.closeDetail();
-        },
+        }),
         "vs-icon-btn-boxed is-danger"
       );
     }
@@ -14531,11 +11601,15 @@ function renderStoredArtifactDetail(container, ctx, notePath, artifactId) {
       container,
       "alert-triangle",
       "\u65E0\u6CD5\u6253\u5F00\u540C\u6B65\u966A\u8BFB",
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? errorMessage(error) : String(error)
     );
     const actions = container.createDiv({ cls: "vs-detail-actions" });
     textButton(actions, "\u8FD4\u56DE\u7B14\u8BB0\u5E93", () => ctx.closeDetail(), "is-primary");
-    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(notePath));
+    textButton(
+      actions,
+      "\u6253\u5F00\u7B14\u8BB0",
+      fire(() => ctx.openNote(notePath))
+    );
   });
 }
 function artifactToJob(artifact, notePath) {
@@ -14593,7 +11667,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.content_type) {
     const route = signals.createDiv({ cls: "vs-signal" });
     const icon = route.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian12.setIcon)(icon, "route");
+    (0, import_obsidian13.setIcon)(icon, "route");
     route.createSpan({ text: `\u7ED3\u6784 \xB7 ${contentTypeLabel(result.content_type)}` });
   }
   if (result.attention) {
@@ -14601,7 +11675,7 @@ function renderKnowledgeSignals(body, ctx, job) {
       cls: `vs-signal is-attention is-${result.attention.action}`
     });
     const icon = decision2.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian12.setIcon)(
+    (0, import_obsidian13.setIcon)(
       icon,
       result.attention.action === "watch" ? "eye" : result.attention.action === "skim" ? "scan" : "skip-forward"
     );
@@ -14611,14 +11685,14 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.visual_evidence?.length) {
     const visual = signals.createDiv({ cls: "vs-signal is-visual" });
     const icon = visual.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian12.setIcon)(icon, "scan-eye");
+    (0, import_obsidian13.setIcon)(icon, "scan-eye");
     visual.createSpan({ text: `\u771F\u5B9E\u753B\u9762\u8BC1\u636E \xB7 ${result.visual_evidence.length}` });
   }
   const learningCount = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
   if (learningCount > 0) {
     const learning = signals.createDiv({ cls: "vs-signal is-learning" });
     const icon = learning.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian12.setIcon)(icon, "graduation-cap");
+    (0, import_obsidian13.setIcon)(icon, "graduation-cap");
     learning.createSpan({ text: `\u5B66\u4E60\u7EC3\u4E60 \xB7 ${learningCount}` });
   }
   if (result.attention) {
@@ -14655,7 +11729,7 @@ function renderKnowledgeSignals(body, ctx, job) {
     textButton(
       actionRow,
       "\u5148\u505A\u89C2\u770B\u5224\u65AD",
-      () => queueKnowledgeUpgrade(ctx, job, "quick"),
+      fire(() => queueKnowledgeUpgrade(ctx, job, "quick")),
       "has-icon"
     );
   }
@@ -14663,7 +11737,7 @@ function renderKnowledgeSignals(body, ctx, job) {
     const upgrade = textButton(
       actionRow,
       "\u6DF1\u5EA6\u770B\u753B\u9762",
-      () => queueKnowledgeUpgrade(ctx, job, "deep-visual"),
+      fire(() => queueKnowledgeUpgrade(ctx, job, "deep-visual")),
       "has-icon"
     );
     prependIcon(upgrade, "scan-eye");
@@ -14674,8 +11748,8 @@ function renderKnowledgeSignals(body, ctx, job) {
       `\u5F00\u59CB\u590D\u4E60 \xB7 ${learningCount}`,
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || "");
-        if (!(file instanceof import_obsidian12.TFile)) {
-          new import_obsidian12.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+        if (!(file instanceof import_obsidian13.TFile)) {
+          new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
           return;
         }
         void ctx.plugin.openLearningReviewForFile(file);
@@ -14687,7 +11761,7 @@ function renderKnowledgeSignals(body, ctx, job) {
     const generate = textButton(
       actionRow,
       "\u751F\u6210\u5B66\u4E60\u5361",
-      () => queueLearningUpgrade(ctx, job),
+      fire(() => queueLearningUpgrade(ctx, job)),
       "has-icon"
     );
     prependIcon(generate, "graduation-cap");
@@ -14696,16 +11770,16 @@ function renderKnowledgeSignals(body, ctx, job) {
 }
 async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (depth === "deep-visual" && ctx.plugin.settings.activeBackend !== "codex-worker") {
-    new import_obsidian12.Notice("\u5185\u7F6E n8n \u5DE5\u4F5C\u6D41\u5C1A\u672A\u63A5\u901A\u5B89\u5168\u7684\u753B\u9762\u51ED\u636E\u3002\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5207\u6362 Codex Worker\u3002", 7e3);
+    new import_obsidian13.Notice("\u5185\u7F6E n8n \u5DE5\u4F5C\u6D41\u5C1A\u672A\u63A5\u901A\u5B89\u5168\u7684\u753B\u9762\u51ED\u636E\u3002\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5207\u6362 Codex Worker\u3002", 7e3);
     return;
   }
   if (!job.notePath) {
-    new import_obsidian12.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406");
+    new import_obsidian13.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406");
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian12.TFile)) {
-    new import_obsidian12.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+  if (!(file instanceof import_obsidian13.TFile)) {
+    new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -14719,16 +11793,16 @@ async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian12.Notice(depth === "deep-visual" ? "\u5DF2\u63D0\u4EA4\u6DF1\u5EA6\u753B\u9762\u5206\u6790" : "\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD");
+  new import_obsidian13.Notice(depth === "deep-visual" ? "\u5DF2\u63D0\u4EA4\u6DF1\u5EA6\u753B\u9762\u5206\u6790" : "\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD");
 }
 async function queueLearningUpgrade(ctx, job) {
   if (!job.notePath) {
-    new import_obsidian12.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361");
+    new import_obsidian13.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361");
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian12.TFile)) {
-    new import_obsidian12.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+  if (!(file instanceof import_obsidian13.TFile)) {
+    new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -14742,9 +11816,9 @@ async function queueLearningUpgrade(ctx, job) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian12.Notice("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1");
+  new import_obsidian13.Notice("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1");
 }
-function contentTypeLabel(type2) {
+function contentTypeLabel(type) {
   return {
     course: "\u8BFE\u7A0B",
     interview: "\u8BBF\u8C08",
@@ -14753,7 +11827,7 @@ function contentTypeLabel(type2) {
     meeting: "\u4F1A\u8BAE",
     review: "\u8BC4\u6D4B",
     general: "\u901A\u7528"
-  }[type2] || type2;
+  }[type] || type;
 }
 function attentionLabel(action) {
   return {
@@ -14776,7 +11850,7 @@ function renderEvidence(container, ctx, job) {
     job.input.url || job.result.artifact?.source_url
   );
   const markdownEl = container.createDiv({ cls: "vs-markdown vs-evidence-map" });
-  void import_obsidian12.MarkdownRenderer.render(
+  void import_obsidian13.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown,
     markdownEl,
@@ -14786,12 +11860,12 @@ function renderEvidence(container, ctx, job) {
 }
 function prependIcon(button, icon) {
   const holder = createSpan({ cls: "vs-btn-icon" });
-  (0, import_obsidian12.setIcon)(holder, icon);
+  (0, import_obsidian13.setIcon)(holder, icon);
   button.prepend(holder);
 }
 function prependCaret(button) {
   const holder = createSpan({ cls: "vs-btn-caret" });
-  (0, import_obsidian12.setIcon)(holder, "chevron-down");
+  (0, import_obsidian13.setIcon)(holder, "chevron-down");
   button.append(holder);
 }
 function renderPreview(body, ctx, job) {
@@ -14804,7 +11878,7 @@ function renderPreview(body, ctx, job) {
   if (result.summary) fields.push("summary");
   const diff = body.createDiv({ cls: "vs-write-card" });
   const diffIcon = diff.createDiv({ cls: "vs-write-icon" });
-  (0, import_obsidian12.setIcon)(diffIcon, "file-diff");
+  (0, import_obsidian13.setIcon)(diffIcon, "file-diff");
   const diffText = diff.createDiv({ cls: "vs-write-text" });
   diffText.createDiv({ text: `\u5C06\u5199\u5165 frontmatter\uFF1A${fields.join(" \xB7 ") || "\u65E0"}` });
   diffText.createDiv({
@@ -14825,7 +11899,7 @@ ${result.note}` : ""
     markdownEl.setText("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587");
     return;
   }
-  void import_obsidian12.MarkdownRenderer.render(
+  void import_obsidian13.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown.slice(0, 6e3),
     markdownEl,
@@ -14866,7 +11940,7 @@ function renderRecordDetail(container, ctx, record) {
   if (record.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian12.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian13.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
   } else if (record.result === "error") {
     body.createDiv({
@@ -14877,11 +11951,20 @@ function renderRecordDetail(container, ctx, record) {
   const actions = body.createDiv({ cls: "vs-detail-actions" });
   const file = findNote2(ctx, record.file);
   if (file) {
-    textButton(actions, "\u6253\u5F00\u7B14\u8BB0", () => ctx.openNote(file.path), "is-primary is-fill");
-    textButton(actions, "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", async () => {
-      await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
-      ctx.closeDetail();
-    });
+    textButton(
+      actions,
+      "\u6253\u5F00\u7B14\u8BB0",
+      fire(() => ctx.openNote(file.path)),
+      "is-primary is-fill"
+    );
+    textButton(
+      actions,
+      "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+      fire(async () => {
+        await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
+        ctx.closeDetail();
+      })
+    );
   } else {
     body.createDiv({ text: `\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, cls: "vs-hint" });
   }
@@ -14920,23 +12003,20 @@ function isCookieError(error) {
 function openCookiesFolder(ctx) {
   const path = ctx.plugin.settings.cookiesDirPath;
   if (!path) {
-    new import_obsidian12.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
+    new import_obsidian13.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
     return;
   }
-  const shell = window.require?.("electron")?.shell;
-  if (shell?.openPath) {
-    void shell.openPath(path);
-  } else {
-    new import_obsidian12.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
+  if (!openPathInSystem(path)) {
+    new import_obsidian13.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
   }
 }
 function findNote2(ctx, name) {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian12.TFile) return direct;
+  if (direct instanceof import_obsidian13.TFile) return direct;
   return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
 }
 function panelComponent(ctx) {
-  const component = new import_obsidian12.Component();
+  const component = new import_obsidian13.Component();
   component.load();
   ctx.registerPanelCleanup(() => component.unload());
   return component;
@@ -14944,7 +12024,7 @@ function panelComponent(ctx) {
 
 // views/VideoSummaryView.ts
 var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
-var VideoSummaryView = class extends import_obsidian13.ItemView {
+var VideoSummaryView = class extends import_obsidian14.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.actionHeaderEl = null;
@@ -15132,18 +12212,18 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
       wrapper,
       tabs.map(([value, label, count]) => ({ value, label, count })),
       this.state.tab,
-      async (value) => {
+      fire(async (value) => {
         this.state.tab = value;
         this.plugin.settings.activePanelTab = value;
         await this.plugin.saveSettings();
         if (value === "library") resetLibraryPaging();
         this.renderPanels();
-      }
+      })
     );
   }
   async openNote(path) {
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian13.TFile)) {
+    if (!(file instanceof import_obsidian14.TFile)) {
       const job = this.plugin.jobs.getAll().find((item) => item.notePath === path);
       const artifactId = job?.result?.artifact?.artifact_id || job?.input?.artifactId;
       if (artifactId) {
@@ -15151,13 +12231,13 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
           const artifact = await this.plugin.artifactStore.load(artifactId);
           const resolved = artifact?.source?.note_path;
           if (resolved) file = this.app.vault.getAbstractFileByPath(resolved);
-          if (file instanceof import_obsidian13.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
+          if (file instanceof import_obsidian14.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
         } catch {
         }
       }
     }
-    if (!(file instanceof import_obsidian13.TFile)) {
-      new import_obsidian13.Notice("\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002");
+    if (!(file instanceof import_obsidian14.TFile)) {
+      new import_obsidian14.Notice("\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002");
       return;
     }
     try {
@@ -15165,7 +12245,7 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
       await leaf.openFile(file, { active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch (error) {
-      new import_obsidian13.Notice(`\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian14.Notice(`\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
     }
   }
   cleanupPanelResources() {
@@ -15180,7 +12260,7 @@ var VideoSummaryView = class extends import_obsidian13.ItemView {
 };
 
 // utils/FileProcessor.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var FileProcessor = class {
   constructor(app, plugin) {
     this.app = app;
@@ -15193,14 +12273,14 @@ var FileProcessor = class {
     try {
       const leaf = this.app.workspace.getLeaf();
       await leaf.openFile(file);
-      setTimeout(() => {
+      window.setTimeout(() => {
         const view = leaf.view;
-        if (view instanceof import_obsidian14.MarkdownView) {
+        if (view instanceof import_obsidian15.MarkdownView) {
           new VideoSummaryModal(this.app, this.plugin, view.editor, view).open();
         }
       }, 100);
     } catch (error) {
-      new import_obsidian14.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${error.message}`);
+      new import_obsidian15.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
   /**
@@ -15481,7 +12561,7 @@ var JobStore = class {
       }
     } catch (error) {
       job.state = this.cancelled.has(job.id) ? "cancelled" : "error";
-      job.error = error instanceof Error ? error.message : String(error);
+      job.error = error instanceof Error ? errorMessage(error) : String(error);
       this.log(job.id, job.error);
     } finally {
       this.cancelled.delete(job.id);
@@ -15496,7 +12576,7 @@ var JobStore = class {
 };
 
 // core/JobService.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 
 // core/ArtifactStore.ts
 var VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION = 3;
@@ -15546,17 +12626,17 @@ var ArtifactStore = class {
         return cloneArtifact(normalized);
       }
       let saved;
-      const merge2 = (currentText) => {
+      const merge = (currentText) => {
         const current = parseCurrentArtifact(currentText);
         saved = mergeLatestUserOwnedState(normalized, current);
         validateVideoKnowledgeArtifact(saved);
         return serializeArtifact(saved);
       };
       if (this.adapter.process) {
-        await this.adapter.process(path, merge2);
+        await this.adapter.process(path, merge);
       } else {
         const currentText = await this.adapter.read(path);
-        await this.atomicWrite(path, merge2(currentText));
+        await this.atomicWrite(path, merge(currentText));
       }
       if (!saved)
         throw new Error(`Artifact save did not produce a result: ${normalized.artifact_id}`);
@@ -15728,7 +12808,7 @@ var ArtifactStore = class {
       throw new ArtifactValidationError([
         {
           path: "$",
-          message: `invalid JSON (${error instanceof Error ? error.message : String(error)})`
+          message: `invalid JSON (${error instanceof Error ? errorMessage(error) : String(error)})`
         }
       ]);
     }
@@ -15868,7 +12948,7 @@ async function sha256Hex2(value) {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 async function migrateVideoKnowledgeArtifact(raw, now = /* @__PURE__ */ new Date()) {
-  if (!isRecord3(raw)) {
+  if (!isRecord4(raw)) {
     throw new ArtifactValidationError([{ path: "$", message: "must be an object" }]);
   }
   const original = JSON.stringify(raw);
@@ -15884,14 +12964,14 @@ async function migrateVideoKnowledgeArtifact(raw, now = /* @__PURE__ */ new Date
   let working = { ...raw };
   if (detectedVersion <= 1) working = migrateV1ToV2(working);
   if (detectedVersion <= 2) working = migrateV2ToV3(working);
-  const sourceRaw = isRecord3(working.source) ? working.source : {
+  const sourceRaw = isRecord4(working.source) ? working.source : {
     url: readString3(working.source_url),
     local_file: readString3(working.local_file),
     note_path: readString3(working.note_path),
     transcript_hash: readString3(working.transcript_hash),
     source_hash: readString3(working.source_hash)
   };
-  const provenanceRaw = isRecord3(working.provenance) ? working.provenance : isRecord3(working.artifact) ? working.artifact : {};
+  const provenanceRaw = isRecord4(working.provenance) ? working.provenance : isRecord4(working.artifact) ? working.artifact : {};
   const transcript = readOptionalString(working.transcript);
   const transcriptHash = transcript && transcript.length > 0 ? await sha256Hex2(normalizeTranscriptForHash(transcript)) : readOptionalString(sourceRaw.transcript_hash) || readOptionalString(provenanceRaw.transcript_hash);
   const source = {
@@ -15927,8 +13007,8 @@ async function migrateVideoKnowledgeArtifact(raw, now = /* @__PURE__ */ new Date
     visual_evidence: arrayOrEmpty(
       working.visual_evidence
     ),
-    attention: isRecord3(working.attention) ? working.attention : void 0,
-    learning: isRecord3(working.learning) ? working.learning : void 0,
+    attention: isRecord4(working.attention) ? working.attention : void 0,
+    learning: isRecord4(working.learning) ? working.learning : void 0,
     related_notes: arrayOrEmpty(working.related_notes),
     highlights: normalizeHighlights(
       arrayOrEmpty(working.highlights)
@@ -15956,7 +13036,7 @@ async function migrateVideoKnowledgeArtifact(raw, now = /* @__PURE__ */ new Date
 }
 function validateVideoKnowledgeArtifact(value) {
   const issues = [];
-  if (!isRecord3(value)) {
+  if (!isRecord4(value)) {
     throw new ArtifactValidationError([{ path: "$", message: "must be an object" }]);
   }
   requireEqual(
@@ -15967,7 +13047,7 @@ function validateVideoKnowledgeArtifact(value) {
   );
   requireString(issues, "$.artifact_id", value.artifact_id, SAFE_ARTIFACT_ID);
   requireRecord(issues, "$.source", value.source);
-  if (isRecord3(value.source)) {
+  if (isRecord4(value.source)) {
     requireString(issues, "$.source.source_hash", value.source.source_hash, HASH_VALUE);
     if (value.source.transcript_hash !== void 0 && !HASH_VALUE.test(readString3(value.source.transcript_hash))) {
       issues.push({
@@ -16001,14 +13081,14 @@ function validateVideoKnowledgeArtifact(value) {
   validateRelatedNotes(issues, value.related_notes);
   validateHighlights(issues, value.highlights, segmentIds);
   validateStringArray(issues, "$.course_ids", value.course_ids);
-  if (isRecord3(value.provenance)) {
+  if (isRecord4(value.provenance)) {
     requireEqual(
       issues,
       "$.provenance.schema_version",
       value.provenance.schema_version,
       VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION
     );
-    if (typeof value.provenance.source_hash === "string" && isRecord3(value.source) && value.provenance.source_hash !== value.source.source_hash) {
+    if (typeof value.provenance.source_hash === "string" && isRecord4(value.source) && value.provenance.source_hash !== value.source.source_hash) {
       issues.push({
         path: "$.provenance.source_hash",
         message: "must match source.source_hash"
@@ -16036,7 +13116,7 @@ function migrateV1ToV2(raw) {
     ...raw,
     schema_version: 2,
     artifact_id: raw.artifact_id || raw.id,
-    source: isRecord3(raw.source) ? raw.source : {
+    source: isRecord4(raw.source) ? raw.source : {
       url: raw.source_url || raw.video_url || raw.link,
       local_file: raw.local_file,
       note_path: raw.note_path,
@@ -16063,7 +13143,7 @@ function migrateV2ToV3(raw) {
     related_notes: raw.related_notes || [],
     highlights: raw.highlights || [],
     course_ids: raw.course_ids || [],
-    provenance: isRecord3(raw.provenance) ? {
+    provenance: isRecord4(raw.provenance) ? {
       ...raw.provenance,
       schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION
     } : { schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION }
@@ -16077,7 +13157,7 @@ function parseCurrentArtifact(text) {
     throw new ArtifactValidationError([
       {
         path: "$",
-        message: `invalid JSON (${error instanceof Error ? error.message : String(error)})`
+        message: `invalid JSON (${error instanceof Error ? errorMessage(error) : String(error)})`
       }
     ]);
   }
@@ -16180,7 +13260,7 @@ function validateSegments(issues, raw) {
   if (!Array.isArray(raw)) return ids;
   raw.forEach((segment, index) => {
     const path = `$.segments[${index}]`;
-    if (!isRecord3(segment)) {
+    if (!isRecord4(segment)) {
       issues.push({ path, message: "must be an object" });
       return;
     }
@@ -16204,7 +13284,7 @@ function validateClaims(issues, raw, segmentIds) {
   const ids = /* @__PURE__ */ new Set();
   raw.forEach((claim, index) => {
     const path = `$.claims[${index}]`;
-    if (!isRecord3(claim)) {
+    if (!isRecord4(claim)) {
       issues.push({ path, message: "must be an object" });
       return;
     }
@@ -16218,7 +13298,7 @@ function validateClaims(issues, raw, segmentIds) {
     if (Array.isArray(claim.evidence)) {
       claim.evidence.forEach((reference, evidenceIndex) => {
         const evidencePath = `${path}.evidence[${evidenceIndex}]`;
-        if (!isRecord3(reference)) {
+        if (!isRecord4(reference)) {
           issues.push({ path: evidencePath, message: "must be an object" });
           return;
         }
@@ -16239,7 +13319,7 @@ function validateRelatedNotes(issues, raw) {
   const allowedRelations = /* @__PURE__ */ new Set(["supplements", "repeats", "conflicts", "updates", "related"]);
   raw.forEach((suggestion, index) => {
     const path = `$.related_notes[${index}]`;
-    if (!isRecord3(suggestion)) {
+    if (!isRecord4(suggestion)) {
       issues.push({ path, message: "must be an object" });
       return;
     }
@@ -16269,7 +13349,7 @@ function validateVisualEvidence(issues, raw) {
   const ids = /* @__PURE__ */ new Set();
   raw.forEach((item, index) => {
     const path = `$.visual_evidence[${index}]`;
-    if (!isRecord3(item)) {
+    if (!isRecord4(item)) {
       issues.push({ path, message: "must be an object" });
       return;
     }
@@ -16289,7 +13369,7 @@ function validateHighlights(issues, raw, segmentIds) {
   const ids = /* @__PURE__ */ new Set();
   raw.forEach((highlight, index) => {
     const path = `$.highlights[${index}]`;
-    if (!isRecord3(highlight)) {
+    if (!isRecord4(highlight)) {
       issues.push({ path, message: "must be an object" });
       return;
     }
@@ -16410,11 +13490,11 @@ function cloneHighlights(highlights) {
   return JSON.parse(JSON.stringify(highlights));
 }
 function stripUndefined(value) {
-  if (!isRecord3(value)) return;
+  if (!isRecord4(value)) return;
   for (const [key, item] of Object.entries(value)) {
     if (item === void 0) {
       delete value[key];
-    } else if (isRecord3(item)) {
+    } else if (isRecord4(item)) {
       stripUndefined(item);
     }
   }
@@ -16449,7 +13529,7 @@ function assertArtifactId(artifactId) {
   }
 }
 function requireRecord(issues, path, raw) {
-  if (!isRecord3(raw)) issues.push({ path, message: "must be an object" });
+  if (!isRecord4(raw)) issues.push({ path, message: "must be an object" });
 }
 function requireArray(issues, path, raw) {
   if (!Array.isArray(raw)) issues.push({ path, message: "must be an array" });
@@ -16467,7 +13547,7 @@ function requireIso(issues, path, raw) {
 function requireEqual(issues, path, actual, expected) {
   if (actual !== expected) issues.push({ path, message: `must equal ${String(expected)}` });
 }
-function isRecord3(value) {
+function isRecord4(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isNonNegativeNumber(value) {
@@ -17240,7 +14320,7 @@ var MediaAssetLocalizer = class {
         attempted += 1;
         pending = (async () => {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+          const timer = window.setTimeout(() => controller.abort(), this.timeoutMs);
           try {
             const download = await this.fetchBinary(url, controller.signal);
             const bytes = download.data.byteLength;
@@ -17275,7 +14355,7 @@ var MediaAssetLocalizer = class {
               bytes
             };
           } finally {
-            clearTimeout(timer);
+            window.clearTimeout(timer);
           }
         })();
         memo.set(url, pending);
@@ -17431,7 +14511,7 @@ function uniqueStrings3(values) {
   return [...new Set(values.filter(Boolean))].slice(0, 50);
 }
 function messageOf2(error) {
-  return (error instanceof Error ? error.message : String(error)).replace(/\r?\n/g, " ").slice(0, 240);
+  return (error instanceof Error ? errorMessage(error) : String(error)).replace(/\r?\n/g, " ").slice(0, 240);
 }
 
 // core/ReproducibilityManifest.ts
@@ -17622,11 +14702,11 @@ function normalizeHash(value) {
 }
 function normalizeIso(value) {
   if (!value) return (/* @__PURE__ */ new Date()).toISOString();
-  const timestamp2 = Date.parse(value);
-  if (!Number.isFinite(timestamp2)) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
     throw new ReproducibilityManifestError("generated_at must be a valid date");
   }
-  return new Date(timestamp2).toISOString();
+  return new Date(timestamp).toISOString();
 }
 function cleanOptional(value) {
   const normalized = String(value || "").trim();
@@ -17740,7 +14820,7 @@ var JobService = class {
     }
     if (runnableDrafts.length === 0) return jsonCreated;
     if (!await this.plugin.ensureBackendReady()) {
-      new import_obsidian15.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
+      new import_obsidian16.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
       return jsonCreated;
     }
     let queued = 0;
@@ -17750,7 +14830,7 @@ var JobService = class {
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       });
       if (!file) {
-        new import_obsidian15.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
+        new import_obsidian16.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
         continue;
       }
       this.store.enqueue({
@@ -17779,7 +14859,7 @@ var JobService = class {
    */
   async submitPreparedFile(file, input, options) {
     if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
-      new import_obsidian15.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
+      new import_obsidian16.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
       return null;
     }
     if (!await this.plugin.ensureBackendReady()) return null;
@@ -17815,7 +14895,7 @@ var JobService = class {
     if (!job.result) return false;
     const file = this.fileFor(job);
     if (!file) {
-      new import_obsidian15.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+      new import_obsidian16.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
       return false;
     }
     try {
@@ -17835,7 +14915,7 @@ var JobService = class {
       });
       return true;
     } catch (error) {
-      new import_obsidian15.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian16.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`);
       return false;
     }
   }
@@ -17852,7 +14932,7 @@ var JobService = class {
   async applyToActiveNote(result, mode) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian15.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian16.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
       return;
     }
     try {
@@ -17874,16 +14954,16 @@ var JobService = class {
       const saved = await this.persistArtifact(context, result);
       await this.applyResult(activeFile, result, mode, context);
       await this.updateCourseProgressForFile(activeFile, "complete", 100, saved.artifact_id);
-      new import_obsidian15.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
+      new import_obsidian16.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
     } catch (error) {
-      new import_obsidian15.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian16.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`);
     }
   }
   /** 把结果插到当前打开的笔记末尾 */
   async insertIntoActiveNote(result) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian15.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian16.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
       return;
     }
     const content = await this.plugin.app.vault.read(activeFile);
@@ -17893,7 +14973,7 @@ var JobService = class {
 
 ${buildInsertionContent(result)}`
     );
-    new import_obsidian15.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
+    new import_obsidian16.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
   }
   /** 用结果新建一篇笔记 */
   async createNoteFromResult(job) {
@@ -17911,7 +14991,7 @@ ${buildInsertionContent(result)}`
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       }
     );
-    if (file) new import_obsidian15.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
+    if (file) new import_obsidian16.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
   }
   async createNoteFromJson(jsonText, language) {
     let parsed;
@@ -17922,7 +15002,7 @@ ${buildInsertionContent(result)}`
       result = this.plugin.api.normalizeWebhookPayload(parsed);
       input = extractVideoInputFromPayload(parsed);
     } catch (error) {
-      new import_obsidian15.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian16.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`);
       return null;
     }
     try {
@@ -17966,7 +15046,7 @@ ${buildInsertionContent(result)}`
             file,
             this.plugin.settings.successStatusValue ?? "success"
           );
-          new import_obsidian15.Notice(`${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`);
+          new import_obsidian16.Notice(`${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`);
           return file;
         } catch (error) {
           try {
@@ -17974,13 +15054,13 @@ ${buildInsertionContent(result)}`
           } catch (statusError) {
             console.error("[Video Summary] JSON \u5931\u8D25\u72B6\u6001\u5199\u56DE\u5931\u8D25", statusError);
           }
-          new import_obsidian15.Notice(`JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`, 8e3);
+          new import_obsidian16.Notice(`JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`, 8e3);
           return null;
         }
       }
       return null;
     } catch (error) {
-      new import_obsidian15.Notice(`JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`, 8e3);
+      new import_obsidian16.Notice(`JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`, 8e3);
       return null;
     }
   }
@@ -18248,7 +15328,7 @@ ${buildInsertionContent(result)}`
   attentionContextFor(job) {
     if (!job.notePath) return void 0;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian15.TFile)) return void 0;
+    if (!(file instanceof import_obsidian16.TFile)) return void 0;
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const terms = uniqueStrings4(
       [
@@ -18319,7 +15399,7 @@ ${buildInsertionContent(result)}`
     const ids = new Set(previous?.course_ids || []);
     if (!job.notePath) return [...ids].sort();
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian15.TFile)) return [...ids].sort();
+    if (!(file instanceof import_obsidian16.TFile)) return [...ids].sort();
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const values = [frontmatter?.video_course_id, frontmatter?.video_course_ids].flat();
     const currentFileIds = /* @__PURE__ */ new Set();
@@ -18339,7 +15419,7 @@ ${buildInsertionContent(result)}`
   fileFor(job) {
     if (!job.notePath) return null;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    return file instanceof import_obsidian15.TFile ? file : null;
+    return file instanceof import_obsidian16.TFile ? file : null;
   }
 };
 function basenameOf(path) {
@@ -18357,7 +15437,7 @@ function stripBackendMediaAssetPaths(result) {
   }));
 }
 function messageOf3(error) {
-  return error instanceof Error ? error.message : String(error);
+  return error instanceof Error ? errorMessage(error) : String(error);
 }
 function uniqueStrings4(values) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
@@ -18757,7 +15837,7 @@ function relationLabel(relation) {
   return labels[relation];
 }
 function explicitOpposition(left, right) {
-  const pairs2 = [
+  const pairs = [
     [
       /(?:增加|上升|提高|增长|rise|increase|higher|improve)/iu,
       /(?:减少|下降|降低|衰退|fall|decrease|lower|decline)/iu,
@@ -18779,7 +15859,7 @@ function explicitOpposition(left, right) {
       "\u6210\u7ACB vs \u4E0D\u6210\u7ACB"
     ]
   ];
-  for (const [positive, negative, label] of pairs2) {
+  for (const [positive, negative, label] of pairs) {
     if (positive.test(left) && negative.test(right) || negative.test(left) && positive.test(right)) {
       return label;
     }
@@ -18988,7 +16068,7 @@ function suggestArtifactRelation(source, target) {
   }
   const sourceClaims = source.claims.map((claim) => resolveArtifactClaim(source, claim));
   const targetClaims = target.claims.map((claim) => resolveArtifactClaim(target, claim));
-  const pairs2 = sourceClaims.flatMap(
+  const pairs = sourceClaims.flatMap(
     (left) => targetClaims.map((right) => {
       const comparison = compareResolvedClaims(left, right, source, target);
       return {
@@ -19002,12 +16082,12 @@ function suggestArtifactRelation(source, target) {
   ).filter((pair) => pair.supported).sort(
     (left, right) => relationPriority(right.relation) - relationPriority(left.relation) || right.similarity - left.similarity || left.source_claim_id.localeCompare(right.source_claim_id)
   ).slice(0, 12);
-  const conflicts = pairs2.filter((pair) => pair.relation === "conflict");
-  const updates = pairs2.filter((pair) => pair.relation === "update");
-  const agreements = pairs2.filter(
+  const conflicts = pairs.filter((pair) => pair.relation === "conflict");
+  const updates = pairs.filter((pair) => pair.relation === "update");
+  const agreements = pairs.filter(
     (pair) => pair.relation === "agreement" && pair.similarity >= 0.52
   );
-  const overlaps = pairs2.filter((pair) => pair.similarity >= 0.22);
+  const overlaps = pairs.filter((pair) => pair.similarity >= 0.22);
   let relation;
   let reason;
   let confidence;
@@ -19044,7 +16124,7 @@ function suggestArtifactRelation(source, target) {
     relation,
     reason,
     confidence: roundScore2(confidence),
-    evidence_pairs: pairs2.map((pair) => ({
+    evidence_pairs: pairs.map((pair) => ({
       source_claim_id: pair.source_claim_id,
       target_claim_id: pair.target_claim_id,
       relation: pair.relation,
@@ -19069,11 +16149,11 @@ async function applyReviewedRelationSuggestion(store, suggestion, confirmed) {
 }
 function recordsForArtifact(artifact) {
   const output = [];
-  const push = (type2, id, text, segment, keyframe, claimReviewState) => {
+  const push = (type, id, text, segment, keyframe, claimReviewState) => {
     const boundedText = cleanText2(text).slice(0, CROSS_MODAL_MEMORY_LIMITS.textCharactersPerRecord);
     if (!boundedText) return;
-    const timestamp2 = segment?.start ?? null;
-    const recordId = `${artifact.artifact_id}:${type2}:${id || output.length}`;
+    const timestamp = segment?.start ?? null;
+    const recordId = `${artifact.artifact_id}:${type}:${id || output.length}`;
     output.push({
       record_id: recordId,
       artifact_id: artifact.artifact_id,
@@ -19084,9 +16164,9 @@ function recordsForArtifact(artifact) {
       course_ids: [...artifact.course_ids],
       source_url: artifact.source.url,
       note_path: artifact.source.note_path,
-      timestamp: timestamp2,
-      timestamp_url: segment?.timestamp_url || buildTimestampUrl2(artifact.source.url, timestamp2),
-      evidence_type: type2,
+      timestamp,
+      timestamp_url: segment?.timestamp_url || buildTimestampUrl2(artifact.source.url, timestamp),
+      evidence_type: type,
       evidence_id: id,
       claim_review_state: claimReviewState,
       media_asset_root: artifact.provenance.media_asset_root,
@@ -19137,8 +16217,8 @@ function balancedRecordSample(records) {
     claim: 49
   };
   const selected = /* @__PURE__ */ new Set();
-  Object.keys(quotas).forEach((type2) => {
-    records.filter((record) => record.evidence_type === type2).slice(0, quotas[type2]).forEach((record) => selected.add(record.record_id));
+  Object.keys(quotas).forEach((type) => {
+    records.filter((record) => record.evidence_type === type).slice(0, quotas[type]).forEach((record) => selected.add(record.record_id));
   });
   for (const record of records) {
     if (selected.size >= limit) break;
@@ -19193,7 +16273,7 @@ function scoreRecord(record, normalizedQuery, queryTokens) {
     });
   }
   const score = components.reduce((sum, component) => sum + component.value, 0);
-  const snippet2 = makeSnippet(record.text, normalizedQuery, queryTokens);
+  const snippet = makeSnippet(record.text, normalizedQuery, queryTokens);
   return {
     record_id: record.record_id,
     artifact_id: record.artifact_id,
@@ -19212,8 +16292,8 @@ function scoreRecord(record, normalizedQuery, queryTokens) {
     media_asset_root: record.media_asset_root,
     keyframe: record.keyframe,
     text: record.text,
-    snippet: snippet2,
-    highlights: highlightRanges(snippet2, normalizedQuery, queryTokens),
+    snippet,
+    highlights: highlightRanges(snippet, normalizedQuery, queryTokens),
     score: Math.round(score * 1e3) / 1e3,
     score_explanation: components,
     generated_at: record.generated_at,
@@ -19399,8 +16479,8 @@ function roundScore2(value) {
 }
 
 // modals/KnowledgeLabModal.ts
-var import_obsidian16 = require("obsidian");
-var KnowledgeLabModal = class extends import_obsidian16.Modal {
+var import_obsidian17 = require("obsidian");
+var KnowledgeLabModal = class extends import_obsidian17.Modal {
   constructor(app, plugin, mode) {
     super(app);
     this.artifacts = [];
@@ -19497,7 +16577,7 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
         value: artifact.artifact_id
       });
     });
-    relationRow.createEl("span", {
+    relationRow.createSpan({
       text: "\u5EFA\u8BAE\u4E0D\u4F1A\u81EA\u52A8\u5199\u5165\uFF1B\u6BCF\u6761\u5173\u7CFB\u90FD\u9700\u8981\u518D\u6B21\u660E\u786E\u786E\u8BA4\u3002"
     });
     const status = this.contentEl.createDiv({ cls: "vs-memory-status" });
@@ -19549,17 +16629,17 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
       } else {
         heading.createEl("strong", { text: result.title });
       }
-      heading.createEl("span", {
+      heading.createSpan({
         cls: "vs-memory-evidence-type",
         text: result.evidence_type
       });
-      heading.createEl("span", {
+      heading.createSpan({
         cls: "vs-memory-score",
         text: result.score.toFixed(2),
         attr: { title: "\u786E\u5B9A\u6027\u672C\u5730\u8BC4\u5206" }
       });
-      const snippet2 = card.createEl("p", { cls: "vs-memory-snippet" });
-      renderHighlightedText(snippet2, result.snippet, result.highlights);
+      const snippet = card.createEl("p", { cls: "vs-memory-snippet" });
+      renderHighlightedText(snippet, result.snippet, result.highlights);
       const meta = card.createDiv({ cls: "vs-memory-meta" });
       meta.setText(
         [
@@ -19593,8 +16673,8 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
     let source;
     const localPath = safeManagedVaultImagePath(reference.path, result.media_asset_root);
     if (localPath) {
-      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian16.normalizePath)(localPath));
-      if (file instanceof import_obsidian16.TFile) source = this.app.vault.getResourcePath(file);
+      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian17.normalizePath)(localPath));
+      if (file instanceof import_obsidian17.TFile) source = this.app.vault.getResourcePath(file);
     }
     if (!source) return;
     card.createEl("img", {
@@ -19660,7 +16740,7 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
     const toolbar = this.contentEl.createDiv({ cls: "vs-claim-lab-toolbar" });
     const title = labeledInput(toolbar, "\u5B9E\u9A8C\u5BA4\u6807\u9898", "\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4");
     const artifactSearch = labeledInput(toolbar, "\u7B5B\u9009\u5DE5\u4EF6", "\u6309\u6807\u9898\u3001\u4F5C\u8005\u6216\u5E73\u53F0\u8FC7\u6EE4");
-    const count = toolbar.createEl("span", { cls: "vs-claim-lab-count" });
+    const count = toolbar.createSpan({ cls: "vs-claim-lab-count" });
     const list = this.contentEl.createDiv({ cls: "vs-claim-lab-artifacts" });
     const selected = /* @__PURE__ */ new Set();
     const renderList = () => {
@@ -19676,7 +16756,7 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
         checkbox.checked = selected.has(artifact.artifact_id);
         const copy = row.createDiv();
         copy.createEl("strong", { text: artifact.title || artifact.artifact_id });
-        copy.createEl("span", {
+        copy.createSpan({
           text: [
             artifact.author,
             artifact.platform,
@@ -19699,10 +16779,10 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
       text: "\u751F\u6210 / \u66F4\u65B0\u8BBA\u70B9\u5B9E\u9A8C\u5BA4",
       cls: "mod-cta"
     });
-    const status = actions.createEl("span");
+    const status = actions.createSpan();
     generate.onclick = async () => {
       if (selected.size < 2) {
-        new import_obsidian16.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6");
+        new import_obsidian17.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6");
         return;
       }
       generate.disabled = true;
@@ -19723,21 +16803,21 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
     };
   }
   async saveClaimLab(labId, report) {
-    const baseFolder = (0, import_obsidian16.normalizePath)(
+    const baseFolder = (0, import_obsidian17.normalizePath)(
       `${this.plugin.settings.outputFolder || "\u89C6\u9891\u603B\u7ED3"}/\u77E5\u8BC6\u5B9E\u9A8C\u5BA4`
     );
     await ensureFolder(this.app, baseFolder);
     const selectionHash = stableTextHash(report.artifact_ids.join("|"));
-    const path = (0, import_obsidian16.normalizePath)(
+    const path = (0, import_obsidian17.normalizePath)(
       `${baseFolder}/\u8BBA\u70B9\u5B9E\u9A8C\u5BA4-${selectionHash || labId.replace(/^claim-lab-/, "")}.md`
     );
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing && !(existing instanceof import_obsidian16.TFile)) {
+    if (existing && !(existing instanceof import_obsidian17.TFile)) {
       throw new Error(`\u76EE\u6807\u8DEF\u5F84\u4E0D\u662F Markdown \u6587\u4EF6\uFF1A${path}`);
     }
-    const before = existing instanceof import_obsidian16.TFile ? await this.app.vault.read(existing) : "";
+    const before = existing instanceof import_obsidian17.TFile ? await this.app.vault.read(existing) : "";
     const after = upsertClaimLabMarkdown(before, report);
-    if (existing instanceof import_obsidian16.TFile) {
+    if (existing instanceof import_obsidian17.TFile) {
       if (after !== before) await this.app.vault.modify(existing, after);
       return existing;
     }
@@ -19746,26 +16826,26 @@ var KnowledgeLabModal = class extends import_obsidian16.Modal {
 };
 async function ensureFolder(app, folderPath) {
   let current = "";
-  for (const part of (0, import_obsidian16.normalizePath)(folderPath).split("/").filter(Boolean)) {
+  for (const part of (0, import_obsidian17.normalizePath)(folderPath).split("/").filter(Boolean)) {
     current = current ? `${current}/${part}` : part;
     const existing = app.vault.getAbstractFileByPath(current);
     if (!existing) {
       await app.vault.createFolder(current);
-    } else if (!(existing instanceof import_obsidian16.TFolder)) {
+    } else if (!(existing instanceof import_obsidian17.TFolder)) {
       throw new Error(`\u65E0\u6CD5\u521B\u5EFA\u6587\u4EF6\u5939\uFF0C\u8DEF\u5F84\u5DF2\u88AB\u6587\u4EF6\u5360\u7528\uFF1A${current}`);
     }
   }
 }
-function labeledInput(container, label, placeholder, type2 = "text") {
+function labeledInput(container, label, placeholder, type = "text") {
   const wrapper = container.createEl("label", { cls: "vs-knowledge-field" });
-  wrapper.createEl("span", { text: label });
+  wrapper.createSpan({ text: label });
   return wrapper.createEl("input", {
-    attr: { type: type2, placeholder, "aria-label": label }
+    attr: { type, placeholder, "aria-label": label }
   });
 }
 function labeledSelect(container, label, values) {
   const wrapper = container.createEl("label", { cls: "vs-knowledge-field" });
-  wrapper.createEl("span", { text: label });
+  wrapper.createSpan({ text: label });
   const select = wrapper.createEl("select", { attr: { "aria-label": label } });
   values.forEach((value) => {
     select.createEl("option", {
@@ -19812,7 +16892,7 @@ function formatTime(seconds) {
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}` : `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 function messageOf4(error) {
-  return error instanceof Error ? error.message : String(error);
+  return error instanceof Error ? errorMessage(error) : String(error);
 }
 
 // core/LearningProgressStore.ts
@@ -19861,8 +16941,8 @@ var LearningProgressStore = class {
     const artifactId = normalizeArtifactId(input.artifact_id);
     const path = this.pathFor(artifactId);
     return this.withLock(path, async () => {
-      const timestamp2 = normalizeIso2(input.attempted_at, this.now());
-      const current = await this.loadOrCreate(artifactId, new Date(timestamp2));
+      const timestamp = normalizeIso2(input.attempted_at, this.now());
+      const current = await this.loadOrCreate(artifactId, new Date(timestamp));
       const key = learningItemKey(input.item_kind, input.item_id);
       const previous = current.items[key];
       const scheduled = scheduleLearningAttempt(previous, {
@@ -19872,12 +16952,12 @@ var LearningProgressStore = class {
         answer: input.answer,
         correct: input.correct,
         confidence: input.confidence,
-        attempted_at: timestamp2
+        attempted_at: timestamp
       });
       const next = {
         ...current,
         items: { ...current.items, [key]: scheduled },
-        updated_at: timestamp2
+        updated_at: timestamp
       };
       validateLearningProgressSidecar(next, artifactId);
       await this.ensureRoot();
@@ -19945,7 +17025,7 @@ var LearningProgressStore = class {
       raw = JSON.parse(await this.adapter.read(path));
     } catch (error) {
       throw new LearningProgressValidationError(
-        `invalid JSON for ${normalized} (${error instanceof Error ? error.message : String(error)})`
+        `invalid JSON for ${normalized} (${error instanceof Error ? errorMessage(error) : String(error)})`
       );
     }
     validateLearningProgressSidecar(raw, normalized);
@@ -19954,13 +17034,13 @@ var LearningProgressStore = class {
   async loadOrCreate(artifactId, at) {
     const existing = await this.load(artifactId);
     if (existing) return existing;
-    const timestamp2 = at.toISOString();
+    const timestamp = at.toISOString();
     return {
       schema_version: LEARNING_PROGRESS_SCHEMA_VERSION,
       artifact_id: artifactId,
       items: {},
-      created_at: timestamp2,
-      updated_at: timestamp2
+      created_at: timestamp,
+      updated_at: timestamp
     };
   }
   pathFor(artifactId) {
@@ -20096,11 +17176,11 @@ function scheduleLearningAttempt(previous, input) {
 }
 function learningReviewState(item, at = /* @__PURE__ */ new Date()) {
   if (item.suspended) return "suspended";
-  const timestamp2 = typeof at === "string" ? Date.parse(at) : at.getTime();
-  if (!Number.isFinite(timestamp2)) {
+  const timestamp = typeof at === "string" ? Date.parse(at) : at.getTime();
+  if (!Number.isFinite(timestamp)) {
     throw new LearningProgressValidationError("review time must be a valid date");
   }
-  if (Date.parse(item.due_at) <= timestamp2) return "due";
+  if (Date.parse(item.due_at) <= timestamp) return "due";
   return item.mastery === "mastered" ? "mastered" : "scheduled";
 }
 function learningItemsFromArtifact(artifact) {
@@ -20182,7 +17262,7 @@ function resolveLearningEvidence(artifact, item) {
   };
 }
 function validateLearningProgressSidecar(raw, expectedArtifactId) {
-  if (!isRecord4(raw)) throw new LearningProgressValidationError("sidecar must be an object");
+  if (!isRecord5(raw)) throw new LearningProgressValidationError("sidecar must be an object");
   if (raw.schema_version !== LEARNING_PROGRESS_SCHEMA_VERSION) {
     throw new LearningProgressValidationError(
       `unsupported schema_version ${String(raw.schema_version)}`
@@ -20192,14 +17272,14 @@ function validateLearningProgressSidecar(raw, expectedArtifactId) {
   if (expectedArtifactId && artifactId !== expectedArtifactId) {
     throw new LearningProgressValidationError("artifact_id does not match sidecar filename");
   }
-  if (!isRecord4(raw.items)) {
+  if (!isRecord5(raw.items)) {
     throw new LearningProgressValidationError("items must be an object");
   }
   if (!isIso(raw.created_at) || !isIso(raw.updated_at)) {
     throw new LearningProgressValidationError("created_at and updated_at must be ISO dates");
   }
   for (const [key, value] of Object.entries(raw.items)) {
-    if (!isRecord4(value)) throw new LearningProgressValidationError(`items.${key} is invalid`);
+    if (!isRecord5(value)) throw new LearningProgressValidationError(`items.${key} is invalid`);
     if (value.key !== key) {
       throw new LearningProgressValidationError(`items.${key}.key must match its map key`);
     }
@@ -20263,7 +17343,7 @@ function validateAttemptInput(input) {
   }
 }
 function validateStoredAttempt(raw, path) {
-  if (!isRecord4(raw)) throw new LearningProgressValidationError(`attempt ${path} is invalid`);
+  if (!isRecord5(raw)) throw new LearningProgressValidationError(`attempt ${path} is invalid`);
   if (typeof raw.id !== "string" || !raw.id.trim()) {
     throw new LearningProgressValidationError(`attempt ${path}.id is invalid`);
   }
@@ -20290,11 +17370,11 @@ function normalizeAdapterPath2(value) {
 }
 function normalizeIso2(value, fallback) {
   if (!value) return fallback.toISOString();
-  const timestamp2 = Date.parse(value);
-  if (!Number.isFinite(timestamp2)) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
     throw new LearningProgressValidationError("attempted_at must be a valid ISO date");
   }
-  return new Date(timestamp2).toISOString();
+  return new Date(timestamp).toISOString();
 }
 function isIso(value) {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -20304,7 +17384,7 @@ function uniqueStrings6(values) {
     new Set((values || []).map((value) => String(value || "").trim()).filter(Boolean))
   );
 }
-function isRecord4(value) {
+function isRecord5(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function serialize(value) {
@@ -20316,8 +17396,8 @@ function clone3(value) {
 }
 
 // views/LearningReviewModal.ts
-var import_obsidian17 = require("obsidian");
-var LearningReviewModal = class extends import_obsidian17.Modal {
+var import_obsidian18 = require("obsidian");
+var LearningReviewModal = class extends import_obsidian18.Modal {
   constructor(app, options) {
     super(app);
     this.queue = [];
@@ -20369,7 +17449,7 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
       this.contentEl.empty();
       this.contentEl.createEl("h3", { text: "\u65E0\u6CD5\u8BFB\u53D6\u590D\u4E60\u8FDB\u5EA6" });
       this.contentEl.createDiv({
-        text: error instanceof Error ? error.message : String(error),
+        text: error instanceof Error ? errorMessage(error) : String(error),
         cls: "vs-hint is-error"
       });
     }
@@ -20519,7 +17599,7 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
     submit2.addEventListener("click", () => {
       const answer = this.selectedAnswer.trim();
       if (!answer) {
-        new import_obsidian17.Notice("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848");
+        new import_obsidian18.Notice("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848");
         return;
       }
       void this.record(item, answer, answersMatch(answer, item.answer));
@@ -20558,7 +17638,7 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
       this.completedKeys.add(learningItemKey(item.item_kind, item.item_id));
       this.render();
     } catch (error) {
-      new import_obsidian17.Notice(error instanceof Error ? error.message : String(error));
+      new import_obsidian18.Notice(error instanceof Error ? errorMessage(error) : String(error));
     }
   }
   renderResult(container, result) {
@@ -20587,16 +17667,19 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
       text: "\u6682\u505C\u8FD9\u9053\u9898",
       attr: { type: "button" }
     });
-    suspend.addEventListener("click", async () => {
-      await this.options.store.setSuspended(
-        result.item.artifact_id,
-        result.item.item_kind,
-        result.item.item_id,
-        true
-      );
-      await this.syncNoteReviewDue();
-      await this.refreshQueue();
-    });
+    suspend.addEventListener(
+      "click",
+      fire(async () => {
+        await this.options.store.setSuspended(
+          result.item.artifact_id,
+          result.item.item_kind,
+          result.item.item_id,
+          true
+        );
+        await this.syncNoteReviewDue();
+        await this.refreshQueue();
+      })
+    );
     const next = actions.createEl("button", {
       text: "\u4E0B\u4E00\u9898",
       cls: "mod-cta",
@@ -20611,7 +17694,7 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
     const path = this.options.artifact.source.note_path;
     if (!path) return;
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian17.TFile)) return;
+    if (!(file instanceof import_obsidian18.TFile)) return;
     const sidecar = await this.options.store.getArtifactProgress(this.options.artifact.artifact_id);
     const currentItems = learningItemsFromArtifact(this.options.artifact);
     const progressByKey = sidecar?.items || {};
@@ -20667,7 +17750,7 @@ var LearningReviewModal = class extends import_obsidian17.Modal {
       window.open(externalUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    new import_obsidian17.Notice("\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03");
+    new import_obsidian18.Notice("\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03");
   }
 };
 function selectReviewItems(items, sidecar, mode, at) {
@@ -20899,9 +17982,9 @@ function isAbsolutePath(value) {
 }
 function normalizeIso3(value) {
   if (!value) return (/* @__PURE__ */ new Date()).toISOString();
-  const timestamp2 = Date.parse(value);
-  if (!Number.isFinite(timestamp2)) throw new CaptureInboxError("captured_at \u5FC5\u987B\u662F\u6709\u6548\u65E5\u671F");
-  return new Date(timestamp2).toISOString();
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) throw new CaptureInboxError("captured_at \u5FC5\u987B\u662F\u6709\u6548\u65E5\u671F");
+  return new Date(timestamp).toISOString();
 }
 function validateAction(value) {
   if (value !== "capture-only" && value !== "capture-and-process") {
@@ -21347,16 +18430,13 @@ function assertArtifactId2(value) {
     throw new ReproducibilityStoreValidationError(`unsafe artifact_id ${JSON.stringify(value)}`);
   }
 }
-function errorMessage(error) {
-  return error instanceof Error ? error.message : String(error);
-}
 function clone4(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 // main.ts
-var import_obsidian19 = require("obsidian");
-var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
+var import_obsidian20 = require("obsidian");
+var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
   constructor() {
     super(...arguments);
     this.captureLocks = /* @__PURE__ */ new Map();
@@ -21419,7 +18499,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
-        if (file instanceof import_obsidian18.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
           void this.noteIndex.refreshFile(file);
         }
       })
@@ -21427,7 +18507,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         this.noteIndex.handleDelete(file);
-        if (file instanceof import_obsidian18.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
           void this.handleVideoNoteDeleted(file.path).catch((error) => {
             console.warn("[Video Summary] \u5220\u9664\u540E\u7684\u5173\u8054\u6E05\u7406\u5931\u8D25", error);
           });
@@ -21437,7 +18517,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         this.noteIndex.handleRename(file, oldPath);
-        if (file instanceof import_obsidian18.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
           relinkVideoJobs(this.jobs, oldPath, file);
           void this.handleVideoNoteRenamed(file, oldPath).catch((error) => {
             console.warn("[Video Summary] \u91CD\u547D\u540D\u540E\u7684\u5173\u8054\u66F4\u65B0\u5931\u8D25", error);
@@ -21458,35 +18538,35 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       id: "quick",
       name: "\u5FEB\u901F\u603B\u7ED3\u5F53\u524D\u7B14\u8BB0",
       editorCallback: (editor, view) => {
-        this.quickProcessCurrentNote(editor, view, "summary");
+        void this.quickProcessCurrentNote(editor, view, "summary");
       }
     });
     this.addCommand({
       id: "full-text",
       name: "\u5C06\u5F53\u524D\u7B14\u8BB0\u5168\u6587\u4F5C\u4E3A\u6587\u7A3F\u603B\u7ED3",
       editorCallback: (editor, view) => {
-        this.processFullTextAsTranscript(editor, view);
+        void this.processFullTextAsTranscript(editor, view);
       }
     });
     this.addCommand({
       id: "transcript-quick",
       name: "\u5FEB\u901F\u63D0\u53D6\u6587\u7A3F",
       editorCallback: (editor, view) => {
-        this.quickProcessCurrentNote(editor, view, "transcript-only");
+        void this.quickProcessCurrentNote(editor, view, "transcript-only");
       }
     });
     this.addCommand({
       id: "info-update",
       name: "\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\uFF08\u4E0D\u6539\u6B63\u6587\uFF09",
       editorCallback: (editor, view) => {
-        this.updateVideoInfoOnly(editor, view, false);
+        void this.updateVideoInfoOnly(editor, view, false);
       }
     });
     this.addCommand({
       id: "info-update-rename",
       name: "\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5E76\u91CD\u547D\u540D",
       editorCallback: (editor, view) => {
-        this.updateVideoInfoOnly(editor, view, true);
+        void this.updateVideoInfoOnly(editor, view, true);
       }
     });
     this.addCommand({
@@ -21503,7 +18583,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       id: "view",
       name: "\u6253\u5F00\u89C6\u9891\u603B\u7ED3\u4FA7\u680F",
       callback: () => {
-        this.activateView();
+        void this.activateView();
       }
     });
     this.addCommand({
@@ -21517,21 +18597,21 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       id: "reprocess",
       name: "\u91CD\u65B0\u5904\u7406\u5F53\u524D\u7B14\u8BB0",
       editorCallback: (editor, view) => {
-        this.reprocessCurrentNote(editor, view);
+        void this.reprocessCurrentNote(editor, view);
       }
     });
     this.addCommand({
       id: "process-all-pending",
       name: "\u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891",
       callback: () => {
-        this.processAllPendingVideos();
+        void this.processAllPendingVideos();
       }
     });
     this.addCommand({
       id: "test-connection",
       name: "\u6D4B\u8BD5\u5F53\u524D\u89C6\u9891\u5904\u7406\u540E\u7AEF",
       callback: () => {
-        this.testProcessingBackendConnection();
+        void this.testProcessingBackendConnection();
       }
     });
     this.addCommand({
@@ -21587,14 +18667,14 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       id: "mark-excluded",
       name: "\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0",
       editorCallback: (editor, view) => {
-        this.markAsExcluded(editor, view);
+        void this.markAsExcluded(editor, view);
       }
     });
   }
   registerContextMenu() {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
-        if (file instanceof import_obsidian18.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
           menu.addItem((item) => {
             item.setTitle("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406").setIcon("video").onClick(async () => {
               await this.processFile(file);
@@ -21613,7 +18693,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian18.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -21621,19 +18701,19 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian18.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new import_obsidian18.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processCurrentNoteWithMode(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian18.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -21641,25 +18721,25 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian18.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian18.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async updateVideoInfoOnly(editor, view, forceRename) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian18.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
       const videoInput = this.noteProcessor.buildVideoInput(content);
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian18.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
@@ -21667,7 +18747,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian18.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
+      const statusNotice = new import_obsidian19.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
       try {
         const result = await this.api.processVideo(
           file.basename,
@@ -21700,35 +18780,35 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
         );
         this.addToHistory(file.basename, "success", "info-only");
         statusNotice.setMessage("\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u66F4\u65B0");
-        setTimeout(() => statusNotice.hide(), 2e3);
+        window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
         this.addToHistory(file.basename, "error", "info-only");
         statusNotice.setMessage(`\u66F4\u65B0\u5931\u8D25: ${this.formatErrorForNotice(error)}`);
-        setTimeout(() => statusNotice.hide(), 3e3);
+        window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian18.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async reprocessCurrentNote(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian18.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.processFile(file);
     } catch (error) {
-      new import_obsidian18.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async quickProcessCurrentNote(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian18.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -21736,7 +18816,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian18.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
@@ -21744,7 +18824,7 @@ var VideoSummaryPlugin = class extends import_obsidian18.Plugin {
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
       const requestTimeoutMinutes = mode === "summary" ? this.settings.quickSummaryOptions.timeoutMinutes : mode === "transcript-only" ? this.settings.quickTranscriptOptions.timeoutMinutes : this.settings.timeoutMinutes;
-      const statusNotice = new import_obsidian18.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
+      const statusNotice = new import_obsidian19.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
       let isMerge = false;
@@ -21808,7 +18888,7 @@ ${extractResult.video_transcript}
             1,
             2e3,
             (attempt, error) => {
-              statusNotice.setMessage(`\u91CD\u8BD5\u4E2D: ${error.message}`);
+              statusNotice.setMessage(`\u91CD\u8BD5\u4E2D: ${errorMessage(error)}`);
             }
           );
         } else {
@@ -21835,7 +18915,7 @@ ${extractResult.video_transcript}
             2e3,
             // 2秒延迟
             (attempt, error) => {
-              statusNotice.setMessage(`\u91CD\u8BD5\u4E2D (${attempt}/2): ${error.message}`);
+              statusNotice.setMessage(`\u91CD\u8BD5\u4E2D (${attempt}/2): ${errorMessage(error)}`);
             }
           );
         }
@@ -21863,28 +18943,28 @@ ${extractResult.video_transcript}
         );
         this.addToHistory(file.basename, "success", mode);
         statusNotice.setMessage(`\u2705 \u5904\u7406\u5B8C\u6210`);
-        setTimeout(() => statusNotice.hide(), 2e3);
+        window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
         this.addToHistory(file.basename, "error", mode);
         statusNotice.setMessage(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`);
-        setTimeout(() => statusNotice.hide(), 3e3);
+        window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian18.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processFullTextAsTranscript(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian18.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new import_obsidian18.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
+        new import_obsidian19.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
         return;
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
@@ -21894,7 +18974,7 @@ ${extractResult.video_transcript}
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian18.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
+      const statusNotice = new import_obsidian19.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
       try {
         const input = {
           transcript: fullText
@@ -21916,7 +18996,7 @@ ${extractResult.video_transcript}
           2e3,
           // 2秒延迟
           (attempt, error) => {
-            statusNotice.setMessage(`\u91CD\u8BD5\u4E2D (${attempt}/2): ${error.message}`);
+            statusNotice.setMessage(`\u91CD\u8BD5\u4E2D (${attempt}/2): ${errorMessage(error)}`);
           }
         );
         const artifactContext = {
@@ -21943,16 +19023,16 @@ ${extractResult.video_transcript}
         );
         this.addToHistory(file.basename, "success", mode);
         statusNotice.setMessage(`\u2705 \u5168\u6587\u5904\u7406\u5B8C\u6210`);
-        setTimeout(() => statusNotice.hide(), 2e3);
+        window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
         this.addToHistory(file.basename, "error", mode);
         statusNotice.setMessage(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`);
-        setTimeout(() => statusNotice.hide(), 5e3);
+        window.setTimeout(() => statusNotice.hide(), 5e3);
       }
     } catch (error) {
-      new import_obsidian18.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processAllPendingVideos() {
@@ -21980,7 +19060,7 @@ ${extractResult.video_transcript}
         }
       }
       if (pendingFiles.length === 0) {
-        new import_obsidian18.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
+        new import_obsidian19.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
         return;
       }
       const confirmed = await this.showConfirmDialog(
@@ -21999,7 +19079,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       if (!await this.ensureBackendReady()) {
         return;
       }
-      const progressNotice = new import_obsidian18.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
+      const progressNotice = new import_obsidian19.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < pendingFiles.length; i++) {
@@ -22013,14 +19093,14 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
           console.error(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${file.basename}`, error);
         }
         if (i < pendingFiles.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1e3));
+          await new Promise((resolve) => window.setTimeout(resolve, 1e3));
         }
       }
       await this.saveSettings();
       progressNotice.setMessage(`\u5B8C\u6210\uFF01\u6210\u529F: ${successCount}, \u5931\u8D25: ${errorCount}`);
-      setTimeout(() => progressNotice.hide(), 3e3);
+      window.setTimeout(() => progressNotice.hide(), 3e3);
     } catch (error) {
-      new import_obsidian18.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async showConfirmDialog(title, message) {
@@ -22051,9 +19131,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new import_obsidian18.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
+      new import_obsidian19.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
     } catch (error) {
-      new import_obsidian18.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${error.message}`);
+      new import_obsidian19.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
   async testProcessingBackendConnection() {
@@ -22061,14 +19141,14 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       const result = await this.api.testConnection();
       const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
       if (result.success) {
-        new import_obsidian18.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
+        new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
       } else {
         const hint = result.hint ? `
 \u5EFA\u8BAE: ${result.hint}` : "";
-        new import_obsidian18.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+        new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
       }
     } catch (error) {
-      new import_obsidian18.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
     }
   }
   formatErrorForNotice(error) {
@@ -22121,12 +19201,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       if (confirmed) {
         await this.setActiveBackend(otherBackend);
         this.lastPreflight = null;
-        new import_obsidian18.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
+        new import_obsidian19.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
         return true;
       }
       return false;
     }
-    new import_obsidian18.Notice(
+    new import_obsidian19.Notice(
       `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
 \uFF08${otherLabel} \u4E5F\u672A\u68C0\u6D4B\u5230\uFF09\u8BF7\u5148\u542F\u52A8\u5904\u7406\u670D\u52A1\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5 URL\u3002`,
       8e3
@@ -22144,12 +19224,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     const content = await this.app.vault.cachedRead(file);
     const urls = VideoUtils.extractVideoUrls(content);
     if (urls.length === 0) {
-      new import_obsidian18.Notice(`\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`);
+      new import_obsidian19.Notice(`\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`);
       return;
     }
     const view = await this.activateView();
     view?.prefillInput(urls.join("\n"));
-    new import_obsidian18.Notice(`\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`);
+    new import_obsidian19.Notice(`\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`);
   }
   async activateView() {
     const { workspace } = this.app;
@@ -22165,11 +19245,11 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         active: true
       });
     }
-    workspace.revealLeaf(leaf);
+    void workspace.revealLeaf(leaf);
     return leaf.view instanceof VideoSummaryView ? leaf.view : null;
   }
   async loadSettings() {
-    const stored = await this.loadData();
+    const stored = asRecord(await this.loadData());
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
     let shouldSave = false;
     try {
@@ -22183,8 +19263,10 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       this.settings.outputFolder = "";
       shouldSave = true;
     }
-    const legacyHistory = Array.isArray(stored?.history) ? stored.history : [];
-    const legacyWebhookHistory = Array.isArray(stored?.webhookHistory) ? stored.webhookHistory : [];
+    const legacyHistory = asArray(stored.history);
+    const legacyWebhookHistory = asArray(
+      stored.webhookHistory
+    );
     const historyFile = await this.readHistoryFile();
     if (historyFile) {
       this.settings.history = Array.isArray(historyFile.history) ? historyFile.history : [];
@@ -22211,7 +19293,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     if (this.settings.activeBackend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
       shouldSave = true;
-      new import_obsidian18.Notice("\u65E7\u8BBE\u7F6E\u4E2D\u7684\u201C\u6DF1\u5EA6\u89C6\u89C9\u201D\u5DF2\u6309 n8n \u5B9E\u9645\u80FD\u529B\u8FC1\u79FB\u4E3A\u201C\u8BC1\u636E\u201D\u6A21\u5F0F\u3002", 7e3);
+      new import_obsidian19.Notice("\u65E7\u8BBE\u7F6E\u4E2D\u7684\u201C\u6DF1\u5EA6\u89C6\u89C9\u201D\u5DF2\u6309 n8n \u5B9E\u9645\u80FD\u529B\u8FC1\u79FB\u4E3A\u201C\u8BC1\u636E\u201D\u6A21\u5F0F\u3002", 7e3);
     }
     const normalizedConcurrency = Math.max(
       1,
@@ -22297,7 +19379,8 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       }
       const raw = await adapter.read(this.historyFilePath);
       const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" ? parsed : null;
+      if (!isRecord(parsed)) return null;
+      return { history: asArray(parsed.history), webhookHistory: asArray(parsed.webhookHistory) };
     } catch (error) {
       console.error("[VideoSummary] \u8BFB\u53D6 history.json \u5931\u8D25\uFF08\u5386\u53F2\u5C06\u4ECE\u7A7A\u5F00\u59CB\uFF09", error);
       return null;
@@ -22376,10 +19459,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     );
     this.api.setWebhookHistory(this.settings.webhookHistory || []);
     this.api.setAiModel(this.settings.aiModel);
-    this.api.onWebhookHistoryChange(async (history) => {
-      this.settings.webhookHistory = history;
-      await this.saveSettings();
-    });
+    this.api.onWebhookHistoryChange(
+      fire(async (history) => {
+        this.settings.webhookHistory = history;
+        await this.saveSettings();
+      })
+    );
     this.api.setDebug(this.settings.enableDebugMode);
     this.api.setExpandShortLinks(this.settings.expandShortLinks !== false);
     this.api.setAnalysisDefaults({
@@ -22402,7 +19487,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   async setActiveWebhook(profileId, options = {}) {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new import_obsidian18.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 Webhook \u914D\u7F6E");
+      new import_obsidian19.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 Webhook \u914D\u7F6E");
       return null;
     }
     this.settings.activeWebhookId = profileId;
@@ -22411,13 +19496,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     if (this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
       if (!options.silent) {
-        new import_obsidian18.Notice("n8n \u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
+        new import_obsidian19.Notice("n8n \u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
       }
     }
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
-      new import_obsidian18.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
+      new import_obsidian19.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
     }
     return profile;
   }
@@ -22428,7 +19513,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     this.settings.activeBackend = backend;
     if (backend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
-      new import_obsidian18.Notice("n8n \u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
+      new import_obsidian19.Notice("n8n \u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
     }
     this.initializeApiInstance();
     await this.saveSettings();
@@ -22472,18 +19557,18 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     const finished = await this.jobs.waitFor(job.id);
     if (!finished) return;
     if (finished.state === "error") {
-      new import_obsidian18.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
+      new import_obsidian19.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
       throw new Error(finished.error || "\u5904\u7406\u5931\u8D25");
     }
     if (finished.state === "cancelled") {
-      new import_obsidian18.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
+      new import_obsidian19.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
       return;
     }
     if (finished.state === "review") {
-      new import_obsidian18.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
+      new import_obsidian19.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
       return;
     }
-    new import_obsidian18.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
+    new import_obsidian19.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
   }
   /**
    * 刷新视频总结视图
@@ -22534,7 +19619,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         await this.app.fileManager.renameFile(file, newFileName);
       }
     } catch (error) {
-      console.error(`\u91CD\u547D\u540D\u6587\u4EF6\u5931\u8D25: ${error.message}`);
+      console.error(`\u91CD\u547D\u540D\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
   /**
@@ -22560,26 +19645,26 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian18.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "excluded");
-      new import_obsidian18.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
+      new import_obsidian19.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
     } catch (error) {
-      new import_obsidian18.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${error.message}`);
+      new import_obsidian19.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
   async openLearningReviewForFile(file) {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian18.Notice("\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002", 6e3);
+        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002", 6e3);
         return;
       }
       const artifact = await this.artifactStore.load(artifactId);
       const learningCount = (artifact.learning?.flashcards?.length || 0) + (artifact.learning?.questions?.length || 0);
       if (learningCount === 0) {
-        new import_obsidian18.Notice("\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002", 6e3);
+        new import_obsidian19.Notice("\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002", 6e3);
         return;
       }
       new LearningReviewModal(this.app, {
@@ -22587,7 +19672,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         artifact,
         onOpenEvidence: async (_source, target) => {
           if (target.start === null) {
-            new import_obsidian18.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+            new import_obsidian19.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
             return;
           }
           const view = await this.activateView();
@@ -22596,7 +19681,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         }
       }).open();
     } catch (error) {
-      new import_obsidian18.Notice(`\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async openGlobalLearningReview() {
@@ -22620,15 +19705,15 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         (left, right) => left.firstDue.localeCompare(right.firstDue) || right.dueCount - left.dueCount || String(left.artifact.title || "").localeCompare(String(right.artifact.title || ""))
       );
       if (candidates.length === 0) {
-        new import_obsidian18.Notice("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002");
+        new import_obsidian19.Notice("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002");
         return;
       }
       const total = candidates.reduce((sum, item) => sum + item.dueCount, 0);
-      new import_obsidian18.Notice(`\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`, 5e3);
+      new import_obsidian19.Notice(`\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`, 5e3);
       const openAt = (index) => {
         const candidate = candidates[index];
         if (!candidate) {
-          new import_obsidian18.Notice("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002");
+          new import_obsidian19.Notice("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002");
           return;
         }
         new LearningReviewModal(this.app, {
@@ -22637,12 +19722,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
           mode: "due",
           onOpenEvidence: async (artifact, target) => {
             if (target.start === null) {
-              new import_obsidian18.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+              new import_obsidian19.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
               return;
             }
             const notePath = artifact.source.note_path;
             const noteFile = notePath ? this.app.vault.getAbstractFileByPath(notePath) : null;
-            if (notePath && noteFile instanceof import_obsidian18.TFile) {
+            if (notePath && noteFile instanceof import_obsidian19.TFile) {
               const view = await this.activateView();
               view?.openArtifact(notePath, artifact.artifact_id, target.start);
               return;
@@ -22652,7 +19737,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
               window.open(externalUrl, "_blank", "noopener,noreferrer");
               return;
             }
-            new import_obsidian18.Notice("\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002");
+            new import_obsidian19.Notice("\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002");
           },
           ...index + 1 < candidates.length ? {
             continueLabel: `\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891\uFF08\u8FD8\u5269 ${candidates.length - index - 1} \u4E2A\uFF09`,
@@ -22662,14 +19747,14 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       };
       openAt(0);
     } catch (error) {
-      new import_obsidian18.Notice(`\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async reprocessFromPersistedArtifact(file) {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian18.Notice("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", 6e3);
+        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", 6e3);
         return;
       }
       const manifest = await this.reproducibilityStore.load(artifactId);
@@ -22707,7 +19792,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         }
       );
       if (!job) return;
-      new import_obsidian18.Notice(
+      new import_obsidian19.Notice(
         "\u5DF2\u63D0\u4EA4\u65E0\u6E90\u91CD\u5904\u7406\uFF1A\u672C\u5730\u6587\u7A3F\u4F1A\u91CD\u65B0\u603B\u7ED3\uFF0C\u6821\u9A8C\u8FC7\u7684\u65E7\u8BC1\u636E\u4F5C\u4E3A\u7F3A\u5931\u56DE\u9000\uFF1B\u4E0D\u4F1A\u4E0B\u8F7D\u6765\u6E90\uFF0C\u7ED3\u679C\u4F7F\u7528\u5F53\u524D\u540E\u7AEF\u914D\u7F6E\u3002",
         9e3
       );
@@ -22716,7 +19801,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         throw new Error(finished.error || "\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25");
       }
     } catch (error) {
-      new import_obsidian18.Notice(`\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async artifactIdForFile(file) {
@@ -22733,16 +19818,16 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     await this.ensureVaultFolder(folder);
     const path = folder ? `${folder}/Video Summary Library.base` : "Video Summary Library.base";
     const existing = this.app.vault.getAbstractFileByPath(path);
-    const existingContent = existing instanceof import_obsidian18.TFile ? await this.app.vault.read(existing) : void 0;
+    const existingContent = existing instanceof import_obsidian19.TFile ? await this.app.vault.read(existing) : void 0;
     const result = upsertVideoSummaryBase(existingContent);
     if (result.status === "created") {
       await this.app.vault.create(path, result.content);
-    } else if (result.status === "updated" && existing instanceof import_obsidian18.TFile) {
+    } else if (result.status === "updated" && existing instanceof import_obsidian19.TFile) {
       await this.app.vault.modify(existing, result.content);
     }
     if (notify) {
       const message = result.status === "preserved" ? `\u5DF2\u4FDD\u7559\u7528\u6237\u4FEE\u6539\u7684 Base\uFF1A${path}\u3002\u5982\u9700\u65B0\u7248\uFF0C\u8BF7\u5148\u53E6\u5B58\u6216\u624B\u52A8\u5220\u9664\u8BE5\u6587\u4EF6\u3002` : `${result.reason} ${path}`;
-      new import_obsidian18.Notice(message, 7e3);
+      new import_obsidian19.Notice(message, 7e3);
     }
   }
   async putCaptureIfAbsent(sourceHash, draft) {
@@ -22752,7 +19837,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       const remembered = this.capturedEntries.get(sourceHash);
       if (remembered) {
         const rememberedFile = this.app.vault.getAbstractFileByPath(remembered.path);
-        if (rememberedFile instanceof import_obsidian18.TFile) {
+        if (rememberedFile instanceof import_obsidian19.TFile) {
           return { created: false, entry: { ...remembered } };
         }
         this.capturedEntries.delete(sourceHash);
@@ -22811,7 +19896,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       (item) => item.source.source_hash === sourceHash && item.source.note_path
     );
     const artifactFile = artifact?.source.note_path ? this.app.vault.getAbstractFileByPath(artifact.source.note_path) : null;
-    return artifact?.source.note_path && artifactFile instanceof import_obsidian18.TFile ? {
+    return artifact?.source.note_path && artifactFile instanceof import_obsidian19.TFile ? {
       path: artifact.source.note_path,
       source_hash: sourceHash,
       source_identity: sourceIdentity,
@@ -22909,7 +19994,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       const rawUrl = (params.url || params.link || "").trim();
       const localFile = (params.local_file || params.localFile || "").trim();
       if (!rawUrl && !localFile) {
-        new import_obsidian18.Notice("video-summary \u534F\u8BAE\u8C03\u7528\u7F3A\u5C11 url \u6216 local_file \u53C2\u6570", 6e3);
+        new import_obsidian19.Notice("video-summary \u534F\u8BAE\u8C03\u7528\u7F3A\u5C11 url \u6216 local_file \u53C2\u6570", 6e3);
         return;
       }
       const requestedAction = String(params.action || "").trim().toLowerCase();
@@ -22929,18 +20014,18 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         captured_at: (params.captured_at || "").trim() || void 0
       });
       const file = this.app.vault.getAbstractFileByPath(result.entry.path);
-      if (!(file instanceof import_obsidian18.TFile)) {
+      if (!(file instanceof import_obsidian19.TFile)) {
         throw new Error(`\u6355\u83B7\u4ED3\u50A8\u8FD4\u56DE\u7684\u7B14\u8BB0\u4E0D\u5B58\u5728\uFF1A${result.entry.path}`);
       }
       await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
-        new import_obsidian18.Notice(
+        new import_obsidian19.Notice(
           result.status === "created" ? "\u5DF2\u79BB\u7EBF\u52A0\u5165\u89C6\u9891\u6536\u4EF6\u7BB1" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5DF2\u6253\u5F00\u539F\u7B14\u8BB0"
         );
         return;
       }
       if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
-        new import_obsidian18.Notice(
+        new import_obsidian19.Notice(
           "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u5F53\u524D\u81EA\u52A8\u5904\u7406\u53EA\u652F\u6301 YouTube\u3001B\u7AD9\u3001\u6296\u97F3\u3001TikTok \u548C\u5C0F\u7EA2\u4E66\u94FE\u63A5\uFF0C\u901A\u7528 URL \u672A\u53D1\u9001\u5230\u540E\u7AEF\u3002",
           8e3
         );
@@ -22948,11 +20033,11 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       }
       if (localFile) {
         if (!isSupportedLocalMediaPath(localFile)) {
-          new import_obsidian18.Notice("\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 8e3);
+          new import_obsidian19.Notice("\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 8e3);
           return;
         }
         if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== "codex-worker") {
-          new import_obsidian18.Notice(
+          new import_obsidian19.Notice(
             "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1Bbundled n8n \u65E0\u6CD5\u8BFB\u53D6 URI \u63D0\u4F9B\u7684\u4E3B\u673A\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u590D\u5236\u5230 docker/uploads \u540E\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\uFF0C\u6216\u5207\u6362\u5230\u80FD\u8BBF\u95EE\u8BE5\u8DEF\u5F84\u7684 Worker\u3002",
             9e3
           );
@@ -22966,18 +20051,18 @@ ${localFile}
 \u4EC5\u5728\u4F60\u8BA4\u8BC6\u8BE5\u6765\u6E90\u65F6\u786E\u8BA4\u3002`
         );
         if (!confirmed) {
-          new import_obsidian18.Notice("\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 6e3);
+          new import_obsidian19.Notice("\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 6e3);
           return;
         }
       }
-      new import_obsidian18.Notice(result.status === "created" ? "\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406");
+      new import_obsidian19.Notice(result.status === "created" ? "\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406");
       const requestedMode = (params.mode || "").trim();
       const mode = ["summary", "transcript-only", "info-only"].includes(
         requestedMode
       ) ? requestedMode : this.settings.defaultMode;
       const activeProcessing = this.captureProcessingLocks.get(result.entry.source_hash);
       if (activeProcessing) {
-        new import_obsidian18.Notice("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", 5e3);
+        new import_obsidian19.Notice("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", 5e3);
         return;
       }
       const processing = this.processFileWithMode(file, mode).then(() => void 0);
@@ -22990,12 +20075,12 @@ ${localFile}
         }
       }
     } catch (error) {
-      new import_obsidian18.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian19.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
 };
 function normalizeSuccessStatusValue(value) {
-  const normalized = String(value ?? "").trim();
+  const normalized = scalarText(value).trim();
   if (!normalized) return DEFAULT_SETTINGS.successStatusValue;
   const reservedStatuses = /* @__PURE__ */ new Set([
     "pending",
@@ -23014,7 +20099,7 @@ function normalizeSuccessStatusValue(value) {
   ]);
   return reservedStatuses.has(normalized.toLowerCase()) ? DEFAULT_SETTINGS.successStatusValue : normalized;
 }
-var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
+var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -23042,7 +20127,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   /** 一段的标题与一句说明 */
   group(containerEl, title, desc) {
-    const head = new import_obsidian18.Setting(containerEl).setName(title).setDesc(desc).setHeading();
+    const head = new import_obsidian19.Setting(containerEl).setName(title).setDesc(desc).setHeading();
     head.settingEl.addClass("vs-settings-group");
   }
   /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
@@ -23061,18 +20146,21 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     });
     const dot = pill.createSpan({ cls: "vs-backend-dot" });
     const label = pill.createSpan({ text: "\u672A\u68C0\u6D4B" });
-    pill.addEventListener("click", async () => {
-      dot.className = "vs-backend-dot is-checking";
-      label.setText("\u68C0\u6D4B\u4E2D\u2026");
-      try {
-        const result = await this.plugin.api.testConnection();
-        dot.className = `vs-backend-dot ${result.success ? "is-online" : "is-offline"}`;
-        label.setText(result.success ? `\u540E\u7AEF\u5728\u7EBF \xB7 ${result.durationMs ?? 0}ms` : "\u540E\u7AEF\u79BB\u7EBF");
-      } catch {
-        dot.className = "vs-backend-dot is-offline";
-        label.setText("\u540E\u7AEF\u79BB\u7EBF");
-      }
-    });
+    pill.addEventListener(
+      "click",
+      fire(async () => {
+        dot.className = "vs-backend-dot is-checking";
+        label.setText("\u68C0\u6D4B\u4E2D\u2026");
+        try {
+          const result = await this.plugin.api.testConnection();
+          dot.className = `vs-backend-dot ${result.success ? "is-online" : "is-offline"}`;
+          label.setText(result.success ? `\u540E\u7AEF\u5728\u7EBF \xB7 ${result.durationMs ?? 0}ms` : "\u540E\u7AEF\u79BB\u7EBF");
+        } catch {
+          dot.className = "vs-backend-dot is-offline";
+          label.setText("\u540E\u7AEF\u79BB\u7EBF");
+        }
+      })
+    );
   }
   /** 段内小节：一行小标题，不画卡片框 */
   sectionCard(containerEl, _icon, title, extraCls = "") {
@@ -23092,7 +20180,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     );
     titleRow.addClass("setup-guide-title-row");
     if (this.plugin.settings.setupGuideDismissed) {
-      new import_obsidian18.Setting(section3).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
+      new import_obsidian19.Setting(section3).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
         (button) => button.setButtonText("\u663E\u793A\u68C0\u67E5\u6E05\u5355").onClick(async () => {
           this.plugin.settings.setupGuideDismissed = false;
           await this.plugin.saveSettings();
@@ -23112,10 +20200,10 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       row.createSpan({ text: this.getSetupCheckIcon(check.state), cls: "setup-check-icon" });
       const textWrap = row.createDiv({ cls: "setup-check-text" });
       textWrap.createEl("strong", { text: check.label });
-      textWrap.createEl("span", { text: check.detail });
+      textWrap.createSpan({ text: check.detail });
     });
     const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian18.Setting(section3).setName("\u8FDE\u63A5\u8BCA\u65AD").setDesc("\u5982\u679C\u8FD9\u91CC\u5931\u8D25\uFF0C\u4F18\u5148\u6309\u8BCA\u65AD\u5EFA\u8BAE\u5904\u7406\uFF0C\u518D\u67E5\u770B n8n Execution \u65E5\u5FD7\u3002").addButton(
+    new import_obsidian19.Setting(section3).setName("\u8FDE\u63A5\u8BCA\u65AD").setDesc("\u5982\u679C\u8FD9\u91CC\u5931\u8D25\uFF0C\u4F18\u5148\u6309\u8BCA\u65AD\u5EFA\u8BAE\u5904\u7406\uFF0C\u518D\u67E5\u770B n8n Execution \u65E5\u5FD7\u3002").addButton(
       (button) => button.setButtonText("\u8FD0\u884C\u8BCA\u65AD").setCta().onClick(async () => {
         button.setDisabled(true);
         button.setButtonText("\u8BCA\u65AD\u4E2D...");
@@ -23302,7 +20390,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       cls: "setting-item-description"
     });
     const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian18.Setting(section3).setName("Cookies \u76EE\u5F55").setDesc("docker/cookies \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 /Users/you/n8n-project/docker/cookies").addText(
+    new import_obsidian19.Setting(section3).setName("Cookies \u76EE\u5F55").setDesc("docker/cookies \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 /Users/you/n8n-project/docker/cookies").addText(
       (text) => text.setPlaceholder("/path/to/docker/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
@@ -23311,18 +20399,15 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       (button) => button.setButtonText("\u6253\u5F00\u76EE\u5F55").onClick(() => {
         const dir = (this.plugin.settings.cookiesDirPath || "").trim();
         if (!dir) {
-          new import_obsidian18.Notice("\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84");
+          new import_obsidian19.Notice("\u8BF7\u5148\u586B\u5199 Cookies \u76EE\u5F55\u8DEF\u5F84");
           return;
         }
         try {
-          const electron = window.require?.("electron");
-          if (!electron?.shell?.openPath) {
-            new import_obsidian18.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
-            return;
+          if (!openPathInSystem(dir)) {
+            new import_obsidian19.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
           }
-          electron.shell.openPath(dir);
         } catch (error) {
-          new import_obsidian18.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
+          new import_obsidian19.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
         }
       })
     ).addButton(
@@ -23345,9 +20430,8 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     let fs;
     let pathModule;
     try {
-      const nodeRequire = window.require;
-      fs = nodeRequire?.("fs");
-      pathModule = nodeRequire?.("path");
+      fs = desktopRequire("fs");
+      pathModule = desktopRequire("path");
     } catch {
     }
     if (!fs || !pathModule) {
@@ -23408,7 +20492,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   createWorkflowCompatibilityCard(containerEl) {
     const card = containerEl.createDiv({ cls: "workflow-compatibility-card" });
-    card.createEl("div", { text: "\u63A8\u8350 workflow", cls: "vs-subsection-title" });
+    card.createDiv({ text: "\u63A8\u8350 workflow", cls: "vs-subsection-title" });
     card.createEl("p", {
       text: "\u8FDE\u63A5\u8BCA\u65AD\u4F1A\u8BFB\u53D6\u6D4B\u8BD5\u5206\u652F\u8FD4\u56DE\u7684 workflow \u5143\u6570\u636E\uFF0C\u7528\u6765\u53D1\u73B0\u65E7 workflow\u3001path \u4E0D\u5339\u914D\u6216\u6A21\u578B\u6807\u7B7E\u4E0D\u4E00\u81F4\u3002",
       cls: "setting-item-description"
@@ -23435,18 +20519,18 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   createApiSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "link", "\u5904\u7406\u670D\u52A1");
     this.createWorkflowCompatibilityCard(section3);
-    new import_obsidian18.Setting(section3).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
+    new import_obsidian19.Setting(section3).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
       "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u5F53\u524D\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8981\u8C03\u7528 n8n \u8FD8\u662F\u672C\u5730 Codex worker\u3002"
     ).addDropdown(
       (dropdown) => dropdown.addOption("n8n", "n8n / \u517C\u5BB9 Webhook").addOption("codex-worker", "Codex Video Worker").setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
         await this.plugin.setActiveBackend(value);
-        new import_obsidian18.Notice(
+        new import_obsidian19.Notice(
           value === "codex-worker" ? "\u5DF2\u5207\u6362\u5230 Codex Video Worker" : "\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook"
         );
         this.display();
       })
     );
-    new import_obsidian18.Setting(section3).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u4F4D\u4E8E\u540C\u4E00 host \u7684 /dashboard\u3002").addText(
+    new import_obsidian19.Setting(section3).setName("Codex Worker URL").setDesc("\u672C\u5730 Codex \u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u4F4D\u4E8E\u540C\u4E00 host \u7684 /dashboard\u3002").addText(
       (text) => text.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
         this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
         if (this.plugin.settings.activeBackend === "codex-worker") {
@@ -23459,7 +20543,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         this.plugin.openCodexWorkerDashboard();
       })
     );
-    const webhookSetting = new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc(
+    const webhookSetting = new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4 n8n / \u517C\u5BB9 Webhook").setDesc(
       "\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A Webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n / \u517C\u5BB9 Webhook\u3002"
     );
     let webhookDropdown = null;
@@ -23474,7 +20558,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       if (!webhookDropdown) return;
       webhookDropdown.selectEl.empty();
       this.plugin.settings.webhookProfiles.forEach((profile) => {
-        const option = document.createElement("option");
+        const option = createEl("option");
         option.value = profile.id;
         option.textContent = profile.name || profile.url || "\u672A\u547D\u540D Webhook";
         webhookDropdown.selectEl.appendChild(option);
@@ -23496,11 +20580,11 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
           const res = await this.plugin.api.testConnection();
           const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n / \u517C\u5BB9 Webhook";
           if (res.success) {
-            new import_obsidian18.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
+            new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
           } else {
             const hint = res.hint ? `
 \u5EFA\u8BAE: ${res.hint}` : "";
-            new import_obsidian18.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+            new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
           }
           this.renderConnectionResult(workflowDiagnosticResult, res);
         } catch (error) {
@@ -23514,7 +20598,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         }
       })
     );
-    const profilesContainer = section3.createEl("div", { cls: "webhook-profiles-container" });
+    const profilesContainer = section3.createDiv({ cls: "webhook-profiles-container" });
     const renderProfiles = () => {
       profilesContainer.empty();
       if (this.plugin.settings.webhookProfiles.length === 0) {
@@ -23604,7 +20688,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new import_obsidian18.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A Webhook");
+            new import_obsidian19.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A Webhook");
             return;
           }
           this.plugin.settings.webhookProfiles = this.plugin.settings.webhookProfiles.filter(
@@ -23622,7 +20706,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       });
     };
     renderProfiles();
-    new import_obsidian18.Setting(section3).addButton(
+    new import_obsidian19.Setting(section3).addButton(
       (button) => button.setButtonText("\u6DFB\u52A0 Webhook").setCta().onClick(async () => {
         const newProfile = {
           id: `webhook-${Date.now()}`,
@@ -23640,14 +20724,14 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   createBasicSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "sliders-horizontal", "\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F");
-    new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6").setDesc(
+    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6").setDesc(
       this.plugin.settings.activeBackend === "codex-worker" ? "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF1B\u6DF1\u5EA6\u89C6\u89C9\u4F1A\u5206\u6790\u5173\u952E\u753B\u9762\u3002" : "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\u3002\u6DF1\u5EA6\u89C6\u89C9\u9700\u8981\u5148\u5207\u6362\u5230 Codex Worker\u3002"
     ).addDropdown(
       (dropdown) => dropdown.addOption("quick", "\u6781\u901F").addOption("evidence", "\u8BC1\u636E").addOption("deep-visual", "\u6DF1\u5EA6\u89C6\u89C9").setValue(this.plugin.settings.defaultProcessingDepth).onChange(async (value) => {
         const depth = value;
         if (depth === "deep-visual" && this.plugin.settings.activeBackend !== "codex-worker") {
           dropdown.setValue("evidence");
-          new import_obsidian18.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u7531 Codex Worker \u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u53EF\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
+          new import_obsidian19.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u7531 Codex Worker \u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u53EF\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
           return;
         }
         this.plugin.settings.defaultProcessingDepth = depth;
@@ -23655,7 +20739,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B").setDesc("\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002").addDropdown(
+    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B").setDesc("\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002").addDropdown(
       (dropdown) => dropdown.addOption("auto", "\u81EA\u52A8\u8BC6\u522B").addOption("course", "\u8BFE\u7A0B").addOption("interview", "\u8BBF\u8C08").addOption("tutorial", "\u6559\u7A0B").addOption("news", "\u65B0\u95FB").addOption("meeting", "\u4F1A\u8BAE").addOption("review", "\u8BC4\u6D4B").addOption("general", "\u901A\u7528").setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
         const contentType = value;
         this.plugin.settings.defaultContentType = contentType;
@@ -23667,14 +20751,14 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u89C2\u770B\u4EF7\u503C\u5224\u65AD").setDesc("\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002").addToggle(
+    new import_obsidian19.Setting(section3).setName("\u89C2\u770B\u4EF7\u503C\u5224\u65AD").setDesc("\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.attentionAssessmentEnabled).onChange(async (value) => {
         this.plugin.settings.attentionAssessmentEnabled = value;
         this.plugin.api.setAnalysisDefaults({ attentionAssessment: value });
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60").setDesc("\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002").addToggle(
+    new import_obsidian19.Setting(section3).setName("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60").setDesc("\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.generateLearningArtifacts).onChange(async (value) => {
         this.plugin.settings.generateLearningArtifacts = value;
         this.plugin.api.setAnalysisDefaults({ generateLearning: value });
@@ -23682,18 +20766,18 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       })
     );
     const aiSection = section3.createDiv({ cls: "vs-subsection" });
-    aiSection.createEl("div", { text: "\u81EA\u5B9A\u4E49\u5904\u7406\u6A21\u578B", cls: "vs-subsection-title" });
+    aiSection.createDiv({ text: "\u81EA\u5B9A\u4E49\u5904\u7406\u6A21\u578B", cls: "vs-subsection-title" });
     aiSection.createEl("p", {
       text: "\u6DFB\u52A0\u4F60\u8981\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u6A21\u578B\u540D\u79F0\uFF08\u9700\u4E0E n8n Switch \u8282\u70B9\u7684\u503C\u5B8C\u5168\u4E00\u81F4\uFF09\u3002",
       cls: "setting-item-description"
     });
-    const aiModelsContainer = aiSection.createEl("div", { cls: "webhook-profiles-container" });
+    const aiModelsContainer = aiSection.createDiv({ cls: "webhook-profiles-container" });
     let aiDropdown = null;
     const refreshAiDropdownOptions = () => {
       if (!aiDropdown) return;
       aiDropdown.selectEl.empty();
       this.plugin.settings.customAiModels.forEach((model) => {
-        const option = document.createElement("option");
+        const option = createEl("option");
         option.value = model;
         option.textContent = model;
         aiDropdown.selectEl.appendChild(option);
@@ -23732,7 +20816,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.customAiModels.length <= 1) {
-            new import_obsidian18.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A\u5904\u7406\u6A21\u578B");
+            new import_obsidian19.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A\u5904\u7406\u6A21\u578B");
             return;
           }
           this.plugin.settings.customAiModels.splice(index, 1);
@@ -23746,7 +20830,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       });
     };
     renderAiModels();
-    new import_obsidian18.Setting(aiSection).addButton(
+    new import_obsidian19.Setting(aiSection).addButton(
       (button) => button.setButtonText("\u6DFB\u52A0\u65B0\u6A21\u578B").onClick(async () => {
         this.plugin.settings.customAiModels.push("\u65B0\u6A21\u578B");
         await this.plugin.saveSettings();
@@ -23754,7 +20838,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         renderAiModels();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4\u5904\u7406\u6A21\u578B").setDesc("\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u9ED8\u8BA4\u6A21\u578B\u6807\u7B7E").addDropdown((dropdown) => {
+    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u5904\u7406\u6A21\u578B").setDesc("\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u9ED8\u8BA4\u6A21\u578B\u6807\u7B7E").addDropdown((dropdown) => {
       aiDropdown = dropdown;
       dropdown.onChange(async (value) => {
         this.plugin.settings.aiModel = value;
@@ -23762,7 +20846,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       });
     });
     refreshAiDropdownOptions();
-    new import_obsidian18.Setting(section3).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian19.Setting(section3).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
@@ -23772,19 +20856,19 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   createOutputSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "folder", "\u7B14\u8BB0");
-    new import_obsidian18.Setting(section3).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
+    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
+    new import_obsidian19.Setting(section3).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u7684 Vault \u5185\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002").addText(
+    new import_obsidian19.Setting(section3).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u7684 Vault \u5185\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002").addText(
       (text) => text.setPlaceholder("\u4F8B\u5982: Videos/2024").setValue(this.plugin.settings.outputFolder).onChange(async (value) => {
         try {
           const normalized = normalizeVideoSummaryBaseFolder(value.trim());
@@ -23792,11 +20876,11 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
           await this.plugin.saveSettings();
         } catch {
           text.setValue(this.plugin.settings.outputFolder);
-          new import_obsidian18.Notice("\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5B89\u5168\u7684 Vault \u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002", 6e3);
+          new import_obsidian19.Notice("\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5B89\u5168\u7684 Vault \u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002", 6e3);
         }
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F").setDesc(
+    new import_obsidian19.Setting(section3).setName("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F").setDesc(
       "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002"
     ).addText(
       (text) => text.setPlaceholder(DEFAULT_QUOTE_TEMPLATE).setValue(this.plugin.settings.readerQuoteTemplate).onChange(async (value) => {
@@ -23807,29 +20891,29 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   createQuickProcessingSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "zap", "\u547D\u4EE4\u9762\u677F\u91CC\u7684\u4E00\u952E\u5904\u7406");
-    const summarySubsection = section3.createEl("div", { cls: "vs-subsection" });
-    summarySubsection.createEl("div", { text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian18.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    const summarySubsection = section3.createDiv({ cls: "vs-subsection" });
+    summarySubsection.createDiv({ text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", cls: "vs-subsection-title" });
+    new import_obsidian19.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian19.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
       })
     );
-    const transcriptSubsection = section3.createEl("div", { cls: "vs-subsection" });
-    transcriptSubsection.createEl("div", { text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian18.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    const transcriptSubsection = section3.createDiv({ cls: "vs-subsection" });
+    transcriptSubsection.createDiv({ text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", cls: "vs-subsection-title" });
+    new import_obsidian19.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian19.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -23838,29 +20922,29 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   createFileProcessingSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "files", "\u6587\u4EF6\u4E0E\u547D\u540D");
-    new import_obsidian18.Setting(section3).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
+    new import_obsidian19.Setting(section3).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
+    new import_obsidian19.Setting(section3).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
       (drop) => drop.addOption("append-number", "\u8FFD\u52A0\u7F16\u53F7").addOption("append-date", "\u8FFD\u52A0\u65E5\u671F").addOption("skip", "\u8DF3\u8FC7").setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
+    new import_obsidian19.Setting(section3).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
+    new import_obsidian19.Setting(section3).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
       (text) => text.setPlaceholder("success").setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
-          new import_obsidian18.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
+          new import_obsidian19.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
         }
         this.plugin.settings.successStatusValue = normalized;
         await this.plugin.saveSettings();
@@ -23875,7 +20959,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     });
     const keys = this.plugin.settings.payloadKeys;
     const createKeySetting = (name, desc, key) => {
-      new import_obsidian18.Setting(section3).setName(name).setDesc(desc).addText(
+      new import_obsidian19.Setting(section3).setName(name).setDesc(desc).addText(
         (text) => text.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
           keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
           this.plugin.api.setPayloadKeys(keys);
@@ -23893,14 +20977,14 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   }
   createAdvancedSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "wrench", "\u7F13\u5B58\u4E0E\u8C03\u8BD5");
-    new import_obsidian18.Setting(section3).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
+    new import_obsidian19.Setting(section3).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
+    new import_obsidian19.Setting(section3).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
       "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.preflightCheckEnabled !== false).onChange(async (value) => {
@@ -23908,7 +20992,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian18.Setting(section3).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
+    new import_obsidian19.Setting(section3).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
       "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
@@ -23917,7 +21001,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    const historyLimitSetting = new import_obsidian18.Setting(section3).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
+    const historyLimitSetting = new import_obsidian19.Setting(section3).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
       `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`
     ).addSlider(
       (slider) => slider.setLimits(100, 1e3, 50).setValue(this.plugin.settings.historyLimit ?? 300).setDynamicTooltip().onChange(async (value) => {
@@ -23928,30 +21012,30 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         );
       })
     );
-    const cacheSubsection = section3.createEl("div", { cls: "vs-subsection" });
-    cacheSubsection.createEl("div", { text: "\u7F13\u5B58\u914D\u7F6E", cls: "vs-subsection-title" });
-    const cacheStatusSetting = new import_obsidian18.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
+    const cacheSubsection = section3.createDiv({ cls: "vs-subsection" });
+    cacheSubsection.createDiv({ text: "\u7F13\u5B58\u914D\u7F6E", cls: "vs-subsection-title" });
+    const cacheStatusSetting = new import_obsidian19.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
       (button) => button.setButtonText("\u{1F4CA} \u67E5\u770B\u72B6\u6001").setClass("cache-status-btn").onClick(async () => {
         try {
-          const stats = await this.plugin.api.getCacheStats();
+          const stats = this.plugin.api.getCacheStats();
           await this.showCachePreviewModal(stats);
         } catch (error) {
           console.error("\u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-          new import_obsidian18.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${error.message}`, 5e3);
+          new import_obsidian19.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${errorMessage(error)}`, 5e3);
         }
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian18.Setting(cacheSubsection).setName("\u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
+    const enableCacheSetting = new import_obsidian19.Setting(cacheSubsection).setName("\u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
         await this.plugin.saveSettings();
-        new import_obsidian18.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
+        new import_obsidian19.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian18.Setting(cacheSubsection).setName("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
+    const expirySetting = new import_obsidian19.Setting(cacheSubsection).setName("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
       (slider) => slider.setLimits(1, 365, 1).setValue(this.plugin.settings.cacheExpiryDays ?? 30).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.cacheExpiryDays = value;
         this.plugin.api.setCacheConfig(1e3, value);
@@ -23962,8 +21046,8 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     expirySetting.controlEl.addClass("cache-setting-item");
     expirySetting.controlEl.addClass("cache-expiry-slider");
     cacheSubsection.createEl("hr", { cls: "cache-divider" });
-    cacheSubsection.createEl("div", { text: "\u7F13\u5B58\u7BA1\u7406", cls: "vs-subsection-title" });
-    const quickActionsContainer = cacheSubsection.createEl("div", { cls: "cache-quick-actions" });
+    cacheSubsection.createDiv({ text: "\u7F13\u5B58\u7BA1\u7406", cls: "vs-subsection-title" });
+    const quickActionsContainer = cacheSubsection.createDiv({ cls: "cache-quick-actions" });
     const testBtn = quickActionsContainer.createEl("button", {
       text: "\u{1F9EA} \u6DFB\u52A0\u6D4B\u8BD5",
       cls: "cache-quick-btn"
@@ -23972,7 +21056,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new import_obsidian18.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian19.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
       }
     };
     const cleanupBtn = quickActionsContainer.createEl("button", {
@@ -23981,12 +21065,12 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     });
     cleanupBtn.onclick = async () => {
       try {
-        await this.plugin.api.cleanupCache();
-        const stats = await this.plugin.api.getCacheStats();
-        new import_obsidian18.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
+        this.plugin.api.cleanupCache();
+        const stats = this.plugin.api.getCacheStats();
+        new import_obsidian19.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
       } catch (error) {
         console.error("\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25:", error);
-        new import_obsidian18.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian19.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
       }
     };
     const clearBtn = quickActionsContainer.createEl("button", {
@@ -24005,16 +21089,16 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       });
       if (confirmed) {
         try {
-          await this.plugin.api.clearCache();
-          new import_obsidian18.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
+          this.plugin.api.clearCache();
+          new import_obsidian19.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
         } catch (error) {
           console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-          new import_obsidian18.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error.message}`, 5e3);
+          new import_obsidian19.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
         }
       }
     };
-    const cacheInfoContainer = cacheSubsection.createEl("div", { cls: "cache-info-container" });
-    const cacheInfoTip = cacheInfoContainer.createEl("div", { cls: "cache-info-tip" });
+    const cacheInfoContainer = cacheSubsection.createDiv({ cls: "cache-info-container" });
+    const cacheInfoTip = cacheInfoContainer.createDiv({ cls: "cache-info-tip" });
     cacheInfoTip.createEl("strong", { text: "\u{1F4A1} \u7F13\u5B58\u63D0\u793A\uFF1A" });
     const cacheInfoList = cacheInfoTip.createEl("ul");
     const cachePathItem = cacheInfoList.createEl("li");
@@ -24028,26 +21112,26 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
    * 显示缓存预览模态框
    */
   async showCachePreviewModal(stats) {
-    const modal = new import_obsidian19.Modal(this.app);
+    const modal = new import_obsidian20.Modal(this.app);
     modal.modalEl.addClass("ap", "ap-modal");
     modal.titleEl.setText("\u{1F4CA} \u7F13\u5B58\u9884\u89C8");
     const { contentEl } = modal;
     const refreshModalContent = async () => {
       try {
-        const newStats = await this.plugin.api.getCacheStats();
+        const newStats = this.plugin.api.getCacheStats();
         contentEl.empty();
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error("\u274C \u5237\u65B0\u6A21\u6001\u6846\u5185\u5BB9\u5931\u8D25:", error);
-        new import_obsidian18.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${error.message}`, 5e3);
+        new import_obsidian19.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${errorMessage(error)}`, 5e3);
       }
     };
     const renderModalContent = async (container, currentStats) => {
-      const statsSection = container.createEl("div", { cls: "cache-preview-stats" });
+      const statsSection = container.createDiv({ cls: "cache-preview-stats" });
       const addStatCard = (title, value, valueClass = "") => {
-        const card = statsSection.createEl("div", { cls: "stat-card" });
-        card.createEl("div", { cls: "stat-title", text: title });
-        card.createEl("div", {
+        const card = statsSection.createDiv({ cls: "stat-card" });
+        card.createDiv({ cls: "stat-title", text: title });
+        card.createDiv({
           cls: `stat-value${valueClass ? ` ${valueClass}` : ""}`,
           text: value
         });
@@ -24061,19 +21145,19 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       );
       addStatCard("\u603B\u5927\u5C0F", this.formatBytes(currentStats.totalSize));
       if (currentStats.size > 0) {
-        const previewSection = container.createEl("div", { cls: "cache-preview-content" });
-        new import_obsidian18.Setting(previewSection).setName("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8").setHeading();
+        const previewSection = container.createDiv({ cls: "cache-preview-content" });
+        new import_obsidian19.Setting(previewSection).setName("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8").setHeading();
         await this.showCacheContentPreview(previewSection);
       } else {
-        const emptySection = container.createEl("div", { cls: "cache-empty-section" });
-        const emptyMessage = emptySection.createEl("div", { cls: "cache-empty-message" });
+        const emptySection = container.createDiv({ cls: "cache-empty-section" });
+        const emptyMessage = emptySection.createDiv({ cls: "cache-empty-message" });
         emptyMessage.createEl("p", { text: "\u{1F4ED} \u6682\u65E0\u7F13\u5B58\u5185\u5BB9" });
         emptyMessage.createEl("p", {
           cls: "cache-empty-tip",
           text: "\u63D0\u793A\uFF1A\u5904\u7406\u89C6\u9891\u540E\u4F1A\u81EA\u52A8\u6DFB\u52A0\u5230\u7F13\u5B58\uFF0C\u6216\u8005\u70B9\u51FB\u201C\u6DFB\u52A0\u6D4B\u8BD5\u201D\u6309\u94AE\u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E"
         });
       }
-      const actionsSection = container.createEl("div", { cls: "cache-preview-actions" });
+      const actionsSection = container.createDiv({ cls: "cache-preview-actions" });
       actionsSection.createEl("button", {
         text: "\u5237\u65B0",
         cls: "cache-action-btn"
@@ -24101,12 +21185,12 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         });
         return;
       }
-      const itemsList = container.createEl("div", { cls: "cache-items-list" });
+      const itemsList = container.createDiv({ cls: "cache-items-list" });
       const displayItems = items.slice(0, 20);
       for (const item of displayItems) {
-        const itemEl = itemsList.createEl("div", { cls: "cache-item" });
-        const infoEl = itemEl.createEl("div", { cls: "cache-item-info" });
-        const urlEl = infoEl.createEl("div", { cls: "cache-item-url" });
+        const itemEl = itemsList.createDiv({ cls: "cache-item" });
+        const infoEl = itemEl.createDiv({ cls: "cache-item-info" });
+        const urlEl = infoEl.createDiv({ cls: "cache-item-url" });
         urlEl.createEl("strong", { text: "URL:" });
         urlEl.appendText(" ");
         const displayUrl = this.truncateUrl(item.url);
@@ -24121,22 +21205,22 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
             }
           });
         } else {
-          urlEl.createEl("span", { text: displayUrl });
+          urlEl.createSpan({ text: displayUrl });
         }
-        const metaEl = infoEl.createEl("div", { cls: "cache-item-meta" });
-        metaEl.createEl("span", {
+        const metaEl = infoEl.createDiv({ cls: "cache-item-meta" });
+        metaEl.createSpan({
           cls: "cache-item-mode",
           text: this.getModeLabel(item.mode)
         });
-        metaEl.createEl("span", {
+        metaEl.createSpan({
           cls: "cache-item-language",
           text: this.getLanguageLabel(item.language)
         });
-        metaEl.createEl("span", {
+        metaEl.createSpan({
           cls: "cache-item-time",
           text: this.formatTime(item.timestamp)
         });
-        metaEl.createEl("span", {
+        metaEl.createSpan({
           cls: `cache-item-status ${item.isExpired ? "expired" : "valid"}`,
           text: item.isExpired ? "\u5DF2\u8FC7\u671F" : "\u6709\u6548"
         });
@@ -24148,9 +21232,9 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new import_obsidian18.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
+            new import_obsidian19.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
           } catch (error) {
-            new import_obsidian18.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${error.message}`, 5e3);
+            new import_obsidian19.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${errorMessage(error)}`, 5e3);
           }
         };
       }
@@ -24162,7 +21246,7 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
       }
     } catch (error) {
       container.createEl("p", {
-        text: `\u83B7\u53D6\u7F13\u5B58\u5185\u5BB9\u5931\u8D25: ${error.message}`,
+        text: `\u83B7\u53D6\u7F13\u5B58\u5185\u5BB9\u5931\u8D25: ${errorMessage(error)}`,
         cls: "cache-error-message"
       });
     }
@@ -24184,8 +21268,10 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
     try {
       const cacheData = window.localStorage.getItem("video-summary-cache");
       if (cacheData) {
-        const entries = JSON.parse(cacheData);
-        const filteredEntries = entries.filter((entry) => entry[0] !== key);
+        const entries = asArray(JSON.parse(cacheData));
+        const filteredEntries = entries.filter(
+          (entry) => !(Array.isArray(entry) && entry[0] === key)
+        );
         window.localStorage.setItem("video-summary-cache", JSON.stringify(filteredEntries));
       }
     } catch (error) {
@@ -24209,11 +21295,11 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
         "zh",
         testResult
       );
-      new import_obsidian18.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
-      await this.plugin.api.getCacheStats();
+      new import_obsidian19.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
+      this.plugin.api.getCacheStats();
     } catch (error) {
       console.error("\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25:", error);
-      new import_obsidian18.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${error.message}`, 5e3);
+      new import_obsidian19.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
     }
   }
   /**
@@ -24248,8 +21334,8 @@ var VideoSummarySettingTab = class extends import_obsidian18.PluginSettingTab {
   /**
    * 格式化时间
    */
-  formatTime(timestamp2) {
-    const date = new Date(timestamp2);
+  formatTime(timestamp) {
+    const date = new Date(timestamp);
     const now = /* @__PURE__ */ new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1e3 * 60 * 60 * 24));

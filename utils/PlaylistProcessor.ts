@@ -710,7 +710,7 @@ function firstStringAtKey(
   return found;
 }
 
-function extractAssignedJson(html: string, names: string[]): unknown | undefined {
+function extractAssignedJson(html: string, names: string[]): unknown {
   for (const name of names) {
     const index = html.indexOf(name);
     if (index < 0) continue;
@@ -722,7 +722,7 @@ function extractAssignedJson(html: string, names: string[]): unknown | undefined
   return undefined;
 }
 
-function extractJsonAfterKey(html: string, key: string): unknown | undefined {
+function extractJsonAfterKey(html: string, key: string): unknown {
   const marker = `"${key}"`;
   const index = html.indexOf(marker);
   if (index < 0) return undefined;
