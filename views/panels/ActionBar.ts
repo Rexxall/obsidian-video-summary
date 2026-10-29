@@ -543,7 +543,8 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   const entry = ctx.plugin.noteIndex.get(activeFile.path);
   const frontmatter = ctx.plugin.app.metadataCache.getFileCache(activeFile)?.frontmatter;
   const isVideoNote = entry !== undefined || VideoUtils.isVideoNoteFromFrontmatter(frontmatter);
-  if (!isVideoNote) return;
+  // 示例笔记没有来源可重跑，不显示这一条
+  if (!isVideoNote || frontmatter?.video_summary_demo === true) return;
 
   const status = entry ? noteDisplayStatus(entry, ctx.plugin.jobs) : 'pending';
   const meta = statusMeta(status);

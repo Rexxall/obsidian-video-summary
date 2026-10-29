@@ -2834,11 +2834,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
     intro.appendText(
       tr(
         '三步：在电脑上启动后端 → 把启动脚本给的连接码粘贴到这里 → 检查。还没有后端？看',
-        'Three steps: start the backend on your computer → paste the connection code from the start script here → check. No backend yet? See the',
+        'Three steps: start the backend on your computer → paste the connection code from the start script here → check. No backend yet? See the ',
       ),
     );
     intro.createEl('a', { text: tr('安装教程', 'install guide'), href: SETUP_GUIDE_URL });
-    intro.appendText('。');
+    intro.appendText(tr('。', '.'));
 
     const results = section.createDiv({ cls: 'setup-check-list' });
     const runCheck = async (deep: boolean) => {
