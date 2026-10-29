@@ -315,10 +315,21 @@
   outline: 2px solid var(--ap-accent);
   outline-offset: 2px;
 }
-/* Obsidian's own toggle, same look */
+/* Obsidian's own toggle, same look. Size and knob position come from Obsidian's variables, so its own
+   geometry keeps the knob 2px from every edge in every state. */
+.ap {
+  --toggle-width: 40px;
+  --toggle-thumb-width: 20px;
+  --toggle-thumb-height: 20px;
+  --toggle-border-width: 2px;
+  --toggle-s-width: 40px;
+  --toggle-s-thumb-width: 20px;
+  --toggle-s-thumb-height: 20px;
+  --toggle-s-border-width: 2px;
+  --toggle-radius: 999px;
+  --toggle-thumb-radius: 999px;
+}
 .ap .checkbox-container {
-  width: 40px;
-  height: 24px;
   border-radius: var(--ap-r-pill);
   background: var(--ap-fill-strong);
   box-shadow: none;
@@ -327,16 +338,11 @@
   background: var(--ap-accent);
 }
 .ap .checkbox-container::after {
-  width: 20px;
-  height: 20px;
-  top: 2px;
-  left: 2px;
-  border-radius: var(--ap-r-pill);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
-  transition: transform var(--ap-base) var(--ap-ease-spring);
-}
-.ap .checkbox-container.is-enabled::after {
-  transform: translateX(16px);
+  transition:
+    transform var(--ap-base) var(--ap-ease-spring),
+    width 0.1s ease-in-out 0.05s,
+    left 0.1s ease-in-out 0.05s;
 }
 
 /* ---------- Segmented control: capsule track, glass thumb ---------- */
