@@ -849,7 +849,7 @@ function readArray(source: unknown, keys: string[]): unknown[] | undefined {
 
 function objectOrUndefined(source: unknown): Record<string, unknown> | undefined {
   return source && typeof source === 'object' && !Array.isArray(source)
-    ? (source as Record<string, any>)
+    ? (source as Record<string, unknown>)
     : undefined;
 }
 

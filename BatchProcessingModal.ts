@@ -242,10 +242,10 @@ export class BatchProcessingModal extends Modal {
     const playlistSelectionEl = bodyEl.createDiv({ cls: 'batch-playlist-selection' });
     new Setting(playlistSelectionEl)
       .setName('课程来源链接')
-      .setDesc('支持 YouTube 播放列表与 B站合集/收藏夹；解析和导入不会调用 AI')
+      .setDesc('支持 YouTube 播放列表与哔哩哔哩合集/收藏夹；解析和导入不会调用 AI')
       .addText((text) =>
         text
-          .setPlaceholder('YouTube playlist 或 B站合集/收藏夹链接')
+          .setPlaceholder('YouTube 播放列表或哔哩哔哩合集/收藏夹链接')
           .setValue(this.playlistUrl)
           .onChange((value) => {
             this.playlistUrl = value;
@@ -423,7 +423,7 @@ export class BatchProcessingModal extends Modal {
     }
 
     if (!PlaylistProcessor.isPlaylistUrl(this.playlistUrl)) {
-      new Notice('请输入有效的 YouTube 播放列表或 B站合集/收藏夹链接');
+      new Notice('请输入有效的 YouTube 播放列表或哔哩哔哩合集/收藏夹链接');
       return;
     }
 

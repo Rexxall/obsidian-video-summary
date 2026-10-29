@@ -80,11 +80,11 @@ export class VideoSummaryModal extends Modal {
     // 视频链接输入
     const videoUrlSetting = new Setting(contentEl)
       .setName('视频链接')
-      .setDesc('输入视频链接 (YouTube/Bilibili/抖音/TikTok)');
+      .setDesc('输入视频链接（YouTube、哔哩哔哩、抖音、抖音国际版）');
 
     this.videoUrlInput = videoUrlSetting.controlEl.createEl('input');
     this.videoUrlInput.type = 'text';
-    this.videoUrlInput.placeholder = 'https://...';
+    this.videoUrlInput.placeholder = '视频链接，例如 YouTube 或哔哩哔哩';
 
     // 提供的文稿输入
     const transcriptSetting = new Setting(contentEl)
@@ -98,7 +98,7 @@ export class VideoSummaryModal extends Modal {
     // 本地文件输入
     const localFileSetting = new Setting(contentEl)
       .setName('本地文件')
-      .setDesc('Bundled Docker/n8n 只接受 uploads 根目录内的文件名。');
+      .setDesc('自带的 n8n（docker 版）只接受 uploads 根目录里的文件名。');
 
     this.localFileInput = localFileSetting.controlEl.createEl('input');
     this.localFileInput.type = 'text';

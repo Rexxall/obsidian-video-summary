@@ -4,6 +4,7 @@ import { buildTimestampUrl, stableHash } from './KnowledgeModel';
 import { safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 
 import { errorMessage } from '../utils/errors';
+import { scalarText } from '../utils/json';
 export const LEARNING_PROGRESS_SCHEMA_VERSION = 1;
 
 const LEARNING_FILE_SUFFIX = '.learning.json';
@@ -573,7 +574,7 @@ export function validateLearningProgressSidecar(
       `unsupported schema_version ${String(raw.schema_version)}`,
     );
   }
-  const artifactId = normalizeArtifactId(String(raw.artifact_id || ''));
+  const artifactId = normalizeArtifactId(scalarText(raw.artifact_id));
   if (expectedArtifactId && artifactId !== expectedArtifactId) {
     throw new LearningProgressValidationError('artifact_id does not match sidecar filename');
   }
@@ -592,7 +593,7 @@ export function validateLearningProgressSidecar(
     if (value.artifact_id !== artifactId) {
       throw new LearningProgressValidationError(`items.${key}.artifact_id must match sidecar`);
     }
-    if (learningItemKey(value.item_kind as LearningItemKind, String(value.item_id || '')) !== key) {
+    if (learningItemKey(value.item_kind as LearningItemKind, scalarText(value.item_id)) !== key) {
       throw new LearningProgressValidationError(`items.${key} has an invalid identity`);
     }
     if (!Array.isArray(value.attempts)) {
@@ -602,13 +603,19 @@ export function validateLearningProgressSidecar(
       throw new LearningProgressValidationError(`items.${key}.total_attempts is inconsistent`);
     }
     if (
+      typeof value.total_correct !== 'number' ||
+      typeof value.total_attempts !== 'number' ||
       !Number.isInteger(value.total_correct) ||
       value.total_correct < 0 ||
       value.total_correct > value.total_attempts
     ) {
       throw new LearningProgressValidationError(`items.${key}.total_correct is invalid`);
     }
-    if (!Number.isInteger(value.consecutive_correct) || value.consecutive_correct < 0) {
+    if (
+      typeof value.consecutive_correct !== 'number' ||
+      !Number.isInteger(value.consecutive_correct) ||
+      value.consecutive_correct < 0
+    ) {
       throw new LearningProgressValidationError(`items.${key}.consecutive_correct is invalid`);
     }
     if (
@@ -730,7 +737,7 @@ function uniqueStrings(values: readonly string[] | undefined): string[] {
   );
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 

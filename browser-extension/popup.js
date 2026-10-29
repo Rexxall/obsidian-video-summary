@@ -1,3 +1,4 @@
+/* global chrome -- Chrome extension APIs */
 const U = window.VideoCaptureUtils;
 
 const state = {

@@ -525,7 +525,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
 
 async function queueKnowledgeUpgrade(ctx: ViewContext, job: Job, depth: 'quick' | 'deep-visual') {
   if (depth === 'deep-visual' && ctx.plugin.settings.activeBackend !== 'codex-worker') {
-    new Notice('内置 n8n 工作流尚未接通安全的画面凭据。请先在设置中切换 Codex Worker。', 7000);
+    new Notice('内置 n8n 工作流尚未接通安全的画面凭据。请先在设置中切换到本机视频处理服务。', 7000);
     return;
   }
   if (!job.notePath) {

@@ -1,3 +1,4 @@
+/* global chrome, importScripts -- Chrome extension APIs */
 // Load the shared single-source core (vendored from @video-summary/shared) BEFORE utils.js,
 // which delegates platform detection / URL canonicalization to self.VideoSummaryShared.
 importScripts('vendor/shared.global.js', 'utils.js');
@@ -183,9 +184,9 @@ async function showToast(tabId, message) {
           font: '13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
         });
         document.body.appendChild(toast);
-        setTimeout(() => {
+        window.setTimeout(() => {
           toast.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' });
-          setTimeout(() => toast.remove(), 240);
+          window.setTimeout(() => toast.remove(), 240);
         }, 1800);
       },
       args: [message],
@@ -213,7 +214,7 @@ async function openObsidianUri(uri) {
 
 async function postJson(url, payload) {
   if (!url) throw new Error('Endpoint URL is not configured.');
-  const response = await fetch(url, {
+  const response = await self.fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -234,7 +235,7 @@ async function postJson(url, payload) {
 }
 
 async function getJson(url) {
-  const response = await fetch(url, {
+  const response = await self.fetch(url, {
     method: 'GET',
     headers: { Accept: 'application/json' },
   });
@@ -254,7 +255,7 @@ async function getJson(url) {
 }
 
 function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => self.setTimeout(resolve, ms));
 }
 
 function buildJobStatusUrl(endpointUrl, job) {
@@ -299,7 +300,7 @@ async function putObsidianRestNote(settings, item) {
   const title = U.sanitizeFilename(U.cleanTitle(item.title));
   const filePath = `${U.buildObsidianFilePath(settings.folder, title)}.md`;
   const url = `${protocol}://127.0.0.1:${port}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`;
-  const response = await fetch(url, {
+  const response = await self.fetch(url, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${settings.obsidianRestToken}`,

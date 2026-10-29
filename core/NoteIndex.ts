@@ -221,7 +221,7 @@ export class NoteIndex {
    * 旧笔记仍允许靠正文中的单个视频链接进入索引，但 README / MOC / 索引页以及
    * 含多个不同视频的聚合页不再混入。已有视频 frontmatter/插件标记者走上面的快速路径。
    */
-  private isLegacyVideoNote(file: TFile, content: string, frontmatter?: any): boolean {
+  private isLegacyVideoNote(file: TFile, content: string, frontmatter?: JsonRecord): boolean {
     if (!VideoUtils.isVideoNote(content)) return false;
     if (isIndexLikeFile(file)) return false;
 
@@ -419,7 +419,7 @@ export class NoteIndex {
   }
 }
 
-function readString(value: any): string | undefined {
+function readString(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;

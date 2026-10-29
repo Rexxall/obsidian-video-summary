@@ -8,7 +8,7 @@
  *   lost. Instead the readable parts are salvaged: top-level scalar settings and every history
  *   or webhook entry that still parses on its own.
  */
-import { isRecord, type JsonRecord } from '../utils/json';
+import { isRecord, scalarText, type JsonRecord } from '../utils/json';
 
 export const LEGACY_PLUGIN_IDS = ['video-summary-plugin'];
 
@@ -91,7 +91,7 @@ const historyKey = (entry: JsonRecord) =>
 
 const webhookKey = (entry: JsonRecord) => {
   const input = isRecord(entry.input) ? entry.input : {};
-  return `${String(entry.timestamp)}|${String(input.url ?? input.localFile ?? '')}`;
+  return `${scalarText(entry.timestamp)}|${scalarText(input.url ?? input.localFile)}`;
 };
 
 /**

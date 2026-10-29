@@ -25,6 +25,9 @@ Community-directory release.
 - Command names no longer start with emoji, so they read cleanly in the command palette.
 - Deleting a note from the library follows your Obsidian "Deleted files" setting.
 - Passes the Obsidian community directory's automated review (eslint-plugin-obsidianmd recommended set) with no errors: replies from the webhook, the Worker and the browser are read as untyped data and checked field by field; js-yaml and builtin-modules are gone, the plugin uses Obsidian's own YAML functions.
+- Upgrading from 2.1.x (plugin id `video-summary-plugin`): on first start the new version imports the old folder's settings, job history, webhook results and data folder. A data.json damaged by a sync conflict is no longer fatal: the readable settings and records are recovered and the original is kept as `data.corrupt-<time>.json`. Records already in history.json are never collapsed.
+- The result cache only removes files inside its own folder; an index copied from another install can no longer delete files elsewhere.
+- No lint warnings in the plugin source. The settings page appears in Obsidian 1.13's settings search; asset downloads use Obsidian's requestUrl; UI wording no longer mixes English product terms into Chinese sentences.
 - Phones: row actions stay visible without hover, dialogs keep their inner margins, and a video without a cover shows its platform icon in the detail banner too.
 - Requires Obsidian 1.8.7 or later.
 

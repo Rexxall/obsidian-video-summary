@@ -268,7 +268,7 @@ function showMoreMenu(ctx: ViewContext, event: MouseEvent) {
     { title: '生成或更新视频库 Base', icon: 'table', onClick: () => run('generate-base') },
     { title: '测试处理后端', icon: 'plug', onClick: () => run('test-connection') },
     {
-      title: '打开 Codex Worker 控制台',
+      title: 'Codex 本地服务控制台',
       icon: 'gauge',
       disabled: ctx.plugin.settings.activeBackend !== 'codex-worker',
       onClick: () => run('open-worker-dashboard'),
@@ -559,7 +559,7 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     settings.defaultProcessingDepth,
     fire(async (depth) => {
       if (depth === 'deep-visual' && settings.activeBackend !== 'codex-worker') {
-        new Notice('深度视觉只由 Codex Worker 执行；当前 n8n 后端可用到证据模式。', 7000);
+        new Notice('深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。', 7000);
         return;
       }
       settings.defaultProcessingDepth = depth;
@@ -741,7 +741,7 @@ function renderAdvanced(
   localRow.createEl('label', { text: '本地文件', cls: 'vs-field-label' });
   const localFile = localRow.createEl('input', {
     cls: 'vs-field-input',
-    attr: { type: 'text', placeholder: 'lecture-01.mp4，多个用逗号分隔' },
+    attr: { type: 'text', placeholder: '例如 lecture-01.mp4，多个用逗号分隔' },
   });
   localFile.value = ctx.state.localFileDraft;
   localFile.addEventListener('input', () => {
@@ -753,7 +753,7 @@ function renderAdvanced(
   });
   localFile.addEventListener('blur', () => {
     if (isAbsoluteLocalPath(localFile.value)) {
-      new Notice('这看起来是绝对路径。Docker 场景请改填 uploads 里的文件名或相对路径。');
+      new Notice('这看起来是绝对路径。用 docker 时请改填 uploads 里的文件名或相对路径。');
     }
   });
 
@@ -763,7 +763,7 @@ function renderAdvanced(
   });
   partsToggle.checked = ctx.state.partsEnabled;
   partsRow.createEl('label', {
-    text: '按分P范围展开',
+    text: '按分集范围展开',
     attr: { for: 'vs-parts-toggle' },
     cls: 'vs-field-label',
   });
@@ -810,13 +810,13 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
   if (fields.partsToggle.checked) {
     const url = drafts.find((draft) => draft.source === 'url')?.input.url;
     if (!url) {
-      new Notice('分P展开需要一条视频链接');
+      new Notice('按分集展开需要一条视频链接');
       return;
     }
     const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
     const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
     if (end - start + 1 > 100) {
-      new Notice('一次最多展开 100 个分P');
+      new Notice('一次最多展开 100 集');
       return;
     }
     const expanded = expandParts(url, start, end, { transcript, localFiles });

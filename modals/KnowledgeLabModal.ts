@@ -91,7 +91,7 @@ export class KnowledgeLabModal extends Modal {
       cls: 'vs-memory-query',
       attr: {
         type: 'search',
-        placeholder: '搜索概念、原话、画面文字、OCR 或主张…',
+        placeholder: '搜索概念、原话、画面文字或主张…',
         'aria-label': '搜索视频记忆',
       },
     });

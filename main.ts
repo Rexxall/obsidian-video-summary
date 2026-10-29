@@ -10,6 +10,7 @@ import {
   TFile,
   WorkspaceLeaf,
   DropdownComponent,
+  type SettingDefinitionItem,
 } from 'obsidian';
 import { VideoSummaryModal } from './modals';
 import { BatchProcessingModal } from './BatchProcessingModal';
@@ -81,6 +82,7 @@ import {
   mergeWebhookHistory,
   salvageSettingsJson,
 } from './core/LegacyData';
+import { SETTINGS_SEARCH_TERMS } from './views/settingsSearch';
 export default class VideoSummaryPlugin extends Plugin {
   settings: VideoSummarySettings;
   api: VideoSummaryAPI;
@@ -326,7 +328,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-worker-dashboard',
-      name: '打开 Codex Worker 控制台',
+      name: 'Codex 本地服务控制台',
       callback: () => {
         this.openCodexWorkerDashboard();
       },
@@ -374,7 +376,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'generate-base',
-      name: '生成或安全更新视频库 Base',
+      name: '生成或安全更新视频库数据视图（.base 文件）',
       callback: () => {
         void this.ensureVideoLibraryBase(true);
       },
@@ -998,7 +1000,7 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const result = await this.api.testConnection();
       const label =
-        this.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
+        this.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : '兼容 n8n 的 webhook';
 
       if (result.success) {
         new Notice(`${label} 连接成功（${result.durationMs ?? 0}ms）`);
@@ -1046,10 +1048,10 @@ export default class VideoSummaryPlugin extends Plugin {
       return true;
     }
 
-    const label = backend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
+    const label = backend === 'codex-worker' ? 'Codex Worker' : '兼容 n8n 的 webhook';
 
     const otherBackend: ProcessingBackend = backend === 'n8n' ? 'codex-worker' : 'n8n';
-    const otherLabel = otherBackend === 'codex-worker' ? 'Codex Worker' : 'n8n / 兼容 Webhook';
+    const otherLabel = otherBackend === 'codex-worker' ? 'Codex Worker' : '兼容 n8n 的 webhook';
     const otherUrl =
       otherBackend === 'codex-worker'
         ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl
@@ -1536,7 +1538,7 @@ export default class VideoSummaryPlugin extends Plugin {
   ): Promise<WebhookProfile | null> {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new Notice('未找到对应的 Webhook 配置');
+      new Notice('未找到对应的 webhook 配置');
       return null;
     }
 
@@ -1546,7 +1548,7 @@ export default class VideoSummaryPlugin extends Plugin {
     if (this.settings.defaultProcessingDepth === 'deep-visual') {
       this.settings.defaultProcessingDepth = 'evidence';
       if (!options.silent) {
-        new Notice('n8n 暂不执行深度视觉，理解深度已改为“证据”。', 7000);
+        new Notice('当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。', 7000);
       }
     }
     this.initializeApiInstance(profile.url);
@@ -1567,7 +1569,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.settings.activeBackend = backend;
     if (backend !== 'codex-worker' && this.settings.defaultProcessingDepth === 'deep-visual') {
       this.settings.defaultProcessingDepth = 'evidence';
-      new Notice('n8n 暂不执行深度视觉，理解深度已改为“证据”。', 7000);
+      new Notice('当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。', 7000);
     }
     this.initializeApiInstance();
     await this.saveSettings();
@@ -2144,7 +2146,7 @@ export default class VideoSummaryPlugin extends Plugin {
       const rawUrl = (params.url || params.link || '').trim();
       const localFile = (params.local_file || params.localFile || '').trim();
       if (!rawUrl && !localFile) {
-        new Notice('video-summary 协议调用缺少 url 或 local_file 参数', 6000);
+        new Notice('协议调用 video-summary 缺少 URL 或 local_file 参数', 6000);
         return;
       }
       const requestedAction = String(params.action || '')
@@ -2180,7 +2182,7 @@ export default class VideoSummaryPlugin extends Plugin {
       }
       if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
         new Notice(
-          '已捕获到收件箱；当前自动处理只支持 YouTube、B站、抖音、TikTok 和小红书链接，通用 URL 未发送到后端。',
+          '已捕获到收件箱；当前自动处理只支持 YouTube、哔哩哔哩、抖音、抖音国际版和小红书链接，通用 URL 未发送到后端。',
           8000,
         );
         return;
@@ -2192,7 +2194,7 @@ export default class VideoSummaryPlugin extends Plugin {
         }
         if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== 'codex-worker') {
           new Notice(
-            '已捕获到收件箱；bundled n8n 无法读取 URI 提供的主机绝对路径。请先复制到 docker/uploads 后用文件名提交，或切换到能访问该路径的 Worker。',
+            '已捕获到收件箱；自带的 n8n 无法读取链接里的主机绝对路径。请先复制到 docker/uploads 后用文件名提交，或切换到能访问该路径的本机服务。',
             9000,
           );
           return;
@@ -2265,8 +2267,39 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  /** Where the page was last drawn: containerEl before Obsidian 1.13, the definition row from 1.13. */
+  private host: HTMLElement | null = null;
+
+  /**
+   * Obsidian 1.13+ draws the tab from these definitions and indexes them for settings search.
+   * The page keeps its own layout: one row that draws the whole page, with every setting name as
+   * a search alias.
+   */
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [
+      {
+        name: '视频总结设置',
+        desc: '连接、输出、处理和高级选项',
+        aliases: SETTINGS_SEARCH_TERMS,
+        render: (setting) => {
+          const host = setting.settingEl;
+          host.className = 'vs-settings-host';
+          this.renderPage(host);
+        },
+      },
+    ];
+  }
+
   display(): void {
-    const { containerEl } = this;
+    this.renderPage(this.containerEl);
+  }
+
+  private redraw() {
+    if (this.host) this.renderPage(this.host);
+  }
+
+  private renderPage(containerEl: HTMLElement): void {
+    this.host = containerEl;
     containerEl.empty();
     containerEl.addClass('vs-settings', 'ap', 'ap-settings');
 
@@ -2286,7 +2319,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.createQuickProcessingSection(containerEl);
 
     const advanced = containerEl.createEl('details', { cls: 'vs-settings-advanced' });
-    advanced.createEl('summary', { text: '高级：Cookies、平台说明、请求字段名、缓存、调试日志' });
+    advanced.createEl('summary', { text: '高级：cookies、平台说明、请求字段名、缓存、调试日志' });
     this.createCookiesSection(advanced);
     this.createPlatformMatrixSection(advanced);
     this.createPayloadKeysSection(advanced);
@@ -2367,7 +2400,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           button.setButtonText('显示检查清单').onClick(async () => {
             this.plugin.settings.setupGuideDismissed = false;
             await this.plugin.saveSettings();
-            this.display();
+            this.redraw();
           }),
         );
       return;
@@ -2392,7 +2425,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(section)
       .setName('连接诊断')
-      .setDesc('如果这里失败，优先按诊断建议处理，再查看 n8n Execution 日志。')
+      .setDesc('如果这里失败，优先按诊断建议处理，再查看 n8n 的执行日志。')
       .addButton((button) =>
         button
           .setButtonText('运行诊断')
@@ -2422,7 +2455,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
         button.setButtonText('收起').onClick(async () => {
           this.plugin.settings.setupGuideDismissed = true;
           await this.plugin.saveSettings();
-          this.display();
+          this.redraw();
         }),
       );
   }
@@ -2572,7 +2605,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       'platform-matrix-section',
     );
     section.createEl('p', {
-      text: '不同平台的可用性不一样。优先用本地文件、公开 YouTube/Bilibili 或已粘贴文稿；短视频平台通常需要 cookies。',
+      text: '不同平台的可用性不一样。优先用本地文件、公开的 YouTube 或哔哩哔哩视频、已粘贴的文稿；短视频平台通常需要 cookies。',
       cls: 'setting-item-description',
     });
 
@@ -2611,7 +2644,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   private createCookiesSection(containerEl: HTMLElement) {
     const { section } = this.sectionCard(containerEl, 'cookie', 'Cookies 管理');
     section.createEl('p', {
-      text: '受限平台（Bilibili / 抖音 / 小红书 / TikTok）经常需要浏览器导出的 cookies。目录一般是 n8n docker 项目里的 docker/cookies；文件名如 bilibili_cookies.txt。',
+      text: '受限平台（哔哩哔哩、抖音、抖音国际版、小红书）经常需要浏览器导出的 cookies。目录一般是 n8n 的 docker 项目里的 docker/cookies；文件名如 bilibili_cookies.txt。',
       cls: 'setting-item-description',
     });
 
@@ -2619,7 +2652,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(section)
       .setName('Cookies 目录')
-      .setDesc('docker/cookies 的绝对路径，例如 /Users/you/n8n-project/docker/cookies')
+      .setDesc('Cookies 目录的绝对路径，例如 ~/n8n-project/docker/cookies')
       .addText((text) =>
         text
           .setPlaceholder('/path/to/docker/cookies')
@@ -2633,7 +2666,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
         button.setButtonText('打开目录').onClick(() => {
           const dir = (this.plugin.settings.cookiesDirPath || '').trim();
           if (!dir) {
-            new Notice('请先填写 Cookies 目录路径');
+            new Notice('请先填写 cookies 目录路径');
             return;
           }
           try {
@@ -2664,7 +2697,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const dir = (this.plugin.settings.cookiesDirPath || '').trim();
     if (!dir) {
       containerEl.addClass('is-error');
-      containerEl.createEl('p', { text: '请先填写 Cookies 目录路径。' });
+      containerEl.createEl('p', { text: '请先填写 cookies 目录路径。' });
       return;
     }
 
@@ -2727,7 +2760,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       if (!files.some((name: string) => /^bilibili_/i.test(name))) {
         containerEl.createEl('p', {
-          text: '提示: 未发现 bilibili_cookies.txt。遇到 Bilibili HTTP 412 时需要它。',
+          text: '提示：未发现 bilibili_cookies.txt，哔哩哔哩返回 HTTP 412 时需要它。',
         });
       }
       if (hasStale) {
@@ -2782,12 +2815,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
     new Setting(section)
       .setName('主处理后端')
       .setDesc(
-        'Obsidian 插件是主入口：选择当前一键总结、批量处理、重新处理时要调用 n8n 还是本地 Codex worker。',
+        'Obsidian 插件是主入口：选择一键总结、批量处理、重新处理时调用 n8n，还是本机视频处理服务。',
       )
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('n8n', 'n8n / 兼容 Webhook')
-          .addOption('codex-worker', 'Codex Video Worker')
+          .addOption('n8n', '兼容 n8n 的 webhook')
+          .addOption('codex-worker', 'Codex 本地视频服务')
           .setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend)
           .onChange(async (value) => {
             await this.plugin.setActiveBackend(value as ProcessingBackend);
@@ -2796,13 +2829,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
                 ? '已切换到 Codex Video Worker'
                 : '已切换到 n8n / 兼容 Webhook',
             );
-            this.display();
+            this.redraw();
           }),
       );
 
     new Setting(section)
-      .setName('Codex Worker URL')
-      .setDesc('本地 Codex 视频处理服务的同步入口。控制台默认位于同一 host 的 /dashboard。')
+      .setName('Codex 本地服务地址')
+      .setDesc('本机视频处理服务的同步入口。控制台默认在同一主机的 /dashboard。')
       .addText((text) =>
         text
           .setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl)
@@ -2822,10 +2855,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     const webhookSetting = new Setting(section)
-      .setName('默认 n8n / 兼容 Webhook')
-      .setDesc(
-        '为不同工作流保存多个 Webhook。选择这里的默认项会把主处理后端切回 n8n / 兼容 Webhook。',
-      );
+      .setName('默认 webhook（n8n 或兼容服务）')
+      .setDesc('为不同工作流保存多个 webhook。选择这里的默认项会把主处理后端切回 n8n 或兼容服务。');
 
     let webhookDropdown: DropdownComponent | null = null;
 
@@ -2868,7 +2899,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           const label =
             this.plugin.settings.activeBackend === 'codex-worker'
               ? 'Codex Worker'
-              : 'n8n / 兼容 Webhook';
+              : '兼容 n8n 的 webhook';
           if (res.success) {
             new Notice(`${label} 连接成功（${res.durationMs}ms）`, 3000);
           } else {
@@ -2895,7 +2926,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       if (this.plugin.settings.webhookProfiles.length === 0) {
         profilesContainer.createEl('p', {
-          text: '尚未配置任何 Webhook。',
+          text: '尚未配置任何 webhook。',
           cls: 'setting-item-description',
         });
         return;
@@ -2920,7 +2951,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           type: 'text',
           value: profile.url || '',
           cls: 'webhook-url-input',
-          attr: { placeholder: 'https://your-n8n/webhook/...' },
+          attr: { placeholder: 'Webhook 地址' },
         });
         urlInput.oninput = async () => {
           profile.url = urlInput.value.trim();
@@ -2937,7 +2968,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           cls: 'webhook-auth-header-input',
           attr: {
             placeholder: DEFAULT_WEBHOOK_AUTH_HEADER,
-            'aria-label': 'Webhook 鉴权 Header 名称',
+            'aria-label': 'Webhook 鉴权请求头名称',
             title: '附带工作流 2.1.5 必填：须与 n8n Header Auth 的 Header 名称一致',
           },
         });
@@ -2958,7 +2989,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           cls: 'webhook-auth-secret-input',
           attr: {
             placeholder: '鉴权 Secret（工作流 2.1.5 必填）',
-            'aria-label': 'Webhook 鉴权 Secret',
+            'aria-label': 'Webhook 鉴权密钥',
             title:
               '附带工作流 2.1.5 必填；只有另行部署的兼容旧端点才可留空（留空时不发送鉴权 Header）',
             autocomplete: 'off',
@@ -2995,7 +3026,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new Notice('至少需要保留一个 Webhook');
+            new Notice('至少需要保留一个 webhook');
             return;
           }
 
@@ -3020,7 +3051,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(section).addButton((button) =>
       button
-        .setButtonText('添加 Webhook')
+        .setButtonText('添加 webhook')
         .setCta()
         .onClick(async () => {
           const newProfile: WebhookProfile = {
@@ -3058,7 +3089,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
             const depth = value as ProcessingDepth;
             if (depth === 'deep-visual' && this.plugin.settings.activeBackend !== 'codex-worker') {
               dropdown.setValue('evidence');
-              new Notice('深度视觉只由 Codex Worker 执行；当前 n8n 后端可用到证据模式。', 7000);
+              new Notice(
+                '深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。',
+                7000,
+              );
               return;
             }
             this.plugin.settings.defaultProcessingDepth = depth;
@@ -3118,7 +3152,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const aiSection = section.createDiv({ cls: 'vs-subsection' });
     aiSection.createDiv({ text: '自定义处理模型', cls: 'vs-subsection-title' });
     aiSection.createEl('p', {
-      text: '添加你要在 n8n 中使用的模型名称（需与 n8n Switch 节点的值完全一致）。',
+      text: '添加你要在 n8n 中使用的模型名称（需与 n8n 里 switch 节点的值完全一致）。',
       cls: 'setting-item-description',
     });
 
@@ -3268,7 +3302,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 输出文件夹设置
     new Setting(section)
       .setName('输出文件夹')
-      .setDesc('新建视频笔记的 Vault 内相对路径；不允许 .、.. 或绝对路径。')
+      .setDesc('新建视频笔记在库内的相对路径；不允许 .、.. 或绝对路径。')
       .addText((text) =>
         text
           .setPlaceholder('例如: Videos/2024')
@@ -3280,7 +3314,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
               await this.plugin.saveSettings();
             } catch {
               text.setValue(this.plugin.settings.outputFolder);
-              new Notice('输出文件夹必须是安全的 Vault 相对路径，不能包含 . 或 ..。', 6000);
+              new Notice('输出文件夹必须是库内的安全相对路径，不能包含 . 或 ..。', 6000);
             }
           }),
       );
@@ -3423,7 +3457,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setDesc('处理成功后写入 frontmatter 的 status 文本，例如 success/已处理/✅ 等')
       .addText((text) =>
         text
-          .setPlaceholder('success')
+          .setPlaceholder('例如 success')
           .setValue(this.plugin.settings.successStatusValue ?? 'success')
           .onChange(async (value) => {
             const normalized = normalizeSuccessStatusValue(value);

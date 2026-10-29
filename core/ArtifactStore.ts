@@ -610,7 +610,7 @@ export async function migrateVideoKnowledgeArtifact(
     ),
     course_ids: uniqueStrings(working.course_ids),
     provenance: {
-      ...(provenanceRaw as VideoKnowledgeArtifact['provenance']),
+      ...(provenanceRaw as unknown as VideoKnowledgeArtifact['provenance']),
       schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION,
       artifact_id: artifactId,
       source_url: source.url,
@@ -1315,7 +1315,7 @@ function requireEqual(
   if (actual !== expected) issues.push({ path, message: `must equal ${String(expected)}` });
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 

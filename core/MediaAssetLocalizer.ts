@@ -227,22 +227,22 @@ export function mediaAssetRoot(outputFolder: string | undefined): string {
   return `${folder}/_video-summary-assets`;
 }
 
+/** Downloads through Obsidian's own network layer (no browser fetch, no CORS). */
 async function fetchLoopbackBinary(url: string, signal: AbortSignal): Promise<BinaryDownload> {
-  const response = await fetch(url, {
-    method: 'GET',
-    cache: 'no-store',
-    credentials: 'omit',
-    redirect: 'error',
-    signal,
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const declaredLength = Number(response.headers.get('content-length') || 0);
+  if (signal.aborted) throw new Error('Aborted');
+  const { requestUrl } = await import('obsidian');
+  const response = await requestUrl({ url, method: 'GET', throw: false });
+  if (signal.aborted) throw new Error('Aborted');
+  if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
+  const header = (name: string) =>
+    Object.entries(response.headers).find(([key]) => key.toLowerCase() === name)?.[1];
+  const declaredLength = Number(header('content-length') || 0);
   if (Number.isFinite(declaredLength) && declaredLength > 20_000_000) {
     throw new Error('declared asset size is too large');
   }
   return {
-    data: await response.arrayBuffer(),
-    contentType: response.headers.get('content-type') || undefined,
+    data: response.arrayBuffer,
+    contentType: header('content-type') || undefined,
   };
 }
 
