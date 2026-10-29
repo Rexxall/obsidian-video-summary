@@ -139,3 +139,33 @@ void test('stored cache provenance is validated before reuse', async () => {
 
   assert.equal(await cache.getByFingerprint(identity), null);
 });
+
+void test('an index copied from an old install never removes files outside this cache folder', async () => {
+  const adapter = new MemoryAdapter();
+  const vault = { adapter, configDir: '.obsidian' } as unknown as ConstructorParameters<
+    typeof CacheManager
+  >[0];
+  const oldItem = '.obsidian/plugins/video-summary-plugin/data/cache/items/abc.json';
+  adapter.writeFile(oldItem, '{"result":{}}');
+  adapter.writeFile('.obsidian/plugins/video-summary/data/cache/items/abc.json', '{"result":{}}');
+  adapter.writeFile(
+    '.obsidian/plugins/video-summary/data/cache/index.json',
+    JSON.stringify({
+      version: '2.0.0',
+      lastUpdated: 0,
+      maxSize: 100,
+      expiryDays: 7,
+      items: {
+        old: { path: oldItem, timestamp: 0, expiryTimestamp: 1, size: 10 },
+      },
+    }),
+  );
+  const cache = new CacheManager(vault, '.obsidian/plugins/video-summary/data');
+  assert.equal(await cache.whenReady(), true);
+  // the expired entry is cleaned up in this folder, and the old install keeps its file
+  assert.equal(adapter.readFile(oldItem), '{"result":{}}');
+  assert.equal(
+    await adapter.exists('.obsidian/plugins/video-summary/data/cache/items/abc.json'),
+    false,
+  );
+});

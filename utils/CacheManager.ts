@@ -188,7 +188,7 @@ export class CacheManager {
         // Loading a v2 index is supported, but newly saved entries use the v3
         // scheme marker and cryptographic fingerprint identity.
         version: '3.0.0',
-        items: parsed.items,
+        items: this.ownItemPaths(parsed.items),
       };
       this.maxSize = this.index.maxSize;
       this.defaultExpiryDays = this.index.expiryDays;
@@ -196,6 +196,23 @@ export class CacheManager {
       console.error('加载索引失败:', error);
       this.index = this.createDefaultIndex();
     }
+  }
+
+  /**
+   * Cache files always live in this cache's items folder. An index copied from another install
+   * (an old plugin id, another config folder) still names the old paths; point every entry at its
+   * file here, so removing an entry can never touch files outside this folder.
+   */
+  private ownItemPaths(items: Record<string, CacheIndexEntry>): Record<string, CacheIndexEntry> {
+    const owned: Record<string, CacheIndexEntry> = {};
+    for (const [key, item] of Object.entries(items)) {
+      const name = String(item.path ?? '')
+        .split('/')
+        .pop();
+      if (!name) continue;
+      owned[key] = { ...item, path: `${this.itemsDir}/${name}` };
+    }
+    return owned;
   }
 
   private async saveIndex(): Promise<void> {

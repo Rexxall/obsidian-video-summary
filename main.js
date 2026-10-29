@@ -6364,9 +6364,9 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
   /** 扫描视频笔记：直接用插件已有的索引，不再全库读正文 */
   async scanVideoFiles() {
     if (!this.fileListEl) return;
-    const entries = this.plugin.noteIndex.getAll();
+    const entries2 = this.plugin.noteIndex.getAll();
     const files = [];
-    for (const entry of entries) {
+    for (const entry of entries2) {
       const file = this.app.vault.getAbstractFileByPath(entry.path);
       if (file instanceof import_obsidian7.TFile) files.push(file);
     }
@@ -6917,9 +6917,9 @@ var CacheManager = class {
       const oldCacheData = window.localStorage.getItem("video-summary-cache");
       if (!oldCacheData) return;
       console.debug("\u53D1\u73B0\u65E7\u7F13\u5B58\u6570\u636E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
-      const entries = JSON.parse(oldCacheData);
+      const entries2 = JSON.parse(oldCacheData);
       let migratedCount = 0;
-      for (const [key, item] of entries) {
+      for (const [key, item] of entries2) {
         try {
           await this.writeLegacyEntry(
             key.split("|")[0],
@@ -6957,7 +6957,7 @@ var CacheManager = class {
         // Loading a v2 index is supported, but newly saved entries use the v3
         // scheme marker and cryptographic fingerprint identity.
         version: "3.0.0",
-        items: parsed.items
+        items: this.ownItemPaths(parsed.items)
       };
       this.maxSize = this.index.maxSize;
       this.defaultExpiryDays = this.index.expiryDays;
@@ -6965,6 +6965,20 @@ var CacheManager = class {
       console.error("\u52A0\u8F7D\u7D22\u5F15\u5931\u8D25:", error);
       this.index = this.createDefaultIndex();
     }
+  }
+  /**
+   * Cache files always live in this cache's items folder. An index copied from another install
+   * (an old plugin id, another config folder) still names the old paths; point every entry at its
+   * file here, so removing an entry can never touch files outside this folder.
+   */
+  ownItemPaths(items) {
+    const owned = {};
+    for (const [key, item] of Object.entries(items)) {
+      const name = String(item.path ?? "").split("/").pop();
+      if (!name) continue;
+      owned[key] = { ...item, path: `${this.itemsDir}/${name}` };
+    }
+    return owned;
   }
   async saveIndex() {
     this.index.lastUpdated = Date.now();
@@ -7166,12 +7180,12 @@ var CacheManager = class {
       return { size: 0, maxSize: this.maxSize, expiredCount: 0, totalSize: 0 };
     }
     const now = Date.now();
-    const entries = Object.values(this.index.items);
+    const entries2 = Object.values(this.index.items);
     return {
-      size: entries.length,
+      size: entries2.length,
       maxSize: this.maxSize,
-      expiredCount: entries.filter((item) => now > item.expiryTimestamp).length,
-      totalSize: entries.reduce((total, item) => total + item.size, 0)
+      expiredCount: entries2.filter((item) => now > item.expiryTimestamp).length,
+      totalSize: entries2.reduce((total, item) => total + item.size, 0)
     };
   }
   async clear() {
@@ -7592,7 +7606,7 @@ function serializeStable(value, ancestors, inArray) {
       ancestors.delete(value);
       throw new TypeError("Only plain objects can be fingerprinted.");
     }
-    const entries = Object.keys(value).sort().filter((key) => {
+    const entries2 = Object.keys(value).sort().filter((key) => {
       const item = value[key];
       return item !== void 0 && typeof item !== "function" && typeof item !== "symbol";
     }).map(
@@ -7602,7 +7616,7 @@ function serializeStable(value, ancestors, inArray) {
         false
       )}`
     );
-    serialized = `{${entries.join(",")}}`;
+    serialized = `{${entries2.join(",")}}`;
   }
   ancestors.delete(value);
   return serialized;
@@ -9233,8 +9247,8 @@ function formatProgressLog(log) {
   const detail = log.detail;
   if (typeof detail === "string") return detail.trim() || void 0;
   if (!isRecord(detail)) return void 0;
-  const entries = Object.entries(detail).filter(([, value]) => value !== void 0 && value !== null && value !== "").slice(0, 4).map(([key, value]) => `${key}: ${asText(value) ?? JSON.stringify(value)}`);
-  return entries.length > 0 ? entries.join(" \xB7 ") : void 0;
+  const entries2 = Object.entries(detail).filter(([, value]) => value !== void 0 && value !== null && value !== "").slice(0, 4).map(([key, value]) => `${key}: ${asText(value) ?? JSON.stringify(value)}`);
+  return entries2.length > 0 ? entries2.join(" \xB7 ") : void 0;
 }
 function pickRatio(source, keys) {
   if (!isRecord(source)) return void 0;
@@ -10532,7 +10546,7 @@ function disconnectLibraryCoverObserver() {
 }
 function renderLibraryPanel(container, ctx) {
   const { state, plugin } = ctx;
-  const entries = plugin.noteIndex.getAll();
+  const entries2 = plugin.noteIndex.getAll();
   const header = container.createDiv({ cls: "vs-library-header" });
   const searchWrap = header.createDiv({ cls: "vs-search" });
   const searchIcon = searchWrap.createDiv({ cls: "vs-search-icon" });
@@ -10560,11 +10574,11 @@ function renderLibraryPanel(container, ctx) {
       }))
     );
   });
-  const counts = countByStatus(entries, ctx);
+  const counts = countByStatus(entries2, ctx);
   const runningLabel = counts.active > 0 && counts.interrupted > 0 ? `\u8FDB\u884C ${counts.active} \xB7 \u4E2D\u65AD ${counts.interrupted}` : counts.active > 0 ? `\u5904\u7406\u4E2D ${counts.active}` : counts.interrupted > 0 ? `\u5DF2\u4E2D\u65AD ${counts.interrupted}` : "\u5904\u7406\u4E2D 0";
   const filters = container.createDiv({ cls: "vs-filter-row" });
   [
-    ["all", `\u5168\u90E8 ${entries.length}`, ""],
+    ["all", `\u5168\u90E8 ${entries2.length}`, ""],
     ["pending", `\u5F85\u5904\u7406 ${counts.pending}`, "is-pending"],
     [
       "running",
@@ -10595,7 +10609,7 @@ function renderLibraryPanel(container, ctx) {
   });
   const listEl = container.createDiv({ cls: "vs-list" });
   const filtered = filterAndSort(
-    entries,
+    entries2,
     state.librarySearch,
     state.libraryFilter,
     state.librarySort,
@@ -10646,7 +10660,7 @@ function renderLibraryPanel(container, ctx) {
     state.librarySearch = search.value;
     resetLibraryPaging();
     const next = filterAndSort(
-      entries,
+      entries2,
       state.librarySearch,
       state.libraryFilter,
       state.librarySort,
@@ -10829,9 +10843,9 @@ function fileOf(ctx, entry) {
   const file = ctx.plugin.app.vault.getAbstractFileByPath(entry.path);
   return file instanceof import_obsidian11.TFile ? file : null;
 }
-function countByStatus(entries, ctx) {
+function countByStatus(entries2, ctx) {
   const counts = { pending: 0, active: 0, interrupted: 0, success: 0, error: 0 };
-  entries.forEach((entry) => {
+  entries2.forEach((entry) => {
     const displayStatus = noteDisplayStatus(entry, ctx.plugin.jobs);
     if (displayStatus === "queued" || displayStatus === "running" || displayStatus === "review") {
       counts.active += 1;
@@ -10847,9 +10861,9 @@ function countByStatus(entries, ctx) {
   });
   return counts;
 }
-function filterAndSort(entries, keyword, filter, sort, ctx) {
+function filterAndSort(entries2, keyword, filter, sort, ctx) {
   const lowered = keyword.trim().toLowerCase();
-  const filtered = entries.filter((entry) => {
+  const filtered = entries2.filter((entry) => {
     const nameMatch = !lowered || entry.basename.toLowerCase().includes(lowered);
     const statusMatch = filter === "all" || filterForDisplayStatus(noteDisplayStatus(entry, ctx.plugin.jobs)) === filter;
     return nameMatch && statusMatch;
@@ -18446,6 +18460,133 @@ function clone4(value) {
 
 // main.ts
 var import_obsidian20 = require("obsidian");
+
+// core/LegacyData.ts
+var LEGACY_PLUGIN_IDS = ["video-summary-plugin"];
+function salvageSettingsJson(text) {
+  try {
+    const parsed = JSON.parse(text);
+    if (isRecord(parsed)) {
+      return {
+        settings: parsed,
+        corrupt: false,
+        history: entries(parsed.history, isHistoryEntry),
+        webhookHistory: entries(parsed.webhookHistory, isWebhookEntry)
+      };
+    }
+  } catch {
+  }
+  const settings = {};
+  for (const match of text.matchAll(/^ {2}"([A-Za-z_][\w]*)":\s*(.+?),?\s*$/gm)) {
+    const [, key, raw] = match;
+    if (key in settings) continue;
+    try {
+      const value = JSON.parse(raw);
+      if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+        settings[key] = value;
+      }
+    } catch {
+    }
+  }
+  const history = [];
+  const webhookHistory = [];
+  for (const object of outermostObjects(text)) {
+    if (isHistoryEntry(object)) history.push(object);
+    else if (isWebhookEntry(object)) webhookHistory.push(object);
+  }
+  return {
+    settings,
+    corrupt: true,
+    history: dedupeHistory(history),
+    webhookHistory: dedupeWebhook(webhookHistory)
+  };
+}
+function isHistoryEntry(value) {
+  return isRecord(value) && typeof value.file === "string" && typeof value.time === "string" && (value.result === "success" || value.result === "error");
+}
+function isWebhookEntry(value) {
+  return isRecord(value) && typeof value.timestamp === "number" && isRecord(value.result) && isRecord(value.input);
+}
+function entries(value, keep) {
+  return Array.isArray(value) ? value.filter(keep) : [];
+}
+var historyKey = (entry) => [entry.file, entry.time, entry.mode, entry.result].map(String).join("|");
+var webhookKey = (entry) => {
+  const input = isRecord(entry.input) ? entry.input : {};
+  return `${String(entry.timestamp)}|${String(input.url ?? input.localFile ?? "")}`;
+};
+function mergeHistory(base, ...more) {
+  const extra = addMissing(base, more, historyKey);
+  if (extra.length === 0) return base;
+  const time = (entry) => Date.parse(String(entry.time).replace(/\//g, "-")) || 0;
+  return [...base, ...extra].map((entry, index) => ({ entry, index })).sort((a, b) => time(a.entry) - time(b.entry) || a.index - b.index).map(({ entry }) => entry);
+}
+function mergeWebhookHistory(base, ...more) {
+  const extra = addMissing(base, more, webhookKey);
+  if (extra.length === 0) return base;
+  return [...base, ...extra].sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
+}
+function addMissing(base, more, key) {
+  const seen = new Set(base.map(key));
+  const extra = [];
+  for (const entry of more.flat()) {
+    const k = key(entry);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    extra.push(entry);
+  }
+  return extra;
+}
+function dedupeHistory(list) {
+  return addMissing([], [list], historyKey);
+}
+function dedupeWebhook(list) {
+  return addMissing([], [list], webhookKey);
+}
+function outermostObjects(text) {
+  const found = [];
+  let index = 0;
+  while (index < text.length) {
+    const start = text.indexOf("{", index);
+    if (start < 0) break;
+    const end = matchingBrace(text, start);
+    if (end > start) {
+      try {
+        const parsed = JSON.parse(text.slice(start, end + 1));
+        if (isRecord(parsed) && (isHistoryEntry(parsed) || isWebhookEntry(parsed))) {
+          found.push(parsed);
+          index = end + 1;
+          continue;
+        }
+      } catch {
+      }
+    }
+    index = start + 1;
+  }
+  return found;
+}
+function matchingBrace(text, start) {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+      else if (ch === "\n") return -1;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+// main.ts
 var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
   constructor() {
     super(...arguments);
@@ -19258,10 +19399,104 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     void workspace.revealLeaf(leaf);
     return leaf.view instanceof VideoSummaryView ? leaf.view : null;
   }
+  get pluginDir() {
+    return this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+  }
+  /**
+   * data.json as an object. A file damaged by a sync conflict is kept next to it as
+   * data.corrupt-<time>.json and whatever still parses is used; a missing file falls back to an
+   * install under the old plugin id.
+   */
+  async readStoredData() {
+    const adapter = this.app.vault.adapter;
+    const dataPath = `${this.pluginDir}/data.json`;
+    let raw = null;
+    try {
+      raw = await adapter.exists(dataPath) ? await adapter.read(dataPath) : null;
+    } catch {
+      raw = null;
+    }
+    if (raw !== null && raw.trim()) {
+      const salvage = salvageSettingsJson(raw);
+      if (!salvage.corrupt) return { stored: salvage.settings, migrated: false };
+      await adapter.write(`${this.pluginDir}/data.corrupt-${Date.now()}.json`, raw);
+      new import_obsidian19.Notice(
+        `Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u635F\u574F\uFF08\u540C\u6B65\u51B2\u7A81\uFF09\uFF0C\u5DF2\u6551\u56DE ${salvage.history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${salvage.webhookHistory.length} \u6761\u7ED3\u679C\uFF0C\u539F\u6587\u4EF6\u53E6\u5B58\u4E3A data.corrupt-*.json\u3002`,
+        15e3
+      );
+      return {
+        stored: {
+          ...salvage.settings,
+          history: salvage.history,
+          webhookHistory: salvage.webhookHistory
+        },
+        migrated: true
+      };
+    }
+    const legacy = await this.importLegacyInstall();
+    return { stored: legacy ?? {}, migrated: legacy !== null };
+  }
+  /** First start under the new id: read the settings, history and data/ of an old install. */
+  async importLegacyInstall() {
+    const adapter = this.app.vault.adapter;
+    const pluginsDir = `${this.app.vault.configDir}/plugins`;
+    let folders = [];
+    try {
+      folders = (await adapter.list(pluginsDir)).folders;
+    } catch {
+      return null;
+    }
+    for (const folder of folders.sort()) {
+      if (folder === this.pluginDir) continue;
+      let id;
+      try {
+        id = asRecord(JSON.parse(await adapter.read(`${folder}/manifest.json`))).id;
+      } catch {
+        continue;
+      }
+      if (typeof id !== "string" || !LEGACY_PLUGIN_IDS.includes(id)) continue;
+      if (!await adapter.exists(`${folder}/data.json`)) continue;
+      const salvage = salvageSettingsJson(await adapter.read(`${folder}/data.json`));
+      let history = salvage.history;
+      let webhookHistory = salvage.webhookHistory;
+      if (await adapter.exists(`${folder}/history.json`)) {
+        try {
+          const file = asRecord(JSON.parse(await adapter.read(`${folder}/history.json`)));
+          history = mergeHistory(history, asArray(file.history).filter(isHistoryEntry));
+          webhookHistory = mergeWebhookHistory(
+            webhookHistory,
+            asArray(file.webhookHistory).filter(isWebhookEntry)
+          );
+        } catch {
+        }
+      }
+      await this.copyFolder(`${folder}/data`, `${this.pluginDir}/data`);
+      new import_obsidian19.Notice(
+        `Video Summary\uFF1A\u5DF2\u4ECE\u65E7\u7248\u63D2\u4EF6\u76EE\u5F55\uFF08${folder}\uFF09\u5BFC\u5165\u8BBE\u7F6E\u3001${history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${webhookHistory.length} \u6761\u7ED3\u679C\u3002\u786E\u8BA4\u65E0\u8BEF\u540E\u53EF\u505C\u7528\u5E76\u5220\u9664\u65E7\u7248\u3002`,
+        15e3
+      );
+      return { ...salvage.settings, history, webhookHistory };
+    }
+    return null;
+  }
+  /** Copies files that do not exist at the destination yet; never overwrites. */
+  async copyFolder(from, to) {
+    const adapter = this.app.vault.adapter;
+    if (!await adapter.exists(from)) return;
+    if (!await adapter.exists(to)) await adapter.mkdir(to);
+    const { files, folders } = await adapter.list(from);
+    for (const file of files) {
+      const target = `${to}/${file.slice(from.length + 1)}`;
+      if (!await adapter.exists(target)) await adapter.copy(file, target);
+    }
+    for (const folder of folders) {
+      await this.copyFolder(folder, `${to}/${folder.slice(from.length + 1)}`);
+    }
+  }
   async loadSettings() {
-    const stored = asRecord(await this.loadData());
+    const { stored, migrated } = await this.readStoredData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
-    let shouldSave = false;
+    let shouldSave = migrated;
     try {
       const safeOutputFolder = normalizeVideoSummaryBaseFolder(this.settings.outputFolder);
       if (safeOutputFolder !== this.settings.outputFolder) {
@@ -19281,15 +19516,20 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     if (historyFile) {
       this.settings.history = Array.isArray(historyFile.history) ? historyFile.history : [];
       this.settings.webhookHistory = Array.isArray(historyFile.webhookHistory) ? historyFile.webhookHistory : [];
-      if (legacyHistory.length > this.settings.history.length) {
-        this.settings.history = legacyHistory;
-      }
-      if (legacyWebhookHistory.length > this.settings.webhookHistory.length) {
-        this.settings.webhookHistory = legacyWebhookHistory;
-      }
+      this.settings.history = mergeHistory(
+        this.settings.history,
+        legacyHistory
+      );
+      this.settings.webhookHistory = mergeWebhookHistory(
+        this.settings.webhookHistory,
+        legacyWebhookHistory
+      );
     } else {
       this.settings.history = legacyHistory;
       this.settings.webhookHistory = legacyWebhookHistory;
+    }
+    if (migrated && this.settings.history.length > (this.settings.historyLimit ?? 0)) {
+      this.settings.historyLimit = this.settings.history.length;
     }
     this.trimHistory();
     if (legacyHistory.length > 0 || legacyWebhookHistory.length > 0 || !historyFile) {
@@ -21278,8 +21518,8 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
     try {
       const cacheData = window.localStorage.getItem("video-summary-cache");
       if (cacheData) {
-        const entries = asArray(JSON.parse(cacheData));
-        const filteredEntries = entries.filter(
+        const entries2 = asArray(JSON.parse(cacheData));
+        const filteredEntries = entries2.filter(
           (entry) => !(Array.isArray(entry) && entry[0] === key)
         );
         window.localStorage.setItem("video-summary-cache", JSON.stringify(filteredEntries));

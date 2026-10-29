@@ -71,8 +71,16 @@ import { Modal } from 'obsidian';
 
 import { fire } from './utils/fire';
 import { errorMessage } from './utils/errors';
-import { asArray, asRecord, isRecord, scalarText } from './utils/json';
+import { asArray, asRecord, isRecord, scalarText, type JsonRecord } from './utils/json';
 import { desktopRequire, openPathInSystem } from './utils/desktop';
+import {
+  LEGACY_PLUGIN_IDS,
+  isHistoryEntry,
+  isWebhookEntry,
+  mergeHistory,
+  mergeWebhookHistory,
+  salvageSettingsJson,
+} from './core/LegacyData';
 export default class VideoSummaryPlugin extends Plugin {
   settings: VideoSummarySettings;
   api: VideoSummaryAPI;
@@ -1123,11 +1131,111 @@ export default class VideoSummaryPlugin extends Plugin {
     return leaf.view instanceof VideoSummaryView ? leaf.view : null;
   }
 
+  private get pluginDir(): string {
+    return this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+  }
+
+  /**
+   * data.json as an object. A file damaged by a sync conflict is kept next to it as
+   * data.corrupt-<time>.json and whatever still parses is used; a missing file falls back to an
+   * install under the old plugin id.
+   */
+  private async readStoredData(): Promise<{ stored: JsonRecord; migrated: boolean }> {
+    const adapter = this.app.vault.adapter;
+    const dataPath = `${this.pluginDir}/data.json`;
+    let raw: string | null = null;
+    try {
+      raw = (await adapter.exists(dataPath)) ? await adapter.read(dataPath) : null;
+    } catch {
+      raw = null;
+    }
+    if (raw !== null && raw.trim()) {
+      const salvage = salvageSettingsJson(raw);
+      if (!salvage.corrupt) return { stored: salvage.settings, migrated: false };
+      await adapter.write(`${this.pluginDir}/data.corrupt-${Date.now()}.json`, raw);
+      new Notice(
+        `Video Summary：设置文件损坏（同步冲突），已救回 ${salvage.history.length} 条处理记录和 ${salvage.webhookHistory.length} 条结果，原文件另存为 data.corrupt-*.json。`,
+        15000,
+      );
+      return {
+        stored: {
+          ...salvage.settings,
+          history: salvage.history,
+          webhookHistory: salvage.webhookHistory,
+        },
+        migrated: true,
+      };
+    }
+    const legacy = await this.importLegacyInstall();
+    return { stored: legacy ?? {}, migrated: legacy !== null };
+  }
+
+  /** First start under the new id: read the settings, history and data/ of an old install. */
+  private async importLegacyInstall(): Promise<JsonRecord | null> {
+    const adapter = this.app.vault.adapter;
+    const pluginsDir = `${this.app.vault.configDir}/plugins`;
+    let folders: string[] = [];
+    try {
+      folders = (await adapter.list(pluginsDir)).folders;
+    } catch {
+      return null;
+    }
+    for (const folder of folders.sort()) {
+      if (folder === this.pluginDir) continue;
+      let id: unknown;
+      try {
+        id = asRecord(JSON.parse(await adapter.read(`${folder}/manifest.json`))).id;
+      } catch {
+        continue;
+      }
+      if (typeof id !== 'string' || !LEGACY_PLUGIN_IDS.includes(id)) continue;
+      if (!(await adapter.exists(`${folder}/data.json`))) continue;
+
+      const salvage = salvageSettingsJson(await adapter.read(`${folder}/data.json`));
+      let history = salvage.history;
+      let webhookHistory = salvage.webhookHistory;
+      if (await adapter.exists(`${folder}/history.json`)) {
+        try {
+          const file = asRecord(JSON.parse(await adapter.read(`${folder}/history.json`)));
+          history = mergeHistory(history, asArray(file.history).filter(isHistoryEntry));
+          webhookHistory = mergeWebhookHistory(
+            webhookHistory,
+            asArray(file.webhookHistory).filter(isWebhookEntry),
+          );
+        } catch {
+          // a broken history.json adds nothing
+        }
+      }
+      await this.copyFolder(`${folder}/data`, `${this.pluginDir}/data`);
+      new Notice(
+        `Video Summary：已从旧版插件目录（${folder}）导入设置、${history.length} 条处理记录和 ${webhookHistory.length} 条结果。确认无误后可停用并删除旧版。`,
+        15000,
+      );
+      return { ...salvage.settings, history, webhookHistory };
+    }
+    return null;
+  }
+
+  /** Copies files that do not exist at the destination yet; never overwrites. */
+  private async copyFolder(from: string, to: string): Promise<void> {
+    const adapter = this.app.vault.adapter;
+    if (!(await adapter.exists(from))) return;
+    if (!(await adapter.exists(to))) await adapter.mkdir(to);
+    const { files, folders } = await adapter.list(from);
+    for (const file of files) {
+      const target = `${to}/${file.slice(from.length + 1)}`;
+      if (!(await adapter.exists(target))) await adapter.copy(file, target);
+    }
+    for (const folder of folders) {
+      await this.copyFolder(folder, `${to}/${folder.slice(from.length + 1)}`);
+    }
+  }
+
   async loadSettings() {
-    const stored = asRecord(await this.loadData());
+    const { stored, migrated } = await this.readStoredData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
 
-    let shouldSave = false;
+    let shouldSave = migrated;
     try {
       const safeOutputFolder = normalizeVideoSummaryBaseFolder(this.settings.outputFolder);
       if (safeOutputFolder !== this.settings.outputFolder) {
@@ -1156,16 +1264,22 @@ export default class VideoSummaryPlugin extends Plugin {
       this.settings.webhookHistory = (
         Array.isArray(historyFile.webhookHistory) ? historyFile.webhookHistory : []
       ) as VideoSummarySettings['webhookHistory'];
-      // 极端情况（旧版本插件又往 data.json 写过）：以条数多的一方为准
-      if (legacyHistory.length > this.settings.history.length) {
-        this.settings.history = legacyHistory;
-      }
-      if (legacyWebhookHistory.length > this.settings.webhookHistory.length) {
-        this.settings.webhookHistory = legacyWebhookHistory;
-      }
+      // 旧版本插件又往 data.json 写过：两边合并去重，不丢任何一边
+      this.settings.history = mergeHistory(
+        this.settings.history as unknown as JsonRecord[],
+        legacyHistory as unknown as JsonRecord[],
+      ) as unknown as VideoSummarySettings['history'];
+      this.settings.webhookHistory = mergeWebhookHistory(
+        this.settings.webhookHistory as unknown as JsonRecord[],
+        legacyWebhookHistory as unknown as JsonRecord[],
+      ) as unknown as VideoSummarySettings['webhookHistory'];
     } else {
       this.settings.history = legacyHistory;
       this.settings.webhookHistory = legacyWebhookHistory;
+    }
+    // 迁移进来的记录比上限多时，上限跟着放大，不在第一次启动就删掉旧记录
+    if (migrated && this.settings.history.length > (this.settings.historyLimit ?? 0)) {
+      this.settings.historyLimit = this.settings.history.length;
     }
     this.trimHistory();
 
