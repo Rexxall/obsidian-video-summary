@@ -99,7 +99,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   iconButton(
     boxBar,
     'folder-open',
-    '选择本机音视频',
+    tr('选择本机音视频', 'Choose a local audio or video file'),
     () => pickLocalFiles(ctx, input),
     'vs-add-file',
   );
@@ -113,9 +113,9 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   // 模式、学习卡和其余默认值收进一行“选项”展开行，右侧写当前选择
   const quick = currentQuickMode(ctx);
   const quickLabels: Record<QuickMode, string> = {
-    transcript: '只要文稿',
-    summary: '总结',
-    evidence: '证据',
+    transcript: tr('只要文稿', 'Transcript only'),
+    summary: tr('总结', 'Summary'),
+    evidence: tr('证据', 'Evidence'),
   };
   const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? ' is-open' : ''}` });
   const foldToggle = fold.createEl('button', {
@@ -127,7 +127,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     cls: 'vs-fold-value',
     text: [
       quick ? quickLabels[quick] : modeLabel(ctx.plugin.settings.defaultMode),
-      ctx.plugin.settings.generateLearningArtifacts ? '学习卡' : '',
+      ctx.plugin.settings.generateLearningArtifacts ? tr('学习卡', 'Study cards') : '',
     ]
       .filter(Boolean)
       .join(' · '),
@@ -205,7 +205,7 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
   iconButton(
     header,
     'more-horizontal',
-    '更多',
+    tr('更多', 'More'),
     (event) => showMoreMenu(ctx, event),
     'vs-header-more',
   );
@@ -371,7 +371,11 @@ async function probeBackend(
   const pending = (async (): Promise<BackendProbeResult> => {
     const checkedAt = Date.now();
     if (!backend.endpoint) {
-      return { state: 'is-offline', checkedAt, reason: '未配置服务地址' };
+      return {
+        state: 'is-offline',
+        checkedAt,
+        reason: tr('未配置服务地址', 'No service address set'),
+      };
     }
 
     try {
@@ -448,7 +452,10 @@ function updateBackendPill(
   dot.className = `vs-backend-dot ${state}`;
   if (state === 'is-checking') {
     label.setText(tr(`正在检测 ${backend.label}…`, `Checking ${backend.label}…`));
-    pill.setAttr('title', `${backend.label}：正在检测连接`);
+    pill.setAttr(
+      'title',
+      tr(`${backend.label}：正在检测连接`, `${backend.label}: checking connection`),
+    );
     return;
   }
   if (state === 'is-online') {
@@ -456,31 +463,46 @@ function updateBackendPill(
     label.setText(tr(`${backend.label} 已连接`, `${backend.label} connected`));
     pill.setAttr(
       'title',
-      `${backend.label} ${
-        reachabilityOnly ? '端点可达，尚未验证完整响应' : '在线'
-      }${result?.durationMs !== undefined ? ` · ${result.durationMs}ms` : ''}${
-        result ? ` · 最近检测 ${formatProbeTime(result.checkedAt)}` : ''
-      }；点击运行完整检测`,
+      tr(
+        `${backend.label} ${
+          reachabilityOnly ? '端点可达，尚未验证完整响应' : '在线'
+        }${result?.durationMs !== undefined ? ` · ${result.durationMs}ms` : ''}${
+          result ? ` · 最近检测 ${formatProbeTime(result.checkedAt)}` : ''
+        }；点击运行完整检测`,
+        `${backend.label} ${
+          reachabilityOnly ? 'endpoint reachable, full response not yet verified' : 'online'
+        }${result?.durationMs !== undefined ? ` · ${result.durationMs}ms` : ''}${
+          result ? ` · last checked ${formatProbeTime(result.checkedAt)}` : ''
+        }; click to run a full check`,
+      ),
     );
     return;
   }
   if (state === 'is-offline') {
-    const reason = result?.reason || '无法连接';
+    const reason = result?.reason || tr('无法连接', 'Unreachable');
     label.setText(
       tr(`${backend.label} 未连接 · ${reason}`, `${backend.label} not connected · ${reason}`),
     );
     pill.setAttr(
       'title',
-      `${backend.label} 离线：${reason}${
-        result ? ` · 最近检测 ${formatProbeTime(result.checkedAt)}` : ''
-      }；点击重新检测`,
+      tr(
+        `${backend.label} 离线：${reason}${
+          result ? ` · 最近检测 ${formatProbeTime(result.checkedAt)}` : ''
+        }；点击重新检测`,
+        `${backend.label} offline: ${reason}${
+          result ? ` · last checked ${formatProbeTime(result.checkedAt)}` : ''
+        }; click to check again`,
+      ),
     );
     return;
   }
   label.setText(
     tr(`${backend.label} 未检测 · 点此测试`, `${backend.label} not checked · click to test`),
   );
-  pill.setAttr('title', `${backend.label}：点击测试连接`);
+  pill.setAttr(
+    'title',
+    tr(`${backend.label}：点击测试连接`, `${backend.label}: click to test the connection`),
+  );
 }
 
 function formatProbeTime(timestamp: number): string {
@@ -544,7 +566,7 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
     const artifactId = entry.artifactId;
     textButton(
       strip,
-      '陪读',
+      tr('陪读', 'Read along'),
       () => ctx.openDetail({ kind: 'note', path: entry.path, artifactId }),
       'vs-context-action',
     );
@@ -552,14 +574,16 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   if (status === 'review' && liveJob) {
     textButton(
       strip,
-      '确认',
+      tr('确认', 'Confirm'),
       () => ctx.openDetail({ kind: 'job', id: liveJob.id }),
       'vs-context-action',
     );
   } else if (status !== 'running' && status !== 'queued') {
     textButton(
       strip,
-      status === 'success' || status === 'interrupted' ? '重跑' : '处理',
+      status === 'success' || status === 'interrupted'
+        ? tr('重跑', 'Run again')
+        : tr('处理', 'Process'),
       fire(async () => {
         await ctx.plugin.jobService.submitFile(activeFile, ctx.submitOptions());
         ctx.state.tab = 'jobs';
@@ -580,7 +604,7 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     return el.createDiv({ cls: 'vs-opt-value' });
   };
 
-  const modeHost = row('处理方式');
+  const modeHost = row(tr('处理方式', 'Processing mode'));
   segmented<ProcessingMode>(
     modeHost,
     (['summary', 'transcript-only', 'info-only'] as ProcessingMode[]).map((mode) => ({
@@ -596,12 +620,12 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
   );
 
   const depthLabels: Record<ProcessingDepth, string> = {
-    quick: '极速',
-    evidence: '证据',
-    'deep-visual': '深度视觉',
+    quick: tr('极速', 'Fast'),
+    evidence: tr('证据', 'Evidence'),
+    'deep-visual': tr('深度视觉', 'Deep visual'),
   };
   segmented<ProcessingDepth>(
-    row('理解深度'),
+    row(tr('理解深度', 'Depth')),
     (['quick', 'evidence', 'deep-visual'] as ProcessingDepth[]).map((depth) => ({
       value: depth,
       label: depthLabels[depth],
@@ -626,7 +650,7 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
   );
 
   segmented<SupportedLanguage>(
-    row('输出语言'),
+    row(tr('输出语言', 'Output language')),
     (['zh', 'en', 'ja'] as SupportedLanguage[]).map((language) => ({
       value: language,
       label: languageLabel(language),
@@ -640,16 +664,16 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
   );
 
   const contentLabels: Record<RequestedContentType, string> = {
-    auto: '自动识别',
-    course: '课程',
-    interview: '访谈',
-    tutorial: '教程',
-    news: '新闻',
-    meeting: '会议',
-    review: '评测',
-    general: '通用',
+    auto: tr('自动识别', 'Auto-detect'),
+    course: tr('课程', 'Lecture'),
+    interview: tr('访谈', 'Interview'),
+    tutorial: tr('教程', 'Tutorial'),
+    news: tr('新闻', 'News'),
+    meeting: tr('会议', 'Meeting'),
+    review: tr('评测', 'Review'),
+    general: tr('通用', 'General'),
   };
-  const contentSelect = row('内容类型').createEl('select', { cls: 'dropdown' });
+  const contentSelect = row(tr('内容类型', 'Content type')).createEl('select', { cls: 'dropdown' });
   (Object.keys(contentLabels) as RequestedContentType[]).forEach((value) =>
     contentSelect.createEl('option', { text: contentLabels[value], attr: { value } }),
   );
@@ -665,8 +689,8 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     }),
   );
 
-  const folderBtn = row('保存位置').createEl('button', {
-    text: shortenPath(settings.outputFolder || '当前文件夹'),
+  const folderBtn = row(tr('保存位置', 'Save to')).createEl('button', {
+    text: shortenPath(settings.outputFolder || tr('当前文件夹', 'Current folder')),
     cls: 'vs-link-btn',
     attr: { type: 'button', title: settings.outputFolder || tr('当前文件夹', 'Current folder') },
   });
@@ -702,8 +726,11 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     box.addEventListener('change', () => void onChange(box.checked));
   };
   check(
-    '先预览再写入',
-    '结果先预览，确认后才写入笔记',
+    tr('先预览再写入', 'Preview before writing'),
+    tr(
+      '结果先预览，确认后才写入笔记',
+      'Show the result first and write the note only after you confirm',
+    ),
     settings.previewBeforeWrite === true,
     async (value) => {
       settings.previewBeforeWrite = value;
@@ -711,8 +738,11 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     },
   );
   check(
-    '观看判断',
-    '输出值得看、建议略读或可以跳过',
+    tr('观看判断', 'Watch verdict'),
+    tr(
+      '输出值得看、建议略读或可以跳过',
+      'Say whether it is worth watching, worth skimming or skippable',
+    ),
     settings.attentionAssessmentEnabled,
     async (value) => {
       settings.attentionAssessmentEnabled = value;
@@ -721,8 +751,11 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     },
   );
   check(
-    '这次跳过缓存',
-    '强制重新处理，只对本次打开的侧栏有效',
+    tr('这次跳过缓存', 'Skip the cache this time'),
+    tr(
+      '强制重新处理，只对本次打开的侧栏有效',
+      'Process again from scratch; applies only to this sidebar session',
+    ),
     ctx.state.ignoreCache,
     async (value) => {
       ctx.state.ignoreCache = value;

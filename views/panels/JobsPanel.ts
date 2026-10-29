@@ -36,7 +36,10 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
   );
 
   if (active.length + review.length > 0) {
-    section(container, `进行中 ${active.length + review.length}`);
+    section(
+      container,
+      tr(`进行中 ${active.length + review.length}`, `In progress ${active.length + review.length}`),
+    );
   }
   if (active.length > 0) {
     active.forEach((job) => renderActiveJob(container, ctx, job));
@@ -48,11 +51,16 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
 
   const historyRows = buildHistoryRows(ctx, finished);
   if (historyRows.length > 0) {
-    const header = section(container, '最近完成');
-    iconButton(header, 'history', '从 webhook 历史结果里取回', (event) => {
-      showWebhookHistoryMenu(ctx, event);
-    });
-    iconButton(header, 'more-horizontal', '列表操作', (event) => {
+    const header = section(container, tr('最近完成', 'Recently finished'));
+    iconButton(
+      header,
+      'history',
+      tr('从 webhook 历史结果里取回', 'Fetched from webhook history'),
+      (event) => {
+        showWebhookHistoryMenu(ctx, event);
+      },
+    );
+    iconButton(header, 'more-horizontal', tr('列表操作', 'List actions'), (event) => {
       showMenu(event, [
         {
           title: tr('清掉已完成的任务卡', 'Clear finished job cards'),
@@ -198,7 +206,7 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   iconButton(
     side,
     'x',
-    '取消',
+    tr('取消', 'Cancel'),
     fire(async () => {
       await ctx.plugin.jobService.cancel(job);
       ctx.renderPanels();
@@ -232,13 +240,13 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   const actions = card.createDiv({ cls: 'vs-job-actions' });
   textButton(
     actions,
-    '预览',
+    tr('预览', 'Preview'),
     () => ctx.openDetail({ kind: 'job', id: job.id }),
     'is-primary is-fill',
   );
   textButton(
     actions,
-    '直接写入',
+    tr('直接写入', 'Write now'),
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
         new Notice(tr('已写入笔记', 'Written to the note'));
@@ -250,7 +258,7 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   iconButton(
     actions,
     'trash-2',
-    '丢弃结果',
+    tr('丢弃结果', 'Discard result'),
     fire(async () => {
       await ctx.plugin.jobService.discardResult(job);
       ctx.renderPanels();
@@ -400,7 +408,7 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   if (row.state === 'error' && row.error) renderNextStep(container, ctx, row);
 
   const actions = item.createDiv({ cls: 'vs-row-actions' });
-  iconButton(actions, 'more-horizontal', '更多操作', (event) => {
+  iconButton(actions, 'more-horizontal', tr('更多操作', 'More actions'), (event) => {
     showMenu(event, [
       {
         title: tr('打开笔记', 'Open note'),
@@ -432,7 +440,7 @@ function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRo
   const strip = container.createDiv({ cls: 'vs-next-step' });
   if (kind === 'no-transcript') {
     strip.createSpan({ text: tr('可以补一份文稿再总结', 'Add a transcript and summarise again') });
-    textButton(strip, '粘贴文稿 →', () => {
+    textButton(strip, tr('粘贴文稿 →', 'Paste a transcript →'), () => {
       const url = row.job?.input.url || row.record?.url || '';
       ctx.state.inputDraft = url;
       ctx.state.advancedOpen = true;
@@ -445,10 +453,10 @@ function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRo
     strip.createSpan({
       text: tr('登录状态失效，更新 Cookies 后重试', 'Login expired; update the cookies and retry'),
     });
-    textButton(strip, '打开设置 →', () => openSettings(ctx));
+    textButton(strip, tr('打开设置 →', 'Open settings →'), () => openSettings(ctx));
   } else {
     strip.createSpan({ text: tr('处理服务没有连上', 'The backend is not connected') });
-    textButton(strip, '重新检测 →', () => {
+    textButton(strip, tr('重新检测 →', 'Check again →'), () => {
       document.querySelector<HTMLButtonElement>('.vs-backend-line')?.click();
     });
   }
@@ -477,11 +485,11 @@ function displayTaskTitle(raw: string): string {
   if (!match) return raw;
 
   const sourceLabel: Record<string, string> = {
-    文稿: '文稿',
-    文稿处理: '文稿',
-    本地文件: '本地',
+    文稿: tr('文稿', 'Transcript'),
+    文稿处理: tr('文稿', 'Transcript'),
+    本地文件: tr('本地', 'Local'),
     YouTube视频: 'YouTube',
-    B站视频: 'B站',
+    B站视频: tr('B站', 'Bilibili'),
   };
   const title = match[2]
     .replace(/_\d{13}$/, '')
@@ -595,8 +603,15 @@ function summarize(job: Job): string {
   const bits: string[] = [];
   if (result.video_title) bits.push(result.video_title);
   if (result.video_duration) bits.push(result.video_duration);
-  if (result.summary) bits.push(`总结 ${result.summary.length} 字`);
-  if (result.video_transcript) bits.push(`文稿 ${result.video_transcript.length} 字`);
+  if (result.summary)
+    bits.push(tr(`总结 ${result.summary.length} 字`, `Summary ${result.summary.length} chars`));
+  if (result.video_transcript)
+    bits.push(
+      tr(
+        `文稿 ${result.video_transcript.length} 字`,
+        `Transcript ${result.video_transcript.length} chars`,
+      ),
+    );
   return bits.join(' · ') || tr('结果已就绪，等待写入', 'Result ready; waiting to be written');
 }
 

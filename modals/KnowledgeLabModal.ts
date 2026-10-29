@@ -117,12 +117,12 @@ export class KnowledgeLabModal extends Modal {
     });
 
     const filtersEl = this.contentEl.createDiv({ cls: 'vs-memory-filters' });
-    const author = labeledInput(filtersEl, '作者', '任意作者');
-    const platform = labeledSelect(filtersEl, '平台', [
+    const author = labeledInput(filtersEl, tr('作者', 'Author'), tr('任意作者', 'Any author'));
+    const platform = labeledSelect(filtersEl, tr('平台', 'Platform'), [
       '',
       ...uniqueStrings(this.artifacts.map((artifact) => artifact.platform)),
     ]);
-    const contentType = labeledSelect(filtersEl, '类型', [
+    const contentType = labeledSelect(filtersEl, tr('类型', 'Type'), [
       '',
       'course',
       'interview',
@@ -132,10 +132,18 @@ export class KnowledgeLabModal extends Modal {
       'review',
       'general',
     ]);
-    const courseId = labeledInput(filtersEl, '课程 ID', '任意课程');
-    const dateField = labeledSelect(filtersEl, '日期字段', ['either', 'generated', 'updated']);
-    const dateFrom = labeledInput(filtersEl, '起始日期', '', 'date');
-    const dateTo = labeledInput(filtersEl, '结束日期', '', 'date');
+    const courseId = labeledInput(
+      filtersEl,
+      tr('课程 ID', 'Course ID'),
+      tr('任意课程', 'Any course'),
+    );
+    const dateField = labeledSelect(filtersEl, tr('日期字段', 'Date field'), [
+      'either',
+      'generated',
+      'updated',
+    ]);
+    const dateFrom = labeledInput(filtersEl, tr('起始日期', 'From'), '', 'date');
+    const dateTo = labeledInput(filtersEl, tr('结束日期', 'To'), '', 'date');
 
     const relationRow = this.contentEl.createDiv({ cls: 'vs-memory-relation-source' });
     relationRow.createEl('label', {
@@ -251,7 +259,10 @@ export class KnowledgeLabModal extends Modal {
           result.platform,
           result.content_type,
           result.evidence_type === 'claim' && result.claim_review_state
-            ? `主张状态 ${result.claim_review_state}`
+            ? tr(
+                `主张状态 ${result.claim_review_state}`,
+                `Claim state ${result.claim_review_state}`,
+              )
             : undefined,
           ...result.course_ids,
         ]
@@ -294,7 +305,11 @@ export class KnowledgeLabModal extends Modal {
     if (!source) return;
     card.createEl('img', {
       cls: 'vs-memory-keyframe',
-      attr: { src: source, alt: `关键帧：${result.title}`, loading: 'lazy' },
+      attr: {
+        src: source,
+        alt: tr(`关键帧：${result.title}`, `Key frame: ${result.title}`),
+        loading: 'lazy',
+      },
     });
   }
 
@@ -378,8 +393,16 @@ export class KnowledgeLabModal extends Modal {
     }
 
     const toolbar = this.contentEl.createDiv({ cls: 'vs-claim-lab-toolbar' });
-    const title = labeledInput(toolbar, '实验室标题', '多视频论点实验室');
-    const artifactSearch = labeledInput(toolbar, '筛选工件', '按标题、作者或平台过滤');
+    const title = labeledInput(
+      toolbar,
+      tr('实验室标题', 'Lab title'),
+      tr('多视频论点实验室', 'Multi-video claim lab'),
+    );
+    const artifactSearch = labeledInput(
+      toolbar,
+      tr('筛选工件', 'Filter artifacts'),
+      tr('按标题、作者或平台过滤', 'Filter by title, author or platform'),
+    );
     const count = toolbar.createSpan({ cls: 'vs-claim-lab-count' });
     const list = this.contentEl.createDiv({ cls: 'vs-claim-lab-artifacts' });
     const selected = new Set<string>();
@@ -407,8 +430,8 @@ export class KnowledgeLabModal extends Modal {
             text: [
               artifact.author,
               artifact.platform,
-              `${artifact.claims.length} 条主张`,
-              `${artifact.segments.length} 个时间段`,
+              tr(`${artifact.claims.length} 条主张`, `${artifact.claims.length} claims`),
+              tr(`${artifact.segments.length} 个时间段`, `${artifact.segments.length} segments`),
             ]
               .filter(Boolean)
               .join(' · '),

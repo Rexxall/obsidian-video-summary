@@ -122,7 +122,7 @@ export class BatchProcessingModal extends Modal {
     const chipRow = bodyEl.createDiv({ cls: 'vs-chip-row' });
     configChip(
       chipRow,
-      '处理模式',
+      tr('处理模式', 'Processing mode'),
       processingModes().find((item) => item.value === this.mode)?.label ||
         tr('完整总结', 'Full summary'),
       processingModes().map((item) => ({
@@ -135,7 +135,7 @@ export class BatchProcessingModal extends Modal {
     );
     configChip(
       chipRow,
-      '输出语言',
+      tr('输出语言', 'Output language'),
       LANGUAGE_OPTIONS.find((item) => item.value === this.language)?.label || '中文',
       LANGUAGE_OPTIONS.map((item) => ({
         title: item.label,
@@ -171,16 +171,16 @@ export class BatchProcessingModal extends Modal {
 
     // 状态、文件夹、时间合成一个筛选胶囊，菜单里分三组
     const statusLabels: Record<string, string> = {
-      all: '全部状态',
+      all: tr('全部状态', 'All statuses'),
       pending: '待处理',
       error: '处理失败',
-      processed: '已处理',
+      processed: tr('已处理', 'Processed'),
     };
     const dateLabels: Record<string, string> = {
-      all: '全部时间',
-      today: '今天',
-      week: '本周',
-      month: '本月',
+      all: tr('全部时间', 'Any time'),
+      today: tr('今天', 'Today'),
+      week: tr('本周', 'This week'),
+      month: tr('本月', 'This month'),
     };
     const applied = [
       this.statusFilter !== 'all' ? statusLabels[this.statusFilter] : '',
@@ -194,7 +194,7 @@ export class BatchProcessingModal extends Modal {
     };
     this.filterPill(
       this.filterEl,
-      applied.length ? applied.join(' · ') : '筛选',
+      applied.length ? applied.join(' · ') : tr('筛选', 'Filter'),
       () => [
         ...Object.entries(statusLabels).map(([value, label]) => ({
           title: label,
@@ -221,7 +221,7 @@ export class BatchProcessingModal extends Modal {
     const quickRow = fileSelectionEl.createDiv({ cls: 'vs-modal-quick' });
     this.countEl = quickRow.createSpan({ cls: 'vs-quick-count' });
     quickRow.createSpan({ cls: 'vs-quick-spacer' });
-    iconButton(quickRow, 'more-horizontal', '选择', (event) =>
+    iconButton(quickRow, 'more-horizontal', tr('选择', 'Select'), (event) =>
       showMenu(event, [
         {
           title: tr('全选', 'Select all'),
@@ -938,7 +938,10 @@ export class BatchProcessingModal extends Modal {
       this.updateProgressDisplay();
 
       // 显示完成通知
-      const successText = `批量处理完成！成功: ${this.progress.completed}, 失败: ${this.progress.failed}`;
+      const successText = tr(
+        `批量处理完成！成功: ${this.progress.completed}, 失败: ${this.progress.failed}`,
+        `Batch finished. Succeeded: ${this.progress.completed}, failed: ${this.progress.failed}`,
+      );
       new Notice(successText, 5000);
     } catch (error) {
       console.error('批量处理失败:', error);
@@ -1139,7 +1142,9 @@ export class BatchProcessingModal extends Modal {
   }
 
   private async resolveCourseIndexPath(manifest: CourseManifest): Promise<string> {
-    const folder = [this.plugin.settings.outputFolder || '', '课程'].filter(Boolean).join('/');
+    const folder = [this.plugin.settings.outputFolder || '', tr('课程', 'Lecture')]
+      .filter(Boolean)
+      .join('/');
     await this.ensureDirectoryExists(folder);
     const base = courseIndexBaseName(manifest);
     let path = folder ? `${folder}/${base}.md` : `${base}.md`;
@@ -1178,12 +1183,12 @@ export class BatchProcessingModal extends Modal {
 
     const statusText =
       this.progress.status === 'running'
-        ? '⏳ 处理中'
+        ? tr('⏳ 处理中', '⏳ Processing')
         : this.progress.status === 'complete'
-          ? '✅ 完成'
+          ? tr('✅ 完成', '✅ Done')
           : this.progress.status === 'error'
-            ? '❌ 错误'
-            : '📺 就绪';
+            ? tr('❌ 错误', '❌ Error')
+            : tr('📺 就绪', '📺 Ready');
 
     this.progressEl.createEl('h3', {
       text: tr(`批量处理状态: ${statusText}`, `Batch status: ${statusText}`),

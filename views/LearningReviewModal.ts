@@ -201,9 +201,9 @@ export class LearningReviewModal extends Modal {
   private renderToolbar(): void {
     const toolbar = this.contentEl.createDiv({ cls: 'vs-learning-review-toolbar' });
     const modes: Array<[LearningReviewMode, string]> = [
-      ['due', '到期'],
-      ['mistakes', '错题'],
-      ['all', '全部'],
+      ['due', tr('到期', 'Due')],
+      ['mistakes', tr('错题', 'Mistakes')],
+      ['all', tr('全部', 'All')],
     ];
     modes.forEach(([mode, label]) => {
       const button = toolbar.createEl('button', {
@@ -306,7 +306,13 @@ export class LearningReviewModal extends Modal {
     const row = container.createEl('label', { cls: 'vs-learning-review-confidence' });
     row.createSpan({ text: tr('把握程度', 'Confidence') });
     const select = row.createEl('select');
-    const labels = ['1 · 完全没把握', '2 · 比较犹豫', '3 · 一般', '4 · 有把握', '5 · 非常确定'];
+    const labels = [
+      tr('1 · 完全没把握', '1 · No idea'),
+      tr('2 · 比较犹豫', '2 · Unsure'),
+      tr('3 · 一般', '3 · So-so'),
+      tr('4 · 有把握', '4 · Fairly sure'),
+      tr('5 · 非常确定', '5 · Certain'),
+    ];
     labels.forEach((label, index) => {
       const confidence = (index + 1) as LearningConfidence;
       const option = select.createEl('option', {
@@ -434,8 +440,8 @@ export class LearningReviewModal extends Modal {
         target.status === 'available'
           ? formatTimestamp(target.start)
           : target.status === 'untimed'
-            ? '无时间点'
-            : '证据缺失';
+            ? tr('无时间点', 'No timestamp')
+            : tr('证据缺失', 'Evidence missing');
       row.createSpan({ text: label, cls: 'vs-learning-review-evidence-time' });
       row.createSpan({
         text: target.text || target.message,
@@ -522,7 +528,8 @@ function normalizeAnswer(value: string): string {
 function progressMessage(progress: LearningProgressItem, state: LearningReviewState): string {
   const due = new Date(progress.due_at).toLocaleString();
   if (state === 'suspended') return tr('这道题已暂停。', 'This question is paused.');
-  const mastery = progress.mastery === 'mastered' ? '已掌握' : '学习中';
+  const mastery =
+    progress.mastery === 'mastered' ? tr('已掌握', 'Mastered') : tr('学习中', 'Learning');
   return tr(
     `${mastery} · 连续答对 ${progress.consecutive_correct} 次 · 下次 ${due}`,
     `${mastery} · right ${progress.consecutive_correct} times in a row · next ${due}`,

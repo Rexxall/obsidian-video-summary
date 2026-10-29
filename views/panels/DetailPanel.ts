@@ -93,7 +93,13 @@ function renderBanner(
     banner.addClass('is-empty');
   }
   banner.createSpan({ cls: 'vs-banner-bar' });
-  iconButton(banner, 'arrow-left', '返回列表', () => ctx.closeDetail(), 'vs-banner-back');
+  iconButton(
+    banner,
+    'arrow-left',
+    tr('返回列表', 'Back to list'),
+    () => ctx.closeDetail(),
+    'vs-banner-back',
+  );
   statusPill(banner, options.status, { label: statusMeta(options.status).label }).addClass(
     'vs-banner-pill',
   );
@@ -159,19 +165,21 @@ function renderJobDetail(
     const actions = body.createDiv({ cls: 'vs-detail-actions' });
     textButton(
       actions,
-      '重试（跳过缓存）',
+      tr('重试（跳过缓存）', 'Retry (skip cache)'),
       () => {
         ctx.plugin.jobs.retry(job.id);
         ctx.closeDetail();
       },
       'is-primary is-fill',
     );
-    textButton(actions, '复制错误', () => {
+    textButton(actions, tr('复制错误', 'Copy error'), () => {
       void navigator.clipboard.writeText(job.error || '');
       new Notice(tr('已复制', 'Copied'));
     });
     if (isCookieError(job.error)) {
-      textButton(actions, '打开 cookies 目录', () => openCookiesFolder(ctx));
+      textButton(actions, tr('打开 cookies 目录', 'Open cookies folder'), () =>
+        openCookiesFolder(ctx),
+      );
     }
     renderLogs(body, job);
     return;
@@ -208,10 +216,18 @@ function renderJobDetail(
       renderEvidence(pane, ctx, job);
       break;
     case 'transcript':
-      renderText(pane, job.result.video_transcript, '这次没有返回文稿');
+      renderText(
+        pane,
+        job.result.video_transcript,
+        tr('这次没有返回文稿', 'No transcript came back this time'),
+      );
       break;
     case 'meta':
-      renderText(pane, JSON.stringify(job.result, null, 2).slice(0, 8000), '没有元数据');
+      renderText(
+        pane,
+        JSON.stringify(job.result, null, 2).slice(0, 8000),
+        tr('没有元数据', 'No metadata'),
+      );
       break;
     case 'logs':
       renderLogs(pane, job);
@@ -224,7 +240,7 @@ function renderJobDetail(
   if (job.state === 'review') {
     const write = textButton(
       actions,
-      '写入笔记',
+      tr('写入笔记', 'Write note'),
       fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
           new Notice(tr('已写入笔记', 'Written to the note'));
@@ -237,7 +253,7 @@ function renderJobDetail(
   } else if (job.notePath) {
     const open = textButton(
       actions,
-      '打开笔记',
+      tr('打开笔记', 'Open note'),
       fire(() => ctx.openNote(job.notePath!)),
       'is-primary is-fill has-icon',
     );
@@ -245,14 +261,14 @@ function renderJobDetail(
   }
 
   if (persistedArtifact) {
-    const copy = textButton(actions, '复制工件 JSON', () => {
+    const copy = textButton(actions, tr('复制工件 JSON', 'Copy artifact JSON'), () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
       new Notice(tr('已复制工件 JSON', 'Artifact JSON copied'));
     });
     prependIcon(copy, 'clipboard');
   } else {
     // 四个低频写入动作收进"更多"，不再六个按钮平铺
-    const more = textButton(actions, '更多', () => undefined, 'has-caret');
+    const more = textButton(actions, tr('更多', 'More'), () => undefined, 'has-caret');
     more.addEventListener('click', (event) => {
       showMenu(event, [
         {
@@ -293,7 +309,7 @@ function renderJobDetail(
       iconButton(
         actions,
         'trash-2',
-        '丢弃结果',
+        tr('丢弃结果', 'Discard result'),
         fire(async () => {
           await ctx.plugin.jobService.discardResult(job);
           ctx.closeDetail();
@@ -349,10 +365,15 @@ function renderStoredArtifactDetail(
         error instanceof Error ? errorMessage(error) : String(error),
       );
       const actions = container.createDiv({ cls: 'vs-detail-actions' });
-      textButton(actions, '返回笔记库', () => ctx.closeDetail(), 'is-primary');
       textButton(
         actions,
-        '打开笔记',
+        tr('返回笔记库', 'Back to library'),
+        () => ctx.closeDetail(),
+        'is-primary',
+      );
+      textButton(
+        actions,
+        tr('打开笔记', 'Open note'),
         fire(() => ctx.openNote(notePath)),
       );
     });
@@ -521,7 +542,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
   if (!result.attention) {
     textButton(
       actionRow,
-      '先做观看判断',
+      tr('先做观看判断', 'Get a watch verdict first'),
       fire(() => queueKnowledgeUpgrade(ctx, job, 'quick')),
       'has-icon',
     );
@@ -529,7 +550,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
   if (depth !== 'deep-visual' && !result.visual_evidence?.length) {
     const upgrade = textButton(
       actionRow,
-      '深度看画面',
+      tr('深度看画面', 'Look at the frames in depth'),
       fire(() => queueKnowledgeUpgrade(ctx, job, 'deep-visual')),
       'has-icon',
     );
@@ -538,7 +559,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
   if (learningCount > 0 && job.notePath) {
     const review = textButton(
       actionRow,
-      `开始复习 · ${learningCount}`,
+      tr(`开始复习 · ${learningCount}`, `Start review · ${learningCount}`),
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || '');
         if (!(file instanceof TFile)) {
@@ -553,7 +574,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
   } else if (learningCount === 0 && job.notePath) {
     const generate = textButton(
       actionRow,
-      '生成学习卡',
+      tr('生成学习卡', 'Make study cards'),
       fire(() => queueLearningUpgrade(ctx, job)),
       'has-icon',
     );
@@ -634,22 +655,22 @@ async function queueLearningUpgrade(ctx: ViewContext, job: Job) {
 function contentTypeLabel(type: string): string {
   return (
     {
-      course: '课程',
-      interview: '访谈',
-      tutorial: '教程',
-      news: '新闻',
-      meeting: '会议',
-      review: '评测',
-      general: '通用',
+      course: tr('课程', 'Lecture'),
+      interview: tr('访谈', 'Interview'),
+      tutorial: tr('教程', 'Tutorial'),
+      news: tr('新闻', 'News'),
+      meeting: tr('会议', 'Meeting'),
+      review: tr('评测', 'Review'),
+      general: tr('通用', 'General'),
     }[type] || type
   );
 }
 
 function attentionLabel(action: 'watch' | 'skim' | 'skip'): string {
   return {
-    watch: '值得完整观看',
-    skim: '建议选段浏览',
-    skip: '可以跳过',
+    watch: tr('值得完整观看', 'Worth watching in full'),
+    skim: tr('建议选段浏览', 'Skim selected parts'),
+    skip: tr('可以跳过', 'Can skip'),
   }[action];
 }
 
@@ -728,8 +749,8 @@ function renderPreview(body: HTMLElement, ctx: ViewContext, job: Job) {
 
   const markdown = sanitizeGeneratedMarkdownActiveResources(
     [
-      result.summary ? `## 总结\n\n${result.summary}` : '',
-      result.note ? `## 笔记\n\n${result.note}` : '',
+      result.summary ? tr(`## 总结\n\n${result.summary}`, `## Summary\n\n${result.summary}`) : '',
+      result.note ? tr(`## 笔记\n\n${result.note}`, `## Notes\n\n${result.note}`) : '',
     ]
       .filter(Boolean)
       .join('\n\n'),
@@ -808,13 +829,13 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
   if (file) {
     textButton(
       actions,
-      '打开笔记',
+      tr('打开笔记', 'Open note'),
       fire(() => ctx.openNote(file.path)),
       'is-primary is-fill',
     );
     textButton(
       actions,
-      '重跑（跳过缓存）',
+      tr('重跑（跳过缓存）', 'Run again (skip cache)'),
       fire(async () => {
         await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
         ctx.closeDetail();

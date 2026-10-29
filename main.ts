@@ -1176,7 +1176,9 @@ export default class VideoSummaryPlugin extends Plugin {
           ),
         );
       } else {
-        const hint = result.hint ? `\n建议: ${result.hint}` : '';
+        const hint = result.hint
+          ? tr(`\n建议: ${result.hint}`, `\nSuggestion: ${result.hint}`)
+          : '';
         new Notice(
           tr(
             `${label} 连接失败: ${result.error || '未知错误'}${hint}`,
@@ -2163,7 +2165,10 @@ export default class VideoSummaryPlugin extends Plugin {
           },
           ...(index + 1 < candidates.length
             ? {
-                continueLabel: `继续下一个视频（还剩 ${candidates.length - index - 1} 个）`,
+                continueLabel: tr(
+                  `继续下一个视频（还剩 ${candidates.length - index - 1} 个）`,
+                  `Continue with the next video (${candidates.length - index - 1} left)`,
+                ),
                 onContinue: () => openAt(index + 1),
               }
             : {}),
@@ -2278,7 +2283,10 @@ export default class VideoSummaryPlugin extends Plugin {
     if (notify) {
       const message =
         result.status === 'preserved'
-          ? `已保留用户修改的 Base：${path}。如需新版，请先另存或手动删除该文件。`
+          ? tr(
+              `已保留用户修改的 Base：${path}。如需新版，请先另存或手动删除该文件。`,
+              `Kept your edited Base: ${path}. Save it under another name or delete it to get the new version.`,
+            )
           : `${result.reason} ${path}`;
       new Notice(message, 7000);
     }
@@ -2546,8 +2554,11 @@ export default class VideoSummaryPlugin extends Plugin {
           return;
         }
         const confirmed = await this.showConfirmDialog(
-          '允许处理本地媒体？',
-          `外部协议请求读取并发送这个本地文件到当前后端：\n${localFile}\n\n仅在你认识该来源时确认。`,
+          tr('允许处理本地媒体？', 'Allow processing a local file?'),
+          tr(
+            `外部协议请求读取并发送这个本地文件到当前后端：\n${localFile}\n\n仅在你认识该来源时确认。`,
+            `An external link asks to read this local file and send it to the current backend:\n${localFile}\n\nConfirm only if you recognise where it came from.`,
+          ),
         );
         if (!confirmed) {
           new Notice(
@@ -3171,7 +3182,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
     });
 
     const details = [
-      result.durationMs !== undefined ? `耗时 ${result.durationMs}ms` : '',
+      result.durationMs !== undefined
+        ? tr(`耗时 ${result.durationMs}ms`, `Took ${result.durationMs}ms`)
+        : '',
       result.status ? `HTTP ${result.status}` : '',
       result.error || '',
     ]
@@ -3189,12 +3202,22 @@ class VideoSummarySettingTab extends PluginSettingTab {
     if (result.workflow) {
       const workflow = result.workflow;
       const workflowLines = [
-        workflow.name ? `名称: ${workflow.name}` : '',
-        workflow.version ? `版本: ${workflow.version}` : '',
-        workflow.variant ? `类型: ${workflow.variant}` : '',
+        workflow.name ? tr(`名称: ${workflow.name}`, `Name: ${workflow.name}`) : '',
+        workflow.version ? tr(`版本: ${workflow.version}`, `Version: ${workflow.version}`) : '',
+        workflow.variant ? tr(`类型: ${workflow.variant}`, `Variant: ${workflow.variant}`) : '',
         workflow.webhookPath ? `Path: ${workflow.webhookPath}` : '',
-        workflow.models?.length ? `模型标签: ${workflow.models.join(', ')}` : '',
-        workflow.requiredTools?.length ? `依赖工具: ${workflow.requiredTools.join(', ')}` : '',
+        workflow.models?.length
+          ? tr(
+              `模型标签: ${workflow.models.join(', ')}`,
+              `Model tags: ${workflow.models.join(', ')}`,
+            )
+          : '',
+        workflow.requiredTools?.length
+          ? tr(
+              `依赖工具: ${workflow.requiredTools.join(', ')}`,
+              `Required tools: ${workflow.requiredTools.join(', ')}`,
+            )
+          : '',
       ].filter(Boolean);
       if (workflowLines.length > 0) {
         containerEl.createEl('pre', { text: workflowLines.join('\n') });
@@ -3552,7 +3575,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
               3000,
             );
           } else {
-            const hint = res.hint ? `\n建议: ${res.hint}` : '';
+            const hint = res.hint ? tr(`\n建议: ${res.hint}`, `\nSuggestion: ${res.hint}`) : '';
             new Notice(
               tr(
                 `${label} 连接失败: ${res.error || '未知错误'}${hint}`,
@@ -4138,13 +4161,47 @@ class VideoSummarySettingTab extends PluginSettingTab {
         );
     };
 
-    createKeySetting('处理模式键', '发送处理模式（summary/transcript-only 等）的键名', 'mode');
-    createKeySetting('语言键', '发送语言代码（zh/en/ja）的键名', 'language');
-    createKeySetting('模型键', '发送模型标签的键名', 'ai');
-    createKeySetting('仅信息标志键', '当模式为 info-only 时发送 true 的键名', 'info_only');
-    createKeySetting('视频链接键', '发送视频 URL 的键名', 'link');
-    createKeySetting('手动文稿键', '发送手动提供的文稿内容的键名', 'provided_transcript');
-    createKeySetting('本地文件键', '发送本地文件路径的键名', 'local_file');
+    createKeySetting(
+      tr('处理模式键', 'Mode key'),
+      tr(
+        '发送处理模式（summary/transcript-only 等）的键名',
+        'Key that carries the processing mode (summary, transcript-only and so on)',
+      ),
+      'mode',
+    );
+    createKeySetting(
+      tr('语言键', 'Language key'),
+      tr('发送语言代码（zh/en/ja）的键名', 'Key that carries the language code (zh/en/ja)'),
+      'language',
+    );
+    createKeySetting(
+      tr('模型键', 'Model key'),
+      tr('发送模型标签的键名', 'Key that carries the model tag'),
+      'ai',
+    );
+    createKeySetting(
+      tr('仅信息标志键', 'Info-only flag key'),
+      tr(
+        '当模式为 info-only 时发送 true 的键名',
+        'Key that carries true when the mode is info-only',
+      ),
+      'info_only',
+    );
+    createKeySetting(
+      tr('视频链接键', 'Video link key'),
+      tr('发送视频 URL 的键名', 'Key that carries the video URL'),
+      'link',
+    );
+    createKeySetting(
+      tr('手动文稿键', 'Manual transcript key'),
+      tr('发送手动提供的文稿内容的键名', 'Key that carries a transcript you supplied'),
+      'provided_transcript',
+    );
+    createKeySetting(
+      tr('本地文件键', 'Local file key'),
+      tr('发送本地文件路径的键名', 'Key that carries the local file path'),
+      'local_file',
+    );
   }
 
   private createAdvancedSection(containerEl: HTMLElement) {
@@ -4378,8 +4435,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
       const confirmed = await new Promise<boolean>((resolve) => {
         const confirmModal = new ConfirmModal(
           this.app,
-          '确认清空所有缓存',
-          '此操作将删除所有缓存项，无法恢复。确定要继续吗？',
+          tr('确认清空所有缓存', 'Clear all cache?'),
+          tr(
+            '此操作将删除所有缓存项，无法恢复。确定要继续吗？',
+            'This deletes every cached item and cannot be undone. Continue?',
+          ),
           resolve,
         );
         confirmModal.open();
@@ -4472,14 +4532,14 @@ class VideoSummarySettingTab extends PluginSettingTab {
           text: value,
         });
       };
-      addStatCard('总缓存项', String(currentStats.size));
-      addStatCard('最大容量', String(currentStats.maxSize));
+      addStatCard(tr('总缓存项', 'Cached items'), String(currentStats.size));
+      addStatCard(tr('最大容量', 'Capacity'), String(currentStats.maxSize));
       addStatCard(
-        '过期项',
+        tr('过期项', 'Expired'),
         String(currentStats.expiredCount),
         currentStats.expiredCount > 0 ? 'expired' : '',
       );
-      addStatCard('总大小', this.formatBytes(currentStats.totalSize));
+      addStatCard(tr('总大小', 'Total size'), this.formatBytes(currentStats.totalSize));
       // 缓存内容预览
       if (currentStats.size > 0) {
         const previewSection = container.createDiv({ cls: 'cache-preview-content' });
@@ -4711,9 +4771,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
    */
   private getModeLabel(mode: string): string {
     const modeLabels: { [key: string]: string } = {
-      summary: '完整总结',
-      'transcript-only': '仅文稿',
-      'info-only': '仅视频信息',
+      summary: tr('完整总结', 'Full summary'),
+      'transcript-only': tr('仅文稿', 'Transcript only'),
+      'info-only': tr('仅视频信息', 'Video info only'),
     };
     return modeLabels[mode] || mode;
   }
@@ -4724,8 +4784,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
   private getLanguageLabel(language: string): string {
     const languageLabels: { [key: string]: string } = {
       zh: '中文',
-      en: '英文',
-      ja: '日文',
+      en: tr('英文', 'English'),
+      ja: tr('日文', 'Japanese'),
     };
     return languageLabels[language] || language;
   }

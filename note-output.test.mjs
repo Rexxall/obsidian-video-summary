@@ -26,7 +26,7 @@ const names = [
   'asText',
   'scalarText',
 ];
-const context = { URL };
+const context = { URL, tr: (zh) => zh };
 vm.createContext(context);
 for (const name of names) {
   const node = ast.statements.find((s) => ts.isFunctionDeclaration(s) && s.name?.text === name);

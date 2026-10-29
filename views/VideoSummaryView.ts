@@ -233,8 +233,8 @@ export class VideoSummaryView extends ItemView {
       this.plugin.jobs.getActive().length + this.plugin.jobs.countByState('review');
     const libraryCount = this.plugin.noteIndex.getAll().length;
     const tabs: Array<[PanelTab, string, string | undefined]> = [
-      ['jobs', '任务', activeCount > 0 ? String(activeCount) : undefined],
-      ['library', '笔记库', String(libraryCount)],
+      ['jobs', tr('任务', 'Jobs'), activeCount > 0 ? String(activeCount) : undefined],
+      ['library', tr('笔记库', 'Library'), String(libraryCount)],
     ];
 
     const wrapper = panel.createDiv({ cls: 'vs-tab-row ap-bar-glass' });

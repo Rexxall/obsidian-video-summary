@@ -49,7 +49,7 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
     },
   });
 
-  iconButton(header, 'arrow-up-down', '排序方式', (event) => {
+  iconButton(header, 'arrow-up-down', tr('排序方式', 'Sort by'), (event) => {
     showMenu(
       event,
       [
@@ -72,24 +72,27 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
   const counts = countByStatus(entries, ctx);
   const runningLabel =
     counts.active > 0 && counts.interrupted > 0
-      ? `进行 ${counts.active} · 中断 ${counts.interrupted}`
+      ? tr(
+          `进行 ${counts.active} · 中断 ${counts.interrupted}`,
+          `Running ${counts.active} · interrupted ${counts.interrupted}`,
+        )
       : counts.active > 0
-        ? `处理中 ${counts.active}`
+        ? tr(`处理中 ${counts.active}`, `Processing ${counts.active}`)
         : counts.interrupted > 0
-          ? `已中断 ${counts.interrupted}`
-          : '处理中 0';
+          ? tr(`已中断 ${counts.interrupted}`, `Interrupted ${counts.interrupted}`)
+          : tr('处理中 0', 'Processing 0');
   const filters = container.createDiv({ cls: 'vs-filter-row' });
   (
     [
-      ['all', `全部 ${entries.length}`, ''],
-      ['pending', `待处理 ${counts.pending}`, 'is-pending'],
+      ['all', tr(`全部 ${entries.length}`, `All ${entries.length}`), ''],
+      ['pending', tr(`待处理 ${counts.pending}`, `Pending ${counts.pending}`), 'is-pending'],
       [
         'running',
         runningLabel,
         counts.active === 0 && counts.interrupted > 0 ? 'is-interrupted' : 'is-running',
       ],
-      ['error', `失败 ${counts.error}`, 'is-error'],
-      ['success', `已完成 ${counts.success}`, 'is-success'],
+      ['error', tr(`失败 ${counts.error}`, `Failed ${counts.error}`), 'is-error'],
+      ['success', tr(`已完成 ${counts.success}`, `Done ${counts.success}`), 'is-success'],
     ] as Array<[LibraryFilter, string, string]>
   ).forEach(([value, label, tone]) => {
     const chip = filters.createEl('button', {
@@ -290,7 +293,7 @@ function renderRow(
     iconButton(
       actions,
       'x',
-      '取消',
+      tr('取消', 'Cancel'),
       fire(async () => {
         if (liveJob) await ctx.plugin.jobService.cancel(liveJob);
         ctx.renderPanels();
@@ -301,7 +304,7 @@ function renderRow(
     iconButton(
       actions,
       'eye',
-      '确认结果',
+      tr('确认结果', 'Confirm result'),
       () => ctx.openDetail({ kind: 'job', id: liveJob.id }),
       'is-accent',
     );
@@ -309,7 +312,9 @@ function renderRow(
     iconButton(
       actions,
       displayStatus === 'interrupted' ? 'refresh-cw' : 'play',
-      displayStatus === 'success' || displayStatus === 'interrupted' ? '重跑' : '处理',
+      displayStatus === 'success' || displayStatus === 'interrupted'
+        ? tr('重跑', 'Run again')
+        : tr('处理', 'Process'),
       fire(async () => {
         const file = fileOf(ctx, entry);
         if (!file) return;
@@ -325,7 +330,7 @@ function renderRow(
     iconButton(
       actions,
       'book-open',
-      '打开同步陪读',
+      tr('打开同步陪读', 'Open synced read-along'),
       () =>
         ctx.openDetail({
           kind: 'note',
@@ -336,7 +341,7 @@ function renderRow(
     );
   }
 
-  iconButton(actions, 'more-horizontal', '更多操作', (event) => {
+  iconButton(actions, 'more-horizontal', tr('更多操作', 'More actions'), (event) => {
     const menuItems = [
       {
         title: tr('打开笔记', 'Open note'),
@@ -399,8 +404,11 @@ function renderRow(
 function confirmDelete(ctx: ViewContext, entry: VideoNoteEntry) {
   new ConfirmModal(
     ctx.plugin.app,
-    '删除笔记',
-    `确定删除 "${entry.basename}"？会按 Obsidian 的“删除文件”设置移到回收站。`,
+    tr('删除笔记', 'Delete note'),
+    tr(
+      `确定删除 "${entry.basename}"？会按 Obsidian 的“删除文件”设置移到回收站。`,
+      `Delete "${entry.basename}"? It goes to the trash according to Obsidian's "Deleted files" setting.`,
+    ),
     fire(async (confirmed: boolean) => {
       if (!confirmed) return;
       const file = fileOf(ctx, entry);

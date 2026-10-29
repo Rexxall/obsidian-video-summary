@@ -241,7 +241,7 @@ export class VideoSummaryAPI {
           console.debug(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
         onProgress?.({
-          stageLabel: '命中缓存',
+          stageLabel: tr('命中缓存', 'From cache'),
           progress: 1,
           message: tr('命中缓存，未请求后端', 'From cache; the backend was not called'),
         });
@@ -1523,7 +1523,7 @@ export class VideoSummaryAPI {
     n8nAuth?: Partial<WebhookAuthConfig>,
   ): Promise<EndpointProbeResult> {
     if (!url || !url.trim()) {
-      return { ok: false, error: '服务 URL 未配置' };
+      return { ok: false, error: tr('服务 URL 未配置', 'Service URL not set') };
     }
 
     if (backend === 'codex-worker') {
@@ -1578,7 +1578,10 @@ export class VideoSummaryAPI {
           ok: false,
           error:
             (error as Error)?.name === 'TimeoutError'
-              ? `${timeoutMs}ms 内无响应（服务可能未启动）`
+              ? tr(
+                  `${timeoutMs}ms 内无响应（服务可能未启动）`,
+                  `No answer within ${timeoutMs}ms (the service may not be running)`,
+                )
               : (error as Error)?.message || String(error),
         };
       }
@@ -1600,16 +1603,31 @@ export class VideoSummaryAPI {
         controller.signal,
       );
       if (response.status === 404) {
-        return { ok: false, error: 'HTTP 404 — webhook 不存在或 workflow 未激活' };
+        return {
+          ok: false,
+          error: tr(
+            'HTTP 404 — webhook 不存在或 workflow 未激活',
+            'HTTP 404 — the webhook does not exist or the workflow is not active',
+          ),
+        };
       }
       if (!response.ok) {
-        return { ok: false, error: `HTTP ${response.status} — webhook 健康检查失败` };
+        return {
+          ok: false,
+          error: tr(
+            `HTTP ${response.status} — webhook 健康检查失败`,
+            `HTTP ${response.status} — webhook health check failed`,
+          ),
+        };
       }
       return { ok: true };
     } catch (error) {
       const message =
         (error as Error)?.name === 'AbortError'
-          ? `${timeoutMs}ms 内无响应（服务可能未启动）`
+          ? tr(
+              `${timeoutMs}ms 内无响应（服务可能未启动）`,
+              `No answer within ${timeoutMs}ms (the service may not be running)`,
+            )
           : (error as Error)?.message || String(error);
       return { ok: false, error: message };
     } finally {
@@ -1670,7 +1688,7 @@ export class VideoSummaryAPI {
       }
 
       if (!text || text.trim() === '') {
-        const error = '服务器返回空响应';
+        const error = tr('服务器返回空响应', 'The server returned an empty response');
         return {
           success: false,
           durationMs,
@@ -1688,11 +1706,16 @@ export class VideoSummaryAPI {
             durationMs,
             status: response.status,
             bodySnippet: snippet,
-            warnings: ['当前工作流测试分支未返回版本信息。建议重新导入仓库内最新 workflow。'],
+            warnings: [
+              tr(
+                '当前工作流测试分支未返回版本信息。建议重新导入仓库内最新 workflow。',
+                "This workflow's test branch returned no version. Import the latest workflow from the repository again.",
+              ),
+            ],
           };
         }
 
-        const error = '服务器返回的不是 JSON';
+        const error = tr('服务器返回的不是 JSON', 'The server did not return JSON');
         return {
           success: false,
           durationMs,
@@ -1887,32 +1910,58 @@ export class VideoSummaryAPI {
     if (this.backend !== 'n8n') return [];
 
     if (!workflow) {
-      return ['当前工作流未返回版本信息。建议重新导入仓库内最新 workflow 后再运行诊断。'];
+      return [
+        tr(
+          '当前工作流未返回版本信息。建议重新导入仓库内最新 workflow 后再运行诊断。',
+          'This workflow returned no version. Import the latest workflow from the repository, then run diagnostics again.',
+        ),
+      ];
     }
 
     const warnings: string[] = [];
     if (workflow.version && workflow.version !== RECOMMENDED_WORKFLOW.version) {
       warnings.push(
-        `当前 workflow 版本是 ${workflow.version}，推荐版本是 ${RECOMMENDED_WORKFLOW.version}。`,
+        tr(
+          `当前 workflow 版本是 ${workflow.version}，推荐版本是 ${RECOMMENDED_WORKFLOW.version}。`,
+          `This workflow is version ${workflow.version}; the recommended version is ${RECOMMENDED_WORKFLOW.version}.`,
+        ),
       );
     }
     if (!workflow.version) {
-      warnings.push(`workflow 未声明版本。推荐版本是 ${RECOMMENDED_WORKFLOW.version}。`);
+      warnings.push(
+        tr(
+          `workflow 未声明版本。推荐版本是 ${RECOMMENDED_WORKFLOW.version}。`,
+          `The workflow declares no version. The recommended version is ${RECOMMENDED_WORKFLOW.version}.`,
+        ),
+      );
     }
     if (workflow.webhookPath && workflow.webhookPath !== RECOMMENDED_WORKFLOW.webhookPath) {
       warnings.push(
-        `当前 webhook path 是 ${workflow.webhookPath}，推荐 path 是 ${RECOMMENDED_WORKFLOW.webhookPath}。`,
+        tr(
+          `当前 webhook path 是 ${workflow.webhookPath}，推荐 path 是 ${RECOMMENDED_WORKFLOW.webhookPath}。`,
+          `This webhook path is ${workflow.webhookPath}; the recommended path is ${RECOMMENDED_WORKFLOW.webhookPath}.`,
+        ),
       );
     }
     const models = workflow.models || [];
     const missingModels = RECOMMENDED_WORKFLOW.models.filter((model) => !models.includes(model));
     if (models.length > 0 && missingModels.length > 0) {
-      warnings.push(`workflow 未声明推荐模型标签: ${missingModels.join(', ')}。`);
+      warnings.push(
+        tr(
+          `workflow 未声明推荐模型标签: ${missingModels.join(', ')}。`,
+          `The workflow does not declare the recommended model tags: ${missingModels.join(', ')}.`,
+        ),
+      );
     }
     const tools = workflow.requiredTools || [];
     const missingTools = RECOMMENDED_WORKFLOW.requiredTools.filter((tool) => !tools.includes(tool));
     if (tools.length > 0 && missingTools.length > 0) {
-      warnings.push(`workflow 未声明推荐媒体工具: ${missingTools.join(', ')}。`);
+      warnings.push(
+        tr(
+          `workflow 未声明推荐媒体工具: ${missingTools.join(', ')}。`,
+          `The workflow does not declare the recommended media tools: ${missingTools.join(', ')}.`,
+        ),
+      );
     }
 
     return warnings;

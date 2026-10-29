@@ -116,7 +116,9 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
         });
       }
       const highlighted = highlights.has(segment.id);
-      const highlightLabel = highlighted ? '取消重点' : '标记重点';
+      const highlightLabel = highlighted
+        ? tr('取消重点', 'Unmark highlight')
+        : tr('标记重点', 'Mark as highlight');
       const star = row.createSpan({
         cls: 'vs-reader-highlight',
         attr: {
