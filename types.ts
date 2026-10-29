@@ -296,8 +296,8 @@ export interface VideoSummarySettings {
   generateLearningArtifacts: boolean;
   /** 阅读器里复制或插入文稿段落时用的 Markdown 模板 */
   readerQuoteTemplate: string;
+  /** The backend's model name from the last setup check; recorded with each result. */
   aiModel: string;
-  customAiModels: string[];
   timeoutMinutes: number;
   autoSave: boolean;
 
@@ -350,7 +350,7 @@ export interface VideoSummarySettings {
   // 短链自动展开
   expandShortLinks: boolean;
 
-  // cookies 目录（n8n docker/cookies 的绝对路径，桌面端）
+  // cookies 目录（后端文件夹里 cookies 的绝对路径，桌面端）
   cookiesDirPath: string;
 }
 
@@ -404,12 +404,6 @@ export interface ConnectionTestResult {
   hint?: string;
   workflow?: WorkflowHealthInfo;
   warnings?: string[];
-}
-
-export interface SetupCheckItem {
-  label: string;
-  state: 'ready' | 'warning' | 'missing';
-  detail: string;
 }
 
 export interface WorkflowHealthInfo {

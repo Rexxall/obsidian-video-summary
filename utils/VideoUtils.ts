@@ -227,11 +227,29 @@ export class VideoUtils {
           val !== '>-' &&
           val !== '>+'
         ) {
-          return val;
+          return this.unquoteYamlScalar(val);
         }
       }
     }
     return null;
+  }
+
+  /** A single-line YAML value as written: 'a ''b''' and "a \"b\"" lose their quotes. */
+  static unquoteYamlScalar(raw: string): string {
+    const value = raw.trim();
+    if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+      return value.slice(1, -1).replace(/''/g, "'");
+    }
+    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (typeof parsed === 'string') return parsed;
+      } catch {
+        // not valid JSON escaping; fall back to the inner text
+      }
+      return value.slice(1, -1);
+    }
+    return value;
   }
 
   /**
@@ -243,7 +261,7 @@ export class VideoUtils {
       const fmText = fmMatch[1];
       const fileNameMatch = fmText.match(/^(local_file|localFileName|localFile):\s*(.+)$/m);
       if (fileNameMatch) {
-        return fileNameMatch[2].trim();
+        return this.unquoteYamlScalar(fileNameMatch[2]) || null;
       }
     }
     return null;

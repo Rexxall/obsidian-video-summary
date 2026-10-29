@@ -32,7 +32,7 @@ Video Summary 可以连接两类处理端点，也可以只用 Obsidian URI 做�
 
 ### n8n
 
-仓库里的 `Obsidian Video Summary.json` 是可导入的通用工作流，默认 webhook 为：
+后端安装包里的 `backend/workflows/video-summary.json` 是自动导入的通用工作流，默认 webhook 为：
 
 ```text
 http://127.0.0.1:5678/webhook/obsidian-video-summary
@@ -49,7 +49,7 @@ http://127.0.0.1:5678/webhook/obsidian-video-summary
 工作流导出中。仓库的 Docker Compose 默认只监听 `127.0.0.1`；若自行开放到局域网或
 公网，还必须配置 TLS、访问控制和反向代理限流，不能只依赖这个 Header。
 
-本地文件必须直接复制到 `docker/uploads/` 根目录，请求里只发送 basename。任意子目录、
+本地文件必须直接复制到 后端文件夹的 `uploads/` 根目录，请求里只发送 basename。任意子目录、
 macOS/Windows 绝对路径、斜杠和 shell 元字符都会被拒绝；`obsidian://` 的绝对本地文件
 只能离线收件，或交给已配置显式媒体根目录并执行 realpath 边界检查的兼容 Worker。
 
@@ -71,7 +71,7 @@ AI。只有显式传入 `capture-and-process` 或 `process` 时，插件才会�
 后端。短链在离线收件阶段无法保证与展开后的长链绝对去重。
 
 URI 本地文件参数必须是绝对路径，以便稳定去重；因此 bundled n8n 后端会保留收件笔记
-但拒绝自动提交。要处理它，请直接复制到 `docker/uploads/` 后从侧栏/笔记用文件名提交，
+但拒绝自动提交。要处理它，请直接复制到 后端文件夹的 `uploads/` 后从侧栏/笔记用文件名提交，
 或切换到已配置媒体根目录且能够安全访问该路径的 Worker。
 
 ## 默认值与切换

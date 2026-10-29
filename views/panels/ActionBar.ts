@@ -609,23 +609,6 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     }),
   );
 
-  const models = (
-    settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]
-  ).filter(Boolean);
-  const modelSelect = row('处理模型').createEl('select', { cls: 'dropdown' });
-  models.forEach((model) =>
-    modelSelect.createEl('option', { text: model, attr: { value: model } }),
-  );
-  modelSelect.value = settings.aiModel || models[0] || '';
-  modelSelect.addEventListener(
-    'change',
-    fire(async () => {
-      settings.aiModel = modelSelect.value;
-      plugin.api.setAiModel(modelSelect.value);
-      await plugin.saveSettings();
-    }),
-  );
-
   const folderBtn = row('保存位置').createEl('button', {
     text: shortenPath(settings.outputFolder || '当前文件夹'),
     cls: 'vs-link-btn',
@@ -748,7 +731,7 @@ function renderAdvanced(
     ctx.state.localFileDraft = localFile.value;
   });
   localRow.createDiv({
-    text: 'Docker/n8n 场景请把文件放进 docker/uploads，这里只填文件名或相对路径。',
+    text: '先把文件放进后端文件夹的 uploads 里，这里只填文件名。',
     cls: 'vs-field-hint',
   });
   localFile.addEventListener('blur', () => {

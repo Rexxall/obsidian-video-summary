@@ -15,7 +15,11 @@ import {
 import { CacheManager } from '../utils/CacheManager';
 import { UrlResolver } from '../utils/UrlResolver';
 import type { RequestUrlParam, RequestUrlResponse, Vault } from 'obsidian';
-import { DEFAULT_WEBHOOK_AUTH_HEADER, RECOMMENDED_WORKFLOW } from '../constants';
+import {
+  BACKEND_DEFAULT_MODEL_LABEL,
+  DEFAULT_WEBHOOK_AUTH_HEADER,
+  RECOMMENDED_WORKFLOW,
+} from '../constants';
 import { normalizeRichProcessingResult } from '../core/KnowledgeModel';
 import {
   buildContentRoutingPromptContract,
@@ -53,7 +57,7 @@ export class VideoSummaryAPI {
   private webhookUrl: string;
   private timeout: number;
   private debugMode: boolean = false;
-  private aiModel: string = 'Gemini 3.1';
+  private aiModel: string = BACKEND_DEFAULT_MODEL_LABEL;
   private backend: ProcessingBackend = 'n8n';
   private webhookAuth: WebhookAuthConfig = {
     headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
@@ -1723,6 +1727,95 @@ export class VideoSummaryAPI {
     }
   }
 
+  /**
+   * Ask the packaged backend for its health report. `deep` also lists the model provider's models
+   * and transcribes a one-second sample, which proves both keys work.
+   */
+  async checkBackend(
+    deep: boolean,
+  ): Promise<{ status?: number; error?: string; report?: unknown }> {
+    try {
+      const response = await VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify({ name: 'test', metadata: deep ? { check: 'deep' } : {}, content: '' }),
+        deep ? 120_000 : 15_000,
+      );
+      const text = await response.text();
+      return { status: response.status, report: this.tryParseJson(text) ?? undefined };
+    } catch (error) {
+      return { error: this.redactWebhookSecret(this.errorToString(error)) };
+    }
+  }
+
+  /** Save a Netscape cookies.txt for one platform into the backend's cookies folder. */
+  async uploadCookies(
+    platform: string,
+    cookies: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    try {
+      const response = await VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify({ name: 'save-cookies', metadata: { platform, cookies }, content: '' }),
+        30_000,
+      );
+      const parsed = this.tryParseJson(await response.text());
+      if (response.ok && isRecord(parsed) && parsed.ok === true) {
+        return { ok: true, message: `已保存 ${String(parsed.cookies)} 条 cookie。` };
+      }
+      return {
+        ok: false,
+        message:
+          response.status === 500
+            ? '后端没接受这段内容：需要浏览器扩展导出的 cookies.txt（每行用 Tab 分隔的 7 列），并且包含这个网站的 cookie。'
+            : this.formatUserFacingError(new Error(`HTTP ${response.status}`)),
+      };
+    } catch (error) {
+      return { ok: false, message: this.formatUserFacingError(error) };
+    }
+  }
+
+  /** Summarise a short built-in text end to end; proves the model really answers. */
+  async trialRun(sample: string): Promise<{ ok: boolean; durationMs: number; message: string }> {
+    const started = Date.now();
+    try {
+      const response = await VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(
+          this.buildPayload('首次配置试运行', { transcript: sample }, 'summary', 'zh'),
+        ),
+        180_000,
+      );
+      const parsed = this.tryParseJson(await response.text());
+      const first = Array.isArray(parsed) ? (parsed[0] as unknown) : parsed;
+      const summary = isRecord(first) ? this.readString(first.summary) || '' : '';
+      const durationMs = Date.now() - started;
+      if (!response.ok) {
+        return {
+          ok: false,
+          durationMs,
+          message: this.formatUserFacingError(new Error(`HTTP ${response.status}`)),
+        };
+      }
+      if (!summary || summary.startsWith('Error')) {
+        return {
+          ok: false,
+          durationMs,
+          message: summary.replace(/^Error:\s*/, '') || '后端没有返回总结。',
+        };
+      }
+      return { ok: true, durationMs, message: summary.slice(0, 160) };
+    } catch (error) {
+      return {
+        ok: false,
+        durationMs: Date.now() - started,
+        message: this.formatUserFacingError(error),
+      };
+    }
+  }
+
   private buildConnectionTestPayload() {
     if (this.backend === 'codex-worker') {
       return this.buildPayload(
@@ -1862,29 +1955,29 @@ export class VideoSummaryAPI {
       if (this.backend === 'codex-worker') {
         return `Codex Worker 端点不存在。请确认后端 App 已启动且 URL 指向正确端口。当前 URL: ${this.webhookUrl}`;
       }
-      return `Webhook 不存在或路径不匹配。请确认 n8n workflow 已激活，并且插件 URL 与 Webhook Path 完全一致。当前 URL: ${this.webhookUrl}`;
+      return `后端还没准备好，或者地址不对。第一次启动要等一分钟左右；如果一直这样，确认连接码里的端口和启动脚本显示的一致。当前地址: ${this.webhookUrl}`;
     }
 
     if (message.includes('HTTP 401') || message.includes('HTTP 403')) {
       if (this.backend === 'codex-worker') {
         return 'Codex Worker 拒绝访问。请检查 Worker 鉴权 token 与本地服务安全配置。';
       }
-      return '处理服务拒绝访问。请检查 n8n 权限、反向代理鉴权或远程服务访问设置。';
+      return '后端拒绝了这个连接码。在后端文件夹运行 vs-backend code，把连接码重新粘贴到设置的“首次配置”。';
     }
 
     if (
       lower.includes('bilibili') &&
       (lower.includes('http error 412') || lower.includes('precondition failed'))
     ) {
-      return 'Bilibili 拒绝了 yt-dlp 请求。请先用项目 Docker 镜像无缓存重建以更新 yt-dlp；如果仍失败，把浏览器导出的 cookies 保存为 docker/cookies/bilibili_cookies.txt 后重启 n8n。';
+      return 'B 站拒绝了下载请求。在后端文件夹运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展“同步 B 站登录”。';
     }
 
     if (lower.includes('yt-dlp') && lower.includes('not found')) {
-      return 'n8n 容器缺少 yt-dlp。请使用项目提供的 Docker 镜像，或在当前 n8n 环境中安装 yt-dlp 后重试。';
+      return '后端缺少 yt-dlp。请用后端安装包里的启动脚本启动，不要用官方 n8n 镜像。';
     }
 
     if (lower.includes('ffmpeg') && lower.includes('not found')) {
-      return 'n8n 容器缺少 ffmpeg。请使用项目提供的 Docker 镜像，或在当前 n8n 环境中安装 ffmpeg 后重试。';
+      return '后端缺少 ffmpeg。请用后端安装包里的启动脚本启动，不要用官方 n8n 镜像。';
     }
 
     if (
@@ -1895,7 +1988,7 @@ export class VideoSummaryAPI {
       if (this.backend === 'codex-worker') {
         return `Codex Worker 内部报错。请打开 Worker 控制台查看任务日志。原始错误: ${message}`;
       }
-      return `处理服务内部报错。请打开 n8n Execution 日志查看失败节点。原始错误: ${message}`;
+      return `后端处理时出错。在后端文件夹运行 vs-backend logs 查看日志。原始错误: ${message}`;
     }
 
     if (
@@ -1907,7 +2000,7 @@ export class VideoSummaryAPI {
       if (this.backend === 'codex-worker') {
         return `无法连接 Codex Worker。请确认本地后端 App 已启动、端口可访问且 Worker URL 正确。当前 URL: ${this.webhookUrl}`;
       }
-      return `无法连接处理服务。请确认 Docker/n8n 已启动，端口可访问，插件 URL 正确。当前 URL: ${this.webhookUrl}`;
+      return `无法连接后端。先打开 Docker，再在后端文件夹运行启动脚本。当前地址: ${this.webhookUrl}`;
     }
 
     if (message.includes('服务器返回空响应')) {
@@ -1927,11 +2020,11 @@ export class VideoSummaryAPI {
 
   private getConnectionHint(message: string): string {
     if (message.includes('Webhook 不存在') || message.includes('HTTP 404')) {
-      return '打开 n8n，确认 workflow 已激活；Webhook 节点 Path 应为 obsidian-video-summary。';
+      return '等一分钟再试；仍不行就重新运行启动脚本，并重新粘贴它显示的连接码。';
     }
 
     if (message.includes('无法连接处理服务')) {
-      return '先运行 docker compose 服务，再确认端口没有被其他 n8n 占用。';
+      return '先打开 Docker，再在后端文件夹运行启动脚本（macOS 双击 start-mac.command，Windows 双击 start-windows.cmd）。';
     }
 
     if (message.includes('无法连接 Codex Worker')) {
@@ -1939,7 +2032,7 @@ export class VideoSummaryAPI {
     }
 
     if (message.includes('Bilibili 拒绝')) {
-      return '执行 docker compose build --no-cache 更新 yt-dlp；仍失败时添加 docker/cookies/bilibili_cookies.txt。';
+      return '运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展同步 B 站登录。';
     }
 
     if (message.includes('空响应')) {

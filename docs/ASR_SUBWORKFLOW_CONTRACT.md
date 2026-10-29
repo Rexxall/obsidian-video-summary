@@ -1,68 +1,45 @@
-# n8n ASR Subworkflow Contract
+# Speech-to-text subworkflow
 
-The public `Obsidian Video Summary.json` intentionally does not embed a private n8n workflow ID,
-speech-provider account ID, or credential binding. Native subtitles and pasted transcripts do not
-need an ASR subworkflow. Videos without usable subtitles and local audio/video files do.
+The backend package ships `backend/workflows/video-summary-speech.json` (n8n id
+`vsSpeechToText01`) and imports it on every start that changes it. The main workflow calls it for
+videos without usable subtitles, for local audio/video, and for the setup wizard's deep check.
 
-After importing the main workflow, configure these two nodes:
+## What the bundled workflow does
 
-- `SubFlow: Transcript`
-- `SubFlow: Transcript from Local File`
+1. Accepts `audio_file_path`, a path inside the container under `/home/node/files/` or
+   `/home/node/uploads/`. Symlinks, other roots and non-regular files are rejected.
+2. Converts the audio with ffmpeg to 16 kHz mono MP3 and cuts it into 10-minute parts in a working
+   folder of its own (`/home/node/files/stt-<random>`). Each part stays far below the 50 MB and
+   one-hour limits of SiliconFlow's `/audio/transcriptions`.
+3. Sends the parts one by one to `VS_SPEECH_BASE_URL/audio/transcriptions` with
+   `model=VS_SPEECH_MODEL` (default `FunAudioLLM/SenseVoiceSmall`), retrying each part up to three
+   times.
+4. Joins the text in order, strips model tags such as `<|zh|>`, and deletes its working folder.
+   Working folders older than six hours (from a run that failed half-way) are removed by the next
+   run.
 
-Both contain the visible placeholder `CONFIGURE_ASR_WORKFLOW_ID`. Select your own saved ASR
-subworkflow in each node before relying on the audio-transcription fallback.
+Any OpenAI-compatible `/audio/transcriptions` service works: set the three `VS_SPEECH_*` values in
+`.env` and run the start script again.
 
-## Input
+## Contract, for a replacement
 
-Create the ASR workflow with an **Execute Workflow Trigger** and one string input:
+Input (Execute Workflow Trigger):
+
+```json
+{ "audio_file_path": "/home/node/uploads/lecture.mp3" }
+```
+
+Output, one item:
 
 ```json
 {
-  "audio_file_path": "/absolute/path/inside-the-n8n-container/audio-file.mp3"
+  "full_transcript": "Complete transcript in source order",
+  "transcript_source": "asr",
+  "video_segments": [{ "id": "stt-001", "start": 0, "end": 600, "text": "…" }],
+  "timing_quality": "estimated"
 }
 ```
 
-The path is inside the n8n runtime, not a macOS/Windows host path. With the repository's Docker
-example, downloaded and uploaded media is mounted below `/home/node/`.
-
-## Required output
-
-Return one item containing at least:
-
-```json
-{
-  "full_transcript": "Complete merged transcript text",
-  "transcript_source": "asr"
-}
-```
-
-The main workflow accepts additional fields but depends on a non-empty `full_transcript`.
-If your provider processes chunks, merge them in source order before returning.
-
-## Suggested steps
-
-1. Accept and validate `audio_file_path`.
-2. Use ffmpeg to normalize or split long audio if required by your provider.
-3. Read each audio file as binary.
-4. Send it to the ASR provider you chose using credentials stored in n8n.
-5. Merge transcript chunks in source order.
-6. Return `full_transcript` and `transcript_source`.
-7. Select this workflow in both transcript subflow nodes in the imported main workflow.
-8. Run n8n's test execution with a non-sensitive fixture before activating the main webhook.
-
-## Security boundary
-
-- Keep provider tokens and account identifiers in n8n credentials, not node parameters or exports.
-- Review any ASR workflow export before sharing it.
-- Do not expose n8n or media directories publicly without authentication and network controls.
-- Treat `audio_file_path` as untrusted even though it came from the main workflow. Resolve the real
-  path and accept only a regular file below `/home/node/files/` or `/home/node/uploads/`; reject
-  symlinks, traversal, control characters, and any other root.
-- Never interpolate `audio_file_path` into an Execute Command string, shell variable assignment, or
-  `bash -c` fragment. Use a fixed executable with a real argument array, or use n8n's binary-file
-  nodes without a shell.
-- Give every execution its own working directory and delete only files created by that execution.
-  Never use a global wildcard such as `/home/node/files/*.mp3`, which can delete another concurrent
-  job's input.
-- If you do not want an ASR integration, use native subtitles or paste a transcript; do not treat an
-  empty fallback as a successful transcription.
+`full_transcript` is required; the other fields are optional. Keep provider keys in n8n
+credentials, never interpolate `audio_file_path` into a shell string, and delete only files your
+own run created.

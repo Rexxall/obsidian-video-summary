@@ -12,14 +12,14 @@ Use it for:
 ## Suggested Demo Flow
 
 1. Start the custom n8n Docker service.
-2. Import `Obsidian Video Summary.json`.
+2. Start the backend package (see INSTALL.md).
 3. Activate the workflow.
 4. In Obsidian settings, run the setup check.
 5. Open `sample-input-url.md`.
 6. Run `Video Summary: summarize current note`.
 7. Compare the result with `sample-output-note.md`.
 
-For local files, put your test file in `docker/uploads` and use `sample-input-local-file.md`.
+For local files, put your test file in the backend's `uploads` folder and use `sample-input-local-file.md`.
 
 ## Files
 

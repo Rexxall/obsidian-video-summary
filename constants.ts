@@ -14,18 +14,24 @@ export const SHORT_LINK_HOSTS = [
 // history.json 的默认上限（history 条数；webhookHistory 固定上限见 API 内部）
 export const DEFAULT_HISTORY_LIMIT = 300;
 
-export const DEFAULT_AI_MODELS: string[] = ['Gemini 3.1', 'Gemini 3.0'];
+/** Provenance label until the setup check reports the backend's real model name. */
+export const BACKEND_DEFAULT_MODEL_LABEL = '后端默认模型';
 export const DEFAULT_WEBHOOK_AUTH_HEADER = 'X-Video-Summary-Token';
 export const DEFAULT_N8N_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook/obsidian-video-summary';
 export const LEGACY_DEFAULT_N8N_WEBHOOK_URL =
   'http://localhost:5678/webhook/obsidian-video-summary';
+export const SETUP_GUIDE_URL =
+  'https://github.com/Rexxall/obsidian-video-summary/blob/main/INSTALL.md';
+/** Short built-in text for the setup wizard's trial run. */
+export const SETUP_TRIAL_TRANSCRIPT =
+  '今天介绍番茄工作法。它由弗朗切斯科·西里洛在上世纪八十年代提出：选一件任务，计时二十五分钟专心做，然后休息五分钟；每完成四轮，休息十五到三十分钟。好处是把大任务切成小块，降低开始的难度，并用固定的休息防止疲劳。二十五分钟只是默认值，可以按任务调整。';
 export const LEGACY_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/cyrus';
 export const RECOMMENDED_WORKFLOW: Required<WorkflowHealthInfo> = {
-  name: 'Video Summary Advanced Workflow',
-  version: '2.1.5',
-  variant: 'advanced',
+  name: 'Video Summary',
+  version: '3.0.0',
+  variant: 'packaged',
   webhookPath: 'obsidian-video-summary',
-  models: [...DEFAULT_AI_MODELS],
+  models: [],
   requiredTools: ['yt-dlp', 'ffmpeg'],
   uploadsPath: '/home/node/uploads',
 };
@@ -35,7 +41,7 @@ export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
     platform: '本地音频/视频',
     status: 'recommended',
     input: 'local_file',
-    requirements: '把文件放进 docker/uploads，只填写根目录内的文件名。',
+    requirements: '把文件放进后端文件夹的 uploads，只填写文件名。',
     notes: '最稳定，适合长录音、会议、课程和个人素材。',
   },
   {
@@ -105,8 +111,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   attentionAssessmentEnabled: true,
   generateLearningArtifacts: false,
   readerQuoteTemplate: DEFAULT_QUOTE_TEMPLATE,
-  aiModel: 'Gemini 3.1',
-  customAiModels: [...DEFAULT_AI_MODELS],
+  aiModel: BACKEND_DEFAULT_MODEL_LABEL,
   timeoutMinutes: 30,
   autoSave: true,
   batchConcurrency: 3,
@@ -140,7 +145,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   historyLimit: DEFAULT_HISTORY_LIMIT,
   preflightCheckEnabled: true, // 处理前先 ping 后端，失败时提示/建议切换
   expandShortLinks: true, // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
-  cookiesDirPath: '', // n8n docker/cookies 目录的绝对路径（桌面端 cookies 管理用）
+  cookiesDirPath: '', // 后端文件夹里 cookies 目录的绝对路径（桌面端 cookies 管理用）
   payloadKeys: {
     mode: 'mode',
     language: 'language',

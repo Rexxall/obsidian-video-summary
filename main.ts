@@ -19,7 +19,6 @@ import {
   ProcessingMode,
   WebhookProfile,
   ProcessingBackend,
-  SetupCheckItem,
   ConnectionTestResult,
   PlatformCapability,
   ProcessingDepth,
@@ -29,6 +28,7 @@ import {
   ProcessingResult,
 } from './types';
 import {
+  BACKEND_DEFAULT_MODEL_LABEL,
   DEFAULT_SETTINGS,
   DEFAULT_N8N_WEBHOOK_URL,
   DEFAULT_WEBHOOK_AUTH_HEADER,
@@ -36,9 +36,19 @@ import {
   LEGACY_DEFAULT_N8N_WEBHOOK_URL,
   LEGACY_N8N_WEBHOOK_URL,
   PLATFORM_CAPABILITIES,
-  RECOMMENDED_WORKFLOW,
+  SETUP_GUIDE_URL,
+  SETUP_TRIAL_TRANSCRIPT,
   SUPPORTED_PLATFORMS,
 } from './constants';
+import { pollQrLogin, startQrLogin, type QrLoginTicket } from './core/BilibiliLogin';
+import { drawQrCode } from './views/qrCode';
+import {
+  interpretSetupCheck,
+  parseConnectionCode,
+  reportedChatModel,
+  type ConnectionCode,
+  type SetupStep,
+} from './core/BackendSetup';
 import { VideoSummaryAPI } from './api/VideoSummaryAPI';
 import { VideoSummaryView, VIDEO_SUMMARY_VIEW_TYPE } from './views/VideoSummaryView';
 import { ConfirmModal } from './modals';
@@ -1296,6 +1306,16 @@ export default class VideoSummaryPlugin extends Plugin {
       this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
       shouldSave = true;
     }
+    // 3.0 后端只有一个模型，由 .env 决定；旧版的模型标签列表不再起作用
+    const settingsRecord = this.settings as unknown as JsonRecord;
+    if ('customAiModels' in settingsRecord) {
+      delete settingsRecord.customAiModels;
+      shouldSave = true;
+    }
+    if (/^(?:Gemini|AI-Studio)\b/.test(this.settings.aiModel || '')) {
+      this.settings.aiModel = BACKEND_DEFAULT_MODEL_LABEL;
+      shouldSave = true;
+    }
     if (
       this.settings.activeBackend !== 'codex-worker' &&
       this.settings.defaultProcessingDepth === 'deep-visual'
@@ -2194,7 +2214,7 @@ export default class VideoSummaryPlugin extends Plugin {
         }
         if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== 'codex-worker') {
           new Notice(
-            '已捕获到收件箱；自带的 n8n 无法读取链接里的主机绝对路径。请先复制到 docker/uploads 后用文件名提交，或切换到能访问该路径的本机服务。',
+            '已捕获到收件箱；自带的 n8n 无法读取链接里的主机绝对路径。请先复制到后端文件夹的 uploads 里，再用文件名提交，或切换到能访问该路径的本机服务。',
             9000,
           );
           return;
@@ -2383,21 +2403,22 @@ class VideoSummarySettingTab extends PluginSettingTab {
     return { section, titleRow };
   }
 
+  /** 首次配置：粘贴连接码 → 检查 → 试运行。每一步出错都写明怎么修。 */
   private createSetupGuideSection(containerEl: HTMLElement) {
     const { section, titleRow } = this.sectionCard(
       containerEl,
       'shield-check',
-      '安装检查',
+      '首次配置',
       'setup-guide-section',
     );
     titleRow.addClass('setup-guide-title-row');
 
     if (this.plugin.settings.setupGuideDismissed) {
       new Setting(section)
-        .setName('安装检查已收起')
-        .setDesc('需要排查连接问题时，可以重新显示检查清单。')
+        .setName('首次配置已完成')
+        .setDesc('换了后端、连接出错或想重新检查时，再打开它。')
         .addButton((button) =>
-          button.setButtonText('显示检查清单').onClick(async () => {
+          button.setButtonText('重新打开').onClick(async () => {
             this.plugin.settings.setupGuideDismissed = false;
             await this.plugin.saveSettings();
             this.redraw();
@@ -2406,144 +2427,257 @@ class VideoSummarySettingTab extends PluginSettingTab {
       return;
     }
 
-    section.createEl('p', {
-      text: '第一次使用时，先确认这几项。连接诊断会发送一个轻量测试请求，不会处理真实视频。',
-      cls: 'setting-item-description',
-    });
+    const intro = section.createEl('p', { cls: 'setting-item-description' });
+    intro.appendText(
+      '三步：在电脑上启动后端 → 把启动脚本给的连接码粘贴到这里 → 检查。还没有后端？看',
+    );
+    intro.createEl('a', { text: '安装教程', href: SETUP_GUIDE_URL });
+    intro.appendText('。');
 
-    const checks = this.getSetupChecks();
-    const list = section.createDiv({ cls: 'setup-check-list' });
-    checks.forEach((check) => {
-      const row = list.createDiv({ cls: `setup-check-item is-${check.state}` });
-      row.createSpan({ text: this.getSetupCheckIcon(check.state), cls: 'setup-check-icon' });
-      const textWrap = row.createDiv({ cls: 'setup-check-text' });
-      textWrap.createEl('strong', { text: check.label });
-      textWrap.createSpan({ text: check.detail });
-    });
+    const results = section.createDiv({ cls: 'setup-check-list' });
+    const runCheck = async (deep: boolean) => {
+      results.empty();
+      results.createDiv({
+        text: deep ? '完整检查中，会调用一次模型和语音转写，约 10–30 秒…' : '检查中…',
+        cls: 'setup-check-progress',
+      });
+      const outcome = await this.plugin.api.checkBackend(deep);
+      const steps = interpretSetupCheck({ ...outcome, deep });
+      this.renderSetupSteps(results, steps);
+      const model = reportedChatModel(outcome.report);
+      if (model && model !== this.plugin.settings.aiModel) {
+        this.plugin.settings.aiModel = model;
+        this.plugin.api.setAiModel(model);
+        await this.plugin.saveSettings();
+      }
+    };
 
-    const resultBox = section.createDiv({ cls: 'setup-diagnostic-result' });
+    let codeInput: HTMLInputElement | null = null;
+    const applyCode = async (raw: string) => {
+      const code = parseConnectionCode(raw, DEFAULT_N8N_WEBHOOK_URL);
+      if (!code) {
+        new Notice('这不是连接码。请粘贴启动脚本最后显示的那一整行。', 8000);
+        return;
+      }
+      await this.applyConnectionCode(code);
+      if (codeInput) codeInput.value = '';
+      new Notice('连接码已保存，正在检查…');
+      await runCheck(false);
+    };
 
     new Setting(section)
-      .setName('连接诊断')
-      .setDesc('如果这里失败，优先按诊断建议处理，再查看 n8n 的执行日志。')
+      .setName('① 连接码')
+      .setDesc('启动脚本最后显示的那一行，它也已经复制到剪贴板。连接码相当于口令，不要发给别人。')
+      .addText((text) => {
+        codeInput = text.inputEl;
+        text.inputEl.type = 'password';
+        text.setPlaceholder('粘贴启动脚本给的连接码');
+        text.inputEl.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') fire(() => applyCode(text.getValue()))();
+        });
+      })
       .addButton((button) =>
         button
-          .setButtonText('运行诊断')
+          .setButtonText('从剪贴板粘贴')
+          .setCta()
+          .onClick(async () => {
+            let clip = '';
+            try {
+              clip = await navigator.clipboard.readText();
+            } catch {
+              new Notice('读不到剪贴板，请手动粘贴到输入框后按回车。');
+              return;
+            }
+            await applyCode(clip);
+          }),
+      );
+
+    new Setting(section)
+      .setName('② 检查')
+      .setDesc('快速检查只看后端和连接码；完整检查还会确认模型和语音转写的密钥真的能用。')
+      .addButton((button) =>
+        button.setButtonText('快速检查').onClick(async () => {
+          button.setDisabled(true);
+          await runCheck(false);
+          button.setDisabled(false);
+        }),
+      )
+      .addButton((button) =>
+        button
+          .setButtonText('完整检查')
           .setCta()
           .onClick(async () => {
             button.setDisabled(true);
-            button.setButtonText('诊断中...');
-            resultBox.empty();
-            resultBox.createEl('p', { text: '正在发送测试请求...' });
-
-            try {
-              const result = await this.plugin.api.testConnection();
-              this.renderConnectionResult(resultBox, result);
-            } catch (error) {
-              this.renderConnectionResult(resultBox, {
-                success: false,
-                error: this.plugin.formatErrorForNotice(error),
-                hint: '确认服务已启动后重试；必要时打开调试模式查看控制台。',
-              });
-            } finally {
-              button.setDisabled(false);
-              button.setButtonText('运行诊断');
-            }
+            await runCheck(true);
+            button.setDisabled(false);
           }),
-      )
+      );
+    section.appendChild(results);
+
+    const trialResult = section.createDiv({ cls: 'setup-diagnostic-result' });
+    new Setting(section)
+      .setName('③ 试运行')
+      .setDesc('用一段内置的短文稿生成一次总结，确认整条流程能跑通。会消耗极少量模型额度。')
       .addButton((button) =>
-        button.setButtonText('收起').onClick(async () => {
-          this.plugin.settings.setupGuideDismissed = true;
-          await this.plugin.saveSettings();
-          this.redraw();
+        button.setButtonText('试运行').onClick(async () => {
+          button.setDisabled(true);
+          trialResult.empty();
+          trialResult.removeClass('is-success', 'is-error');
+          trialResult.createEl('p', { text: '正在生成总结…' });
+          const result = await this.plugin.api.trialRun(SETUP_TRIAL_TRANSCRIPT);
+          trialResult.empty();
+          trialResult.addClass(result.ok ? 'is-success' : 'is-error');
+          trialResult.createEl('strong', {
+            text: result.ok
+              ? `跑通了，用时 ${(result.durationMs / 1000).toFixed(1)} 秒`
+              : '没有跑通',
+          });
+          trialResult.createEl('p', { text: result.message });
+          button.setDisabled(false);
         }),
       );
+    section.appendChild(trialResult);
+
+    this.createBilibiliLoginStep(section);
+
+    const cookies = section.createEl('details', { cls: 'setup-cookie-paste' });
+    cookies.createEl('summary', { text: '不方便扫码？粘贴 cookies.txt' });
+    cookies.createEl('p', {
+      text: '也可以用视频总结浏览器扩展的“同步 B 站登录”，或用任意“导出 cookies.txt”扩展在 bilibili.com 导出，把全文粘贴到这里。内容只发给你自己的后端。',
+      cls: 'setting-item-description',
+    });
+    const cookieText = cookies.createEl('textarea', {
+      cls: 'setup-cookie-text',
+      attr: { rows: '4', placeholder: '粘贴 cookies.txt 的全文', spellcheck: 'false' },
+    });
+    const cookieStatus = cookies.createEl('p', { cls: 'setting-item-description' });
+    new Setting(cookies).addButton((button) =>
+      button.setButtonText('保存到后端').onClick(async () => {
+        button.setDisabled(true);
+        const result = await this.plugin.api.uploadCookies('bilibili', cookieText.value);
+        cookieStatus.setText(result.message);
+        if (result.ok) cookieText.value = '';
+        button.setDisabled(false);
+      }),
+    );
+
+    new Setting(section).addButton((button) =>
+      button.setButtonText('完成，收起').onClick(async () => {
+        this.plugin.settings.setupGuideDismissed = true;
+        await this.plugin.saveSettings();
+        this.redraw();
+      }),
+    );
   }
 
-  private getSetupChecks(): SetupCheckItem[] {
-    const backend = this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend;
-    const activeProfile = this.plugin.getActiveWebhookProfile();
-    const endpoint =
-      backend === 'codex-worker'
-        ? this.plugin.settings.codexWorkerUrl
-        : activeProfile?.url || this.plugin.settings.n8nWebhookUrl;
-    const modelList = this.plugin.settings.customAiModels || [];
-    const currentModel = this.plugin.settings.aiModel;
-
-    const endpointCheck = this.getEndpointSetupCheck(endpoint || '', backend);
-
-    return [
-      {
-        label: '处理后端',
-        state: backend ? 'ready' : 'missing',
-        detail:
-          backend === 'codex-worker'
-            ? '当前使用 Codex Video Worker。'
-            : '当前使用 n8n / 兼容 Webhook。',
-      },
-      endpointCheck,
-      {
-        label: 'Workflow 版本',
-        state: 'warning',
-        detail: `推荐版本 ${RECOMMENDED_WORKFLOW.version}；运行连接诊断可读取当前 n8n workflow 回传的版本信息。`,
-      },
-      {
-        label: '处理模型',
-        state: modelList.includes(currentModel) ? 'ready' : 'warning',
-        detail: modelList.includes(currentModel)
-          ? `默认模型 ${currentModel} 已在列表中。`
-          : `默认模型 ${currentModel || '未设置'} 不在模型列表中，n8n Switch 可能匹配失败。`,
-      },
-      {
-        label: '本地文件',
-        state: 'warning',
-        detail: 'Bundled Docker/n8n 只接受 uploads 根目录内的文件名，不接受子目录或绝对路径。',
-      },
-    ];
-  }
-
-  private getEndpointSetupCheck(endpoint: string, backend: ProcessingBackend): SetupCheckItem {
-    const trimmedEndpoint = endpoint.trim();
-    if (!trimmedEndpoint) {
-      return {
-        label: '服务 URL',
-        state: 'missing',
-        detail: '还没有填写处理服务 URL。',
-      };
-    }
-
-    if (backend === 'n8n' && trimmedEndpoint === LEGACY_N8N_WEBHOOK_URL) {
-      return {
-        label: '服务 URL',
-        state: 'warning',
-        detail: `仍在使用旧路径 ${LEGACY_N8N_WEBHOOK_URL}，公开版工作流默认路径是 ${DEFAULT_N8N_WEBHOOK_URL}。`,
-      };
-    }
-
-    if (backend === 'n8n' && !trimmedEndpoint.includes('/webhook/')) {
-      return {
-        label: '服务 URL',
-        state: 'warning',
-        detail: 'n8n URL 通常应包含 /webhook/ 路径。',
-      };
-    }
-
-    return {
-      label: '服务 URL',
-      state: 'ready',
-      detail: trimmedEndpoint,
+  /** ④ 扫码登录 B 站：登录 cookie 直接交给自己的后端，插件不保存。 */
+  private createBilibiliLoginStep(section: HTMLElement) {
+    const panel = section.createDiv({ cls: 'setup-qr' });
+    const status = section.createEl('p', { cls: 'setting-item-description' });
+    let polling = 0;
+    const stop = () => {
+      if (polling) window.clearInterval(polling);
+      polling = 0;
     };
+
+    new Setting(section)
+      .setName('④ 哔哩哔哩登录（可选）')
+      .setDesc(
+        '用哔哩哔哩手机客户端扫码登录后，能拿到它的字幕和 AI 字幕，不用再转写。登录信息只交给你自己的后端，插件不保存。',
+      )
+      .addButton((button) =>
+        button.setButtonText('扫码登录').onClick(async () => {
+          stop();
+          panel.empty();
+          status.setText('正在向哔哩哔哩要二维码…');
+          let ticket: QrLoginTicket;
+          try {
+            ticket = await startQrLogin();
+          } catch (error) {
+            status.setText(`拿不到二维码：${this.plugin.formatErrorForNotice(error)}`);
+            return;
+          }
+          drawQrCode(panel, ticket.url);
+          status.setText('用哔哩哔哩手机客户端扫一扫，并在手机上确认登录。');
+          const started = Date.now();
+          let busy = false;
+          polling = window.setInterval(() => {
+            if (busy) return;
+            if (Date.now() - started > 180_000) {
+              stop();
+              panel.empty();
+              status.setText('二维码过期了，再点一次“扫码登录”。');
+              return;
+            }
+            busy = true;
+            fire(async () => {
+              try {
+                await tick();
+              } finally {
+                busy = false;
+              }
+            })();
+          }, 2000);
+          const tick = async () => {
+            const result = await pollQrLogin(ticket.key);
+            if (result.state === 'scanned') status.setText('已扫码，请在手机上点确认。');
+            if (result.state === 'expired' || result.state === 'error') {
+              stop();
+              panel.empty();
+              status.setText(
+                result.state === 'expired'
+                  ? '二维码过期了，再点一次“扫码登录”。'
+                  : `登录没有完成：${result.message}`,
+              );
+            }
+            if (result.state === 'done') {
+              stop();
+              panel.empty();
+              status.setText('已登录，正在交给后端…');
+              const saved = await this.plugin.api.uploadCookies('bilibili', result.cookies);
+              status.setText(saved.ok ? `B 站登录已交给后端。${saved.message}` : saved.message);
+            }
+          };
+          this.plugin.register(stop);
+        }),
+      );
+    section.appendChild(panel);
+    section.appendChild(status);
   }
 
-  private getSetupCheckIcon(state: SetupCheckItem['state']): string {
-    switch (state) {
-      case 'ready':
-        return 'OK';
-      case 'warning':
-        return '!';
-      default:
-        return 'X';
+  private renderSetupSteps(container: HTMLElement, steps: SetupStep[]) {
+    container.empty();
+    const icons: Record<SetupStep['state'], string> = {
+      ready: '✓',
+      warning: '!',
+      missing: '✗',
+      pending: '·',
+    };
+    for (const item of steps) {
+      const row = container.createDiv({ cls: `setup-check-item is-${item.state}` });
+      row.createSpan({ text: icons[item.state], cls: 'setup-check-icon' });
+      const body = row.createDiv({ cls: 'setup-check-text' });
+      body.createEl('strong', { text: item.label });
+      body.createSpan({ text: item.detail });
+      if (item.fix && item.state !== 'ready') {
+        body.createSpan({ text: `怎么办：${item.fix}`, cls: 'setup-check-fix' });
+      }
     }
+  }
+
+  private async applyConnectionCode(code: ConnectionCode) {
+    const settings = this.plugin.settings;
+    let profile = this.plugin.getActiveWebhookProfile();
+    if (!profile) {
+      profile = { id: 'default-webhook', name: '本机后端', url: '', headerName: '', secret: '' };
+      settings.webhookProfiles.push(profile);
+      settings.activeWebhookId = profile.id;
+    }
+    profile.url = code.url;
+    profile.headerName = code.headerName;
+    profile.secret = code.secret;
+    settings.n8nWebhookUrl = code.url;
+    await this.plugin.setActiveBackend('n8n');
   }
 
   private renderConnectionResult(containerEl: HTMLElement, result: ConnectionTestResult) {
@@ -2638,13 +2772,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   /**
-   * Cookies 管理：定位 n8n 的 docker/cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
+   * Cookies 管理：定位后端文件夹的 cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   private createCookiesSection(containerEl: HTMLElement) {
     const { section } = this.sectionCard(containerEl, 'cookie', 'Cookies 管理');
     section.createEl('p', {
-      text: '受限平台（哔哩哔哩、抖音、抖音国际版、小红书）经常需要浏览器导出的 cookies。目录一般是 n8n 的 docker 项目里的 docker/cookies；文件名如 bilibili_cookies.txt。',
+      text: '受限平台（哔哩哔哩、抖音、抖音国际版、小红书）经常需要浏览器导出的 cookies。目录是后端文件夹里的 cookies；文件名如 bilibili_cookies.txt。',
       cls: 'setting-item-description',
     });
 
@@ -2652,10 +2786,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(section)
       .setName('Cookies 目录')
-      .setDesc('Cookies 目录的绝对路径，例如 ~/n8n-project/docker/cookies')
+      .setDesc('Cookies 目录的绝对路径，例如 ~/video-summary-backend/cookies')
       .addText((text) =>
         text
-          .setPlaceholder('/path/to/docker/cookies')
+          .setPlaceholder('/path/to/video-summary-backend/cookies')
           .setValue(this.plugin.settings.cookiesDirPath || '')
           .onChange(async (value) => {
             this.plugin.settings.cookiesDirPath = value.trim();
@@ -2774,43 +2908,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
     }
   }
 
-  private createWorkflowCompatibilityCard(containerEl: HTMLElement) {
-    const card = containerEl.createDiv({ cls: 'workflow-compatibility-card' });
-    card.createDiv({ text: '推荐 workflow', cls: 'vs-subsection-title' });
-    card.createEl('p', {
-      text: '连接诊断会读取测试分支返回的 workflow 元数据，用来发现旧 workflow、path 不匹配或模型标签不一致。',
-      cls: 'setting-item-description',
-    });
-
-    const rows = [
-      ['推荐版本', RECOMMENDED_WORKFLOW.version],
-      ['Webhook Path', RECOMMENDED_WORKFLOW.webhookPath],
-      ['推荐模型标签', RECOMMENDED_WORKFLOW.models.join(', ')],
-      ['依赖工具', RECOMMENDED_WORKFLOW.requiredTools.join(', ')],
-      ['本地文件目录', RECOMMENDED_WORKFLOW.uploadsPath],
-    ];
-
-    const table = card.createEl('table', { cls: 'workflow-compatibility-table' });
-    rows.forEach(([label, value]) => {
-      const row = table.createEl('tr');
-      row.createEl('th', { text: label });
-      row.createEl('td', { text: value });
-    });
-
-    const activeEndpoint =
-      this.plugin.settings.activeBackend === 'codex-worker'
-        ? this.plugin.settings.codexWorkerUrl
-        : this.plugin.getActiveWebhookProfile()?.url || this.plugin.settings.n8nWebhookUrl;
-    card.createEl('p', {
-      text: `当前入口: ${activeEndpoint || '未设置'}`,
-      cls: 'setting-item-description',
-    });
-  }
-
   private createApiSection(containerEl: HTMLElement) {
     const { section } = this.sectionCard(containerEl, 'link', '处理服务');
-
-    this.createWorkflowCompatibilityCard(section);
 
     new Setting(section)
       .setName('主处理后端')
@@ -3149,108 +3248,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
         }),
       );
 
-    const aiSection = section.createDiv({ cls: 'vs-subsection' });
-    aiSection.createDiv({ text: '自定义处理模型', cls: 'vs-subsection-title' });
-    aiSection.createEl('p', {
-      text: '添加你要在 n8n 中使用的模型名称（需与 n8n 里 switch 节点的值完全一致）。',
-      cls: 'setting-item-description',
-    });
-
-    const aiModelsContainer = aiSection.createDiv({ cls: 'webhook-profiles-container' });
-
-    let aiDropdown: DropdownComponent | null = null;
-
-    const refreshAiDropdownOptions = () => {
-      if (!aiDropdown) return;
-      aiDropdown.selectEl.empty();
-      this.plugin.settings.customAiModels.forEach((model) => {
-        const option = createEl('option');
-        option.value = model;
-        option.textContent = model;
-        aiDropdown!.selectEl.appendChild(option);
-      });
-      const selectedModel = this.plugin.settings.aiModel;
-      if (selectedModel && this.plugin.settings.customAiModels.includes(selectedModel)) {
-        aiDropdown.setValue(selectedModel);
-      }
-    };
-
-    const renderAiModels = () => {
-      aiModelsContainer.empty();
-
-      if (this.plugin.settings.customAiModels.length === 0) {
-        aiModelsContainer.createEl('p', {
-          text: '尚未配置任何自定义处理模型。',
-          cls: 'setting-item-description',
-        });
-        return;
-      }
-
-      this.plugin.settings.customAiModels.forEach((model, index) => {
-        const row = aiModelsContainer.createDiv({ cls: 'webhook-profile-row' });
-
-        const nameInput = row.createEl('input', {
-          type: 'text',
-          value: model,
-          cls: 'webhook-name-input',
-          attr: { placeholder: '模型名称 (如 Gemini 3.1)' },
-        });
-
-        nameInput.oninput = async () => {
-          this.plugin.settings.customAiModels[index] = nameInput.value;
-          await this.plugin.saveSettings();
-          refreshAiDropdownOptions();
-        };
-
-        const actions = row.createDiv({ cls: 'webhook-profile-actions' });
-
-        const deleteBtn = actions.createEl('button', {
-          text: '删除',
-          cls: 'btn-text-only webhook-delete-btn',
-        });
-        deleteBtn.onclick = async () => {
-          if (this.plugin.settings.customAiModels.length <= 1) {
-            new Notice('至少需要保留一个处理模型');
-            return;
-          }
-
-          this.plugin.settings.customAiModels.splice(index, 1);
-
-          if (this.plugin.settings.aiModel === model) {
-            this.plugin.settings.aiModel = this.plugin.settings.customAiModels[0];
-          }
-          await this.plugin.saveSettings();
-
-          refreshAiDropdownOptions();
-          renderAiModels();
-        };
-      });
-    };
-
-    renderAiModels();
-
-    new Setting(aiSection).addButton((button) =>
-      button.setButtonText('添加新模型').onClick(async () => {
-        this.plugin.settings.customAiModels.push('新模型');
-        await this.plugin.saveSettings();
-        refreshAiDropdownOptions();
-        renderAiModels();
-      }),
-    );
-
-    // 默认处理模型设置
     new Setting(section)
-      .setName('默认处理模型')
-      .setDesc('在 n8n 中使用的默认模型标签')
-      .addDropdown((dropdown) => {
-        aiDropdown = dropdown;
-        dropdown.onChange(async (value) => {
-          this.plugin.settings.aiModel = value;
-          await this.plugin.saveSettings();
-        });
-      });
-
-    refreshAiDropdownOptions();
+      .setName('处理模型')
+      .setDesc(
+        `由后端 .env 里的 VS_CHAT_MODEL 决定，所有总结步骤共用一个模型。上次检查：${this.plugin.settings.aiModel || '还没检查'}。换模型时改 .env，再运行一次启动脚本。`,
+      );
 
     // 超时时间设置
     new Setting(section)

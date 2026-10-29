@@ -1,520 +1,57 @@
-# Beginner Deployment Test and Troubleshooting
-
-This document records a clean-room setup test from the point of view of a user who is not comfortable with code. It lists what worked, what failed, how to fix each issue, and what still requires the user to configure manually.
-
-## Test Summary
-
-Test date: 2026-06-07
-
-Environment used for the test:
-
-- macOS with Node.js `v22.14.0`
-- npm `10.9.2`
-- Docker `29.4.0`
-- A clean temporary project copy without `.git`, `node_modules`, `data`, `data.json`, or local cache files
-- A clean temporary Obsidian vault at `<temporary-test-root>/vault`
-
-Result:
-
-- Clean `npm ci` passed after network access was available.
-- `npm run build`, `npm run lint`, `npm run format`, and `npm audit --audit-level=moderate` passed.
-- Manual Obsidian plugin installation passed when only release files were copied.
-- The official `n8nio/n8n` Docker image did not contain `yt-dlp` or `ffmpeg`, so it cannot run the included workflow by itself.
-- A custom Docker image with n8n, `yt-dlp`, and `ffmpeg` was built and verified.
-
-## Beginner Quick Path
-
-If you only want the shortest path:
-
-1. Install Node.js, Docker Desktop or OrbStack, and Obsidian.
-2. Build the plugin:
-
-```bash
-npm ci
-npm run build
-```
-
-3. Copy these files into your vault:
-
-```text
-<your-vault>/.obsidian/plugins/video-summary/
-  main.js
-  manifest.json
-  styles.css
-```
-
-4. Start the custom n8n Docker service:
-
-```bash
-cd docker
-mkdir -p n8n-data files uploads cookies
-docker compose -f docker-compose.video-summary.yml up --build
-```
-
-5. Open n8n:
-
-```text
-http://localhost:5678
-```
-
-6. Import `Obsidian Video Summary.json`.
-7. Create a random n8n Header Auth credential (recommended name
-   `X-Video-Summary-Token`), select it on the imported `Webhook` node, and enter the same name/value
-   in the plugin's active Webhook profile.
-8. Configure your model credentials in n8n. The optional `Gemini Vision` node requires a Header
-   Auth credential named `x-goog-api-key`; never put a Gemini key in the URL.
-9. If you need no-subtitle or local-media ASR, select your own ASR workflow in both
-   `SubFlow: Transcript...` nodes as described in
-   [ASR_SUBWORKFLOW_CONTRACT.md](ASR_SUBWORKFLOW_CONTRACT.md). You can defer this when testing only
-   pasted transcripts or native subtitles.
-10. Activate the workflow.
-11. In Obsidian plugin settings, use:
-
-```text
-http://127.0.0.1:5678/webhook/obsidian-video-summary
-```
-
-12. Run the plugin setup check. The recommended workflow version is `2.1.5`, and the workflow path
-    should be `obsidian-video-summary`.
-13. Create a note with:
-
-```yaml
----
-link: 'https://www.youtube.com/watch?v=example'
-status: pending
----
-```
-
-14. Search the Obsidian command palette for `快速总结当前笔记` and run it.
-
-## What Was Fixed During Testing
-
-### 1. Webhook path mismatch
-
-Problem:
-
-- Plugin default URL was `http://localhost:5678/webhook/cyrus`.
-- The exported n8n workflow used the path `vidsum`.
-- A beginner would import the workflow, keep default settings, and get connection failures.
-
-Fix:
-
-- The plugin default URL and workflow Webhook path now use `obsidian-video-summary`.
-
-If you already imported the old workflow:
-
-1. Open n8n.
-2. Open the workflow.
-3. Click the `Webhook` node.
-4. Change `Path` from `vidsum` or `cyrus` to `obsidian-video-summary`.
-5. Save and activate the workflow again.
-
-### 2. Default processing model mismatch
-
-Problem:
-
-- The plugin default model label was `Gemini`.
-- The workflow switch expects exact values such as `Gemini 3.1` or `Gemini 3.0`.
-- If the labels do not match, the workflow can stop before note generation.
-
-Fix:
-
-- The plugin defaults now use `Gemini 3.1` and `Gemini 3.0`.
-
-If you customize labels:
-
-1. Open Obsidian plugin settings.
-2. Open `Custom processing model`.
-3. Make sure the text exactly matches an n8n Switch branch.
-4. Examples that exist in the workflow: `Gemini 3.1`, `Gemini 3.0`.
-
-## Common Problems and Fixes
-
-### Problem: `npm ci` fails with `ENOTFOUND registry.npmjs.org`
-
-Meaning:
-
-Your computer cannot reach npm's package registry.
-
-Fix:
-
-1. Check your internet connection.
-2. Try again:
-
-```bash
-npm ci
-```
-
-3. If you are in a region or network that blocks npm, set a mirror:
-
-```bash
-npm config set registry https://registry.npmmirror.com
-npm ci
-```
-
-4. To restore the default registry later:
-
-```bash
-npm config set registry https://registry.npmjs.org
-```
-
-### Problem: Docker says `permission denied while trying to connect to the docker API`
-
-Meaning:
-
-Docker Desktop or OrbStack is not available to your terminal.
-
-Fix:
-
-1. Start Docker Desktop or OrbStack.
-2. Run:
-
-```bash
-docker ps
-```
-
-3. If it still fails on Linux, add your user to the Docker group:
-
-```bash
-sudo usermod -aG docker "$USER"
-```
-
-Then log out and log back in.
-
-### Problem: Docker says container name `/n8n` is already in use
-
-Meaning:
-
-You already have an n8n container.
-
-Check:
-
-```bash
-docker ps
-```
-
-Fix options:
-
-- Reuse the existing n8n at `http://localhost:5678`.
-- Or stop the existing container:
-
-```bash
-docker stop n8n
-```
-
-- Or use a different container name and port.
-
-### Problem: Docker says `Bind for 0.0.0.0:5678 failed: port is already allocated`
-
-Meaning:
-
-Something is already using port `5678`.
-
-Fix:
-
-Use a different host port, for example `5679`.
-
-In `docker/docker-compose.video-summary.yml`, change:
-
-```yaml
-ports:
-  - '5678:5678'
-```
-
-to:
-
-```yaml
-ports:
-  - '5679:5678'
-```
-
-Then set the Obsidian plugin URL to:
-
-```text
-http://localhost:5679/webhook/obsidian-video-summary
-```
-
-### Problem: n8n webhook returns 404
-
-Possible causes:
-
-- The workflow is not activated.
-- You are using the test URL instead of the production URL.
-- The Webhook path in n8n does not match the plugin URL.
-- You used `GET` in a browser, while the workflow expects `POST`.
-
-Fix:
-
-1. In n8n, open the workflow.
-2. Click `Active`.
-3. Check the `Webhook` node path.
-4. Use this URL in Obsidian:
-
-```text
-http://127.0.0.1:5678/webhook/obsidian-video-summary
-```
-
-Do not use `/webhook-test/...` unless you are manually testing inside n8n.
-
-### Problem: `yt-dlp: not found`
-
-Meaning:
-
-The n8n container does not have `yt-dlp`.
-
-Cause found during testing:
-
-The official `n8nio/n8n:latest` image had:
-
-```text
-yt_dlp=missing
-ffmpeg=missing
-```
-
-Fix:
-
-Use the provided custom Docker image:
-
-```bash
-cd docker
-mkdir -p n8n-data files uploads cookies
-docker compose -f docker-compose.video-summary.yml up --build
-```
-
-### Problem: `ffmpeg: not found`
-
-Meaning:
-
-The workflow downloaded media but cannot convert audio.
-
-Fix:
-
-Use the provided custom Docker image. The current release candidate pins:
-
-```text
-n8n=2.35.7
-yt-dlp=2026.8.19
-ffmpeg=Alpine package available when the image is built
-```
-
-The 2.4.2 candidate has passed static workflow tests, but this exact image pin still requires a
-clean Docker build, workflow import, and local smoke test before the release tag is published.
-
-### Problem: local file processing cannot find the file
-
-Meaning:
-
-The n8n container cannot see arbitrary files from your Mac or PC. It only sees mounted Docker folders.
-
-Fix:
-
-1. Put the file into:
-
-```text
-docker/uploads/
-```
-
-2. In the Obsidian note, use only the file name:
-
-```yaml
----
-local_file: 'lecture-01.mp4'
-status: pending
----
-```
-
-Do not use:
-
-```yaml
-local_file: '/Users/you/Desktop/lecture-01.mp4'
-```
-
-The workflow expects container paths under:
-
-```text
-/home/node/uploads/
-```
-
-### Problem: Bilibili returns `HTTP Error 412: Precondition Failed`
-
-Meaning:
-
-Bilibili rejected the automated `yt-dlp` request. This usually happens when `yt-dlp` is old, the
-request lacks browser-like headers, or the video requires browser cookies.
-
-Fix:
-
-1. Rebuild the provided Docker image without cache:
-
-```bash
-cd docker
-docker compose -f docker-compose.video-summary.yml build --no-cache
-docker compose -f docker-compose.video-summary.yml up -d
-docker compose -f docker-compose.video-summary.yml exec n8n-video-summary yt-dlp --version
-```
-
-2. If the same URL still fails, export Bilibili browser cookies in Netscape format.
-3. Save the cookie file here:
-
-```text
-docker/cookies/bilibili_cookies.txt
-```
-
-4. Restart n8n and run the plugin setup check again.
-
-### Problem: YouTube, Bilibili, TikTok, Douyin, or Xiaohongshu download fails
-
-Possible causes:
-
-- The video requires login.
-- The platform blocks automated downloads.
-- Cookies are missing or expired.
-- The URL is private or region locked.
-
-Fix:
-
-1. Export browser cookies in Netscape format.
-2. Put cookie files into:
-
-```text
-docker/cookies/
-```
-
-3. Use these file names if you keep the default workflow:
-
-```text
-youtube_cookies.txt
-bilibili_cookies.txt
-douyin_cookies.txt
-tiktok_cookies.txt
-xiaohongshu_cookies.txt
-```
-
-4. Restart n8n after changing mounted files if needed.
-
-### Problem: workflow asks for credentials or model setup
-
-Meaning:
-
-The workflow template does not include private service credentials.
-
-Fix:
-
-1. Open n8n.
-2. Open the imported workflow.
-3. On `Webhook`, select a Header Auth credential and configure the matching name/value in the
-   Obsidian Webhook profile.
-4. Create your own model/provider credentials in n8n and select them on the relevant nodes.
-5. For optional `Gemini Vision` OCR, create Header Auth with name `x-goog-api-key` and your key as
-   its value. The public workflow deliberately contains no key placeholder.
-6. Save and activate the workflow only after every required credential is selected.
-
-This part cannot be solved by the plugin because each user must use their own service account and key.
-
-### Problem: n8n import works, but summarize mode returns nothing
-
-Likely cause:
-
-The selected processing model label does not match the workflow Switch node.
-
-Fix:
-
-Use `Gemini 3.1` first. It is the default after this test pass.
-
-If you use a custom branch, the label in Obsidian must match the n8n branch exactly.
-
-### Problem: the first Docker build takes a long time
-
-Meaning:
-
-The custom image installs n8n, `yt-dlp`, `ffmpeg`, and supporting packages.
-
-Fix:
-
-Wait for it to finish. The build can take several minutes on the first run. Later runs should use Docker cache.
-
-Warnings from npm during n8n install are expected unless the build exits with an error.
-
-## Manual Verification Checklist
-
-Use this checklist before reporting an issue:
-
-```bash
-node --version
-npm --version
-npm ci
-npm run build
-docker ps
-```
-
-Inside the n8n container:
-
-```bash
-docker exec -it n8n-video-summary sh
-yt-dlp --version
-ffmpeg -version
-n8n --version
-```
-
-Expected:
-
-- `yt-dlp` prints a version.
-- `ffmpeg` prints a version.
-- `n8n` prints a version.
-
-## What Still Requires User Action
-
-The project can provide the plugin, workflow template, Docker image, and troubleshooting guide. The user must still provide:
-
-- Their own model/provider credentials.
-- Valid cookies for restricted platforms.
-- Public or accessible video URLs.
-- Local files placed in the Docker `uploads` folder.
-- Enough disk space for downloaded audio/video and converted files.
-- A running Obsidian desktop app with Community plugins enabled.
-
-## Evidence From This Test
-
-The version output below is historical evidence from the 2026-06-07 test, not a current deployment
-recommendation. Do not deploy n8n 2.23.4; the 2.4.2 candidate pins n8n 2.35.7 and requires the fresh
-Docker smoke test described above before release.
-
-Clean Node path:
-
-```text
-npm ci: passed after network access
-npm run build: passed
-npm run lint: passed
-npm run format: passed
-npm audit --audit-level=moderate: found 0 vulnerabilities
-```
-
-Manual Obsidian install path:
-
-```text
-main.js: present
-manifest.json: present
-styles.css: present
-manifest id: video-summary
-```
-
-Historical official n8n image check (2026-06-07; do not use this version):
-
-```text
-n8nio/n8n:latest
-n8n version: 2.23.4
-yt-dlp: missing
-ffmpeg: missing
-```
-
-Historical custom image check (2026-06-07; not the 2.4.2 candidate image):
-
-```text
-n8n=2.23.4
-node=v24.16.0
-yt_dlp=2026.03.17
-ffmpeg=ffmpeg version 8.0.1
-/home/node/files: present
-/home/node/uploads: present
-/home/node/cookies: present
-```
+# Clean-environment acceptance test (2.8.0)
+
+What a new user goes through, run from scratch on 2026-10-29: a new Docker project and volumes, a
+new Obsidian vault with only this plugin, and real DeepSeek and SiliconFlow keys. The machine
+already ran another n8n on port 5678, the case most likely to trip a new user.
+
+Environment: macOS, OrbStack (8 CPU, 8 GB), Obsidian 1.13.7, network in Japan (global registries).
+The backend folder was produced by `git archive`, exactly as the release zip is.
+
+## Timings
+
+| Step                                       | Time       | Notes                                                              |
+| ------------------------------------------ | ---------- | ------------------------------------------------------------------ |
+| Image build, no cache                      | 9 min 47 s | 2.29 GB image; most of it is `npm install n8n`                     |
+| Start script to "ready" (new volumes)      | 38 s       | port 5678 taken, the script moved to 5679 by itself                |
+| Restart after a workflow update            | 40–45 s    | re-imports only when workflows or `.env` changed                   |
+| Setup wizard: paste code, full check       | 3.5 s      | every required check green                                         |
+| Setup wizard: trial run                    | 36.9 s     | built-in 150-character text                                        |
+| Pasted transcript (about 600 characters)   | 40.3 s     | summary written into the note, note renamed                        |
+| Local audio, 48 s (`讲座 01.m4a`)          | 53.3 s     | speech-to-text 8.1 s, model 41.6 s                                 |
+| Local audio, 24 min (`长讲座.mp3`)         | 64.6 s     | cut into 3 parts; speech-to-text 14.7 s                            |
+| Bilibili, no login (5 min)                 | 74.4 s     | no subtitles without login; fell back to download + speech-to-text |
+| Bilibili, logged in (47 min, AI subtitles) | 180.8 s    | used `ai-zh` subtitles with timestamps; model 162 s                |
+| Local PDF                                  | 58.5 s     | text taken from the PDF, no model call for reading                 |
+
+Model time dominates every job; the backend's own steps take seconds.
+
+## Cost
+
+DeepSeek `deepseek-flash`, 8 summaries including the 47-minute video: about 60,000 input and 86,000
+output tokens, about ¥0.4 at off-peak prices. SiliconFlow SenseVoice is free.
+
+## Problems found and fixed during the run
+
+| Problem                                                                | Effect                                                                                          | Fix                                                                               |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| The bundle kept `import('obsidian')`                                   | every webhook request from the plugin failed in Obsidian ("Failed to resolve module specifier") | esbuild now turns dynamic imports into `require`; a test guards the bundle        |
+| n8n 2.x Code nodes have no `URL` global                                | every link was rejected as "Video URL is invalid"                                               | `NODE_FUNCTION_ALLOW_BUILTIN=url`, and the two link nodes take `URL` from it      |
+| Bilibili redirects `/video/BV…` to `/video/BV…/`                       | "Short-link redirect limit exceeded" for every Bilibili link                                    | redirects are followed only for short links (b23.tv and similar)                  |
+| Bilibili's public view API answers 412                                 | no title or duration                                                                            | falls back to yt-dlp for the metadata                                             |
+| yt-dlp lists Bilibili subtitles only when asked                        | logged-in videos with AI subtitles still went to speech-to-text                                 | the metadata call asks for subtitles                                              |
+| Quoted `local_file: '…'` kept its quotes                               | local files were never found                                                                    | YAML quotes are removed                                                           |
+| Importing over a published workflow re-published the old version first | for 10–20 s after an update the old workflow answered                                           | the start step unpublishes before importing                                       |
+| PDFs were routed as images; images were sent as n8n's file reference   | PDF gave an empty text, images were rejected                                                    | route by file extension; read image bytes through n8n's helper                    |
+| The default image model (GLM-5.3-Flash) did not answer within 90 s     | image notes hung for five minutes                                                               | default is now `Qwen/Qwen3-VL-8B-Instruct`; the request times out after 2 minutes |
+| Downloaded audio and subtitles stayed in the working volume            | the volume grows forever                                                                        | files older than a day are removed on the next link job                           |
+
+## Not covered
+
+- **Image reading end to end.** The SiliconFlow test account ran out of balance during the image
+  tests. With a zero balance SiliconFlow rejects even its free models (HTTP 402), which the setup
+  check now explains. The model was checked separately before that: it read an image correctly in
+  13.5 s.
+- **Windows.** `vs-backend.ps1` and `start-windows.cmd` were not run on Windows.
+- **Mainland China network.** The mirror switch was checked only for reachability of the mirrors
+  (Docker mirror, npmmirror, Aliyun PyPI and Alpine all answered), not by building from inside China.
+- **Douyin, Xiaohongshu, YouTube.** Not part of this run.

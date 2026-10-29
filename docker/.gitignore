@@ -1,8 +1,0 @@
-n8n-data/
-files/*
-uploads/*
-cookies/*
-
-!files/.gitkeep
-!uploads/.gitkeep
-!cookies/.gitkeep

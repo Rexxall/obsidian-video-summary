@@ -31,6 +31,8 @@ const options = {
     ...builtinModules,
   ],
   format: 'cjs',
+  // Obsidian loads plugins with require(); a native import() of 'obsidian' cannot resolve there.
+  supported: { 'dynamic-import': false },
   target: 'es2020',
   logLevel: 'info',
   sourcemap: prod ? false : 'inline',

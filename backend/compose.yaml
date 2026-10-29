@@ -1,0 +1,49 @@
+# Started by vs-backend.sh / vs-backend.ps1, which create .env first.
+name: ${VS_PROJECT:-video-summary}
+
+services:
+  n8n:
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${VS_BASE_IMAGE:-node:24-alpine}
+        APK_MIRROR: ${VS_APK_MIRROR:-}
+        NPM_REGISTRY: ${VS_NPM_REGISTRY:-}
+        PIP_INDEX_URL: ${VS_PIP_INDEX_URL:-}
+    image: video-summary-backend:3.0.0
+    restart: unless-stopped
+    # Reachable only from this computer. Do not change to 0.0.0.0 without an authenticated HTTPS
+    # proxy in front; see SECURITY.md.
+    ports:
+      - '127.0.0.1:${VS_PORT:-5678}:5678'
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - work:/home/node/files
+      - ./uploads:/home/node/uploads
+      - ./cookies:/home/node/cookies
+      - ./.env:/run/video-summary/config.env:ro
+    environment:
+      - WEBHOOK_URL=http://127.0.0.1:${VS_PORT:-5678}/
+      - GENERIC_TIMEZONE=${TZ:-Asia/Shanghai}
+      - TZ=${TZ:-Asia/Shanghai}
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_PYTHON_ENABLED=false
+      # n8n 2.x leaves out Execute Command unless told otherwise; the media steps need it.
+      - NODES_EXCLUDE=["n8n-nodes-base.localFileTrigger"]
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=true
+      # Code nodes need URL for link checks; nothing else from Node is opened up.
+      - NODE_FUNCTION_ALLOW_BUILTIN=url
+      - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=true
+      - N8N_RESTRICT_FILE_ACCESS_TO=/home/node/uploads;/home/node/files;/home/node/cookies
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=2000
+      - HTTP_PROXY=${VS_HTTP_PROXY:-}
+      - HTTPS_PROXY=${VS_HTTP_PROXY:-}
+      - NO_PROXY=localhost,127.0.0.1
+
+volumes:
+  n8n-data:
+  work:

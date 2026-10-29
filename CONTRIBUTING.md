@@ -23,7 +23,7 @@ Install the built files into a test vault:
 main.js
 manifest.json
 styles.css
-Obsidian Video Summary.json
+backend/workflows/video-summary.json
 ```
 
 ## Before opening a pull request

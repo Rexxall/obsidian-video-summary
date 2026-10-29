@@ -1,0 +1,3 @@
+# Windows launchers keep their CRLF line endings and the PowerShell script its BOM.
+backend/*.cmd -text
+backend/*.ps1 -text

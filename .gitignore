@@ -26,8 +26,11 @@ cookies/
 *_cookies.txt
 credentials*.json
 n8n-credentials*.json
-!docker/cookies/
-!docker/cookies/.gitkeep
+!backend/cookies/
+!backend/cookies/.gitkeep
+!backend/.env.example
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Runtime data
 pids

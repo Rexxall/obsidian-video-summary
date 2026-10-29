@@ -3,6 +3,6 @@ main.js
 main.js.map
 data.json
 data/
-Obsidian Video Summary.json
+backend/workflows/
 *.tgz
 browser-extension/vendor/

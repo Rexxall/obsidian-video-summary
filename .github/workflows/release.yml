@@ -102,10 +102,16 @@ jobs:
       - name: Package release assets
         run: |
           archive="video-summary-${RELEASE_VERSION}.zip"
-          workflow_asset="Obsidian.Video.Summary.json"
+          backend_archive="video-summary-backend-${RELEASE_VERSION}.zip"
           zip -j "$archive" main.js manifest.json styles.css
           test "$(unzip -Z1 "$archive" | sort | tr '\n' ' ')" = "main.js manifest.json styles.css "
-          cp "Obsidian Video Summary.json" "$workflow_asset"
+          # Tracked files only, with their executable bits; .env and user files never ship.
+          git archive --format=zip --prefix=video-summary-backend/ -o "$backend_archive" HEAD:backend
+          unzip -l "$backend_archive" | grep -q 'video-summary-backend/.env.example'
+          if unzip -Z1 "$backend_archive" | grep -E '/\.env$'; then
+            echo "Backend archive must not contain .env" >&2
+            exit 1
+          fi
           extension_version="$(node -p "require('./browser-extension/manifest.json').version")"
           extension_archive="video-summary-capture-${extension_version}.zip"
           (cd browser-extension && zip -qr "../$extension_archive" . -x 'README.md')
@@ -114,7 +120,7 @@ jobs:
             main.js \
             manifest.json \
             styles.css \
-            "$workflow_asset" \
+            "$backend_archive" \
             "$archive" \
             "$extension_archive" \
             > SHA256SUMS
@@ -138,7 +144,7 @@ jobs:
             manifest.json
             styles.css
             "video-summary-${RELEASE_VERSION}.zip"
-            "Obsidian.Video.Summary.json"
+            "video-summary-backend-${RELEASE_VERSION}.zip"
             "$EXTENSION_ARCHIVE"
             SHA256SUMS
           )

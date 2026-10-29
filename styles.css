@@ -3346,9 +3346,15 @@ body {
 }
 .vs-settings .setup-check-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 6px 14px;
+  gap: 6px;
   margin: 6px 0;
+}
+.vs-settings .setup-check-list:empty {
+  display: none;
+}
+.vs-settings .setup-check-progress {
+  color: var(--vs-mute);
+  font-size: var(--font-ui-smaller);
 }
 .vs-settings .setup-check-item {
   display: flex;
@@ -3375,6 +3381,32 @@ body {
 .vs-settings .setup-check-item.is-missing .setup-check-icon {
   background: var(--vs-err-soft);
   color: var(--vs-err);
+}
+.vs-settings .setup-check-item.is-pending .setup-check-icon {
+  background: var(--background-modifier-hover);
+  color: var(--vs-mute);
+}
+.vs-settings .setup-check-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.vs-settings .setup-check-text .setup-check-fix {
+  color: var(--vs-ink);
+}
+.vs-settings .setup-cookie-paste {
+  margin-top: 6px;
+}
+.vs-settings .setup-cookie-paste > summary {
+  cursor: pointer;
+  color: var(--vs-mute);
+  font-size: var(--font-ui-smaller);
+}
+.vs-settings .setup-cookie-text {
+  width: 100%;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
 }
 .vs-settings .setup-check-text strong {
   display: block;
@@ -3415,32 +3447,6 @@ body {
   color: var(--vs-warn);
   font-size: var(--font-ui-smaller);
   line-height: 1.6;
-}
-
-/* 推荐流程对照表 */
-.vs-settings .workflow-compatibility-card {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px var(--vs-sep) var(--vs-line);
-}
-.vs-settings .workflow-compatibility-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-ui-smaller);
-}
-.vs-settings .workflow-compatibility-table :is(th, td) {
-  padding: 5px 0;
-  border-bottom: 1px solid var(--vs-line);
-  text-align: left;
-  vertical-align: top;
-}
-.vs-settings .workflow-compatibility-table th {
-  width: 132px;
-  color: var(--vs-mute);
-  font-weight: var(--font-normal);
-}
-.vs-settings .workflow-compatibility-table tr:last-child :is(th, td) {
-  border-bottom: none;
 }
 
 /* 各平台说明 */
@@ -4050,4 +4056,17 @@ body {
 .video-summary-view .vs-banner.is-empty .vs-banner-icon svg {
   width: 32px;
   height: 32px;
+}
+
+/* 扫码登录 B 站 */
+.vs-settings .setup-qr:empty {
+  display: none;
+}
+.vs-settings .setup-qr {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+.vs-settings .setup-qr-canvas {
+  border-radius: 8px;
 }

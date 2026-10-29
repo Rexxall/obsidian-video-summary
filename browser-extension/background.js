@@ -22,8 +22,8 @@ function localSet(value) {
   return chrome.storage.local.set(value);
 }
 
-// The Obsidian REST token stays on this device; everything else syncs with the browser profile.
-const LOCAL_ONLY_SETTINGS = ['obsidianRestToken'];
+// Tokens stay on this device; everything else syncs with the browser profile.
+const LOCAL_ONLY_SETTINGS = ['obsidianRestToken', 'n8nToken'];
 
 async function getSettings() {
   const stored = await syncGet(Object.keys(U.DEFAULT_SETTINGS));
@@ -45,7 +45,10 @@ async function setSettings(settings) {
   const synced = { ...next };
   for (const key of LOCAL_ONLY_SETTINGS) delete synced[key];
   await syncSet(synced);
-  await localSet({ obsidianRestToken: next.obsidianRestToken || '' });
+  await localSet({
+    obsidianRestToken: next.obsidianRestToken || '',
+    n8nToken: next.n8nToken || '',
+  });
   return next;
 }
 
@@ -212,11 +215,15 @@ async function openObsidianUri(uri) {
   });
 }
 
-async function postJson(url, payload) {
+function backendHeaders(settings) {
+  return settings.n8nToken ? { 'X-Video-Summary-Token': settings.n8nToken } : {};
+}
+
+async function postJson(url, payload, headers = {}) {
   if (!url) throw new Error('Endpoint URL is not configured.');
   const response = await self.fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(payload),
   });
   const text = await response.text();
@@ -388,12 +395,33 @@ async function transferOne(rawItem, operation, settings) {
       settings.webhookFormat === 'legacy'
         ? U.buildLegacyBridgePayload(item, settings, actionForPayload)
         : U.buildUnifiedPayload(item, settings, actionForPayload);
-    const response = await postJson(settings.n8nWebhookUrl, payload);
+    const response = await postJson(settings.n8nWebhookUrl, payload, backendHeaders(settings));
     await addHistory({ operation, title: item.title, url: item.url, status: 'success' });
     return { operation, status: 'success', title: item.title, response };
   }
 
   throw new Error(`Unknown operation: ${operation}`);
+}
+
+const COOKIE_SITES = { bilibili: { domain: 'bilibili.com', login: 'SESSDATA', name: 'B 站' } };
+
+/** Send this browser's login cookies for one site to the user's own backend, for yt-dlp. */
+async function syncCookies(platform) {
+  const site = COOKIE_SITES[platform];
+  if (!site) throw new Error('Unsupported site.');
+  const settings = await getSettings();
+  if (!settings.n8nToken) throw new Error('先在设置里粘贴后端连接码并保存。');
+  if (!chrome.cookies) throw new Error('没有读取 cookie 的权限，请重新点一次并允许。');
+  const cookies = await chrome.cookies.getAll({ domain: site.domain });
+  if (!cookies.some((cookie) => cookie.name === site.login)) {
+    throw new Error(`这个浏览器还没有登录${site.name}。先打开 ${site.domain} 登录，再同步。`);
+  }
+  const body = await postJson(
+    settings.n8nWebhookUrl,
+    { name: 'save-cookies', metadata: { platform, cookies: U.buildNetscapeCookies(cookies) } },
+    backendHeaders(settings),
+  );
+  return { count: Number(body?.cookies) || cookies.length };
 }
 
 async function transferMany(items, operation) {
@@ -684,6 +712,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         await localSet({ target_tab: '' });
         return;
       }
+      case 'SYNC_COOKIES':
+        sendResponse({ ok: true, result: await syncCookies(message.platform) });
+        return;
       case 'SAVE_SETTINGS':
         sendResponse({ ok: true, settings: await setSettings(message.settings || {}) });
         return;

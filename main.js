@@ -52,17 +52,17 @@ function renderTranscriptFold(transcript) {
   return "> [!quote]- \u539F\u59CB\u6587\u7A3F\n" + lines.split("\n").map((line) => "> " + line).join("\n");
 }
 function writeCleanVideoBody(body, result, updateSummary = true) {
-  const replace = (text, kind, value) => {
+  const replace = (text2, kind, value) => {
     const start = `<!-- video-summary-${kind}:start -->`;
     const end = `<!-- video-summary-${kind}:end -->`;
     const regex = new RegExp(`${start}[\\s\\S]*?${end}`, "g");
     const block = value.trim() ? `${start}
 ${value.trim()}
 ${end}` : "";
-    if (regex.test(text)) return text.replace(regex, () => block);
-    return block ? `${text.trimEnd()}
+    if (regex.test(text2)) return text2.replace(regex, () => block);
+    return block ? `${text2.trimEnd()}
 
-${block}`.trimStart() : text;
+${block}`.trimStart() : text2;
   };
   let next = cleanVideoScaffold(body);
   next = replace(next, "evidence", "");
@@ -84,7 +84,7 @@ function relinkVideoJobs(store, oldPath, file) {
 }
 
 // main.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // modals/VideoSummaryModal.ts
 var import_obsidian2 = require("obsidian");
@@ -765,9 +765,9 @@ function scoreCandidate(type, evidence) {
   const reasons = [];
   let score = 0;
   for (const channel of ["title", "author", "transcript", "chapter"]) {
-    const text = channel === "chapter" ? evidence.chapterText : evidence[channel];
+    const text2 = channel === "chapter" ? evidence.chapterText : evidence[channel];
     const cues = rules[channel] || [];
-    const matches = cues.filter((item) => item.pattern.test(text));
+    const matches = cues.filter((item) => item.pattern.test(text2));
     if (matches.length === 0) continue;
     const weights = CHANNEL_WEIGHTS[channel];
     const contribution = Math.min(weights.cap, matches.length * weights.perCue);
@@ -1013,10 +1013,10 @@ function signalLabel(signal) {
     chapter: "\u7AE0\u8282"
   }[signal];
 }
-function countMatches(text, pattern) {
-  if (!text) return 0;
+function countMatches(text2, pattern) {
+  if (!text2) return 0;
   const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
-  return Array.from(text.matchAll(new RegExp(pattern.source, flags))).length;
+  return Array.from(text2.matchAll(new RegExp(pattern.source, flags))).length;
 }
 function hasValue(value) {
   return value !== void 0 && value !== null && (scalarText(value).trim() !== "" || typeof value === "object");
@@ -1116,13 +1116,13 @@ function normalizeSegments(rawSegments, transcript = "", sourceUrl = "", fallbac
   return parseTranscriptSegments(transcript, sourceUrl);
 }
 function parseTranscriptSegments(transcript, sourceUrl = "") {
-  const text = normalizeText2(transcript);
-  if (!text) return [];
-  const cueSegments = parseCueTranscript(text, sourceUrl);
+  const text2 = normalizeText2(transcript);
+  if (!text2) return [];
+  const cueSegments = parseCueTranscript(text2, sourceUrl);
   if (cueSegments.length > 0) return cueSegments;
-  const prefixed = parseTimestampPrefixedTranscript(text, sourceUrl);
+  const prefixed = parseTimestampPrefixedTranscript(text2, sourceUrl);
   if (prefixed.length > 0) return prefixed;
-  return splitUntimedTranscript(text).map((part, index) => ({
+  return splitUntimedTranscript(text2).map((part, index) => ({
     id: stableSegmentId(sourceUrl, null, part, index),
     start: null,
     text: part,
@@ -1130,9 +1130,9 @@ function parseTranscriptSegments(transcript, sourceUrl = "") {
     timing_quality: "none"
   }));
 }
-function stableSegmentId(sourceUrl, start, text, fallbackIndex = 0) {
+function stableSegmentId(sourceUrl, start, text2, fallbackIndex = 0) {
   const timing = start === null ? `untimed-${fallbackIndex}` : start.toFixed(3);
-  return `vs-${stableHash(`${normalizeSource(sourceUrl)}|${timing}|${normalizeText2(text)}`)}`;
+  return `vs-${stableHash(`${normalizeSource(sourceUrl)}|${timing}|${normalizeText2(text2)}`)}`;
 }
 function stableHash(value) {
   let hash = 2166136261;
@@ -1169,19 +1169,19 @@ function formatTimestamp(seconds) {
 }
 function normalizeSegment(raw, index, sourceUrl, fallbackQuality) {
   if (typeof raw === "string") {
-    const text2 = normalizeText2(raw);
-    if (!text2) return null;
+    const text3 = normalizeText2(raw);
+    if (!text3) return null;
     return {
-      id: stableSegmentId(sourceUrl, null, text2, index),
+      id: stableSegmentId(sourceUrl, null, text3, index),
       start: null,
-      text: text2,
+      text: text3,
       source: "speech",
       timing_quality: "none"
     };
   }
   if (!isRecord(raw)) return null;
-  const text = readString(raw, ["text", "transcript", "content", "quote"]);
-  if (!text) return null;
+  const text2 = readString(raw, ["text", "transcript", "content", "quote"]);
+  if (!text2) return null;
   const start = readNumber(raw, ["start", "start_seconds", "startTime", "offset"]);
   const end = readNumber(raw, ["end", "end_seconds", "endTime"]);
   const source = normalizeEvidenceSource(raw.source || raw.source_type || raw.kind, "speech");
@@ -1189,12 +1189,12 @@ function normalizeSegment(raw, index, sourceUrl, fallbackQuality) {
     raw.timing_quality,
     start === null ? "none" : fallbackQuality === "none" ? "estimated" : fallbackQuality
   );
-  const id = readString(raw, ["id", "segment_id"]) || stableSegmentId(sourceUrl, start, text, index);
+  const id = readString(raw, ["id", "segment_id"]) || stableSegmentId(sourceUrl, start, text2, index);
   return {
     id: sanitizeId(id),
     start,
     end,
-    text: normalizeText2(text),
+    text: normalizeText2(text2),
     speaker: readString(raw, ["speaker", "speaker_name", "speaker_label"]),
     source,
     timing_quality: quality,
@@ -1204,8 +1204,8 @@ function normalizeSegment(raw, index, sourceUrl, fallbackQuality) {
     confidence: normalizeRatio(raw.confidence)
   };
 }
-function parseCueTranscript(text, sourceUrl) {
-  const lines = text.split("\n");
+function parseCueTranscript(text2, sourceUrl) {
+  const lines = text2.split("\n");
   const result = [];
   for (let index = 0; index < lines.length; index += 1) {
     const timing = parseTimingLine(lines[index]);
@@ -1234,9 +1234,9 @@ function parseCueTranscript(text, sourceUrl) {
   }
   return dedupeRollingCues(result);
 }
-function parseTimestampPrefixedTranscript(text, sourceUrl) {
+function parseTimestampPrefixedTranscript(text2, sourceUrl) {
   const result = [];
-  const expanded = text.replace(/(\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])\s*/g, "\n$1 ");
+  const expanded = text2.replace(/(\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])\s*/g, "\n$1 ");
   for (const line of expanded.split("\n")) {
     const match = line.match(
       /^\s*(?:\[|\()?((?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?)(?:\]|\))?\s+(.+)$/
@@ -1568,12 +1568,12 @@ function dedupeRollingCues(segments) {
   }
   return result;
 }
-function splitUntimedTranscript(text) {
-  const paragraphs = text.split(/\n{2,}/).map(normalizeText2).filter(Boolean);
+function splitUntimedTranscript(text2) {
+  const paragraphs = text2.split(/\n{2,}/).map(normalizeText2).filter(Boolean);
   if (paragraphs.length > 1) return paragraphs;
-  const lines = text.split("\n").map(normalizeText2).filter(Boolean);
+  const lines = text2.split("\n").map(normalizeText2).filter(Boolean);
   if (lines.length > 1) return lines;
-  return text.split(/(?<=[。！？.!?])\s+/).reduce((chunks, sentence) => {
+  return text2.split(/(?<=[。！？.!?])\s+/).reduce((chunks, sentence) => {
     const current = chunks[chunks.length - 1];
     if (!current || current.length + sentence.length > 500) chunks.push(sentence);
     else chunks[chunks.length - 1] = `${current} ${sentence}`;
@@ -1701,14 +1701,14 @@ function sanitizeId(value) {
 // core/TranscriptQuote.ts
 var DEFAULT_QUOTE_TEMPLATE = "> {{text}} ({{link}})";
 function formatTranscriptQuote(template, source) {
-  const text = source.text.replace(/\s+/g, " ").trim();
+  const text2 = source.text.replace(/\s+/g, " ").trim();
   const time = formatTimestamp(source.start);
   const url = source.sourceUrl && buildTimestampUrl(source.sourceUrl, source.start) || "";
   const link = url ? `[${time}](${url})` : time;
   const noteTarget = (source.notePath || "").replace(/\.md$/i, "");
   const note = noteTarget ? `[[${noteTarget}|${source.title || noteTarget}]]` : "";
   const values = {
-    text,
+    text: text2,
     time,
     url,
     link,
@@ -1820,17 +1820,19 @@ var SHORT_LINK_HOSTS = [
   "xhs.cn"
 ];
 var DEFAULT_HISTORY_LIMIT = 300;
-var DEFAULT_AI_MODELS = ["Gemini 3.1", "Gemini 3.0"];
+var BACKEND_DEFAULT_MODEL_LABEL = "\u540E\u7AEF\u9ED8\u8BA4\u6A21\u578B";
 var DEFAULT_WEBHOOK_AUTH_HEADER = "X-Video-Summary-Token";
 var DEFAULT_N8N_WEBHOOK_URL = "http://127.0.0.1:5678/webhook/obsidian-video-summary";
 var LEGACY_DEFAULT_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/obsidian-video-summary";
+var SETUP_GUIDE_URL = "https://github.com/Rexxall/obsidian-video-summary/blob/main/INSTALL.md";
+var SETUP_TRIAL_TRANSCRIPT = "\u4ECA\u5929\u4ECB\u7ECD\u756A\u8304\u5DE5\u4F5C\u6CD5\u3002\u5B83\u7531\u5F17\u6717\u5207\u65AF\u79D1\xB7\u897F\u91CC\u6D1B\u5728\u4E0A\u4E16\u7EAA\u516B\u5341\u5E74\u4EE3\u63D0\u51FA\uFF1A\u9009\u4E00\u4EF6\u4EFB\u52A1\uFF0C\u8BA1\u65F6\u4E8C\u5341\u4E94\u5206\u949F\u4E13\u5FC3\u505A\uFF0C\u7136\u540E\u4F11\u606F\u4E94\u5206\u949F\uFF1B\u6BCF\u5B8C\u6210\u56DB\u8F6E\uFF0C\u4F11\u606F\u5341\u4E94\u5230\u4E09\u5341\u5206\u949F\u3002\u597D\u5904\u662F\u628A\u5927\u4EFB\u52A1\u5207\u6210\u5C0F\u5757\uFF0C\u964D\u4F4E\u5F00\u59CB\u7684\u96BE\u5EA6\uFF0C\u5E76\u7528\u56FA\u5B9A\u7684\u4F11\u606F\u9632\u6B62\u75B2\u52B3\u3002\u4E8C\u5341\u4E94\u5206\u949F\u53EA\u662F\u9ED8\u8BA4\u503C\uFF0C\u53EF\u4EE5\u6309\u4EFB\u52A1\u8C03\u6574\u3002";
 var LEGACY_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/cyrus";
 var RECOMMENDED_WORKFLOW = {
-  name: "Video Summary Advanced Workflow",
-  version: "2.1.5",
-  variant: "advanced",
+  name: "Video Summary",
+  version: "3.0.0",
+  variant: "packaged",
   webhookPath: "obsidian-video-summary",
-  models: [...DEFAULT_AI_MODELS],
+  models: [],
   requiredTools: ["yt-dlp", "ffmpeg"],
   uploadsPath: "/home/node/uploads"
 };
@@ -1839,7 +1841,7 @@ var PLATFORM_CAPABILITIES = [
     platform: "\u672C\u5730\u97F3\u9891/\u89C6\u9891",
     status: "recommended",
     input: "local_file",
-    requirements: "\u628A\u6587\u4EF6\u653E\u8FDB docker/uploads\uFF0C\u53EA\u586B\u5199\u6839\u76EE\u5F55\u5185\u7684\u6587\u4EF6\u540D\u3002",
+    requirements: "\u628A\u6587\u4EF6\u653E\u8FDB\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads\uFF0C\u53EA\u586B\u5199\u6587\u4EF6\u540D\u3002",
     notes: "\u6700\u7A33\u5B9A\uFF0C\u9002\u5408\u957F\u5F55\u97F3\u3001\u4F1A\u8BAE\u3001\u8BFE\u7A0B\u548C\u4E2A\u4EBA\u7D20\u6750\u3002"
   },
   {
@@ -1908,8 +1910,7 @@ var DEFAULT_SETTINGS = {
   attentionAssessmentEnabled: true,
   generateLearningArtifacts: false,
   readerQuoteTemplate: DEFAULT_QUOTE_TEMPLATE,
-  aiModel: "Gemini 3.1",
-  customAiModels: [...DEFAULT_AI_MODELS],
+  aiModel: BACKEND_DEFAULT_MODEL_LABEL,
   timeoutMinutes: 30,
   autoSave: true,
   batchConcurrency: 3,
@@ -1953,7 +1954,7 @@ var DEFAULT_SETTINGS = {
   expandShortLinks: true,
   // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
   cookiesDirPath: "",
-  // n8n docker/cookies 目录的绝对路径（桌面端 cookies 管理用）
+  // 后端文件夹里 cookies 目录的绝对路径（桌面端 cookies 管理用）
   payloadKeys: {
     mode: "mode",
     language: "language",
@@ -2765,9 +2766,9 @@ ${fieldLine}`;
   }
 };
 function shouldMirrorLegacyStatus(value) {
-  const text = typeof value === "string" || typeof value === "number" ? String(value) : "";
-  if (text.trim() === "") return true;
-  const status = text.trim().toLowerCase();
+  const text2 = typeof value === "string" || typeof value === "number" ? String(value) : "";
+  if (text2.trim() === "") return true;
+  const status = text2.trim().toLowerCase();
   return (/* @__PURE__ */ new Set([
     "pending",
     "running",
@@ -3384,8 +3385,8 @@ var PlaylistProcessor = class _PlaylistProcessor {
   static isValidBvid(bvid) {
     return /^BV[a-zA-Z0-9]{10}$/.test(bvid);
   }
-  static extractBvIdsFromText(text) {
-    const matches = text.match(/BV[a-zA-Z0-9]{10}/g);
+  static extractBvIdsFromText(text2) {
+    const matches = text2.match(/BV[a-zA-Z0-9]{10}/g);
     return matches ? [...new Set(matches)] : [];
   }
   static generateVideoUrl(bvid) {
@@ -3487,8 +3488,8 @@ function parsePlaylistUrl(url) {
   throw new Error("\u65E0\u6CD5\u4ECE B\u7AD9\u94FE\u63A5\u8BC6\u522B\u5408\u96C6\u6216\u6536\u85CF\u5939 ID");
 }
 async function obsidianRequester(request) {
-  const { requestUrl: requestUrl2 } = await import("obsidian");
-  const response = await requestUrl2({
+  const { requestUrl: requestUrl3 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl3({
     url: request.url,
     method: request.method,
     headers: request.headers,
@@ -3588,9 +3589,9 @@ function boundedInteger(value, fallback, minimum, maximum) {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(minimum, Math.min(maximum, Math.floor(value ?? fallback)));
 }
-function parseJson(text, label) {
+function parseJson(text2, label) {
   try {
-    return JSON.parse(text);
+    return JSON.parse(text2);
   } catch {
     throw new Error(`${label} \u8FD4\u56DE\u4E86\u65E0\u6548 JSON`);
   }
@@ -3683,8 +3684,8 @@ function extractAssignedJson(html, names) {
     if (index < 0) continue;
     const start = html.indexOf("{", index + name.length);
     if (start < 0) continue;
-    const text = balancedJsonObject(html, start);
-    if (text) return parseJson(text, name);
+    const text2 = balancedJsonObject(html, start);
+    if (text2) return parseJson(text2, name);
   }
   return void 0;
 }
@@ -3694,8 +3695,8 @@ function extractJsonAfterKey(html, key) {
   if (index < 0) return void 0;
   const start = html.indexOf("{", index + marker.length);
   if (start < 0) return void 0;
-  const text = balancedJsonObject(html, start);
-  return text ? parseJson(text, key) : void 0;
+  const text2 = balancedJsonObject(html, start);
+  return text2 ? parseJson(text2, key) : void 0;
 }
 function captureJsonString(html, key) {
   const pattern = new RegExp(
@@ -3703,12 +3704,12 @@ function captureJsonString(html, key) {
   );
   return html.match(pattern)?.[1];
 }
-function balancedJsonObject(text, start) {
+function balancedJsonObject(text2, start) {
   let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let index = start; index < text.length; index += 1) {
-    const character = text[index];
+  for (let index = start; index < text2.length; index += 1) {
+    const character = text2[index];
     if (inString) {
       if (escaped) escaped = false;
       else if (character === "\\") escaped = true;
@@ -3722,7 +3723,7 @@ function balancedJsonObject(text, start) {
     if (character === "{") depth += 1;
     else if (character === "}") {
       depth -= 1;
-      if (depth === 0) return text.slice(start, index + 1);
+      if (depth === 0) return text2.slice(start, index + 1);
     }
   }
   return void 0;
@@ -4178,11 +4179,27 @@ var VideoUtils = class {
       if (singleLineMatch) {
         const val = singleLineMatch[1].trim();
         if (val !== "|" && val !== "|-" && val !== "|+" && val !== ">" && val !== ">-" && val !== ">+") {
-          return val;
+          return this.unquoteYamlScalar(val);
         }
       }
     }
     return null;
+  }
+  /** A single-line YAML value as written: 'a ''b''' and "a \"b\"" lose their quotes. */
+  static unquoteYamlScalar(raw) {
+    const value = raw.trim();
+    if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+      return value.slice(1, -1).replace(/''/g, "'");
+    }
+    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (typeof parsed === "string") return parsed;
+      } catch {
+      }
+      return value.slice(1, -1);
+    }
+    return value;
   }
   /**
    * 从内容中提取本地文件名
@@ -4193,7 +4210,7 @@ var VideoUtils = class {
       const fmText = fmMatch[1];
       const fileNameMatch = fmText.match(/^(local_file|localFileName|localFile):\s*(.+)$/m);
       if (fileNameMatch) {
-        return fileNameMatch[2].trim();
+        return this.unquoteYamlScalar(fileNameMatch[2]) || null;
       }
     }
     return null;
@@ -5248,9 +5265,9 @@ function progressRank(status) {
       return 0;
   }
 }
-function parseManifest(text, path) {
+function parseManifest(text2, path) {
   try {
-    return JSON.parse(text);
+    return JSON.parse(text2);
   } catch {
     throw new Error(`Invalid course manifest JSON: ${path}`);
   }
@@ -5577,20 +5594,20 @@ function escapeWikiTarget(value) {
 // core/InputParser.ts
 var MEDIA_EXTENSIONS = /\.(mp4|mkv|mov|avi|flv|webm|mp3|m4a|wav|aac|flac|ogg)$/i;
 function parseInput(raw, options = {}) {
-  const text = (raw || "").trim();
+  const text2 = (raw || "").trim();
   const transcript = (options.transcript || "").trim();
   const localFiles = splitLocalFiles(options.localFiles || "");
-  if (text && looksLikeJson(text)) {
+  if (text2 && looksLikeJson(text2)) {
     return [
       {
         title: "Webhook JSON",
         input: {},
         source: "json",
-        rawJson: text
+        rawJson: text2
       }
     ];
   }
-  const urls = extractUrls(text, options.keepPartParam === true);
+  const urls = extractUrls(text2, options.keepPartParam === true);
   if (urls.length > 0) {
     return urls.map((url) => ({
       title: titleForUrl(url),
@@ -5606,16 +5623,16 @@ function parseInput(raw, options = {}) {
       source: "local-file"
     }));
   }
-  if (text && (MEDIA_EXTENSIONS.test(text) || isAbsoluteLocalPath(text))) {
+  if (text2 && (MEDIA_EXTENSIONS.test(text2) || isAbsoluteLocalPath(text2))) {
     return [
       {
-        title: titleForLocalFile(text),
-        input: buildInput({ transcript, localFile: text }),
+        title: titleForLocalFile(text2),
+        input: buildInput({ transcript, localFile: text2 }),
         source: "local-file"
       }
     ];
   }
-  const body = transcript || text;
+  const body = transcript || text2;
   if (body) {
     return [
       {
@@ -5680,7 +5697,7 @@ function titleForLocalFile(path) {
   const fileName = path.split("/").pop() || path.split("\\").pop() || "local_file";
   return `\u672C\u5730\u6587\u4EF6_${fileName}`;
 }
-function titleForTranscript(text) {
+function titleForTranscript(text2) {
   const now = /* @__PURE__ */ new Date();
   const stamp = [
     now.getFullYear(),
@@ -5691,7 +5708,7 @@ function titleForTranscript(text) {
     String(now.getMinutes()).padStart(2, "0"),
     String(now.getSeconds()).padStart(2, "0")
   ].join("");
-  const snippet = text.split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
+  const snippet = text2.split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
   return snippet ? `\u6587\u7A3F_${stamp}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp}`;
 }
 function buildInput(parts) {
@@ -5704,18 +5721,18 @@ function buildInput(parts) {
 function splitLocalFiles(value) {
   return value.split(",").map((item) => item.trim()).filter((item) => item.length > 0);
 }
-function looksLikeJson(text) {
-  if (!/^[[{]/.test(text)) return false;
+function looksLikeJson(text2) {
+  if (!/^[[{]/.test(text2)) return false;
   try {
-    JSON.parse(text);
+    JSON.parse(text2);
     return true;
   } catch {
     return false;
   }
 }
-function extractUrls(text, keepPartParam) {
-  if (!text) return [];
-  const matches = text.match(/https?:\/\/[^\s"'<>]+/g) || [];
+function extractUrls(text2, keepPartParam) {
+  if (!text2) return [];
+  const matches = text2.match(/https?:\/\/[^\s"'<>]+/g) || [];
   const cleaned = matches.map(
     (url) => keepPartParam ? VideoUtils.cleanVideoUrlKeepP(url) : VideoUtils.cleanVideoUrl(url)
   ).filter((url) => url.length > 0);
@@ -6128,7 +6145,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     this.renderLastBatch(fileSelectionEl);
     const playlistSelectionEl = bodyEl.createDiv({ cls: "batch-playlist-selection" });
     new import_obsidian7.Setting(playlistSelectionEl).setName("\u8BFE\u7A0B\u6765\u6E90\u94FE\u63A5").setDesc("\u652F\u6301 YouTube \u64AD\u653E\u5217\u8868\u4E0E\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\uFF1B\u89E3\u6790\u548C\u5BFC\u5165\u4E0D\u4F1A\u8C03\u7528 AI").addText(
-      (text) => text.setPlaceholder("YouTube \u64AD\u653E\u5217\u8868\u6216\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5").setValue(this.playlistUrl).onChange((value) => {
+      (text2) => text2.setPlaceholder("YouTube \u64AD\u653E\u5217\u8868\u6216\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5").setValue(this.playlistUrl).onChange((value) => {
         this.playlistUrl = value;
       })
     );
@@ -6843,6 +6860,1963 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
 };
 function messageOf(error) {
   return error instanceof Error ? errorMessage(error) : String(error);
+}
+
+// core/BilibiliLogin.ts
+var import_obsidian8 = require("obsidian");
+
+// core/BilibiliCookies.ts
+var LOGIN_COOKIES = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid"];
+function cookiesFromLoginUrl(loginUrl, nowSeconds) {
+  let params;
+  try {
+    params = new URL(loginUrl).searchParams;
+  } catch {
+    return "";
+  }
+  if (!params.get("SESSDATA")) return "";
+  const expires = Number(params.get("Expires")) || 0;
+  const expiry = expires > nowSeconds ? expires : nowSeconds + 180 * 24 * 60 * 60;
+  const lines = ["# Netscape HTTP Cookie File"];
+  for (const name of LOGIN_COOKIES) {
+    const value = params.get(name);
+    if (!value || /[\t\r\n]/.test(value)) continue;
+    const httpOnly = name === "SESSDATA";
+    lines.push(
+      [
+        httpOnly ? "#HttpOnly_.bilibili.com" : ".bilibili.com",
+        "TRUE",
+        "/",
+        httpOnly ? "TRUE" : "FALSE",
+        String(Math.floor(expiry)),
+        name,
+        value
+      ].join("	")
+    );
+  }
+  return `${lines.join("\n")}
+`;
+}
+
+// core/BilibiliLogin.ts
+var GENERATE_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
+var POLL_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
+var HEADERS = { "User-Agent": "Mozilla/5.0", Referer: "https://www.bilibili.com/" };
+async function startQrLogin() {
+  const response = await (0, import_obsidian8.requestUrl)({ url: GENERATE_URL, headers: HEADERS, throw: false });
+  const body = response.json;
+  const data = isRecord(body) && isRecord(body.data) ? body.data : null;
+  if (response.status !== 200 || !data || typeof data.url !== "string") {
+    throw new Error(`B \u7AD9\u6CA1\u6709\u8FD4\u56DE\u4E8C\u7EF4\u7801\uFF08HTTP ${response.status}\uFF09`);
+  }
+  return { url: data.url, key: scalarText(data.qrcode_key) };
+}
+async function pollQrLogin(key) {
+  const response = await (0, import_obsidian8.requestUrl)({
+    url: `${POLL_URL}?qrcode_key=${encodeURIComponent(key)}`,
+    headers: HEADERS,
+    throw: false
+  });
+  const body = response.json;
+  const data = isRecord(body) && isRecord(body.data) ? body.data : null;
+  if (response.status !== 200 || !data) {
+    return { state: "error", message: `B \u7AD9\u767B\u5F55\u63A5\u53E3\u8FD4\u56DE HTTP ${response.status}` };
+  }
+  switch (Number(data.code)) {
+    case 86101:
+      return { state: "waiting" };
+    case 86090:
+      return { state: "scanned" };
+    case 86038:
+      return { state: "expired" };
+    case 0: {
+      const cookies = cookiesFromLoginUrl(scalarText(data.url), Date.now() / 1e3);
+      return cookies ? { state: "done", cookies } : { state: "error", message: "B \u7AD9\u786E\u8BA4\u4E86\u767B\u5F55\uFF0C\u4F46\u6CA1\u6709\u7ED9\u51FA\u767B\u5F55 cookie\u3002" };
+    }
+    default:
+      return { state: "error", message: scalarText(data.message) || "\u672A\u77E5\u72B6\u6001" };
+  }
+}
+
+// node_modules/qrcode-generator/dist/qrcode.mjs
+var qrcode = function(typeNumber, errorCorrectionLevel) {
+  const PAD0 = 236;
+  const PAD1 = 17;
+  let _typeNumber = typeNumber;
+  const _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+  let _modules = null;
+  let _moduleCount = 0;
+  let _dataCache = null;
+  const _dataList = [];
+  const _this = {};
+  const makeImpl = function(test, maskPattern) {
+    _moduleCount = _typeNumber * 4 + 17;
+    _modules = (function(moduleCount) {
+      const modules = new Array(moduleCount);
+      for (let row = 0; row < moduleCount; row += 1) {
+        modules[row] = new Array(moduleCount);
+        for (let col = 0; col < moduleCount; col += 1) {
+          modules[row][col] = null;
+        }
+      }
+      return modules;
+    })(_moduleCount);
+    setupPositionProbePattern(0, 0);
+    setupPositionProbePattern(_moduleCount - 7, 0);
+    setupPositionProbePattern(0, _moduleCount - 7);
+    setupPositionAdjustPattern();
+    setupTimingPattern();
+    setupTypeInfo(test, maskPattern);
+    if (_typeNumber >= 7) {
+      setupTypeNumber(test);
+    }
+    if (_dataCache == null) {
+      _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+    }
+    mapData(_dataCache, maskPattern);
+  };
+  const setupPositionProbePattern = function(row, col) {
+    for (let r = -1; r <= 7; r += 1) {
+      if (row + r <= -1 || _moduleCount <= row + r) continue;
+      for (let c = -1; c <= 7; c += 1) {
+        if (col + c <= -1 || _moduleCount <= col + c) continue;
+        if (0 <= r && r <= 6 && (c == 0 || c == 6) || 0 <= c && c <= 6 && (r == 0 || r == 6) || 2 <= r && r <= 4 && 2 <= c && c <= 4) {
+          _modules[row + r][col + c] = true;
+        } else {
+          _modules[row + r][col + c] = false;
+        }
+      }
+    }
+  };
+  const getBestMaskPattern = function() {
+    let minLostPoint = 0;
+    let pattern = 0;
+    for (let i = 0; i < 8; i += 1) {
+      makeImpl(true, i);
+      const lostPoint = QRUtil.getLostPoint(_this);
+      if (i == 0 || minLostPoint > lostPoint) {
+        minLostPoint = lostPoint;
+        pattern = i;
+      }
+    }
+    return pattern;
+  };
+  const setupTimingPattern = function() {
+    for (let r = 8; r < _moduleCount - 8; r += 1) {
+      if (_modules[r][6] != null) {
+        continue;
+      }
+      _modules[r][6] = r % 2 == 0;
+    }
+    for (let c = 8; c < _moduleCount - 8; c += 1) {
+      if (_modules[6][c] != null) {
+        continue;
+      }
+      _modules[6][c] = c % 2 == 0;
+    }
+  };
+  const setupPositionAdjustPattern = function() {
+    const pos = QRUtil.getPatternPosition(_typeNumber);
+    for (let i = 0; i < pos.length; i += 1) {
+      for (let j = 0; j < pos.length; j += 1) {
+        const row = pos[i];
+        const col = pos[j];
+        if (_modules[row][col] != null) {
+          continue;
+        }
+        for (let r = -2; r <= 2; r += 1) {
+          for (let c = -2; c <= 2; c += 1) {
+            if (r == -2 || r == 2 || c == -2 || c == 2 || r == 0 && c == 0) {
+              _modules[row + r][col + c] = true;
+            } else {
+              _modules[row + r][col + c] = false;
+            }
+          }
+        }
+      }
+    }
+  };
+  const setupTypeNumber = function(test) {
+    const bits = QRUtil.getBCHTypeNumber(_typeNumber);
+    for (let i = 0; i < 18; i += 1) {
+      const mod = !test && (bits >> i & 1) == 1;
+      _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+    }
+    for (let i = 0; i < 18; i += 1) {
+      const mod = !test && (bits >> i & 1) == 1;
+      _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+    }
+  };
+  const setupTypeInfo = function(test, maskPattern) {
+    const data = _errorCorrectionLevel << 3 | maskPattern;
+    const bits = QRUtil.getBCHTypeInfo(data);
+    for (let i = 0; i < 15; i += 1) {
+      const mod = !test && (bits >> i & 1) == 1;
+      if (i < 6) {
+        _modules[i][8] = mod;
+      } else if (i < 8) {
+        _modules[i + 1][8] = mod;
+      } else {
+        _modules[_moduleCount - 15 + i][8] = mod;
+      }
+    }
+    for (let i = 0; i < 15; i += 1) {
+      const mod = !test && (bits >> i & 1) == 1;
+      if (i < 8) {
+        _modules[8][_moduleCount - i - 1] = mod;
+      } else if (i < 9) {
+        _modules[8][15 - i - 1 + 1] = mod;
+      } else {
+        _modules[8][15 - i - 1] = mod;
+      }
+    }
+    _modules[_moduleCount - 8][8] = !test;
+  };
+  const mapData = function(data, maskPattern) {
+    let inc = -1;
+    let row = _moduleCount - 1;
+    let bitIndex = 7;
+    let byteIndex = 0;
+    const maskFunc = QRUtil.getMaskFunction(maskPattern);
+    for (let col = _moduleCount - 1; col > 0; col -= 2) {
+      if (col == 6) col -= 1;
+      while (true) {
+        for (let c = 0; c < 2; c += 1) {
+          if (_modules[row][col - c] == null) {
+            let dark = false;
+            if (byteIndex < data.length) {
+              dark = (data[byteIndex] >>> bitIndex & 1) == 1;
+            }
+            const mask = maskFunc(row, col - c);
+            if (mask) {
+              dark = !dark;
+            }
+            _modules[row][col - c] = dark;
+            bitIndex -= 1;
+            if (bitIndex == -1) {
+              byteIndex += 1;
+              bitIndex = 7;
+            }
+          }
+        }
+        row += inc;
+        if (row < 0 || _moduleCount <= row) {
+          row -= inc;
+          inc = -inc;
+          break;
+        }
+      }
+    }
+  };
+  const createBytes = function(buffer, rsBlocks) {
+    let offset = 0;
+    let maxDcCount = 0;
+    let maxEcCount = 0;
+    const dcdata = new Array(rsBlocks.length);
+    const ecdata = new Array(rsBlocks.length);
+    for (let r = 0; r < rsBlocks.length; r += 1) {
+      const dcCount = rsBlocks[r].dataCount;
+      const ecCount = rsBlocks[r].totalCount - dcCount;
+      maxDcCount = Math.max(maxDcCount, dcCount);
+      maxEcCount = Math.max(maxEcCount, ecCount);
+      dcdata[r] = new Array(dcCount);
+      for (let i = 0; i < dcdata[r].length; i += 1) {
+        dcdata[r][i] = 255 & buffer.getBuffer()[i + offset];
+      }
+      offset += dcCount;
+      const rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+      const rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+      const modPoly = rawPoly.mod(rsPoly);
+      ecdata[r] = new Array(rsPoly.getLength() - 1);
+      for (let i = 0; i < ecdata[r].length; i += 1) {
+        const modIndex = i + modPoly.getLength() - ecdata[r].length;
+        ecdata[r][i] = modIndex >= 0 ? modPoly.getAt(modIndex) : 0;
+      }
+    }
+    let totalCodeCount = 0;
+    for (let i = 0; i < rsBlocks.length; i += 1) {
+      totalCodeCount += rsBlocks[i].totalCount;
+    }
+    const data = new Array(totalCodeCount);
+    let index = 0;
+    for (let i = 0; i < maxDcCount; i += 1) {
+      for (let r = 0; r < rsBlocks.length; r += 1) {
+        if (i < dcdata[r].length) {
+          data[index] = dcdata[r][i];
+          index += 1;
+        }
+      }
+    }
+    for (let i = 0; i < maxEcCount; i += 1) {
+      for (let r = 0; r < rsBlocks.length; r += 1) {
+        if (i < ecdata[r].length) {
+          data[index] = ecdata[r][i];
+          index += 1;
+        }
+      }
+    }
+    return data;
+  };
+  const createData = function(typeNumber2, errorCorrectionLevel2, dataList) {
+    const rsBlocks = QRRSBlock.getRSBlocks(typeNumber2, errorCorrectionLevel2);
+    const buffer = qrBitBuffer();
+    for (let i = 0; i < dataList.length; i += 1) {
+      const data = dataList[i];
+      buffer.put(data.getMode(), 4);
+      buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber2));
+      data.write(buffer);
+    }
+    let totalDataCount = 0;
+    for (let i = 0; i < rsBlocks.length; i += 1) {
+      totalDataCount += rsBlocks[i].dataCount;
+    }
+    if (buffer.getLengthInBits() > totalDataCount * 8) {
+      throw "code length overflow. (" + buffer.getLengthInBits() + ">" + totalDataCount * 8 + ")";
+    }
+    if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+      buffer.put(0, 4);
+    }
+    while (buffer.getLengthInBits() % 8 != 0) {
+      buffer.putBit(false);
+    }
+    while (true) {
+      if (buffer.getLengthInBits() >= totalDataCount * 8) {
+        break;
+      }
+      buffer.put(PAD0, 8);
+      if (buffer.getLengthInBits() >= totalDataCount * 8) {
+        break;
+      }
+      buffer.put(PAD1, 8);
+    }
+    return createBytes(buffer, rsBlocks);
+  };
+  _this.addData = function(data, mode) {
+    mode = mode || "Byte";
+    let newData = null;
+    switch (mode) {
+      case "Numeric":
+        newData = qrNumber(data);
+        break;
+      case "Alphanumeric":
+        newData = qrAlphaNum(data);
+        break;
+      case "Byte":
+        newData = qr8BitByte(data);
+        break;
+      case "Kanji":
+        newData = qrKanji(data);
+        break;
+      default:
+        throw "mode:" + mode;
+    }
+    _dataList.push(newData);
+    _dataCache = null;
+  };
+  _this.isDark = function(row, col) {
+    if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+      throw row + "," + col;
+    }
+    return _modules[row][col];
+  };
+  _this.getModuleCount = function() {
+    return _moduleCount;
+  };
+  _this.make = function() {
+    if (_typeNumber < 1) {
+      let typeNumber2 = 1;
+      for (; typeNumber2 < 40; typeNumber2++) {
+        const rsBlocks = QRRSBlock.getRSBlocks(typeNumber2, _errorCorrectionLevel);
+        const buffer = qrBitBuffer();
+        for (let i = 0; i < _dataList.length; i++) {
+          const data = _dataList[i];
+          buffer.put(data.getMode(), 4);
+          buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber2));
+          data.write(buffer);
+        }
+        let totalDataCount = 0;
+        for (let i = 0; i < rsBlocks.length; i++) {
+          totalDataCount += rsBlocks[i].dataCount;
+        }
+        if (buffer.getLengthInBits() <= totalDataCount * 8) {
+          break;
+        }
+      }
+      _typeNumber = typeNumber2;
+    }
+    makeImpl(false, getBestMaskPattern());
+  };
+  _this.createTableTag = function(cellSize, margin) {
+    cellSize = cellSize || 2;
+    margin = typeof margin == "undefined" ? cellSize * 4 : margin;
+    let qrHtml = "";
+    qrHtml += '<table style="';
+    qrHtml += " border-width: 0px; border-style: none;";
+    qrHtml += " border-collapse: collapse;";
+    qrHtml += " padding: 0px; margin: " + margin + "px;";
+    qrHtml += '">';
+    qrHtml += "<tbody>";
+    for (let r = 0; r < _this.getModuleCount(); r += 1) {
+      qrHtml += "<tr>";
+      for (let c = 0; c < _this.getModuleCount(); c += 1) {
+        qrHtml += '<td style="';
+        qrHtml += " border-width: 0px; border-style: none;";
+        qrHtml += " border-collapse: collapse;";
+        qrHtml += " padding: 0px; margin: 0px;";
+        qrHtml += " width: " + cellSize + "px;";
+        qrHtml += " height: " + cellSize + "px;";
+        qrHtml += " background-color: ";
+        qrHtml += _this.isDark(r, c) ? "#000000" : "#ffffff";
+        qrHtml += ";";
+        qrHtml += '"/>';
+      }
+      qrHtml += "</tr>";
+    }
+    qrHtml += "</tbody>";
+    qrHtml += "</table>";
+    return qrHtml;
+  };
+  _this.createSvgTag = function(cellSize, margin, alt, title) {
+    let opts = {};
+    if (typeof arguments[0] == "object") {
+      opts = arguments[0];
+      cellSize = opts.cellSize;
+      margin = opts.margin;
+      alt = opts.alt;
+      title = opts.title;
+    }
+    cellSize = cellSize || 2;
+    margin = typeof margin == "undefined" ? cellSize * 4 : margin;
+    alt = typeof alt === "string" ? { text: alt } : alt || {};
+    alt.text = alt.text || null;
+    alt.id = alt.text ? alt.id || "qrcode-description" : null;
+    title = typeof title === "string" ? { text: title } : title || {};
+    title.text = title.text || null;
+    title.id = title.text ? title.id || "qrcode-title" : null;
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    let c, mc, r, mr, qrSvg = "", rect;
+    rect = "l" + cellSize + ",0 0," + cellSize + " -" + cellSize + ",0 0,-" + cellSize + "z ";
+    qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+    qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : "";
+    qrSvg += ' viewBox="0 0 ' + size + " " + size + '" ';
+    qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+    qrSvg += title.text || alt.text ? ' role="img" aria-labelledby="' + escapeXml([title.id, alt.id].join(" ").trim()) + '"' : "";
+    qrSvg += ">";
+    qrSvg += title.text ? '<title id="' + escapeXml(title.id) + '">' + escapeXml(title.text) + "</title>" : "";
+    qrSvg += alt.text ? '<description id="' + escapeXml(alt.id) + '">' + escapeXml(alt.text) + "</description>" : "";
+    qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+    qrSvg += '<path d="';
+    for (r = 0; r < _this.getModuleCount(); r += 1) {
+      mr = r * cellSize + margin;
+      for (c = 0; c < _this.getModuleCount(); c += 1) {
+        if (_this.isDark(r, c)) {
+          mc = c * cellSize + margin;
+          qrSvg += "M" + mc + "," + mr + rect;
+        }
+      }
+    }
+    qrSvg += '" stroke="transparent" fill="black"/>';
+    qrSvg += "</svg>";
+    return qrSvg;
+  };
+  _this.createDataURL = function(cellSize, margin) {
+    cellSize = cellSize || 2;
+    margin = typeof margin == "undefined" ? cellSize * 4 : margin;
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    const min = margin;
+    const max = size - margin;
+    return createDataURL(size, size, function(x, y) {
+      if (min <= x && x < max && min <= y && y < max) {
+        const c = Math.floor((x - min) / cellSize);
+        const r = Math.floor((y - min) / cellSize);
+        return _this.isDark(r, c) ? 0 : 1;
+      } else {
+        return 1;
+      }
+    });
+  };
+  _this.createImgTag = function(cellSize, margin, alt) {
+    cellSize = cellSize || 2;
+    margin = typeof margin == "undefined" ? cellSize * 4 : margin;
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    let img = "";
+    img += "<img";
+    img += ' src="';
+    img += _this.createDataURL(cellSize, margin);
+    img += '"';
+    img += ' width="';
+    img += size;
+    img += '"';
+    img += ' height="';
+    img += size;
+    img += '"';
+    if (alt) {
+      img += ' alt="';
+      img += escapeXml(alt);
+      img += '"';
+    }
+    img += "/>";
+    return img;
+  };
+  const escapeXml = function(s) {
+    let escaped = "";
+    for (let i = 0; i < s.length; i += 1) {
+      const c = s.charAt(i);
+      switch (c) {
+        case "<":
+          escaped += "&lt;";
+          break;
+        case ">":
+          escaped += "&gt;";
+          break;
+        case "&":
+          escaped += "&amp;";
+          break;
+        case '"':
+          escaped += "&quot;";
+          break;
+        default:
+          escaped += c;
+          break;
+      }
+    }
+    return escaped;
+  };
+  const _createHalfASCII = function(margin) {
+    const cellSize = 1;
+    margin = typeof margin == "undefined" ? cellSize * 2 : margin;
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    const min = margin;
+    const max = size - margin;
+    let y, x, r1, r2, p;
+    const blocks = {
+      "\u2588\u2588": "\u2588",
+      "\u2588 ": "\u2580",
+      " \u2588": "\u2584",
+      "  ": " "
+    };
+    const blocksLastLineNoMargin = {
+      "\u2588\u2588": "\u2580",
+      "\u2588 ": "\u2580",
+      " \u2588": " ",
+      "  ": " "
+    };
+    let ascii = "";
+    for (y = 0; y < size; y += 2) {
+      r1 = Math.floor((y - min) / cellSize);
+      r2 = Math.floor((y + 1 - min) / cellSize);
+      for (x = 0; x < size; x += 1) {
+        p = "\u2588";
+        if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+          p = " ";
+        }
+        if (min <= x && x < max && min <= y + 1 && y + 1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+          p += " ";
+        } else {
+          p += "\u2588";
+        }
+        ascii += margin < 1 && y + 1 >= max ? blocksLastLineNoMargin[p] : blocks[p];
+      }
+      ascii += "\n";
+    }
+    if (size % 2 && margin > 0) {
+      return ascii.substring(0, ascii.length - size - 1) + Array(size + 1).join("\u2580");
+    }
+    return ascii.substring(0, ascii.length - 1);
+  };
+  _this.createASCII = function(cellSize, margin) {
+    cellSize = cellSize || 1;
+    if (cellSize < 2) {
+      return _createHalfASCII(margin);
+    }
+    cellSize -= 1;
+    margin = typeof margin == "undefined" ? cellSize * 2 : margin;
+    const size = _this.getModuleCount() * cellSize + margin * 2;
+    const min = margin;
+    const max = size - margin;
+    let y, x, r, p;
+    const white = Array(cellSize + 1).join("\u2588\u2588");
+    const black = Array(cellSize + 1).join("  ");
+    let ascii = "";
+    let line = "";
+    for (y = 0; y < size; y += 1) {
+      r = Math.floor((y - min) / cellSize);
+      line = "";
+      for (x = 0; x < size; x += 1) {
+        p = 1;
+        if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+          p = 0;
+        }
+        line += p ? white : black;
+      }
+      for (r = 0; r < cellSize; r += 1) {
+        ascii += line + "\n";
+      }
+    }
+    return ascii.substring(0, ascii.length - 1);
+  };
+  _this.renderTo2dContext = function(context, cellSize) {
+    cellSize = cellSize || 2;
+    const length = _this.getModuleCount();
+    for (let row = 0; row < length; row++) {
+      for (let col = 0; col < length; col++) {
+        context.fillStyle = _this.isDark(row, col) ? "black" : "white";
+        context.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+      }
+    }
+  };
+  return _this;
+};
+qrcode.stringToBytes = function(s) {
+  const bytes = [];
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s.charCodeAt(i);
+    bytes.push(c & 255);
+  }
+  return bytes;
+};
+qrcode.createStringToBytes = function(unicodeData, numChars) {
+  const unicodeMap = (function() {
+    const bin = base64DecodeInputStream(unicodeData);
+    const read = function() {
+      const b = bin.read();
+      if (b == -1) throw "eof";
+      return b;
+    };
+    let count = 0;
+    const unicodeMap2 = {};
+    while (true) {
+      const b0 = bin.read();
+      if (b0 == -1) break;
+      const b1 = read();
+      const b2 = read();
+      const b3 = read();
+      const k = String.fromCharCode(b0 << 8 | b1);
+      const v = b2 << 8 | b3;
+      unicodeMap2[k] = v;
+      count += 1;
+    }
+    if (count != numChars) {
+      throw count + " != " + numChars;
+    }
+    return unicodeMap2;
+  })();
+  const unknownChar = "?".charCodeAt(0);
+  return function(s) {
+    const bytes = [];
+    for (let i = 0; i < s.length; i += 1) {
+      const c = s.charCodeAt(i);
+      if (c < 128) {
+        bytes.push(c);
+      } else {
+        const b = unicodeMap[s.charAt(i)];
+        if (typeof b == "number") {
+          if ((b & 255) == b) {
+            bytes.push(b);
+          } else {
+            bytes.push(b >>> 8);
+            bytes.push(b & 255);
+          }
+        } else {
+          bytes.push(unknownChar);
+        }
+      }
+    }
+    return bytes;
+  };
+};
+var QRMode = {
+  MODE_NUMBER: 1 << 0,
+  MODE_ALPHA_NUM: 1 << 1,
+  MODE_8BIT_BYTE: 1 << 2,
+  MODE_KANJI: 1 << 3
+};
+var QRErrorCorrectionLevel = {
+  L: 1,
+  M: 0,
+  Q: 3,
+  H: 2
+};
+var QRMaskPattern = {
+  PATTERN000: 0,
+  PATTERN001: 1,
+  PATTERN010: 2,
+  PATTERN011: 3,
+  PATTERN100: 4,
+  PATTERN101: 5,
+  PATTERN110: 6,
+  PATTERN111: 7
+};
+var QRUtil = (function() {
+  const PATTERN_POSITION_TABLE = [
+    [],
+    [6, 18],
+    [6, 22],
+    [6, 26],
+    [6, 30],
+    [6, 34],
+    [6, 22, 38],
+    [6, 24, 42],
+    [6, 26, 46],
+    [6, 28, 50],
+    [6, 30, 54],
+    [6, 32, 58],
+    [6, 34, 62],
+    [6, 26, 46, 66],
+    [6, 26, 48, 70],
+    [6, 26, 50, 74],
+    [6, 30, 54, 78],
+    [6, 30, 56, 82],
+    [6, 30, 58, 86],
+    [6, 34, 62, 90],
+    [6, 28, 50, 72, 94],
+    [6, 26, 50, 74, 98],
+    [6, 30, 54, 78, 102],
+    [6, 28, 54, 80, 106],
+    [6, 32, 58, 84, 110],
+    [6, 30, 58, 86, 114],
+    [6, 34, 62, 90, 118],
+    [6, 26, 50, 74, 98, 122],
+    [6, 30, 54, 78, 102, 126],
+    [6, 26, 52, 78, 104, 130],
+    [6, 30, 56, 82, 108, 134],
+    [6, 34, 60, 86, 112, 138],
+    [6, 30, 58, 86, 114, 142],
+    [6, 34, 62, 90, 118, 146],
+    [6, 30, 54, 78, 102, 126, 150],
+    [6, 24, 50, 76, 102, 128, 154],
+    [6, 28, 54, 80, 106, 132, 158],
+    [6, 32, 58, 84, 110, 136, 162],
+    [6, 26, 54, 82, 110, 138, 166],
+    [6, 30, 58, 86, 114, 142, 170]
+  ];
+  const G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
+  const G18 = 1 << 12 | 1 << 11 | 1 << 10 | 1 << 9 | 1 << 8 | 1 << 5 | 1 << 2 | 1 << 0;
+  const G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
+  const _this = {};
+  const getBCHDigit = function(data) {
+    let digit = 0;
+    while (data != 0) {
+      digit += 1;
+      data >>>= 1;
+    }
+    return digit;
+  };
+  _this.getBCHTypeInfo = function(data) {
+    let d = data << 10;
+    while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+      d ^= G15 << getBCHDigit(d) - getBCHDigit(G15);
+    }
+    return (data << 10 | d) ^ G15_MASK;
+  };
+  _this.getBCHTypeNumber = function(data) {
+    let d = data << 12;
+    while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+      d ^= G18 << getBCHDigit(d) - getBCHDigit(G18);
+    }
+    return data << 12 | d;
+  };
+  _this.getPatternPosition = function(typeNumber) {
+    return PATTERN_POSITION_TABLE[typeNumber - 1];
+  };
+  _this.getMaskFunction = function(maskPattern) {
+    switch (maskPattern) {
+      case QRMaskPattern.PATTERN000:
+        return function(i, j) {
+          return (i + j) % 2 == 0;
+        };
+      case QRMaskPattern.PATTERN001:
+        return function(i, j) {
+          return i % 2 == 0;
+        };
+      case QRMaskPattern.PATTERN010:
+        return function(i, j) {
+          return j % 3 == 0;
+        };
+      case QRMaskPattern.PATTERN011:
+        return function(i, j) {
+          return (i + j) % 3 == 0;
+        };
+      case QRMaskPattern.PATTERN100:
+        return function(i, j) {
+          return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 == 0;
+        };
+      case QRMaskPattern.PATTERN101:
+        return function(i, j) {
+          return i * j % 2 + i * j % 3 == 0;
+        };
+      case QRMaskPattern.PATTERN110:
+        return function(i, j) {
+          return (i * j % 2 + i * j % 3) % 2 == 0;
+        };
+      case QRMaskPattern.PATTERN111:
+        return function(i, j) {
+          return (i * j % 3 + (i + j) % 2) % 2 == 0;
+        };
+      default:
+        throw "bad maskPattern:" + maskPattern;
+    }
+  };
+  _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+    let a = qrPolynomial([1], 0);
+    for (let i = 0; i < errorCorrectLength; i += 1) {
+      a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0));
+    }
+    return a;
+  };
+  _this.getLengthInBits = function(mode, type) {
+    if (1 <= type && type < 10) {
+      switch (mode) {
+        case QRMode.MODE_NUMBER:
+          return 10;
+        case QRMode.MODE_ALPHA_NUM:
+          return 9;
+        case QRMode.MODE_8BIT_BYTE:
+          return 8;
+        case QRMode.MODE_KANJI:
+          return 8;
+        default:
+          throw "mode:" + mode;
+      }
+    } else if (type < 27) {
+      switch (mode) {
+        case QRMode.MODE_NUMBER:
+          return 12;
+        case QRMode.MODE_ALPHA_NUM:
+          return 11;
+        case QRMode.MODE_8BIT_BYTE:
+          return 16;
+        case QRMode.MODE_KANJI:
+          return 10;
+        default:
+          throw "mode:" + mode;
+      }
+    } else if (type < 41) {
+      switch (mode) {
+        case QRMode.MODE_NUMBER:
+          return 14;
+        case QRMode.MODE_ALPHA_NUM:
+          return 13;
+        case QRMode.MODE_8BIT_BYTE:
+          return 16;
+        case QRMode.MODE_KANJI:
+          return 12;
+        default:
+          throw "mode:" + mode;
+      }
+    } else {
+      throw "type:" + type;
+    }
+  };
+  _this.getLostPoint = function(qrcode2) {
+    const moduleCount = qrcode2.getModuleCount();
+    let lostPoint = 0;
+    for (let row = 0; row < moduleCount; row += 1) {
+      for (let col = 0; col < moduleCount; col += 1) {
+        let sameCount = 0;
+        const dark = qrcode2.isDark(row, col);
+        for (let r = -1; r <= 1; r += 1) {
+          if (row + r < 0 || moduleCount <= row + r) {
+            continue;
+          }
+          for (let c = -1; c <= 1; c += 1) {
+            if (col + c < 0 || moduleCount <= col + c) {
+              continue;
+            }
+            if (r == 0 && c == 0) {
+              continue;
+            }
+            if (dark == qrcode2.isDark(row + r, col + c)) {
+              sameCount += 1;
+            }
+          }
+        }
+        if (sameCount > 5) {
+          lostPoint += 3 + sameCount - 5;
+        }
+      }
+    }
+    ;
+    for (let row = 0; row < moduleCount - 1; row += 1) {
+      for (let col = 0; col < moduleCount - 1; col += 1) {
+        let count = 0;
+        if (qrcode2.isDark(row, col)) count += 1;
+        if (qrcode2.isDark(row + 1, col)) count += 1;
+        if (qrcode2.isDark(row, col + 1)) count += 1;
+        if (qrcode2.isDark(row + 1, col + 1)) count += 1;
+        if (count == 0 || count == 4) {
+          lostPoint += 3;
+        }
+      }
+    }
+    for (let row = 0; row < moduleCount; row += 1) {
+      for (let col = 0; col < moduleCount - 6; col += 1) {
+        if (qrcode2.isDark(row, col) && !qrcode2.isDark(row, col + 1) && qrcode2.isDark(row, col + 2) && qrcode2.isDark(row, col + 3) && qrcode2.isDark(row, col + 4) && !qrcode2.isDark(row, col + 5) && qrcode2.isDark(row, col + 6)) {
+          lostPoint += 40;
+        }
+      }
+    }
+    for (let col = 0; col < moduleCount; col += 1) {
+      for (let row = 0; row < moduleCount - 6; row += 1) {
+        if (qrcode2.isDark(row, col) && !qrcode2.isDark(row + 1, col) && qrcode2.isDark(row + 2, col) && qrcode2.isDark(row + 3, col) && qrcode2.isDark(row + 4, col) && !qrcode2.isDark(row + 5, col) && qrcode2.isDark(row + 6, col)) {
+          lostPoint += 40;
+        }
+      }
+    }
+    let darkCount = 0;
+    for (let col = 0; col < moduleCount; col += 1) {
+      for (let row = 0; row < moduleCount; row += 1) {
+        if (qrcode2.isDark(row, col)) {
+          darkCount += 1;
+        }
+      }
+    }
+    const ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+    lostPoint += ratio * 10;
+    return lostPoint;
+  };
+  return _this;
+})();
+var QRMath = (function() {
+  const EXP_TABLE = new Array(256);
+  const LOG_TABLE = new Array(256);
+  for (let i = 0; i < 8; i += 1) {
+    EXP_TABLE[i] = 1 << i;
+  }
+  for (let i = 8; i < 256; i += 1) {
+    EXP_TABLE[i] = EXP_TABLE[i - 4] ^ EXP_TABLE[i - 5] ^ EXP_TABLE[i - 6] ^ EXP_TABLE[i - 8];
+  }
+  for (let i = 0; i < 255; i += 1) {
+    LOG_TABLE[EXP_TABLE[i]] = i;
+  }
+  const _this = {};
+  _this.glog = function(n) {
+    if (n < 1) {
+      throw "glog(" + n + ")";
+    }
+    return LOG_TABLE[n];
+  };
+  _this.gexp = function(n) {
+    while (n < 0) {
+      n += 255;
+    }
+    while (n >= 256) {
+      n -= 255;
+    }
+    return EXP_TABLE[n];
+  };
+  return _this;
+})();
+var qrPolynomial = function(num, shift) {
+  if (typeof num.length == "undefined") {
+    throw num.length + "/" + shift;
+  }
+  const _num = (function() {
+    let offset = 0;
+    while (offset < num.length && num[offset] == 0) {
+      offset += 1;
+    }
+    const _num2 = new Array(num.length - offset + shift);
+    for (let i = 0; i < num.length - offset; i += 1) {
+      _num2[i] = num[i + offset];
+    }
+    return _num2;
+  })();
+  const _this = {};
+  _this.getAt = function(index) {
+    return _num[index];
+  };
+  _this.getLength = function() {
+    return _num.length;
+  };
+  _this.multiply = function(e) {
+    const num2 = new Array(_this.getLength() + e.getLength() - 1);
+    for (let i = 0; i < _this.getLength(); i += 1) {
+      for (let j = 0; j < e.getLength(); j += 1) {
+        num2[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i)) + QRMath.glog(e.getAt(j)));
+      }
+    }
+    return qrPolynomial(num2, 0);
+  };
+  _this.mod = function(e) {
+    if (_this.getLength() - e.getLength() < 0) {
+      return _this;
+    }
+    const ratio = QRMath.glog(_this.getAt(0)) - QRMath.glog(e.getAt(0));
+    const num2 = new Array(_this.getLength());
+    for (let i = 0; i < _this.getLength(); i += 1) {
+      num2[i] = _this.getAt(i);
+    }
+    for (let i = 0; i < e.getLength(); i += 1) {
+      num2[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i)) + ratio);
+    }
+    return qrPolynomial(num2, 0).mod(e);
+  };
+  return _this;
+};
+var QRRSBlock = (function() {
+  const RS_BLOCK_TABLE = [
+    // L
+    // M
+    // Q
+    // H
+    // 1
+    [1, 26, 19],
+    [1, 26, 16],
+    [1, 26, 13],
+    [1, 26, 9],
+    // 2
+    [1, 44, 34],
+    [1, 44, 28],
+    [1, 44, 22],
+    [1, 44, 16],
+    // 3
+    [1, 70, 55],
+    [1, 70, 44],
+    [2, 35, 17],
+    [2, 35, 13],
+    // 4
+    [1, 100, 80],
+    [2, 50, 32],
+    [2, 50, 24],
+    [4, 25, 9],
+    // 5
+    [1, 134, 108],
+    [2, 67, 43],
+    [2, 33, 15, 2, 34, 16],
+    [2, 33, 11, 2, 34, 12],
+    // 6
+    [2, 86, 68],
+    [4, 43, 27],
+    [4, 43, 19],
+    [4, 43, 15],
+    // 7
+    [2, 98, 78],
+    [4, 49, 31],
+    [2, 32, 14, 4, 33, 15],
+    [4, 39, 13, 1, 40, 14],
+    // 8
+    [2, 121, 97],
+    [2, 60, 38, 2, 61, 39],
+    [4, 40, 18, 2, 41, 19],
+    [4, 40, 14, 2, 41, 15],
+    // 9
+    [2, 146, 116],
+    [3, 58, 36, 2, 59, 37],
+    [4, 36, 16, 4, 37, 17],
+    [4, 36, 12, 4, 37, 13],
+    // 10
+    [2, 86, 68, 2, 87, 69],
+    [4, 69, 43, 1, 70, 44],
+    [6, 43, 19, 2, 44, 20],
+    [6, 43, 15, 2, 44, 16],
+    // 11
+    [4, 101, 81],
+    [1, 80, 50, 4, 81, 51],
+    [4, 50, 22, 4, 51, 23],
+    [3, 36, 12, 8, 37, 13],
+    // 12
+    [2, 116, 92, 2, 117, 93],
+    [6, 58, 36, 2, 59, 37],
+    [4, 46, 20, 6, 47, 21],
+    [7, 42, 14, 4, 43, 15],
+    // 13
+    [4, 133, 107],
+    [8, 59, 37, 1, 60, 38],
+    [8, 44, 20, 4, 45, 21],
+    [12, 33, 11, 4, 34, 12],
+    // 14
+    [3, 145, 115, 1, 146, 116],
+    [4, 64, 40, 5, 65, 41],
+    [11, 36, 16, 5, 37, 17],
+    [11, 36, 12, 5, 37, 13],
+    // 15
+    [5, 109, 87, 1, 110, 88],
+    [5, 65, 41, 5, 66, 42],
+    [5, 54, 24, 7, 55, 25],
+    [11, 36, 12, 7, 37, 13],
+    // 16
+    [5, 122, 98, 1, 123, 99],
+    [7, 73, 45, 3, 74, 46],
+    [15, 43, 19, 2, 44, 20],
+    [3, 45, 15, 13, 46, 16],
+    // 17
+    [1, 135, 107, 5, 136, 108],
+    [10, 74, 46, 1, 75, 47],
+    [1, 50, 22, 15, 51, 23],
+    [2, 42, 14, 17, 43, 15],
+    // 18
+    [5, 150, 120, 1, 151, 121],
+    [9, 69, 43, 4, 70, 44],
+    [17, 50, 22, 1, 51, 23],
+    [2, 42, 14, 19, 43, 15],
+    // 19
+    [3, 141, 113, 4, 142, 114],
+    [3, 70, 44, 11, 71, 45],
+    [17, 47, 21, 4, 48, 22],
+    [9, 39, 13, 16, 40, 14],
+    // 20
+    [3, 135, 107, 5, 136, 108],
+    [3, 67, 41, 13, 68, 42],
+    [15, 54, 24, 5, 55, 25],
+    [15, 43, 15, 10, 44, 16],
+    // 21
+    [4, 144, 116, 4, 145, 117],
+    [17, 68, 42],
+    [17, 50, 22, 6, 51, 23],
+    [19, 46, 16, 6, 47, 17],
+    // 22
+    [2, 139, 111, 7, 140, 112],
+    [17, 74, 46],
+    [7, 54, 24, 16, 55, 25],
+    [34, 37, 13],
+    // 23
+    [4, 151, 121, 5, 152, 122],
+    [4, 75, 47, 14, 76, 48],
+    [11, 54, 24, 14, 55, 25],
+    [16, 45, 15, 14, 46, 16],
+    // 24
+    [6, 147, 117, 4, 148, 118],
+    [6, 73, 45, 14, 74, 46],
+    [11, 54, 24, 16, 55, 25],
+    [30, 46, 16, 2, 47, 17],
+    // 25
+    [8, 132, 106, 4, 133, 107],
+    [8, 75, 47, 13, 76, 48],
+    [7, 54, 24, 22, 55, 25],
+    [22, 45, 15, 13, 46, 16],
+    // 26
+    [10, 142, 114, 2, 143, 115],
+    [19, 74, 46, 4, 75, 47],
+    [28, 50, 22, 6, 51, 23],
+    [33, 46, 16, 4, 47, 17],
+    // 27
+    [8, 152, 122, 4, 153, 123],
+    [22, 73, 45, 3, 74, 46],
+    [8, 53, 23, 26, 54, 24],
+    [12, 45, 15, 28, 46, 16],
+    // 28
+    [3, 147, 117, 10, 148, 118],
+    [3, 73, 45, 23, 74, 46],
+    [4, 54, 24, 31, 55, 25],
+    [11, 45, 15, 31, 46, 16],
+    // 29
+    [7, 146, 116, 7, 147, 117],
+    [21, 73, 45, 7, 74, 46],
+    [1, 53, 23, 37, 54, 24],
+    [19, 45, 15, 26, 46, 16],
+    // 30
+    [5, 145, 115, 10, 146, 116],
+    [19, 75, 47, 10, 76, 48],
+    [15, 54, 24, 25, 55, 25],
+    [23, 45, 15, 25, 46, 16],
+    // 31
+    [13, 145, 115, 3, 146, 116],
+    [2, 74, 46, 29, 75, 47],
+    [42, 54, 24, 1, 55, 25],
+    [23, 45, 15, 28, 46, 16],
+    // 32
+    [17, 145, 115],
+    [10, 74, 46, 23, 75, 47],
+    [10, 54, 24, 35, 55, 25],
+    [19, 45, 15, 35, 46, 16],
+    // 33
+    [17, 145, 115, 1, 146, 116],
+    [14, 74, 46, 21, 75, 47],
+    [29, 54, 24, 19, 55, 25],
+    [11, 45, 15, 46, 46, 16],
+    // 34
+    [13, 145, 115, 6, 146, 116],
+    [14, 74, 46, 23, 75, 47],
+    [44, 54, 24, 7, 55, 25],
+    [59, 46, 16, 1, 47, 17],
+    // 35
+    [12, 151, 121, 7, 152, 122],
+    [12, 75, 47, 26, 76, 48],
+    [39, 54, 24, 14, 55, 25],
+    [22, 45, 15, 41, 46, 16],
+    // 36
+    [6, 151, 121, 14, 152, 122],
+    [6, 75, 47, 34, 76, 48],
+    [46, 54, 24, 10, 55, 25],
+    [2, 45, 15, 64, 46, 16],
+    // 37
+    [17, 152, 122, 4, 153, 123],
+    [29, 74, 46, 14, 75, 47],
+    [49, 54, 24, 10, 55, 25],
+    [24, 45, 15, 46, 46, 16],
+    // 38
+    [4, 152, 122, 18, 153, 123],
+    [13, 74, 46, 32, 75, 47],
+    [48, 54, 24, 14, 55, 25],
+    [42, 45, 15, 32, 46, 16],
+    // 39
+    [20, 147, 117, 4, 148, 118],
+    [40, 75, 47, 7, 76, 48],
+    [43, 54, 24, 22, 55, 25],
+    [10, 45, 15, 67, 46, 16],
+    // 40
+    [19, 148, 118, 6, 149, 119],
+    [18, 75, 47, 31, 76, 48],
+    [34, 54, 24, 34, 55, 25],
+    [20, 45, 15, 61, 46, 16]
+  ];
+  const qrRSBlock = function(totalCount, dataCount) {
+    const _this2 = {};
+    _this2.totalCount = totalCount;
+    _this2.dataCount = dataCount;
+    return _this2;
+  };
+  const _this = {};
+  const getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+    switch (errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L:
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M:
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q:
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H:
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default:
+        return void 0;
+    }
+  };
+  _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+    const rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+    if (typeof rsBlock == "undefined") {
+      throw "bad rs block @ typeNumber:" + typeNumber + "/errorCorrectionLevel:" + errorCorrectionLevel;
+    }
+    const length = rsBlock.length / 3;
+    const list = [];
+    for (let i = 0; i < length; i += 1) {
+      const count = rsBlock[i * 3 + 0];
+      const totalCount = rsBlock[i * 3 + 1];
+      const dataCount = rsBlock[i * 3 + 2];
+      for (let j = 0; j < count; j += 1) {
+        list.push(qrRSBlock(totalCount, dataCount));
+      }
+    }
+    return list;
+  };
+  return _this;
+})();
+var qrBitBuffer = function() {
+  const _buffer = [];
+  let _length = 0;
+  const _this = {};
+  _this.getBuffer = function() {
+    return _buffer;
+  };
+  _this.getAt = function(index) {
+    const bufIndex = Math.floor(index / 8);
+    return (_buffer[bufIndex] >>> 7 - index % 8 & 1) == 1;
+  };
+  _this.put = function(num, length) {
+    for (let i = 0; i < length; i += 1) {
+      _this.putBit((num >>> length - i - 1 & 1) == 1);
+    }
+  };
+  _this.getLengthInBits = function() {
+    return _length;
+  };
+  _this.putBit = function(bit) {
+    const bufIndex = Math.floor(_length / 8);
+    if (_buffer.length <= bufIndex) {
+      _buffer.push(0);
+    }
+    if (bit) {
+      _buffer[bufIndex] |= 128 >>> _length % 8;
+    }
+    _length += 1;
+  };
+  return _this;
+};
+var qrNumber = function(data) {
+  const _mode = QRMode.MODE_NUMBER;
+  const _data = data;
+  const _this = {};
+  _this.getMode = function() {
+    return _mode;
+  };
+  _this.getLength = function(buffer) {
+    return _data.length;
+  };
+  _this.write = function(buffer) {
+    const data2 = _data;
+    let i = 0;
+    while (i + 2 < data2.length) {
+      buffer.put(strToNum(data2.substring(i, i + 3)), 10);
+      i += 3;
+    }
+    if (i < data2.length) {
+      if (data2.length - i == 1) {
+        buffer.put(strToNum(data2.substring(i, i + 1)), 4);
+      } else if (data2.length - i == 2) {
+        buffer.put(strToNum(data2.substring(i, i + 2)), 7);
+      }
+    }
+  };
+  const strToNum = function(s) {
+    let num = 0;
+    for (let i = 0; i < s.length; i += 1) {
+      num = num * 10 + chatToNum(s.charAt(i));
+    }
+    return num;
+  };
+  const chatToNum = function(c) {
+    if ("0" <= c && c <= "9") {
+      return c.charCodeAt(0) - "0".charCodeAt(0);
+    }
+    throw "illegal char :" + c;
+  };
+  return _this;
+};
+var qrAlphaNum = function(data) {
+  const _mode = QRMode.MODE_ALPHA_NUM;
+  const _data = data;
+  const _this = {};
+  _this.getMode = function() {
+    return _mode;
+  };
+  _this.getLength = function(buffer) {
+    return _data.length;
+  };
+  _this.write = function(buffer) {
+    const s = _data;
+    let i = 0;
+    while (i + 1 < s.length) {
+      buffer.put(
+        getCode(s.charAt(i)) * 45 + getCode(s.charAt(i + 1)),
+        11
+      );
+      i += 2;
+    }
+    if (i < s.length) {
+      buffer.put(getCode(s.charAt(i)), 6);
+    }
+  };
+  const getCode = function(c) {
+    if ("0" <= c && c <= "9") {
+      return c.charCodeAt(0) - "0".charCodeAt(0);
+    } else if ("A" <= c && c <= "Z") {
+      return c.charCodeAt(0) - "A".charCodeAt(0) + 10;
+    } else {
+      switch (c) {
+        case " ":
+          return 36;
+        case "$":
+          return 37;
+        case "%":
+          return 38;
+        case "*":
+          return 39;
+        case "+":
+          return 40;
+        case "-":
+          return 41;
+        case ".":
+          return 42;
+        case "/":
+          return 43;
+        case ":":
+          return 44;
+        default:
+          throw "illegal char :" + c;
+      }
+    }
+  };
+  return _this;
+};
+var qr8BitByte = function(data) {
+  const _mode = QRMode.MODE_8BIT_BYTE;
+  const _data = data;
+  const _bytes = qrcode.stringToBytes(data);
+  const _this = {};
+  _this.getMode = function() {
+    return _mode;
+  };
+  _this.getLength = function(buffer) {
+    return _bytes.length;
+  };
+  _this.write = function(buffer) {
+    for (let i = 0; i < _bytes.length; i += 1) {
+      buffer.put(_bytes[i], 8);
+    }
+  };
+  return _this;
+};
+var qrKanji = function(data) {
+  const _mode = QRMode.MODE_KANJI;
+  const _data = data;
+  const stringToBytes2 = qrcode.stringToBytes;
+  !(function(c, code) {
+    const test = stringToBytes2(c);
+    if (test.length != 2 || (test[0] << 8 | test[1]) != code) {
+      throw "sjis not supported.";
+    }
+  })("\u53CB", 38726);
+  const _bytes = stringToBytes2(data);
+  const _this = {};
+  _this.getMode = function() {
+    return _mode;
+  };
+  _this.getLength = function(buffer) {
+    return ~~(_bytes.length / 2);
+  };
+  _this.write = function(buffer) {
+    const data2 = _bytes;
+    let i = 0;
+    while (i + 1 < data2.length) {
+      let c = (255 & data2[i]) << 8 | 255 & data2[i + 1];
+      if (33088 <= c && c <= 40956) {
+        c -= 33088;
+      } else if (57408 <= c && c <= 60351) {
+        c -= 49472;
+      } else {
+        throw "illegal char at " + (i + 1) + "/" + c;
+      }
+      c = (c >>> 8 & 255) * 192 + (c & 255);
+      buffer.put(c, 13);
+      i += 2;
+    }
+    if (i < data2.length) {
+      throw "illegal char at " + (i + 1);
+    }
+  };
+  return _this;
+};
+var byteArrayOutputStream = function() {
+  const _bytes = [];
+  const _this = {};
+  _this.writeByte = function(b) {
+    _bytes.push(b & 255);
+  };
+  _this.writeShort = function(i) {
+    _this.writeByte(i);
+    _this.writeByte(i >>> 8);
+  };
+  _this.writeBytes = function(b, off, len) {
+    off = off || 0;
+    len = len || b.length;
+    for (let i = 0; i < len; i += 1) {
+      _this.writeByte(b[i + off]);
+    }
+  };
+  _this.writeString = function(s) {
+    for (let i = 0; i < s.length; i += 1) {
+      _this.writeByte(s.charCodeAt(i));
+    }
+  };
+  _this.toByteArray = function() {
+    return _bytes;
+  };
+  _this.toString = function() {
+    let s = "";
+    s += "[";
+    for (let i = 0; i < _bytes.length; i += 1) {
+      if (i > 0) {
+        s += ",";
+      }
+      s += _bytes[i];
+    }
+    s += "]";
+    return s;
+  };
+  return _this;
+};
+var base64EncodeOutputStream = function() {
+  let _buffer = 0;
+  let _buflen = 0;
+  let _length = 0;
+  let _base64 = "";
+  const _this = {};
+  const writeEncoded = function(b) {
+    _base64 += String.fromCharCode(encode(b & 63));
+  };
+  const encode = function(n) {
+    if (n < 0) {
+      throw "n:" + n;
+    } else if (n < 26) {
+      return 65 + n;
+    } else if (n < 52) {
+      return 97 + (n - 26);
+    } else if (n < 62) {
+      return 48 + (n - 52);
+    } else if (n == 62) {
+      return 43;
+    } else if (n == 63) {
+      return 47;
+    } else {
+      throw "n:" + n;
+    }
+  };
+  _this.writeByte = function(n) {
+    _buffer = _buffer << 8 | n & 255;
+    _buflen += 8;
+    _length += 1;
+    while (_buflen >= 6) {
+      writeEncoded(_buffer >>> _buflen - 6);
+      _buflen -= 6;
+    }
+  };
+  _this.flush = function() {
+    if (_buflen > 0) {
+      writeEncoded(_buffer << 6 - _buflen);
+      _buffer = 0;
+      _buflen = 0;
+    }
+    if (_length % 3 != 0) {
+      const padlen = 3 - _length % 3;
+      for (let i = 0; i < padlen; i += 1) {
+        _base64 += "=";
+      }
+    }
+  };
+  _this.toString = function() {
+    return _base64;
+  };
+  return _this;
+};
+var base64DecodeInputStream = function(str) {
+  const _str = str;
+  let _pos = 0;
+  let _buffer = 0;
+  let _buflen = 0;
+  const _this = {};
+  _this.read = function() {
+    while (_buflen < 8) {
+      if (_pos >= _str.length) {
+        if (_buflen == 0) {
+          return -1;
+        }
+        throw "unexpected end of file./" + _buflen;
+      }
+      const c = _str.charAt(_pos);
+      _pos += 1;
+      if (c == "=") {
+        _buflen = 0;
+        return -1;
+      } else if (c.match(/^\s$/)) {
+        continue;
+      }
+      _buffer = _buffer << 6 | decode(c.charCodeAt(0));
+      _buflen += 6;
+    }
+    const n = _buffer >>> _buflen - 8 & 255;
+    _buflen -= 8;
+    return n;
+  };
+  const decode = function(c) {
+    if (65 <= c && c <= 90) {
+      return c - 65;
+    } else if (97 <= c && c <= 122) {
+      return c - 97 + 26;
+    } else if (48 <= c && c <= 57) {
+      return c - 48 + 52;
+    } else if (c == 43) {
+      return 62;
+    } else if (c == 47) {
+      return 63;
+    } else {
+      throw "c:" + c;
+    }
+  };
+  return _this;
+};
+var gifImage = function(width, height) {
+  const _width = width;
+  const _height = height;
+  const _data = new Array(width * height);
+  const _this = {};
+  _this.setPixel = function(x, y, pixel) {
+    _data[y * _width + x] = pixel;
+  };
+  _this.write = function(out) {
+    out.writeString("GIF87a");
+    out.writeShort(_width);
+    out.writeShort(_height);
+    out.writeByte(128);
+    out.writeByte(0);
+    out.writeByte(0);
+    out.writeByte(0);
+    out.writeByte(0);
+    out.writeByte(0);
+    out.writeByte(255);
+    out.writeByte(255);
+    out.writeByte(255);
+    out.writeString(",");
+    out.writeShort(0);
+    out.writeShort(0);
+    out.writeShort(_width);
+    out.writeShort(_height);
+    out.writeByte(0);
+    const lzwMinCodeSize = 2;
+    const raster = getLZWRaster(lzwMinCodeSize);
+    out.writeByte(lzwMinCodeSize);
+    let offset = 0;
+    while (raster.length - offset > 255) {
+      out.writeByte(255);
+      out.writeBytes(raster, offset, 255);
+      offset += 255;
+    }
+    out.writeByte(raster.length - offset);
+    out.writeBytes(raster, offset, raster.length - offset);
+    out.writeByte(0);
+    out.writeString(";");
+  };
+  const bitOutputStream = function(out) {
+    const _out = out;
+    let _bitLength = 0;
+    let _bitBuffer = 0;
+    const _this2 = {};
+    _this2.write = function(data, length) {
+      if (data >>> length != 0) {
+        throw "length over";
+      }
+      while (_bitLength + length >= 8) {
+        _out.writeByte(255 & (data << _bitLength | _bitBuffer));
+        length -= 8 - _bitLength;
+        data >>>= 8 - _bitLength;
+        _bitBuffer = 0;
+        _bitLength = 0;
+      }
+      _bitBuffer = data << _bitLength | _bitBuffer;
+      _bitLength = _bitLength + length;
+    };
+    _this2.flush = function() {
+      if (_bitLength > 0) {
+        _out.writeByte(_bitBuffer);
+      }
+    };
+    return _this2;
+  };
+  const getLZWRaster = function(lzwMinCodeSize) {
+    const clearCode = 1 << lzwMinCodeSize;
+    const endCode = (1 << lzwMinCodeSize) + 1;
+    let bitLength = lzwMinCodeSize + 1;
+    const table = lzwTable();
+    for (let i = 0; i < clearCode; i += 1) {
+      table.add(String.fromCharCode(i));
+    }
+    table.add(String.fromCharCode(clearCode));
+    table.add(String.fromCharCode(endCode));
+    const byteOut = byteArrayOutputStream();
+    const bitOut = bitOutputStream(byteOut);
+    bitOut.write(clearCode, bitLength);
+    let dataIndex = 0;
+    let s = String.fromCharCode(_data[dataIndex]);
+    dataIndex += 1;
+    while (dataIndex < _data.length) {
+      const c = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+      if (table.contains(s + c)) {
+        s = s + c;
+      } else {
+        bitOut.write(table.indexOf(s), bitLength);
+        if (table.size() < 4095) {
+          if (table.size() == 1 << bitLength) {
+            bitLength += 1;
+          }
+          table.add(s + c);
+        }
+        s = c;
+      }
+    }
+    bitOut.write(table.indexOf(s), bitLength);
+    bitOut.write(endCode, bitLength);
+    bitOut.flush();
+    return byteOut.toByteArray();
+  };
+  const lzwTable = function() {
+    const _map = {};
+    let _size = 0;
+    const _this2 = {};
+    _this2.add = function(key) {
+      if (_this2.contains(key)) {
+        throw "dup key:" + key;
+      }
+      _map[key] = _size;
+      _size += 1;
+    };
+    _this2.size = function() {
+      return _size;
+    };
+    _this2.indexOf = function(key) {
+      return _map[key];
+    };
+    _this2.contains = function(key) {
+      return typeof _map[key] != "undefined";
+    };
+    return _this2;
+  };
+  return _this;
+};
+var createDataURL = function(width, height, getPixel) {
+  const gif = gifImage(width, height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      gif.setPixel(x, y, getPixel(x, y));
+    }
+  }
+  const b = byteArrayOutputStream();
+  gif.write(b);
+  const base64 = base64EncodeOutputStream();
+  const bytes = b.toByteArray();
+  for (let i = 0; i < bytes.length; i += 1) {
+    base64.writeByte(bytes[i]);
+  }
+  base64.flush();
+  return "data:image/gif;base64," + base64;
+};
+var qrcode_default = qrcode;
+var stringToBytes = qrcode.stringToBytes;
+
+// views/qrCode.ts
+function drawQrCode(container, text2, size = 180) {
+  const qr = qrcode_default(0, "M");
+  qr.addData(text2);
+  qr.make();
+  const modules = qr.getModuleCount();
+  const quiet = 4;
+  const cell = Math.max(2, Math.floor(size / (modules + quiet * 2)));
+  const side = cell * (modules + quiet * 2);
+  const canvas = container.createEl("canvas", {
+    cls: "setup-qr-canvas",
+    attr: { width: String(side), height: String(side), "aria-label": "\u767B\u5F55\u4E8C\u7EF4\u7801" }
+  });
+  const context = canvas.getContext("2d");
+  if (!context) return canvas;
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, side, side);
+  context.fillStyle = "#000000";
+  for (let row = 0; row < modules; row += 1) {
+    for (let col = 0; col < modules; col += 1) {
+      if (qr.isDark(row, col)) {
+        context.fillRect((col + quiet) * cell, (row + quiet) * cell, cell, cell);
+      }
+    }
+  }
+  return canvas;
+}
+
+// core/BackendSetup.ts
+function parseConnectionCode(raw, fallbackUrl) {
+  const text2 = raw.trim().replace(/^["'<]+|[">']+$/g, "");
+  if (/^[A-Za-z0-9_-]{24,128}$/.test(text2)) {
+    return { url: fallbackUrl, headerName: DEFAULT_WEBHOOK_AUTH_HEADER, secret: text2 };
+  }
+  let parsed;
+  try {
+    parsed = new URL(text2);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/.test(parsed.protocol)) return null;
+  const params = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+  const secret = params.get("token") || "";
+  const headerName = params.get("header") || DEFAULT_WEBHOOK_AUTH_HEADER;
+  if (!/^[A-Za-z0-9_-]{24,128}$/.test(secret) || !/^[A-Za-z0-9-]{1,64}$/.test(headerName)) {
+    return null;
+  }
+  parsed.hash = "";
+  return { url: parsed.toString(), headerName, secret };
+}
+var START_SCRIPT = "\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u91CC\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF08macOS \u53CC\u51FB start-mac.command\uFF0CWindows \u53CC\u51FB start-windows.cmd\uFF09";
+var CODE_COMMAND = "\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C ./vs-backend.sh code\uFF08Windows\uFF1A.\\vs-backend.ps1 code\uFF09\uFF0C\u628A\u8FDE\u63A5\u7801\u91CD\u65B0\u7C98\u8D34\u5230\u4E0A\u9762";
+var RESTART = "\u6539\u5B8C .env \u540E\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C";
+var LABELS = {
+  connect: "\u540E\u7AEF\u5728\u8FD0\u884C",
+  token: "\u8FDE\u63A5\u7801\u6B63\u786E",
+  version: "\u540E\u7AEF\u7248\u672C",
+  tools: "\u4E0B\u8F7D\u548C\u8F6C\u7801\u5DE5\u5177",
+  chat: "\u603B\u7ED3\u6A21\u578B",
+  speech: "\u8BED\u97F3\u8F6C\u5199",
+  vision: "\u8BC6\u56FE\uFF08\u53EF\u9009\uFF09",
+  bilibili: "B \u7AD9\u767B\u5F55\uFF08\u53EF\u9009\uFF09"
+};
+function step(id, state, detail, fix) {
+  return { id, label: LABELS[id], state, detail, fix };
+}
+function pendingAfter(ids) {
+  return ids.map((id) => step(id, "pending", "\u7B49\u4E0A\u4E00\u6B65\u901A\u8FC7\u540E\u518D\u68C0\u67E5\u3002"));
+}
+function text(value) {
+  return typeof value === "string" ? value : "";
+}
+function serviceFailure(error, host, keyName, modelName) {
+  if (/\b40[13]\b|Authorization failed|unauthori[sz]ed|invalid[^.]{0,30}key/i.test(error)) {
+    return `\u670D\u52A1\u5546\u4E0D\u8BA4\u8FD9\u4E2A\u5BC6\u94A5\u3002\u68C0\u67E5 .env \u91CC\u7684 ${keyName} \u662F\u5426\u5B8C\u6574\uFF08\u4E5F\u53EF\u4EE5\u8FD0\u884C vs-backend keys \u91CD\u65B0\u8F93\u5165\uFF09\uFF0C${RESTART}\u3002`;
+  }
+  if (/\b402\b|payment required|balance|quota|余额/i.test(error)) {
+    return "\u670D\u52A1\u5546\u8D26\u6237\u4F59\u989D\u4E0D\u8DB3\u3002\u7845\u57FA\u6D41\u52A8\u5728\u4F59\u989D\u4E3A 0 \u65F6\u8FDE\u514D\u8D39\u6A21\u578B\u4E5F\u4F1A\u62D2\u7EDD\uFF0C\u5145\u503C\u4E00\u4E24\u5143\u5373\u53EF\uFF1B\u6216\u6362\u4E00\u4E2A\u5BC6\u94A5\u3002";
+  }
+  if (/\b404\b|not found|could not be found/i.test(error)) {
+    return `\u670D\u52A1\u5546\u627E\u4E0D\u5230\u8FD9\u4E2A\u5730\u5740\u6216\u6A21\u578B\u540D\u3002\u68C0\u67E5 .env \u91CC\u7684\u63A5\u53E3\u5730\u5740\u548C ${modelName}\uFF0C${RESTART}\u3002`;
+  }
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ECONNRESET|timeout|socket|network/i.test(error)) {
+    return `\u540E\u7AEF\u8FDE\u4E0D\u4E0A ${host}\u3002\u68C0\u67E5\u7535\u8111\u7F51\u7EDC\uFF1B\u5982\u679C\u9700\u8981\u4EE3\u7406\uFF0C\u5728 .env \u586B VS_HTTP_PROXY\uFF0C${RESTART}\u3002`;
+  }
+  return `${error || "\u672A\u77E5\u9519\u8BEF"}\u3002\u8FD0\u884C vs-backend logs \u67E5\u770B\u540E\u7AEF\u65E5\u5FD7\u3002`;
+}
+function serviceStep(id, part, deep, keyName, modelName, missingState, missingWhy) {
+  const model = text(part.model) || "\u672A\u77E5\u6A21\u578B";
+  const host = text(part.host) || "\u670D\u52A1\u5546";
+  if (part.configured !== true) {
+    return step(
+      id,
+      missingState,
+      `${model} @ ${host}\uFF1A\u8FD8\u6CA1\u6709\u586B\u5BC6\u94A5\u3002${missingWhy}`,
+      `\u5728\u540E\u7AEF .env \u91CC\u586B ${keyName}\uFF08\u6216\u8FD0\u884C vs-backend keys\uFF09\uFF0C${RESTART}\u3002`
+    );
+  }
+  if (!deep || part.checked !== true) {
+    return step(id, "pending", `${model} @ ${host}\uFF1A\u5DF2\u586B\u5BC6\u94A5\uFF0C\u70B9\u201C\u5B8C\u6574\u68C0\u67E5\u201D\u786E\u8BA4\u80FD\u7528\u3002`);
+  }
+  if (part.ok === false) {
+    return step(
+      id,
+      "missing",
+      `${model} @ ${host}\uFF1A\u8C03\u7528\u5931\u8D25\u3002`,
+      serviceFailure(text(part.error), host, keyName, modelName)
+    );
+  }
+  if (part.modelListed === false) {
+    return step(
+      id,
+      "warning",
+      `${model} @ ${host}\uFF1A\u5BC6\u94A5\u53EF\u7528\uFF0C\u4F46\u670D\u52A1\u5546\u7684\u6A21\u578B\u5217\u8868\u91CC\u6CA1\u6709\u8FD9\u4E2A\u540D\u5B57\u3002`,
+      `\u6838\u5BF9 .env \u91CC\u7684 ${modelName}\uFF0C\u540D\u79F0\u4EE5\u670D\u52A1\u5546\u6587\u6863\u4E3A\u51C6\uFF0C${RESTART}\u3002`
+    );
+  }
+  return step(id, "ready", `${model} @ ${host}`);
+}
+function interpretSetupCheck(input) {
+  const later = ["version", "tools", "chat", "speech", "vision", "bilibili"];
+  if (input.status === void 0) {
+    return [
+      step(
+        "connect",
+        "missing",
+        `\u8FDE\u4E0D\u4E0A\u540E\u7AEF\uFF1A${input.error || "\u6CA1\u6709\u54CD\u5E94"}`,
+        `\u5148\u6253\u5F00 Docker Desktop \u6216 OrbStack\uFF0C\u518D${START_SCRIPT}\u3002\u770B\u5230\u201C\u597D\u4E86\u201D\u548C\u8FDE\u63A5\u7801\u540E\u518D\u68C0\u67E5\u3002`
+      ),
+      ...pendingAfter(["token", ...later])
+    ];
+  }
+  if (input.status === 404) {
+    return [
+      step(
+        "connect",
+        "warning",
+        "\u540E\u7AEF\u5728\u8FD0\u884C\uFF0C\u4F46\u8FD8\u6CA1\u6709\u51C6\u5907\u597D\u5904\u7406\u8BF7\u6C42\u3002",
+        "\u7B2C\u4E00\u6B21\u542F\u52A8\u8981\u7B49\u4E00\u5206\u949F\u5DE6\u53F3\u3002\u5982\u679C\u4E00\u76F4\u8FD9\u6837\uFF0C\u786E\u8BA4\u8FDE\u63A5\u7801\u91CC\u7684\u7AEF\u53E3\u548C\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u4E00\u81F4\u3002"
+      ),
+      ...pendingAfter(["token", ...later])
+    ];
+  }
+  if (input.status === 401 || input.status === 403) {
+    return [
+      step("connect", "ready", "\u540E\u7AEF\u5728\u8FD0\u884C\u3002"),
+      step("token", "missing", "\u540E\u7AEF\u62D2\u7EDD\u4E86\u8FD9\u4E2A\u8FDE\u63A5\u7801\u3002", `${CODE_COMMAND}\u3002`),
+      ...pendingAfter(later)
+    ];
+  }
+  if (input.status < 200 || input.status >= 300 || !isRecord(input.report)) {
+    return [
+      step("connect", "ready", "\u540E\u7AEF\u5728\u8FD0\u884C\u3002"),
+      step(
+        "token",
+        "warning",
+        `\u540E\u7AEF\u8FD4\u56DE\u4E86 HTTP ${input.status}\uFF0C\u4E0D\u662F\u68C0\u67E5\u7ED3\u679C\u3002`,
+        "\u8FD0\u884C vs-backend logs \u67E5\u770B\u540E\u7AEF\u65E5\u5FD7\u3002"
+      ),
+      ...pendingAfter(later)
+    ];
+  }
+  const report = input.report;
+  const workflow = isRecord(report.workflow) ? report.workflow : {};
+  const backend = isRecord(report.backend) ? report.backend : null;
+  const steps = [
+    step("connect", "ready", "\u540E\u7AEF\u5728\u8FD0\u884C\u3002"),
+    step("token", "ready", "\u8FDE\u63A5\u7801\u6B63\u786E\u3002")
+  ];
+  const version = text(workflow.version);
+  if (!backend) {
+    steps.push(
+      step(
+        "version",
+        "missing",
+        `\u8FD9\u662F\u65E7\u7248\u624B\u52A8\u5BFC\u5165\u7684\u5DE5\u4F5C\u6D41${version ? `\uFF08${version}\uFF09` : ""}\u3002`,
+        "\u8BF7\u6539\u7528\u540E\u7AEF\u5B89\u88C5\u5305\uFF1A\u4E0B\u8F7D video-summary-backend \u538B\u7F29\u5305\uFF0C\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF0C\u518D\u7C98\u8D34\u65B0\u7684\u8FDE\u63A5\u7801\u3002"
+      ),
+      ...pendingAfter(["tools", "chat", "speech", "vision", "bilibili"])
+    );
+    return steps;
+  }
+  steps.push(
+    version === RECOMMENDED_WORKFLOW.version ? step("version", "ready", `\u5DE5\u4F5C\u6D41 ${version}`) : step(
+      "version",
+      "warning",
+      `\u540E\u7AEF\u5DE5\u4F5C\u6D41\u662F ${version || "\u672A\u77E5\u7248\u672C"}\uFF0C\u8FD9\u4E2A\u63D2\u4EF6\u914D\u5957\u7684\u662F ${RECOMMENDED_WORKFLOW.version}\u3002`,
+      "\u4E0B\u8F7D\u540C\u7248\u672C\u7684\u540E\u7AEF\u5B89\u88C5\u5305\uFF0C\u8986\u76D6\u65E7\u6587\u4EF6\u5939\uFF08.env \u4F1A\u4FDD\u7559\uFF09\uFF0C\u518D\u8FD0\u884C vs-backend update\u3002"
+    )
+  );
+  const tools = isRecord(backend.tools) ? backend.tools : {};
+  const ytDlp = text(tools.ytDlp);
+  const ffmpeg = text(tools.ffmpeg);
+  steps.push(
+    ytDlp && ffmpeg ? step("tools", "ready", `yt-dlp ${ytDlp}\uFF0Cffmpeg ${ffmpeg}`) : step(
+      "tools",
+      "missing",
+      `\u7F3A\u5C11${ytDlp ? "" : " yt-dlp"}${ffmpeg ? "" : " ffmpeg"}\u3002`,
+      "\u8FD9\u4E2A\u540E\u7AEF\u4E0D\u662F\u7528\u5B89\u88C5\u5305\u542F\u52A8\u7684\u3002\u8BF7\u7528\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u91CD\u65B0\u542F\u52A8\u3002"
+    )
+  );
+  steps.push(
+    serviceStep(
+      "chat",
+      isRecord(backend.chat) ? backend.chat : {},
+      input.deep,
+      "VS_CHAT_API_KEY",
+      "VS_CHAT_MODEL",
+      "missing",
+      "\u6CA1\u6709\u5B83\u5C31\u4E0D\u80FD\u751F\u6210\u603B\u7ED3\u3002"
+    ),
+    serviceStep(
+      "speech",
+      isRecord(backend.speech) ? backend.speech : {},
+      input.deep,
+      "VS_SPEECH_API_KEY",
+      "VS_SPEECH_MODEL",
+      "warning",
+      "\u6CA1\u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u672C\u5730\u97F3\u89C6\u9891\u8981\u7528\u5B83\uFF1B\u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u7C98\u8D34\u6587\u7A3F\u4E0D\u53D7\u5F71\u54CD\u3002"
+    )
+  );
+  const vision = isRecord(backend.vision) ? backend.vision : {};
+  steps.push(
+    vision.configured === true ? step("vision", "ready", `${text(vision.model)} @ ${text(vision.host)}`) : step(
+      "vision",
+      "warning",
+      "\u6CA1\u6709\u53EF\u7528\u7684\u8BC6\u56FE\u5BC6\u94A5\uFF0C\u672C\u5730\u56FE\u7247\u6682\u65F6\u8BFB\u4E0D\u4E86\uFF1BPDF \u4E0D\u53D7\u5F71\u54CD\u3002",
+      "\u9ED8\u8BA4\u6CBF\u7528\u8BED\u97F3\u8F6C\u5199\u7684\u7845\u57FA\u6D41\u52A8\u5BC6\u94A5\uFF0C\u586B\u597D VS_SPEECH_API_KEY \u5373\u53EF\u3002"
+    )
+  );
+  const cookies = isRecord(backend.cookies) ? backend.cookies : {};
+  const bilibili = isRecord(cookies.bilibili) ? cookies.bilibili : {};
+  steps.push(
+    bilibili.loggedIn === true ? step("bilibili", "ready", "\u5DF2\u5BFC\u5165 B \u7AD9\u767B\u5F55 cookie\uFF0C\u53EF\u4EE5\u7528 B \u7AD9 AI \u5B57\u5E55\u3002") : step(
+      "bilibili",
+      "warning",
+      bilibili.present === true ? "cookie \u6587\u4EF6\u91CC\u6CA1\u6709\u767B\u5F55\u4FE1\u606F\uFF08SESSDATA\uFF09\u3002" : "\u8FD8\u6CA1\u6709\u5BFC\u5165\u3002\u4E0D\u5BFC\u5165\u4E5F\u80FD\u7528\uFF0C\u53EA\u662F B \u7AD9 AI \u5B57\u5E55\u62FF\u4E0D\u5230\uFF0C\u4F1A\u6539\u7528\u8BED\u97F3\u8F6C\u5199\u3002",
+      "\u70B9\u4E0B\u9762\u7684\u201C\u2463 \u626B\u7801\u767B\u5F55\u201D\uFF0C\u7528 B \u7AD9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u4E00\u4E0B\u5373\u53EF\uFF1B\u4E5F\u53EF\u4EE5\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\uFF0C\u6216\u7C98\u8D34 cookies.txt\u3002"
+    )
+  );
+  return steps;
+}
+function reportedChatModel(report) {
+  if (!isRecord(report) || !isRecord(report.backend) || !isRecord(report.backend.chat)) return "";
+  return text(report.backend.chat.model);
 }
 
 // utils/CacheManager.ts
@@ -7697,7 +9671,7 @@ var CACHE_PROMPT_VERSION = "video-knowledge-v3-clean-note-1";
 var _VideoSummaryAPI = class _VideoSummaryAPI {
   constructor(webhookUrl, vault, pluginDataPath, payloadKeys, backend, webhookAuth, timeoutMinutes = 30) {
     this.debugMode = false;
-    this.aiModel = "Gemini 3.1";
+    this.aiModel = BACKEND_DEFAULT_MODEL_LABEL;
     this.backend = "n8n";
     this.webhookAuth = {
       headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
@@ -8538,19 +10512,19 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     return normalizedMinutes * 60 * 1e3;
   }
   readNativeJsonResponse(response, label) {
-    const text = response.text || "";
-    if (!text.trim()) {
+    const text2 = response.text || "";
+    if (!text2.trim()) {
       throw new Error(`${label}\u8FD4\u56DE\u7A7A\u54CD\u5E94`);
     }
-    const parsed = this.tryParseJson(text);
+    const parsed = this.tryParseJson(text2);
     if (!parsed) {
-      throw new Error(`${label}\u8FD4\u56DE\u7684\u4E0D\u662F JSON\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text, 180)}`);
+      throw new Error(`${label}\u8FD4\u56DE\u7684\u4E0D\u662F JSON\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text2, 180)}`);
     }
     return parsed;
   }
   formatNativeHttpError(label, response) {
-    const text = response.text || "";
-    const snippet = text ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text, 180)}` : "";
+    const text2 = response.text || "";
+    const snippet = text2 ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text2, 180)}` : "";
     return `${label}: HTTP ${response.status}${snippet}`;
   }
   static isSuccessfulStatus(status) {
@@ -8951,10 +10925,10 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         this.resolveTimeoutMs()
       );
       const durationMs = Date.now() - started;
-      const text = await response.text();
-      const snippet = this.redactWebhookSecret((text || "").slice(0, 180));
+      const text2 = await response.text();
+      const snippet = this.redactWebhookSecret((text2 || "").slice(0, 180));
       if (!response.ok) {
-        const error = await this.formatHttpError(response, text);
+        const error = await this.formatHttpError(response, text2);
         return {
           success: false,
           durationMs,
@@ -8964,7 +10938,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
           hint: this.getConnectionHint(error)
         };
       }
-      if (!text || text.trim() === "") {
+      if (!text2 || text2.trim() === "") {
         const error = "\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94";
         return {
           success: false,
@@ -8974,9 +10948,9 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
           hint: this.getConnectionHint(error)
         };
       }
-      const parsed = this.tryParseJson(text);
+      const parsed = this.tryParseJson(text2);
       if (!parsed) {
-        if (this.isConnectionTestSuccessText(text)) {
+        if (this.isConnectionTestSuccessText(text2)) {
           return {
             success: true,
             durationMs,
@@ -9025,6 +10999,84 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       };
     }
   }
+  /**
+   * Ask the packaged backend for its health report. `deep` also lists the model provider's models
+   * and transcribes a one-second sample, which proves both keys work.
+   */
+  async checkBackend(deep) {
+    try {
+      const response = await _VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify({ name: "test", metadata: deep ? { check: "deep" } : {}, content: "" }),
+        deep ? 12e4 : 15e3
+      );
+      const text2 = await response.text();
+      return { status: response.status, report: this.tryParseJson(text2) ?? void 0 };
+    } catch (error) {
+      return { error: this.redactWebhookSecret(this.errorToString(error)) };
+    }
+  }
+  /** Save a Netscape cookies.txt for one platform into the backend's cookies folder. */
+  async uploadCookies(platform, cookies) {
+    try {
+      const response = await _VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify({ name: "save-cookies", metadata: { platform, cookies }, content: "" }),
+        3e4
+      );
+      const parsed = this.tryParseJson(await response.text());
+      if (response.ok && isRecord(parsed) && parsed.ok === true) {
+        return { ok: true, message: `\u5DF2\u4FDD\u5B58 ${String(parsed.cookies)} \u6761 cookie\u3002` };
+      }
+      return {
+        ok: false,
+        message: response.status === 500 ? "\u540E\u7AEF\u6CA1\u63A5\u53D7\u8FD9\u6BB5\u5185\u5BB9\uFF1A\u9700\u8981\u6D4F\u89C8\u5668\u6269\u5C55\u5BFC\u51FA\u7684 cookies.txt\uFF08\u6BCF\u884C\u7528 Tab \u5206\u9694\u7684 7 \u5217\uFF09\uFF0C\u5E76\u4E14\u5305\u542B\u8FD9\u4E2A\u7F51\u7AD9\u7684 cookie\u3002" : this.formatUserFacingError(new Error(`HTTP ${response.status}`))
+      };
+    } catch (error) {
+      return { ok: false, message: this.formatUserFacingError(error) };
+    }
+  }
+  /** Summarise a short built-in text end to end; proves the model really answers. */
+  async trialRun(sample) {
+    const started = Date.now();
+    try {
+      const response = await _VideoSummaryAPI.webhookRequest(
+        this.webhookUrl,
+        this.buildN8nHeaders(),
+        JSON.stringify(
+          this.buildPayload("\u9996\u6B21\u914D\u7F6E\u8BD5\u8FD0\u884C", { transcript: sample }, "summary", "zh")
+        ),
+        18e4
+      );
+      const parsed = this.tryParseJson(await response.text());
+      const first = Array.isArray(parsed) ? parsed[0] : parsed;
+      const summary = isRecord(first) ? this.readString(first.summary) || "" : "";
+      const durationMs = Date.now() - started;
+      if (!response.ok) {
+        return {
+          ok: false,
+          durationMs,
+          message: this.formatUserFacingError(new Error(`HTTP ${response.status}`))
+        };
+      }
+      if (!summary || summary.startsWith("Error")) {
+        return {
+          ok: false,
+          durationMs,
+          message: summary.replace(/^Error:\s*/, "") || "\u540E\u7AEF\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3\u3002"
+        };
+      }
+      return { ok: true, durationMs, message: summary.slice(0, 160) };
+    } catch (error) {
+      return {
+        ok: false,
+        durationMs: Date.now() - started,
+        message: this.formatUserFacingError(error)
+      };
+    }
+  }
   buildConnectionTestPayload() {
     if (this.backend === "codex-worker") {
       return this.buildPayload(
@@ -9038,15 +11090,15 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     return this.buildPayload("test", {}, "transcript-only", "zh");
   }
-  tryParseJson(text) {
+  tryParseJson(text2) {
     try {
-      return JSON.parse(text);
+      return JSON.parse(text2);
     } catch {
       return null;
     }
   }
-  isConnectionTestSuccessText(text) {
-    const normalized = text.trim().toLowerCase();
+  isConnectionTestSuccessText(text2) {
+    const normalized = text2.trim().toLowerCase();
     return ["\u6D4B\u8BD5\u6210\u529F", "\u6D4B\u8BD5\u6210\u529F\uFF01", "ok", "success"].includes(normalized);
   }
   extractWorkflowHealthInfo(payload) {
@@ -9108,28 +11160,28 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     return values.length > 0 ? values.map((item) => item.trim()) : void 0;
   }
   async readJsonResponse(response) {
-    const text = await response.text();
-    if (!text || text.trim() === "") {
+    const text2 = await response.text();
+    if (!text2 || text2.trim() === "") {
       throw new Error("\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94");
     }
-    const parsed = this.tryParseJson(text);
+    const parsed = this.tryParseJson(text2);
     if (!parsed) {
       throw new Error(
-        `\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u4E0D\u662F JSON\u3002\u54CD\u5E94\u7247\u6BB5: ${this.redactWebhookSecret(this.truncateError(text, 180))}`
+        `\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u4E0D\u662F JSON\u3002\u54CD\u5E94\u7247\u6BB5: ${this.redactWebhookSecret(this.truncateError(text2, 180))}`
       );
     }
     return parsed;
   }
   async formatHttpError(response, bodyText) {
-    let text = bodyText;
-    if (text === void 0) {
+    let text2 = bodyText;
+    if (text2 === void 0) {
       try {
-        text = await response.text();
+        text2 = await response.text();
       } catch {
-        text = "";
+        text2 = "";
       }
     }
-    const snippet = text ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.redactWebhookSecret(this.truncateError(text, 180))}` : "";
+    const snippet = text2 ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.redactWebhookSecret(this.truncateError(text2, 180))}` : "";
     return `HTTP ${response.status} ${response.statusText}${snippet}`;
   }
   formatUserFacingError(error) {
@@ -9142,34 +11194,34 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       if (this.backend === "codex-worker") {
         return `Codex Worker \u7AEF\u70B9\u4E0D\u5B58\u5728\u3002\u8BF7\u786E\u8BA4\u540E\u7AEF App \u5DF2\u542F\u52A8\u4E14 URL \u6307\u5411\u6B63\u786E\u7AEF\u53E3\u3002\u5F53\u524D URL: ${this.webhookUrl}`;
       }
-      return `Webhook \u4E0D\u5B58\u5728\u6216\u8DEF\u5F84\u4E0D\u5339\u914D\u3002\u8BF7\u786E\u8BA4 n8n workflow \u5DF2\u6FC0\u6D3B\uFF0C\u5E76\u4E14\u63D2\u4EF6 URL \u4E0E Webhook Path \u5B8C\u5168\u4E00\u81F4\u3002\u5F53\u524D URL: ${this.webhookUrl}`;
+      return `\u540E\u7AEF\u8FD8\u6CA1\u51C6\u5907\u597D\uFF0C\u6216\u8005\u5730\u5740\u4E0D\u5BF9\u3002\u7B2C\u4E00\u6B21\u542F\u52A8\u8981\u7B49\u4E00\u5206\u949F\u5DE6\u53F3\uFF1B\u5982\u679C\u4E00\u76F4\u8FD9\u6837\uFF0C\u786E\u8BA4\u8FDE\u63A5\u7801\u91CC\u7684\u7AEF\u53E3\u548C\u542F\u52A8\u811A\u672C\u663E\u793A\u7684\u4E00\u81F4\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`;
     }
     if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
       if (this.backend === "codex-worker") {
         return "Codex Worker \u62D2\u7EDD\u8BBF\u95EE\u3002\u8BF7\u68C0\u67E5 Worker \u9274\u6743 token \u4E0E\u672C\u5730\u670D\u52A1\u5B89\u5168\u914D\u7F6E\u3002";
       }
-      return "\u5904\u7406\u670D\u52A1\u62D2\u7EDD\u8BBF\u95EE\u3002\u8BF7\u68C0\u67E5 n8n \u6743\u9650\u3001\u53CD\u5411\u4EE3\u7406\u9274\u6743\u6216\u8FDC\u7A0B\u670D\u52A1\u8BBF\u95EE\u8BBE\u7F6E\u3002";
+      return "\u540E\u7AEF\u62D2\u7EDD\u4E86\u8FD9\u4E2A\u8FDE\u63A5\u7801\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend code\uFF0C\u628A\u8FDE\u63A5\u7801\u91CD\u65B0\u7C98\u8D34\u5230\u8BBE\u7F6E\u7684\u201C\u9996\u6B21\u914D\u7F6E\u201D\u3002";
     }
     if (lower.includes("bilibili") && (lower.includes("http error 412") || lower.includes("precondition failed"))) {
-      return "Bilibili \u62D2\u7EDD\u4E86 yt-dlp \u8BF7\u6C42\u3002\u8BF7\u5148\u7528\u9879\u76EE Docker \u955C\u50CF\u65E0\u7F13\u5B58\u91CD\u5EFA\u4EE5\u66F4\u65B0 yt-dlp\uFF1B\u5982\u679C\u4ECD\u5931\u8D25\uFF0C\u628A\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies \u4FDD\u5B58\u4E3A docker/cookies/bilibili_cookies.txt \u540E\u91CD\u542F n8n\u3002";
+      return "B \u7AD9\u62D2\u7EDD\u4E86\u4E0B\u8F7D\u8BF7\u6C42\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\u3002";
     }
     if (lower.includes("yt-dlp") && lower.includes("not found")) {
-      return "n8n \u5BB9\u5668\u7F3A\u5C11 yt-dlp\u3002\u8BF7\u4F7F\u7528\u9879\u76EE\u63D0\u4F9B\u7684 Docker \u955C\u50CF\uFF0C\u6216\u5728\u5F53\u524D n8n \u73AF\u5883\u4E2D\u5B89\u88C5 yt-dlp \u540E\u91CD\u8BD5\u3002";
+      return "\u540E\u7AEF\u7F3A\u5C11 yt-dlp\u3002\u8BF7\u7528\u540E\u7AEF\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u542F\u52A8\uFF0C\u4E0D\u8981\u7528\u5B98\u65B9 n8n \u955C\u50CF\u3002";
     }
     if (lower.includes("ffmpeg") && lower.includes("not found")) {
-      return "n8n \u5BB9\u5668\u7F3A\u5C11 ffmpeg\u3002\u8BF7\u4F7F\u7528\u9879\u76EE\u63D0\u4F9B\u7684 Docker \u955C\u50CF\uFF0C\u6216\u5728\u5F53\u524D n8n \u73AF\u5883\u4E2D\u5B89\u88C5 ffmpeg \u540E\u91CD\u8BD5\u3002";
+      return "\u540E\u7AEF\u7F3A\u5C11 ffmpeg\u3002\u8BF7\u7528\u540E\u7AEF\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u542F\u52A8\uFF0C\u4E0D\u8981\u7528\u5B98\u65B9 n8n \u955C\u50CF\u3002";
     }
     if (message.includes("HTTP 500") || message.includes("HTTP 502") || message.includes("HTTP 503")) {
       if (this.backend === "codex-worker") {
         return `Codex Worker \u5185\u90E8\u62A5\u9519\u3002\u8BF7\u6253\u5F00 Worker \u63A7\u5236\u53F0\u67E5\u770B\u4EFB\u52A1\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`;
       }
-      return `\u5904\u7406\u670D\u52A1\u5185\u90E8\u62A5\u9519\u3002\u8BF7\u6253\u5F00 n8n Execution \u65E5\u5FD7\u67E5\u770B\u5931\u8D25\u8282\u70B9\u3002\u539F\u59CB\u9519\u8BEF: ${message}`;
+      return `\u540E\u7AEF\u5904\u7406\u65F6\u51FA\u9519\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend logs \u67E5\u770B\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`;
     }
     if (lower.includes("failed to fetch") || lower.includes("load failed") || lower.includes("networkerror") || lower.includes("connection refused")) {
       if (this.backend === "codex-worker") {
         return `\u65E0\u6CD5\u8FDE\u63A5 Codex Worker\u3002\u8BF7\u786E\u8BA4\u672C\u5730\u540E\u7AEF App \u5DF2\u542F\u52A8\u3001\u7AEF\u53E3\u53EF\u8BBF\u95EE\u4E14 Worker URL \u6B63\u786E\u3002\u5F53\u524D URL: ${this.webhookUrl}`;
       }
-      return `\u65E0\u6CD5\u8FDE\u63A5\u5904\u7406\u670D\u52A1\u3002\u8BF7\u786E\u8BA4 Docker/n8n \u5DF2\u542F\u52A8\uFF0C\u7AEF\u53E3\u53EF\u8BBF\u95EE\uFF0C\u63D2\u4EF6 URL \u6B63\u786E\u3002\u5F53\u524D URL: ${this.webhookUrl}`;
+      return `\u65E0\u6CD5\u8FDE\u63A5\u540E\u7AEF\u3002\u5148\u6253\u5F00 Docker\uFF0C\u518D\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C\u542F\u52A8\u811A\u672C\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`;
     }
     if (message.includes("\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94")) {
       return "\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94\u3002\u8BF7\u786E\u8BA4 n8n workflow \u5DF2\u6FC0\u6D3B\uFF0C\u5E76\u4E14 Respond to Webhook \u8282\u70B9\u5DF2\u8FDE\u5230\u6D4B\u8BD5/\u5904\u7406\u5206\u652F\u3002";
@@ -9184,16 +11236,16 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
   getConnectionHint(message) {
     if (message.includes("Webhook \u4E0D\u5B58\u5728") || message.includes("HTTP 404")) {
-      return "\u6253\u5F00 n8n\uFF0C\u786E\u8BA4 workflow \u5DF2\u6FC0\u6D3B\uFF1BWebhook \u8282\u70B9 Path \u5E94\u4E3A obsidian-video-summary\u3002";
+      return "\u7B49\u4E00\u5206\u949F\u518D\u8BD5\uFF1B\u4ECD\u4E0D\u884C\u5C31\u91CD\u65B0\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF0C\u5E76\u91CD\u65B0\u7C98\u8D34\u5B83\u663E\u793A\u7684\u8FDE\u63A5\u7801\u3002";
     }
     if (message.includes("\u65E0\u6CD5\u8FDE\u63A5\u5904\u7406\u670D\u52A1")) {
-      return "\u5148\u8FD0\u884C docker compose \u670D\u52A1\uFF0C\u518D\u786E\u8BA4\u7AEF\u53E3\u6CA1\u6709\u88AB\u5176\u4ED6 n8n \u5360\u7528\u3002";
+      return "\u5148\u6253\u5F00 Docker\uFF0C\u518D\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF08macOS \u53CC\u51FB start-mac.command\uFF0CWindows \u53CC\u51FB start-windows.cmd\uFF09\u3002";
     }
     if (message.includes("\u65E0\u6CD5\u8FDE\u63A5 Codex Worker")) {
       return "\u5148\u542F\u52A8\u672C\u5730\u540E\u7AEF App\uFF0C\u518D\u786E\u8BA4 Worker URL \u4E0E\u7AEF\u53E3\u914D\u7F6E\u3002";
     }
     if (message.includes("Bilibili \u62D2\u7EDD")) {
-      return "\u6267\u884C docker compose build --no-cache \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u6DFB\u52A0 docker/cookies/bilibili_cookies.txt\u3002";
+      return "\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u540C\u6B65 B \u7AD9\u767B\u5F55\u3002";
     }
     if (message.includes("\u7A7A\u54CD\u5E94")) {
       return "\u68C0\u67E5 Respond to Webhook: Test \u8282\u70B9\u662F\u5426\u4ECD\u8FDE\u63A5\u5728\u6D4B\u8BD5\u5206\u652F\u4E0A\u3002";
@@ -9224,7 +11276,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
 };
 /** Network layer for Worker calls; Obsidian's requestUrl by default, replaceable in tests. */
-_VideoSummaryAPI.transport = (request) => import("obsidian").then(({ requestUrl: requestUrl2 }) => requestUrl2(request));
+_VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl3 }) => requestUrl3(request));
 var VideoSummaryAPI = _VideoSummaryAPI;
 function pickString(source, keys) {
   if (!isRecord(source)) return void 0;
@@ -9263,14 +11315,14 @@ function pickRatio(source, keys) {
 }
 
 // views/VideoSummaryView.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 
 // views/panels/ActionBar.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 
 // modals/FolderSelectModal.ts
-var import_obsidian8 = require("obsidian");
-var FolderSelectModal = class extends import_obsidian8.Modal {
+var import_obsidian9 = require("obsidian");
+var FolderSelectModal = class extends import_obsidian9.Modal {
   constructor(app, folders, onSelect) {
     super(app);
     this.folderContainer = null;
@@ -9399,7 +11451,7 @@ function renderActionBar(container, ctx) {
       ctx.plugin.settings.generateLearningArtifacts ? "\u5B66\u4E60\u5361" : ""
     ].filter(Boolean).join(" \xB7 ")
   });
-  (0, import_obsidian9.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
+  (0, import_obsidian10.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
   foldToggle.addEventListener("click", () => {
     state.advancedOpen = !state.advancedOpen;
     ctx.renderAll();
@@ -9486,7 +11538,7 @@ function renderHeader(root, ctx) {
       updateBackendPill(statusLine, dot, label, backend, "is-checking");
       const result = await probeBackend(ctx, backend, true);
       updateBackendPill(statusLine, dot, label, backend, result.state, result);
-      new import_obsidian9.Notice(
+      new import_obsidian10.Notice(
         result.state === "is-online" ? `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend.label} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.reason || "\u672A\u77E5\u539F\u56E0"}`,
         result.state === "is-online" ? 3e3 : 6e3
       );
@@ -9680,7 +11732,7 @@ function renderContextStrip(root, ctx) {
   const meta = statusMeta(status);
   const strip = root.createDiv({ cls: "vs-context-strip" });
   const icon = strip.createDiv({ cls: "vs-context-icon" });
-  (0, import_obsidian9.setIcon)(icon, "file-text");
+  (0, import_obsidian10.setIcon)(icon, "file-text");
   const body = strip.createDiv({ cls: "vs-context-body" });
   body.createDiv({ text: activeFile.basename, cls: "vs-context-title" });
   const sub = body.createDiv({ cls: "vs-context-sub" });
@@ -9756,7 +11808,7 @@ function renderOptions(container, ctx) {
     settings.defaultProcessingDepth,
     fire(async (depth) => {
       if (depth === "deep-visual" && settings.activeBackend !== "codex-worker") {
-        new import_obsidian9.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
+        new import_obsidian10.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
         return;
       }
       settings.defaultProcessingDepth = depth;
@@ -9803,20 +11855,6 @@ function renderOptions(container, ctx) {
       await plugin.saveSettings();
     })
   );
-  const models = (settings.customAiModels?.length ? settings.customAiModels : [settings.aiModel]).filter(Boolean);
-  const modelSelect = row("\u5904\u7406\u6A21\u578B").createEl("select", { cls: "dropdown" });
-  models.forEach(
-    (model) => modelSelect.createEl("option", { text: model, attr: { value: model } })
-  );
-  modelSelect.value = settings.aiModel || models[0] || "";
-  modelSelect.addEventListener(
-    "change",
-    fire(async () => {
-      settings.aiModel = modelSelect.value;
-      plugin.api.setAiModel(modelSelect.value);
-      await plugin.saveSettings();
-    })
-  );
   const folderBtn = row("\u4FDD\u5B58\u4F4D\u7F6E").createEl("button", {
     text: shortenPath(settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"),
     cls: "vs-link-btn",
@@ -9824,7 +11862,7 @@ function renderOptions(container, ctx) {
   });
   folderBtn.addEventListener("click", (event) => {
     event.preventDefault();
-    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian9.TFolder).map((folder) => folder.path).sort();
+    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian10.TFolder).map((folder) => folder.path).sort();
     new FolderSelectModal(
       plugin.app,
       folders,
@@ -9914,12 +11952,12 @@ function renderAdvanced(container, ctx, mainInput) {
     ctx.state.localFileDraft = localFile.value;
   });
   localRow.createDiv({
-    text: "Docker/n8n \u573A\u666F\u8BF7\u628A\u6587\u4EF6\u653E\u8FDB docker/uploads\uFF0C\u8FD9\u91CC\u53EA\u586B\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002",
+    text: "\u5148\u628A\u6587\u4EF6\u653E\u8FDB\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u8FD9\u91CC\u53EA\u586B\u6587\u4EF6\u540D\u3002",
     cls: "vs-field-hint"
   });
   localFile.addEventListener("blur", () => {
     if (isAbsoluteLocalPath(localFile.value)) {
-      new import_obsidian9.Notice("\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002\u7528 docker \u65F6\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002");
+      new import_obsidian10.Notice("\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002\u7528 docker \u65F6\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002");
     }
   });
   const partsRow = container.createDiv({ cls: "vs-field vs-field-inline" });
@@ -9958,7 +11996,7 @@ async function submit(ctx, input, fields) {
   const transcript = fields.transcript.value.trim();
   const localFiles = fields.localFile.value.trim();
   if (!raw && !transcript && !localFiles) {
-    new import_obsidian9.Notice("\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F");
+    new import_obsidian10.Notice("\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F");
     return;
   }
   let drafts = parseInput(raw, {
@@ -9969,18 +12007,18 @@ async function submit(ctx, input, fields) {
   if (fields.partsToggle.checked) {
     const url = drafts.find((draft) => draft.source === "url")?.input.url;
     if (!url) {
-      new import_obsidian9.Notice("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5");
+      new import_obsidian10.Notice("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5");
       return;
     }
     const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
     const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
     if (end - start + 1 > 100) {
-      new import_obsidian9.Notice("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6");
+      new import_obsidian10.Notice("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6");
       return;
     }
     const expanded = expandParts(url, start, end, { transcript, localFiles });
     if (expanded.length === 0) {
-      new import_obsidian9.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427");
+      new import_obsidian10.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427");
       return;
     }
     drafts = expanded;
@@ -9988,19 +12026,19 @@ async function submit(ctx, input, fields) {
     ctx.state.partsEnd = end;
   }
   if (drafts.length === 0) {
-    new import_obsidian9.Notice("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9");
+    new import_obsidian10.Notice("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9");
     return;
   }
   const looksAccidental = drafts.length === 1 && drafts[0].source === "transcript" && !transcript && raw.length > 0 && raw.length < 40 && !raw.includes("\n");
   if (looksAccidental) {
-    new import_obsidian9.Notice(
+    new import_obsidian10.Notice(
       `"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`,
       8e3
     );
     return;
   }
   if (drafts.length > 50) {
-    new import_obsidian9.Notice("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761");
+    new import_obsidian10.Notice("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761");
     return;
   }
   const queued = await ctx.plugin.jobService.submit(drafts, ctx.submitOptions());
@@ -10012,7 +12050,7 @@ async function submit(ctx, input, fields) {
     ctx.state.transcriptDraft = "";
     ctx.state.localFileDraft = "";
     input.dispatchEvent(new Event("input"));
-    new import_obsidian9.Notice(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`);
+    new import_obsidian10.Notice(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`);
     ctx.state.tab = "jobs";
     ctx.renderPanels();
   }
@@ -10033,7 +12071,7 @@ function appendFileNames(ctx, input, names) {
 ${names.join("\n")}` : names.join("\n");
   ctx.state.inputDraft = input.value;
   input.dispatchEvent(new Event("input"));
-  new import_obsidian9.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
+  new import_obsidian10.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
 }
 function autoGrow(input) {
   const resize = () => {
@@ -10049,7 +12087,7 @@ function shortenPath(path) {
 }
 
 // views/panels/JobsPanel.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 var RECENT_HISTORY_LIMIT = 3;
 var historyExpanded = false;
 function renderJobsPanel(container, ctx) {
@@ -10098,9 +12136,9 @@ function renderJobsPanel(container, ctx) {
           onClick: async () => {
             try {
               ctx.plugin.api.clearCache();
-              new import_obsidian10.Notice("\u7F13\u5B58\u5DF2\u6E05\u7A7A");
+              new import_obsidian11.Notice("\u7F13\u5B58\u5DF2\u6E05\u7A7A");
             } catch (error) {
-              new import_obsidian10.Notice(`\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? errorMessage(error) : error}`);
+              new import_obsidian11.Notice(`\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? errorMessage(error) : error}`);
             }
           }
         }
@@ -10192,7 +12230,7 @@ function renderReviewJob(container, ctx, job) {
     "\u76F4\u63A5\u5199\u5165",
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
-        new import_obsidian10.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+        new import_obsidian11.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
         ctx.renderPanels();
       }
     }),
@@ -10332,7 +12370,7 @@ function renderHistoryRow(container, ctx, row) {
         disabled: !row.error,
         onClick: () => {
           void navigator.clipboard.writeText(row.error || "");
-          new import_obsidian10.Notice("\u5DF2\u590D\u5236");
+          new import_obsidian11.Notice("\u5DF2\u590D\u5236");
         }
       }
     ]);
@@ -10449,7 +12487,7 @@ async function rerun(ctx, row) {
   }
   const file = findNote(ctx, row.title);
   if (!file) {
-    new import_obsidian10.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`);
+    new import_obsidian11.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`);
     return;
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
@@ -10458,14 +12496,14 @@ async function rerun(ctx, row) {
 function openNoteByName(ctx, name) {
   const file = findNote(ctx, name);
   if (!file) {
-    new import_obsidian10.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`);
+    new import_obsidian11.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`);
     return;
   }
   void ctx.openNote(file.path);
 }
 function findNote(ctx, name) {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian10.TFile) return direct;
+  if (direct instanceof import_obsidian11.TFile) return direct;
   const files = ctx.plugin.app.vault.getMarkdownFiles();
   return files.find((file) => file.basename === name) || null;
 }
@@ -10482,7 +12520,7 @@ function summarize(job) {
 function showWebhookHistoryMenu(ctx, event) {
   const history = ctx.plugin.api.getWebhookHistory();
   if (!history || history.length === 0) {
-    new import_obsidian10.Notice("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C");
+    new import_obsidian11.Notice("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C");
     return;
   }
   showMenu(
@@ -10525,14 +12563,14 @@ function showWebhookEntryActions(ctx, entry, event) {
       icon: "clipboard",
       onClick: () => {
         void navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
-        new import_obsidian10.Notice("\u5DF2\u590D\u5236");
+        new import_obsidian11.Notice("\u5DF2\u590D\u5236");
       }
     }
   ]);
 }
 
 // views/panels/LibraryPanel.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 var PAGE_SIZE = 80;
 var searchHadFocus = false;
 var visibleCount = PAGE_SIZE;
@@ -10550,7 +12588,7 @@ function renderLibraryPanel(container, ctx) {
   const header = container.createDiv({ cls: "vs-library-header" });
   const searchWrap = header.createDiv({ cls: "vs-search" });
   const searchIcon = searchWrap.createDiv({ cls: "vs-search-icon" });
-  (0, import_obsidian11.setIcon)(searchIcon, "search");
+  (0, import_obsidian12.setIcon)(searchIcon, "search");
   const search = searchWrap.createEl("input", {
     cls: "vs-search-input",
     attr: { type: "text", placeholder: "\u641C\u7D22\u7B14\u8BB0\u540D\u2026", value: state.librarySearch }
@@ -10807,7 +12845,7 @@ function renderRow(listEl, ctx, entry, observer) {
         disabled: !entry.link,
         onClick: () => {
           void navigator.clipboard.writeText(entry.link || "");
-          new import_obsidian11.Notice("\u5DF2\u590D\u5236\u94FE\u63A5");
+          new import_obsidian12.Notice("\u5DF2\u590D\u5236\u94FE\u63A5");
         }
       },
       {
@@ -10834,14 +12872,14 @@ function confirmDelete(ctx, entry) {
       const file = fileOf(ctx, entry);
       if (!file) return;
       await ctx.plugin.app.fileManager.trashFile(file);
-      new import_obsidian11.Notice(`\u5DF2\u5220\u9664 ${entry.basename}`);
+      new import_obsidian12.Notice(`\u5DF2\u5220\u9664 ${entry.basename}`);
       ctx.renderPanels();
     })
   ).open();
 }
 function fileOf(ctx, entry) {
   const file = ctx.plugin.app.vault.getAbstractFileByPath(entry.path);
-  return file instanceof import_obsidian11.TFile ? file : null;
+  return file instanceof import_obsidian12.TFile ? file : null;
 }
 function countByStatus(entries2, ctx) {
   const counts = { pending: 0, active: 0, interrupted: 0, success: 0, error: 0 };
@@ -10898,10 +12936,10 @@ function filterForDisplayStatus(status) {
 }
 
 // views/panels/DetailPanel.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // views/panels/ReaderPanel.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var PAGE_SIZE2 = 240;
 function renderReaderPanel(container, ctx, job) {
   const segments = job.result?.video_segments || [];
@@ -10985,7 +13023,7 @@ function renderReaderPanel(container, ctx, job) {
           "aria-pressed": String(highlighted)
         }
       });
-      (0, import_obsidian12.setIcon)(star, highlighted ? "star" : "star-off");
+      (0, import_obsidian13.setIcon)(star, highlighted ? "star" : "star-off");
       const activateHighlight = (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -11006,7 +13044,7 @@ function renderReaderPanel(container, ctx, job) {
             title: "\u590D\u5236\u5F15\u7528",
             icon: "quote",
             onClick: () => {
-              void navigator.clipboard.writeText(quote).then(() => new import_obsidian12.Notice("\u5DF2\u590D\u5236\u5F15\u7528"));
+              void navigator.clipboard.writeText(quote).then(() => new import_obsidian13.Notice("\u5DF2\u590D\u5236\u5F15\u7528"));
             }
           },
           {
@@ -11023,7 +13061,7 @@ function renderReaderPanel(container, ctx, job) {
       });
       row.addEventListener("click", () => {
         if (segment.start === null || segment.timing_quality === "none") {
-          new import_obsidian12.Notice("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+          new import_obsidian13.Notice("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
           return;
         }
         activeId = segment.id;
@@ -11092,16 +13130,16 @@ function quoteFor(ctx, job, sourceUrl, segment) {
     notePath: job.notePath
   });
 }
-function insertIntoRecentNote(ctx, text) {
+function insertIntoRecentNote(ctx, text2) {
   const { workspace } = ctx.plugin.app;
   const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
-  if (!(view instanceof import_obsidian12.MarkdownView)) {
-    new import_obsidian12.Notice("\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528");
+  if (!(view instanceof import_obsidian13.MarkdownView)) {
+    new import_obsidian13.Notice("\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528");
     return;
   }
-  view.editor.replaceSelection(`${text}
+  view.editor.replaceSelection(`${text2}
 `);
-  new import_obsidian12.Notice(`\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`);
+  new import_obsidian13.Notice(`\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`);
 }
 function createPlayer(container, ctx, job, sourceUrl) {
   const localSource = resolveLocalSource(ctx, job.input.localFile);
@@ -11112,7 +13150,7 @@ function createPlayer(container, ctx, job, sourceUrl) {
   if (bilibiliId) return createBilibiliPlayer(container, bilibiliId);
   const fallback = container.createDiv({ cls: "vs-reader-player-fallback" });
   const icon = fallback.createDiv({ cls: "vs-reader-player-icon" });
-  (0, import_obsidian12.setIcon)(icon, "external-link");
+  (0, import_obsidian13.setIcon)(icon, "external-link");
   fallback.createDiv({ text: "\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", cls: "vs-reader-player-title" });
   fallback.createDiv({
     text: "\u70B9\u51FB\u6587\u7A3F\u65F6\u95F4\u70B9\u65F6\u4F1A\u6253\u5F00\u5BF9\u5E94\u7684\u89C6\u9891\u4F4D\u7F6E\u3002",
@@ -11259,7 +13297,7 @@ function resolveLocalSource(ctx, localFile) {
   const vaultPath = safeVaultRelativeMediaPath(localFile);
   if (!vaultPath) return "";
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(vaultPath);
-  if (direct instanceof import_obsidian12.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
+  if (direct instanceof import_obsidian13.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
   return "";
 }
 function extractYouTubeId(sourceUrl) {
@@ -11344,7 +13382,7 @@ async function toggleHighlight(ctx, job, segment, highlights) {
   } catch (error) {
     if (removing) highlights.add(segment.id);
     else highlights.delete(segment.id);
-    new import_obsidian12.Notice(`\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
+    new import_obsidian13.Notice(`\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
   }
 }
 function cssEscape(value) {
@@ -11394,7 +13432,7 @@ function renderBanner(container, ctx, options) {
   const banner = container.createDiv({
     cls: `vs-banner ${platformClass(options.platform)}`
   });
-  (0, import_obsidian13.setIcon)(banner.createSpan({ cls: "vs-banner-icon", attr: { "aria-hidden": "true" } }), "play");
+  (0, import_obsidian14.setIcon)(banner.createSpan({ cls: "vs-banner-icon", attr: { "aria-hidden": "true" } }), "play");
   if (options.cover) {
     const img = banner.createEl("img", {
       cls: "vs-banner-img",
@@ -11463,7 +13501,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (job.state === "error" && job.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian13.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian14.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
     const actions2 = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
@@ -11477,7 +13515,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     );
     textButton(actions2, "\u590D\u5236\u9519\u8BEF", () => {
       void navigator.clipboard.writeText(job.error || "");
-      new import_obsidian13.Notice("\u5DF2\u590D\u5236");
+      new import_obsidian14.Notice("\u5DF2\u590D\u5236");
     });
     if (isCookieError(job.error)) {
       textButton(actions2, "\u6253\u5F00 cookies \u76EE\u5F55", () => openCookiesFolder(ctx));
@@ -11532,7 +13570,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
       "\u5199\u5165\u7B14\u8BB0",
       fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
-          new import_obsidian13.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+          new import_obsidian14.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
           ctx.closeDetail();
         }
       }),
@@ -11551,7 +13589,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (persistedArtifact) {
     const copy = textButton(actions, "\u590D\u5236\u5DE5\u4EF6 JSON", () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-      new import_obsidian13.Notice("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON");
+      new import_obsidian14.Notice("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON");
     });
     prependIcon(copy, "clipboard");
   } else {
@@ -11585,7 +13623,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
           icon: "clipboard",
           onClick: () => {
             void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-            new import_obsidian13.Notice("\u5DF2\u590D\u5236 JSON");
+            new import_obsidian14.Notice("\u5DF2\u590D\u5236 JSON");
           }
         }
       ]);
@@ -11691,7 +13729,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.content_type) {
     const route = signals.createDiv({ cls: "vs-signal" });
     const icon = route.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian13.setIcon)(icon, "route");
+    (0, import_obsidian14.setIcon)(icon, "route");
     route.createSpan({ text: `\u7ED3\u6784 \xB7 ${contentTypeLabel(result.content_type)}` });
   }
   if (result.attention) {
@@ -11699,7 +13737,7 @@ function renderKnowledgeSignals(body, ctx, job) {
       cls: `vs-signal is-attention is-${result.attention.action}`
     });
     const icon = decision2.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian13.setIcon)(
+    (0, import_obsidian14.setIcon)(
       icon,
       result.attention.action === "watch" ? "eye" : result.attention.action === "skim" ? "scan" : "skip-forward"
     );
@@ -11709,14 +13747,14 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.visual_evidence?.length) {
     const visual = signals.createDiv({ cls: "vs-signal is-visual" });
     const icon = visual.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian13.setIcon)(icon, "scan-eye");
+    (0, import_obsidian14.setIcon)(icon, "scan-eye");
     visual.createSpan({ text: `\u771F\u5B9E\u753B\u9762\u8BC1\u636E \xB7 ${result.visual_evidence.length}` });
   }
   const learningCount = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
   if (learningCount > 0) {
     const learning = signals.createDiv({ cls: "vs-signal is-learning" });
     const icon = learning.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian13.setIcon)(icon, "graduation-cap");
+    (0, import_obsidian14.setIcon)(icon, "graduation-cap");
     learning.createSpan({ text: `\u5B66\u4E60\u7EC3\u4E60 \xB7 ${learningCount}` });
   }
   if (result.attention) {
@@ -11772,8 +13810,8 @@ function renderKnowledgeSignals(body, ctx, job) {
       `\u5F00\u59CB\u590D\u4E60 \xB7 ${learningCount}`,
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || "");
-        if (!(file instanceof import_obsidian13.TFile)) {
-          new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+        if (!(file instanceof import_obsidian14.TFile)) {
+          new import_obsidian14.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
           return;
         }
         void ctx.plugin.openLearningReviewForFile(file);
@@ -11794,16 +13832,16 @@ function renderKnowledgeSignals(body, ctx, job) {
 }
 async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (depth === "deep-visual" && ctx.plugin.settings.activeBackend !== "codex-worker") {
-    new import_obsidian13.Notice("\u5185\u7F6E n8n \u5DE5\u4F5C\u6D41\u5C1A\u672A\u63A5\u901A\u5B89\u5168\u7684\u753B\u9762\u51ED\u636E\u3002\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5207\u6362\u5230\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002", 7e3);
+    new import_obsidian14.Notice("\u5185\u7F6E n8n \u5DE5\u4F5C\u6D41\u5C1A\u672A\u63A5\u901A\u5B89\u5168\u7684\u753B\u9762\u51ED\u636E\u3002\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5207\u6362\u5230\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002", 7e3);
     return;
   }
   if (!job.notePath) {
-    new import_obsidian13.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406");
+    new import_obsidian14.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406");
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian13.TFile)) {
-    new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+  if (!(file instanceof import_obsidian14.TFile)) {
+    new import_obsidian14.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -11817,16 +13855,16 @@ async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian13.Notice(depth === "deep-visual" ? "\u5DF2\u63D0\u4EA4\u6DF1\u5EA6\u753B\u9762\u5206\u6790" : "\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD");
+  new import_obsidian14.Notice(depth === "deep-visual" ? "\u5DF2\u63D0\u4EA4\u6DF1\u5EA6\u753B\u9762\u5206\u6790" : "\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD");
 }
 async function queueLearningUpgrade(ctx, job) {
   if (!job.notePath) {
-    new import_obsidian13.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361");
+    new import_obsidian14.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361");
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian13.TFile)) {
-    new import_obsidian13.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+  if (!(file instanceof import_obsidian14.TFile)) {
+    new import_obsidian14.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -11840,7 +13878,7 @@ async function queueLearningUpgrade(ctx, job) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian13.Notice("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1");
+  new import_obsidian14.Notice("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1");
 }
 function contentTypeLabel(type) {
   return {
@@ -11874,7 +13912,7 @@ function renderEvidence(container, ctx, job) {
     job.input.url || job.result.artifact?.source_url
   );
   const markdownEl = container.createDiv({ cls: "vs-markdown vs-evidence-map" });
-  void import_obsidian13.MarkdownRenderer.render(
+  void import_obsidian14.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown,
     markdownEl,
@@ -11884,12 +13922,12 @@ function renderEvidence(container, ctx, job) {
 }
 function prependIcon(button, icon) {
   const holder = createSpan({ cls: "vs-btn-icon" });
-  (0, import_obsidian13.setIcon)(holder, icon);
+  (0, import_obsidian14.setIcon)(holder, icon);
   button.prepend(holder);
 }
 function prependCaret(button) {
   const holder = createSpan({ cls: "vs-btn-caret" });
-  (0, import_obsidian13.setIcon)(holder, "chevron-down");
+  (0, import_obsidian14.setIcon)(holder, "chevron-down");
   button.append(holder);
 }
 function renderPreview(body, ctx, job) {
@@ -11902,7 +13940,7 @@ function renderPreview(body, ctx, job) {
   if (result.summary) fields.push("summary");
   const diff = body.createDiv({ cls: "vs-write-card" });
   const diffIcon = diff.createDiv({ cls: "vs-write-icon" });
-  (0, import_obsidian13.setIcon)(diffIcon, "file-diff");
+  (0, import_obsidian14.setIcon)(diffIcon, "file-diff");
   const diffText = diff.createDiv({ cls: "vs-write-text" });
   diffText.createDiv({ text: `\u5C06\u5199\u5165 frontmatter\uFF1A${fields.join(" \xB7 ") || "\u65E0"}` });
   diffText.createDiv({
@@ -11923,7 +13961,7 @@ ${result.note}` : ""
     markdownEl.setText("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587");
     return;
   }
-  void import_obsidian13.MarkdownRenderer.render(
+  void import_obsidian14.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown.slice(0, 6e3),
     markdownEl,
@@ -11964,7 +14002,7 @@ function renderRecordDetail(container, ctx, record) {
   if (record.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian13.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian14.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
   } else if (record.result === "error") {
     body.createDiv({
@@ -12014,12 +14052,12 @@ function renderLogs(container, job) {
     line.createSpan({ text: entry.text, cls: "vs-log-text" });
   });
 }
-function renderText(container, text, empty) {
-  if (!text) {
+function renderText(container, text2, empty) {
+  if (!text2) {
     container.createDiv({ text: empty, cls: "vs-hint" });
     return;
   }
-  container.createEl("pre", { text: text.slice(0, 2e4), cls: "vs-pre" });
+  container.createEl("pre", { text: text2.slice(0, 2e4), cls: "vs-pre" });
 }
 function isCookieError(error) {
   return /cookie|登录|login|403|需要验证/i.test(error);
@@ -12027,20 +14065,20 @@ function isCookieError(error) {
 function openCookiesFolder(ctx) {
   const path = ctx.plugin.settings.cookiesDirPath;
   if (!path) {
-    new import_obsidian13.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
+    new import_obsidian14.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
     return;
   }
   if (!openPathInSystem(path)) {
-    new import_obsidian13.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
+    new import_obsidian14.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
   }
 }
 function findNote2(ctx, name) {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian13.TFile) return direct;
+  if (direct instanceof import_obsidian14.TFile) return direct;
   return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
 }
 function panelComponent(ctx) {
-  const component = new import_obsidian13.Component();
+  const component = new import_obsidian14.Component();
   component.load();
   ctx.registerPanelCleanup(() => component.unload());
   return component;
@@ -12048,7 +14086,7 @@ function panelComponent(ctx) {
 
 // views/VideoSummaryView.ts
 var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
-var VideoSummaryView = class extends import_obsidian14.ItemView {
+var VideoSummaryView = class extends import_obsidian15.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.actionHeaderEl = null;
@@ -12136,8 +14174,8 @@ var VideoSummaryView = class extends import_obsidian14.ItemView {
     this.renderAll();
   }
   /** 把一批链接放进添加框，由用户选模式后再点开始。 */
-  prefillInput(text) {
-    this.state.inputDraft = text;
+  prefillInput(text2) {
+    this.state.inputDraft = text2;
     this.state.detail = null;
     this.renderAll();
   }
@@ -12247,7 +14285,7 @@ var VideoSummaryView = class extends import_obsidian14.ItemView {
   }
   async openNote(path) {
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian14.TFile)) {
+    if (!(file instanceof import_obsidian15.TFile)) {
       const job = this.plugin.jobs.getAll().find((item) => item.notePath === path);
       const artifactId = job?.result?.artifact?.artifact_id || job?.input?.artifactId;
       if (artifactId) {
@@ -12255,13 +14293,13 @@ var VideoSummaryView = class extends import_obsidian14.ItemView {
           const artifact = await this.plugin.artifactStore.load(artifactId);
           const resolved = artifact?.source?.note_path;
           if (resolved) file = this.app.vault.getAbstractFileByPath(resolved);
-          if (file instanceof import_obsidian14.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
+          if (file instanceof import_obsidian15.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
         } catch {
         }
       }
     }
-    if (!(file instanceof import_obsidian14.TFile)) {
-      new import_obsidian14.Notice("\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002");
+    if (!(file instanceof import_obsidian15.TFile)) {
+      new import_obsidian15.Notice("\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002");
       return;
     }
     try {
@@ -12269,7 +14307,7 @@ var VideoSummaryView = class extends import_obsidian14.ItemView {
       await leaf.openFile(file, { active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch (error) {
-      new import_obsidian14.Notice(`\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
+      new import_obsidian15.Notice(`\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
     }
   }
   cleanupPanelResources() {
@@ -12284,7 +14322,7 @@ var VideoSummaryView = class extends import_obsidian14.ItemView {
 };
 
 // utils/FileProcessor.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var FileProcessor = class {
   constructor(app, plugin) {
     this.app = app;
@@ -12299,12 +14337,12 @@ var FileProcessor = class {
       await leaf.openFile(file);
       window.setTimeout(() => {
         const view = leaf.view;
-        if (view instanceof import_obsidian15.MarkdownView) {
+        if (view instanceof import_obsidian16.MarkdownView) {
           new VideoSummaryModal(this.app, this.plugin, view.editor, view).open();
         }
       }, 100);
     } catch (error) {
-      new import_obsidian15.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
+      new import_obsidian16.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
   /**
@@ -12504,10 +14542,10 @@ var JobStore = class {
     Object.assign(job, patch);
     this.emit();
   }
-  log(id, text) {
+  log(id, text2) {
     const job = this.get(id);
     if (!job) return;
-    job.logs.push({ time: Date.now(), text });
+    job.logs.push({ time: Date.now(), text: text2 });
     if (job.logs.length > 200) job.logs.shift();
     this.emit();
   }
@@ -12600,7 +14638,7 @@ var JobStore = class {
 };
 
 // core/JobService.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // core/ArtifactStore.ts
 var VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION = 3;
@@ -12825,9 +14863,9 @@ var ArtifactStore = class {
     return migration.artifact;
   }
   async readJson(path) {
-    const text = await this.adapter.read(path);
+    const text2 = await this.adapter.read(path);
     try {
-      return JSON.parse(text);
+      return JSON.parse(text2);
     } catch (error) {
       throw new ArtifactValidationError([
         {
@@ -13173,10 +15211,10 @@ function migrateV2ToV3(raw) {
     } : { schema_version: VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION }
   };
 }
-function parseCurrentArtifact(text) {
+function parseCurrentArtifact(text2) {
   let parsed;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(text2);
   } catch (error) {
     throw new ArtifactValidationError([
       {
@@ -13805,7 +15843,7 @@ function calculateLocalSignals(input) {
   const texts = input.segments.map(
     (segment) => normalizeText3(segment.text).slice(0, ATTENTION_ENGINE_POLICY.limits.maxSegmentCharacters)
   );
-  const totalUnits = texts.reduce((sum, text) => sum + contentUnits(text), 0);
+  const totalUnits = texts.reduce((sum, text2) => sum + contentUnits(text2), 0);
   const repetitionRatio = input.repetitionRatio ?? estimateRepetition(texts);
   const evidenceCoverage = input.evidenceCoverage ?? deriveEvidenceCoverage(input);
   const timingCoverage = deriveTimingCoverage(input.segments, input.durationSeconds);
@@ -13867,10 +15905,10 @@ function calculateLocalSignals(input) {
 function calculateActionability(input, texts, supportedClaims) {
   const totalWeight = Math.max(
     1,
-    texts.reduce((sum, text) => sum + Math.max(1, contentUnits(text)), 0)
+    texts.reduce((sum, text2) => sum + Math.max(1, contentUnits(text2)), 0)
   );
   const actionableWeight = texts.reduce(
-    (sum, text) => sum + (hasAnyPattern(text, ACTION_PATTERNS) ? Math.max(1, contentUnits(text)) : 0),
+    (sum, text2) => sum + (hasAnyPattern(text2, ACTION_PATTERNS) ? Math.max(1, contentUnits(text2)) : 0),
     0
   );
   const actionableClaimRatio = supportedClaims.length > 0 ? supportedClaims.filter((claim) => hasAnyPattern(claim.claim, ACTION_PATTERNS)).length / supportedClaims.length : void 0;
@@ -14224,21 +16262,21 @@ function mergedDuration(ranges) {
   }
   return total + end - start;
 }
-function contentUnits(text) {
-  const latinWords = text.match(/[\p{L}\p{N}]+/gu) || [];
-  const cjkCharacters = text.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu) || [];
+function contentUnits(text2) {
+  const latinWords = text2.match(/[\p{L}\p{N}]+/gu) || [];
+  const cjkCharacters = text2.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu) || [];
   const nonCjkWords = latinWords.filter(
     (word) => !/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word)
   );
   return nonCjkWords.length * 2 + cjkCharacters.length;
 }
-function lexicalTokens(text) {
-  return normalizeSearchText(text).match(
+function lexicalTokens(text2) {
+  return normalizeSearchText(text2).match(
     /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]|[\p{L}\p{N}]+/gu
   ) || [];
 }
-function hasAnyPattern(text, patterns) {
-  return patterns.some((pattern) => pattern.test(text));
+function hasAnyPattern(text2, patterns) {
+  return patterns.some((pattern) => pattern.test(text2));
 }
 function normalizeText3(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -14425,8 +16463,8 @@ function mediaAssetRoot(outputFolder) {
 }
 async function fetchLoopbackBinary(url, signal) {
   if (signal.aborted) throw new Error("Aborted");
-  const { requestUrl: requestUrl2 } = await import("obsidian");
-  const response = await requestUrl2({ url, method: "GET", throw: false });
+  const { requestUrl: requestUrl3 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl3({ url, method: "GET", throw: false });
   if (signal.aborted) throw new Error("Aborted");
   if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
   const header = (name) => Object.entries(response.headers).find(([key]) => key.toLowerCase() === name)?.[1];
@@ -14842,7 +16880,7 @@ var JobService = class {
     }
     if (runnableDrafts.length === 0) return jsonCreated;
     if (!await this.plugin.ensureBackendReady()) {
-      new import_obsidian16.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
+      new import_obsidian17.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
       return jsonCreated;
     }
     let queued = 0;
@@ -14852,7 +16890,7 @@ var JobService = class {
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       });
       if (!file) {
-        new import_obsidian16.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
+        new import_obsidian17.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
         continue;
       }
       this.store.enqueue({
@@ -14881,7 +16919,7 @@ var JobService = class {
    */
   async submitPreparedFile(file, input, options) {
     if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
-      new import_obsidian16.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
+      new import_obsidian17.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
       return null;
     }
     if (!await this.plugin.ensureBackendReady()) return null;
@@ -14917,7 +16955,7 @@ var JobService = class {
     if (!job.result) return false;
     const file = this.fileFor(job);
     if (!file) {
-      new import_obsidian16.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+      new import_obsidian17.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
       return false;
     }
     try {
@@ -14937,7 +16975,7 @@ var JobService = class {
       });
       return true;
     } catch (error) {
-      new import_obsidian16.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian17.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`);
       return false;
     }
   }
@@ -14954,7 +16992,7 @@ var JobService = class {
   async applyToActiveNote(result, mode) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian16.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian17.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
       return;
     }
     try {
@@ -14976,16 +17014,16 @@ var JobService = class {
       const saved = await this.persistArtifact(context, result);
       await this.applyResult(activeFile, result, mode, context);
       await this.updateCourseProgressForFile(activeFile, "complete", 100, saved.artifact_id);
-      new import_obsidian16.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
+      new import_obsidian17.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
     } catch (error) {
-      new import_obsidian16.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian17.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`);
     }
   }
   /** 把结果插到当前打开的笔记末尾 */
   async insertIntoActiveNote(result) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian16.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian17.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
       return;
     }
     const content = await this.plugin.app.vault.read(activeFile);
@@ -14995,7 +17033,7 @@ var JobService = class {
 
 ${buildInsertionContent(result)}`
     );
-    new import_obsidian16.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
+    new import_obsidian17.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
   }
   /** 用结果新建一篇笔记 */
   async createNoteFromResult(job) {
@@ -15013,7 +17051,7 @@ ${buildInsertionContent(result)}`
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       }
     );
-    if (file) new import_obsidian16.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
+    if (file) new import_obsidian17.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
   }
   async createNoteFromJson(jsonText, language) {
     let parsed;
@@ -15024,7 +17062,7 @@ ${buildInsertionContent(result)}`
       result = this.plugin.api.normalizeWebhookPayload(parsed);
       input = extractVideoInputFromPayload(parsed);
     } catch (error) {
-      new import_obsidian16.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian17.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`);
       return null;
     }
     try {
@@ -15068,7 +17106,7 @@ ${buildInsertionContent(result)}`
             file,
             this.plugin.settings.successStatusValue ?? "success"
           );
-          new import_obsidian16.Notice(`${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`);
+          new import_obsidian17.Notice(`${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`);
           return file;
         } catch (error) {
           try {
@@ -15076,13 +17114,13 @@ ${buildInsertionContent(result)}`
           } catch (statusError) {
             console.error("[Video Summary] JSON \u5931\u8D25\u72B6\u6001\u5199\u56DE\u5931\u8D25", statusError);
           }
-          new import_obsidian16.Notice(`JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`, 8e3);
+          new import_obsidian17.Notice(`JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`, 8e3);
           return null;
         }
       }
       return null;
     } catch (error) {
-      new import_obsidian16.Notice(`JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`, 8e3);
+      new import_obsidian17.Notice(`JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`, 8e3);
       return null;
     }
   }
@@ -15350,7 +17388,7 @@ ${buildInsertionContent(result)}`
   attentionContextFor(job) {
     if (!job.notePath) return void 0;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian16.TFile)) return void 0;
+    if (!(file instanceof import_obsidian17.TFile)) return void 0;
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const terms = uniqueStrings4(
       [
@@ -15421,7 +17459,7 @@ ${buildInsertionContent(result)}`
     const ids = new Set(previous?.course_ids || []);
     if (!job.notePath) return [...ids].sort();
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian16.TFile)) return [...ids].sort();
+    if (!(file instanceof import_obsidian17.TFile)) return [...ids].sort();
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const values = [frontmatter?.video_course_id, frontmatter?.video_course_ids].flat();
     const currentFileIds = /* @__PURE__ */ new Set();
@@ -15441,7 +17479,7 @@ ${buildInsertionContent(result)}`
   fileFor(job) {
     if (!job.notePath) return null;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    return file instanceof import_obsidian16.TFile ? file : null;
+    return file instanceof import_obsidian17.TFile ? file : null;
   }
 };
 function basenameOf(path) {
@@ -16171,8 +18209,8 @@ async function applyReviewedRelationSuggestion(store, suggestion, confirmed) {
 }
 function recordsForArtifact(artifact) {
   const output = [];
-  const push = (type, id, text, segment, keyframe, claimReviewState) => {
-    const boundedText = cleanText2(text).slice(0, CROSS_MODAL_MEMORY_LIMITS.textCharactersPerRecord);
+  const push = (type, id, text2, segment, keyframe, claimReviewState) => {
+    const boundedText = cleanText2(text2).slice(0, CROSS_MODAL_MEMORY_LIMITS.textCharactersPerRecord);
     if (!boundedText) return;
     const timestamp = segment?.start ?? null;
     const recordId = `${artifact.artifact_id}:${type}:${id || output.length}`;
@@ -16352,8 +18390,8 @@ function matchesFilters(record, filters) {
   }
   return true;
 }
-function makeSnippet(text, normalizedQuery, queryTokens) {
-  const normalizedText = normalizeSearchText2(text);
+function makeSnippet(text2, normalizedQuery, queryTokens) {
+  const normalizedText = normalizeSearchText2(text2);
   let matchIndex = normalizedText.indexOf(normalizedQuery);
   if (matchIndex < 0) {
     for (const token of queryTokens) {
@@ -16361,13 +18399,13 @@ function makeSnippet(text, normalizedQuery, queryTokens) {
       if (matchIndex >= 0) break;
     }
   }
-  if (text.length <= 360 || matchIndex < 0) return text;
+  if (text2.length <= 360 || matchIndex < 0) return text2;
   const start = Math.max(0, matchIndex - 120);
-  const end = Math.min(text.length, start + 360);
-  return `${start > 0 ? "\u2026" : ""}${text.slice(start, end)}${end < text.length ? "\u2026" : ""}`;
+  const end = Math.min(text2.length, start + 360);
+  return `${start > 0 ? "\u2026" : ""}${text2.slice(start, end)}${end < text2.length ? "\u2026" : ""}`;
 }
-function highlightRanges(text, normalizedQuery, queryTokens) {
-  const normalized = normalizeSearchText2(text);
+function highlightRanges(text2, normalizedQuery, queryTokens) {
+  const normalized = normalizeSearchText2(text2);
   const needles = normalized.includes(normalizedQuery) ? [normalizedQuery] : Array.from(queryTokens).sort((left, right) => right.length - left.length);
   const ranges = [];
   needles.forEach((needle) => {
@@ -16501,8 +18539,8 @@ function roundScore2(value) {
 }
 
 // modals/KnowledgeLabModal.ts
-var import_obsidian17 = require("obsidian");
-var KnowledgeLabModal = class extends import_obsidian17.Modal {
+var import_obsidian18 = require("obsidian");
+var KnowledgeLabModal = class extends import_obsidian18.Modal {
   constructor(app, plugin, mode) {
     super(app);
     this.artifacts = [];
@@ -16695,8 +18733,8 @@ var KnowledgeLabModal = class extends import_obsidian17.Modal {
     let source;
     const localPath = safeManagedVaultImagePath(reference.path, result.media_asset_root);
     if (localPath) {
-      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian17.normalizePath)(localPath));
-      if (file instanceof import_obsidian17.TFile) source = this.app.vault.getResourcePath(file);
+      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian18.normalizePath)(localPath));
+      if (file instanceof import_obsidian18.TFile) source = this.app.vault.getResourcePath(file);
     }
     if (!source) return;
     card.createEl("img", {
@@ -16804,7 +18842,7 @@ var KnowledgeLabModal = class extends import_obsidian17.Modal {
     const status = actions.createSpan();
     generate.onclick = async () => {
       if (selected.size < 2) {
-        new import_obsidian17.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6");
+        new import_obsidian18.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6");
         return;
       }
       generate.disabled = true;
@@ -16825,21 +18863,21 @@ var KnowledgeLabModal = class extends import_obsidian17.Modal {
     };
   }
   async saveClaimLab(labId, report) {
-    const baseFolder = (0, import_obsidian17.normalizePath)(
+    const baseFolder = (0, import_obsidian18.normalizePath)(
       `${this.plugin.settings.outputFolder || "\u89C6\u9891\u603B\u7ED3"}/\u77E5\u8BC6\u5B9E\u9A8C\u5BA4`
     );
     await ensureFolder(this.app, baseFolder);
     const selectionHash = stableTextHash(report.artifact_ids.join("|"));
-    const path = (0, import_obsidian17.normalizePath)(
+    const path = (0, import_obsidian18.normalizePath)(
       `${baseFolder}/\u8BBA\u70B9\u5B9E\u9A8C\u5BA4-${selectionHash || labId.replace(/^claim-lab-/, "")}.md`
     );
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing && !(existing instanceof import_obsidian17.TFile)) {
+    if (existing && !(existing instanceof import_obsidian18.TFile)) {
       throw new Error(`\u76EE\u6807\u8DEF\u5F84\u4E0D\u662F Markdown \u6587\u4EF6\uFF1A${path}`);
     }
-    const before = existing instanceof import_obsidian17.TFile ? await this.app.vault.read(existing) : "";
+    const before = existing instanceof import_obsidian18.TFile ? await this.app.vault.read(existing) : "";
     const after = upsertClaimLabMarkdown(before, report);
-    if (existing instanceof import_obsidian17.TFile) {
+    if (existing instanceof import_obsidian18.TFile) {
       if (after !== before) await this.app.vault.modify(existing, after);
       return existing;
     }
@@ -16848,12 +18886,12 @@ var KnowledgeLabModal = class extends import_obsidian17.Modal {
 };
 async function ensureFolder(app, folderPath) {
   let current = "";
-  for (const part of (0, import_obsidian17.normalizePath)(folderPath).split("/").filter(Boolean)) {
+  for (const part of (0, import_obsidian18.normalizePath)(folderPath).split("/").filter(Boolean)) {
     current = current ? `${current}/${part}` : part;
     const existing = app.vault.getAbstractFileByPath(current);
     if (!existing) {
       await app.vault.createFolder(current);
-    } else if (!(existing instanceof import_obsidian17.TFolder)) {
+    } else if (!(existing instanceof import_obsidian18.TFolder)) {
       throw new Error(`\u65E0\u6CD5\u521B\u5EFA\u6587\u4EF6\u5939\uFF0C\u8DEF\u5F84\u5DF2\u88AB\u6587\u4EF6\u5360\u7528\uFF1A${current}`);
     }
   }
@@ -16877,19 +18915,19 @@ function labeledSelect(container, label, values) {
   });
   return select;
 }
-function renderHighlightedText(element, text, rawRanges) {
+function renderHighlightedText(element, text2, rawRanges) {
   const ranges = rawRanges.map((range) => ({
-    start: Math.max(0, Math.min(text.length, range.start)),
-    end: Math.max(0, Math.min(text.length, range.end))
+    start: Math.max(0, Math.min(text2.length, range.start)),
+    end: Math.max(0, Math.min(text2.length, range.end))
   })).filter((range) => range.end > range.start).sort((left, right) => left.start - right.start);
   let cursor = 0;
   ranges.forEach((range) => {
-    if (range.start > cursor) element.appendText(text.slice(cursor, range.start));
+    if (range.start > cursor) element.appendText(text2.slice(cursor, range.start));
     const mark = element.createEl("mark");
-    mark.setText(text.slice(range.start, range.end));
+    mark.setText(text2.slice(range.start, range.end));
     cursor = Math.max(cursor, range.end);
   });
-  if (cursor < text.length) element.appendText(text.slice(cursor));
+  if (cursor < text2.length) element.appendText(text2.slice(cursor));
 }
 function relationLabel2(relation) {
   const labels = {
@@ -17418,8 +19456,8 @@ function clone3(value) {
 }
 
 // views/LearningReviewModal.ts
-var import_obsidian18 = require("obsidian");
-var LearningReviewModal = class extends import_obsidian18.Modal {
+var import_obsidian19 = require("obsidian");
+var LearningReviewModal = class extends import_obsidian19.Modal {
   constructor(app, options) {
     super(app);
     this.queue = [];
@@ -17621,7 +19659,7 @@ var LearningReviewModal = class extends import_obsidian18.Modal {
     submit2.addEventListener("click", () => {
       const answer = this.selectedAnswer.trim();
       if (!answer) {
-        new import_obsidian18.Notice("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848");
+        new import_obsidian19.Notice("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848");
         return;
       }
       void this.record(item, answer, answersMatch(answer, item.answer));
@@ -17660,7 +19698,7 @@ var LearningReviewModal = class extends import_obsidian18.Modal {
       this.completedKeys.add(learningItemKey(item.item_kind, item.item_id));
       this.render();
     } catch (error) {
-      new import_obsidian18.Notice(error instanceof Error ? errorMessage(error) : String(error));
+      new import_obsidian19.Notice(error instanceof Error ? errorMessage(error) : String(error));
     }
   }
   renderResult(container, result) {
@@ -17716,7 +19754,7 @@ var LearningReviewModal = class extends import_obsidian18.Modal {
     const path = this.options.artifact.source.note_path;
     if (!path) return;
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian18.TFile)) return;
+    if (!(file instanceof import_obsidian19.TFile)) return;
     const sidecar = await this.options.store.getArtifactProgress(this.options.artifact.artifact_id);
     const currentItems = learningItemsFromArtifact(this.options.artifact);
     const progressByKey = sidecar?.items || {};
@@ -17772,7 +19810,7 @@ var LearningReviewModal = class extends import_obsidian18.Modal {
       window.open(externalUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    new import_obsidian18.Notice("\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03");
+    new import_obsidian19.Notice("\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03");
   }
 };
 function selectReviewItems(items, sidecar, mode, at) {
@@ -18457,13 +20495,13 @@ function clone4(value) {
 }
 
 // main.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // core/LegacyData.ts
 var LEGACY_PLUGIN_IDS = ["video-summary-plugin"];
-function salvageSettingsJson(text) {
+function salvageSettingsJson(text2) {
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(text2);
     if (isRecord(parsed)) {
       return {
         settings: parsed,
@@ -18475,7 +20513,7 @@ function salvageSettingsJson(text) {
   } catch {
   }
   const settings = {};
-  for (const match of text.matchAll(/^ {2}"([A-Za-z_][\w]*)":\s*(.+?),?\s*$/gm)) {
+  for (const match of text2.matchAll(/^ {2}"([A-Za-z_][\w]*)":\s*(.+?),?\s*$/gm)) {
     const [, key, raw] = match;
     if (key in settings) continue;
     try {
@@ -18488,7 +20526,7 @@ function salvageSettingsJson(text) {
   }
   const history = [];
   const webhookHistory = [];
-  for (const object of outermostObjects(text)) {
+  for (const object of outermostObjects(text2)) {
     if (isHistoryEntry(object)) history.push(object);
     else if (isWebhookEntry(object)) webhookHistory.push(object);
   }
@@ -18541,16 +20579,16 @@ function dedupeHistory(list) {
 function dedupeWebhook(list) {
   return addMissing([], [list], webhookKey);
 }
-function outermostObjects(text) {
+function outermostObjects(text2) {
   const found = [];
   let index = 0;
-  while (index < text.length) {
-    const start = text.indexOf("{", index);
+  while (index < text2.length) {
+    const start = text2.indexOf("{", index);
     if (start < 0) break;
-    const end = matchingBrace(text, start);
+    const end = matchingBrace(text2, start);
     if (end > start) {
       try {
-        const parsed = JSON.parse(text.slice(start, end + 1));
+        const parsed = JSON.parse(text2.slice(start, end + 1));
         if (isRecord(parsed) && (isHistoryEntry(parsed) || isWebhookEntry(parsed))) {
           found.push(parsed);
           index = end + 1;
@@ -18563,11 +20601,11 @@ function outermostObjects(text) {
   }
   return found;
 }
-function matchingBrace(text, start) {
+function matchingBrace(text2, start) {
   let depth = 0;
   let inString = false;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
+  for (let i = start; i < text2.length; i++) {
+    const ch = text2[i];
     if (inString) {
       if (ch === "\\") i++;
       else if (ch === '"') inString = false;
@@ -18589,7 +20627,7 @@ var SETTINGS_SEARCH_TERMS = [
   "\u8FDE\u63A5",
   "\u8F93\u51FA",
   "\u5904\u7406",
-  "\u5B89\u88C5\u68C0\u67E5",
+  "\u9996\u6B21\u914D\u7F6E",
   "\u5404\u5E73\u53F0\u8BF4\u660E",
   "Cookies \u7BA1\u7406",
   "\u5904\u7406\u670D\u52A1",
@@ -18599,8 +20637,14 @@ var SETTINGS_SEARCH_TERMS = [
   "\u6587\u4EF6\u4E0E\u547D\u540D",
   "\u8BF7\u6C42\u5B57\u6BB5\u540D",
   "\u7F13\u5B58\u4E0E\u8C03\u8BD5",
-  "\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77",
-  "\u8FDE\u63A5\u8BCA\u65AD",
+  "\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210",
+  "\u2460 \u8FDE\u63A5\u7801",
+  "\u2461 \u68C0\u67E5",
+  "\u2462 \u8BD5\u8FD0\u884C",
+  "\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09",
+  "\u626B\u7801\u767B\u5F55",
+  "\u8FDE\u63A5\u7801",
+  "B \u7AD9\u767B\u5F55",
   "Cookies \u76EE\u5F55",
   "\u4E3B\u5904\u7406\u540E\u7AEF",
   "Codex \u672C\u5730\u670D\u52A1\u5730\u5740",
@@ -18609,7 +20653,7 @@ var SETTINGS_SEARCH_TERMS = [
   "\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B",
   "\u89C2\u770B\u4EF7\u503C\u5224\u65AD",
   "\u751F\u6210\u5B66\u4E60\u7EC3\u4E60",
-  "\u9ED8\u8BA4\u5904\u7406\u6A21\u578B",
+  "\u5904\u7406\u6A21\u578B",
   "\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4",
   "\u9ED8\u8BA4\u8BED\u8A00",
   "\u81EA\u52A8\u4FDD\u5B58",
@@ -18634,7 +20678,7 @@ var SETTINGS_SEARCH_TERMS = [
 ];
 
 // main.ts
-var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
+var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
   constructor() {
     super(...arguments);
     this.captureLocks = /* @__PURE__ */ new Map();
@@ -18697,7 +20741,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
-        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian20.TFile && file.extension === "md") {
           void this.noteIndex.refreshFile(file);
         }
       })
@@ -18705,7 +20749,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         this.noteIndex.handleDelete(file);
-        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian20.TFile && file.extension === "md") {
           void this.handleVideoNoteDeleted(file.path).catch((error) => {
             console.warn("[Video Summary] \u5220\u9664\u540E\u7684\u5173\u8054\u6E05\u7406\u5931\u8D25", error);
           });
@@ -18715,7 +20759,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         this.noteIndex.handleRename(file, oldPath);
-        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian20.TFile && file.extension === "md") {
           relinkVideoJobs(this.jobs, oldPath, file);
           void this.handleVideoNoteRenamed(file, oldPath).catch((error) => {
             console.warn("[Video Summary] \u91CD\u547D\u540D\u540E\u7684\u5173\u8054\u66F4\u65B0\u5931\u8D25", error);
@@ -18872,7 +20916,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
   registerContextMenu() {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
-        if (file instanceof import_obsidian19.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian20.TFile && file.extension === "md") {
           menu.addItem((item) => {
             item.setTitle("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406").setIcon("video").onClick(async () => {
               await this.processFile(file);
@@ -18891,7 +20935,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -18899,19 +20943,19 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new import_obsidian19.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processCurrentNoteWithMode(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -18919,25 +20963,25 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian19.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async updateVideoInfoOnly(editor, view, forceRename) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
       const videoInput = this.noteProcessor.buildVideoInput(content);
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
@@ -18945,7 +20989,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian19.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
+      const statusNotice = new import_obsidian20.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
       try {
         const result = await this.api.processVideo(
           file.basename,
@@ -18987,26 +21031,26 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian19.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async reprocessCurrentNote(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.processFile(file);
     } catch (error) {
-      new import_obsidian19.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async quickProcessCurrentNote(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const content = await this.app.vault.read(file);
@@ -19014,7 +21058,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
         return;
       }
       if (!await this.ensureBackendReady()) {
@@ -19022,7 +21066,7 @@ var VideoSummaryPlugin = class extends import_obsidian19.Plugin {
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
       const requestTimeoutMinutes = mode === "summary" ? this.settings.quickSummaryOptions.timeoutMinutes : mode === "transcript-only" ? this.settings.quickTranscriptOptions.timeoutMinutes : this.settings.timeoutMinutes;
-      const statusNotice = new import_obsidian19.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
+      const statusNotice = new import_obsidian20.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
       let isMerge = false;
@@ -19150,19 +21194,19 @@ ${extractResult.video_transcript}
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian19.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processFullTextAsTranscript(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new import_obsidian19.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
+        new import_obsidian20.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
         return;
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
@@ -19172,7 +21216,7 @@ ${extractResult.video_transcript}
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian19.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
+      const statusNotice = new import_obsidian20.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
       try {
         const input = {
           transcript: fullText
@@ -19230,7 +21274,7 @@ ${extractResult.video_transcript}
         window.setTimeout(() => statusNotice.hide(), 5e3);
       }
     } catch (error) {
-      new import_obsidian19.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async processAllPendingVideos() {
@@ -19258,7 +21302,7 @@ ${extractResult.video_transcript}
         }
       }
       if (pendingFiles.length === 0) {
-        new import_obsidian19.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
+        new import_obsidian20.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
         return;
       }
       const confirmed = await this.showConfirmDialog(
@@ -19277,7 +21321,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       if (!await this.ensureBackendReady()) {
         return;
       }
-      const progressNotice = new import_obsidian19.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
+      const progressNotice = new import_obsidian20.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < pendingFiles.length; i++) {
@@ -19298,7 +21342,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       progressNotice.setMessage(`\u5B8C\u6210\uFF01\u6210\u529F: ${successCount}, \u5931\u8D25: ${errorCount}`);
       window.setTimeout(() => progressNotice.hide(), 3e3);
     } catch (error) {
-      new import_obsidian19.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async showConfirmDialog(title, message) {
@@ -19329,9 +21373,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new import_obsidian19.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
+      new import_obsidian20.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
     } catch (error) {
-      new import_obsidian19.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${errorMessage(error)}`);
+      new import_obsidian20.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
   async testProcessingBackendConnection() {
@@ -19339,14 +21383,14 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       const result = await this.api.testConnection();
       const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : "\u517C\u5BB9 n8n \u7684 webhook";
       if (result.success) {
-        new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
+        new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
       } else {
         const hint = result.hint ? `
 \u5EFA\u8BAE: ${result.hint}` : "";
-        new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+        new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
       }
     } catch (error) {
-      new import_obsidian19.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
     }
   }
   formatErrorForNotice(error) {
@@ -19399,12 +21443,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       if (confirmed) {
         await this.setActiveBackend(otherBackend);
         this.lastPreflight = null;
-        new import_obsidian19.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
+        new import_obsidian20.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
         return true;
       }
       return false;
     }
-    new import_obsidian19.Notice(
+    new import_obsidian20.Notice(
       `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
 \uFF08${otherLabel} \u4E5F\u672A\u68C0\u6D4B\u5230\uFF09\u8BF7\u5148\u542F\u52A8\u5904\u7406\u670D\u52A1\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5 URL\u3002`,
       8e3
@@ -19422,12 +21466,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     const content = await this.app.vault.cachedRead(file);
     const urls = VideoUtils.extractVideoUrls(content);
     if (urls.length === 0) {
-      new import_obsidian19.Notice(`\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`);
+      new import_obsidian20.Notice(`\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`);
       return;
     }
     const view = await this.activateView();
     view?.prefillInput(urls.join("\n"));
-    new import_obsidian19.Notice(`\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`);
+    new import_obsidian20.Notice(`\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`);
   }
   async activateView() {
     const { workspace } = this.app;
@@ -19467,7 +21511,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       const salvage = salvageSettingsJson(raw);
       if (!salvage.corrupt) return { stored: salvage.settings, migrated: false };
       await adapter.write(`${this.pluginDir}/data.corrupt-${Date.now()}.json`, raw);
-      new import_obsidian19.Notice(
+      new import_obsidian20.Notice(
         `Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u635F\u574F\uFF08\u540C\u6B65\u51B2\u7A81\uFF09\uFF0C\u5DF2\u6551\u56DE ${salvage.history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${salvage.webhookHistory.length} \u6761\u7ED3\u679C\uFF0C\u539F\u6587\u4EF6\u53E6\u5B58\u4E3A data.corrupt-*.json\u3002`,
         15e3
       );
@@ -19518,7 +21562,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         }
       }
       await this.copyFolder(`${folder}/data`, `${this.pluginDir}/data`);
-      new import_obsidian19.Notice(
+      new import_obsidian20.Notice(
         `Video Summary\uFF1A\u5DF2\u4ECE\u65E7\u7248\u63D2\u4EF6\u76EE\u5F55\uFF08${folder}\uFF09\u5BFC\u5165\u8BBE\u7F6E\u3001${history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${webhookHistory.length} \u6761\u7ED3\u679C\u3002\u786E\u8BA4\u65E0\u8BEF\u540E\u53EF\u505C\u7528\u5E76\u5220\u9664\u65E7\u7248\u3002`,
         15e3
       );
@@ -19587,10 +21631,19 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
       shouldSave = true;
     }
+    const settingsRecord = this.settings;
+    if ("customAiModels" in settingsRecord) {
+      delete settingsRecord.customAiModels;
+      shouldSave = true;
+    }
+    if (/^(?:Gemini|AI-Studio)\b/.test(this.settings.aiModel || "")) {
+      this.settings.aiModel = BACKEND_DEFAULT_MODEL_LABEL;
+      shouldSave = true;
+    }
     if (this.settings.activeBackend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
       shouldSave = true;
-      new import_obsidian19.Notice("\u65E7\u8BBE\u7F6E\u4E2D\u7684\u201C\u6DF1\u5EA6\u89C6\u89C9\u201D\u5DF2\u6309 n8n \u5B9E\u9645\u80FD\u529B\u8FC1\u79FB\u4E3A\u201C\u8BC1\u636E\u201D\u6A21\u5F0F\u3002", 7e3);
+      new import_obsidian20.Notice("\u65E7\u8BBE\u7F6E\u4E2D\u7684\u201C\u6DF1\u5EA6\u89C6\u89C9\u201D\u5DF2\u6309 n8n \u5B9E\u9645\u80FD\u529B\u8FC1\u79FB\u4E3A\u201C\u8BC1\u636E\u201D\u6A21\u5F0F\u3002", 7e3);
     }
     const normalizedConcurrency = Math.max(
       1,
@@ -19784,7 +21837,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   async setActiveWebhook(profileId, options = {}) {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new import_obsidian19.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E");
+      new import_obsidian20.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E");
       return null;
     }
     this.settings.activeWebhookId = profileId;
@@ -19793,13 +21846,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     if (this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
       if (!options.silent) {
-        new import_obsidian19.Notice("\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
+        new import_obsidian20.Notice("\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
       }
     }
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
-      new import_obsidian19.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
+      new import_obsidian20.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
     }
     return profile;
   }
@@ -19810,7 +21863,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     this.settings.activeBackend = backend;
     if (backend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
-      new import_obsidian19.Notice("\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
+      new import_obsidian20.Notice("\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
     }
     this.initializeApiInstance();
     await this.saveSettings();
@@ -19854,18 +21907,18 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     const finished = await this.jobs.waitFor(job.id);
     if (!finished) return;
     if (finished.state === "error") {
-      new import_obsidian19.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
+      new import_obsidian20.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
       throw new Error(finished.error || "\u5904\u7406\u5931\u8D25");
     }
     if (finished.state === "cancelled") {
-      new import_obsidian19.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
+      new import_obsidian20.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
       return;
     }
     if (finished.state === "review") {
-      new import_obsidian19.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
+      new import_obsidian20.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
       return;
     }
-    new import_obsidian19.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
+    new import_obsidian20.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
   }
   /**
    * 刷新视频总结视图
@@ -19942,26 +21995,26 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian19.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "excluded");
-      new import_obsidian19.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
+      new import_obsidian20.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
     } catch (error) {
-      new import_obsidian19.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${errorMessage(error)}`);
+      new import_obsidian20.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${errorMessage(error)}`);
     }
   }
   async openLearningReviewForFile(file) {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002", 6e3);
+        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002", 6e3);
         return;
       }
       const artifact = await this.artifactStore.load(artifactId);
       const learningCount = (artifact.learning?.flashcards?.length || 0) + (artifact.learning?.questions?.length || 0);
       if (learningCount === 0) {
-        new import_obsidian19.Notice("\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002", 6e3);
+        new import_obsidian20.Notice("\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002", 6e3);
         return;
       }
       new LearningReviewModal(this.app, {
@@ -19969,7 +22022,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         artifact,
         onOpenEvidence: async (_source, target) => {
           if (target.start === null) {
-            new import_obsidian19.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+            new import_obsidian20.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
             return;
           }
           const view = await this.activateView();
@@ -19978,7 +22031,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         }
       }).open();
     } catch (error) {
-      new import_obsidian19.Notice(`\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async openGlobalLearningReview() {
@@ -20002,15 +22055,15 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         (left, right) => left.firstDue.localeCompare(right.firstDue) || right.dueCount - left.dueCount || String(left.artifact.title || "").localeCompare(String(right.artifact.title || ""))
       );
       if (candidates.length === 0) {
-        new import_obsidian19.Notice("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002");
+        new import_obsidian20.Notice("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002");
         return;
       }
       const total = candidates.reduce((sum, item) => sum + item.dueCount, 0);
-      new import_obsidian19.Notice(`\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`, 5e3);
+      new import_obsidian20.Notice(`\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`, 5e3);
       const openAt = (index) => {
         const candidate = candidates[index];
         if (!candidate) {
-          new import_obsidian19.Notice("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002");
+          new import_obsidian20.Notice("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002");
           return;
         }
         new LearningReviewModal(this.app, {
@@ -20019,12 +22072,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
           mode: "due",
           onOpenEvidence: async (artifact, target) => {
             if (target.start === null) {
-              new import_obsidian19.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+              new import_obsidian20.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
               return;
             }
             const notePath = artifact.source.note_path;
             const noteFile = notePath ? this.app.vault.getAbstractFileByPath(notePath) : null;
-            if (notePath && noteFile instanceof import_obsidian19.TFile) {
+            if (notePath && noteFile instanceof import_obsidian20.TFile) {
               const view = await this.activateView();
               view?.openArtifact(notePath, artifact.artifact_id, target.start);
               return;
@@ -20034,7 +22087,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
               window.open(externalUrl, "_blank", "noopener,noreferrer");
               return;
             }
-            new import_obsidian19.Notice("\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002");
+            new import_obsidian20.Notice("\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002");
           },
           ...index + 1 < candidates.length ? {
             continueLabel: `\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891\uFF08\u8FD8\u5269 ${candidates.length - index - 1} \u4E2A\uFF09`,
@@ -20044,14 +22097,14 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       };
       openAt(0);
     } catch (error) {
-      new import_obsidian19.Notice(`\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async reprocessFromPersistedArtifact(file) {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian19.Notice("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", 6e3);
+        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", 6e3);
         return;
       }
       const manifest = await this.reproducibilityStore.load(artifactId);
@@ -20089,7 +22142,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         }
       );
       if (!job) return;
-      new import_obsidian19.Notice(
+      new import_obsidian20.Notice(
         "\u5DF2\u63D0\u4EA4\u65E0\u6E90\u91CD\u5904\u7406\uFF1A\u672C\u5730\u6587\u7A3F\u4F1A\u91CD\u65B0\u603B\u7ED3\uFF0C\u6821\u9A8C\u8FC7\u7684\u65E7\u8BC1\u636E\u4F5C\u4E3A\u7F3A\u5931\u56DE\u9000\uFF1B\u4E0D\u4F1A\u4E0B\u8F7D\u6765\u6E90\uFF0C\u7ED3\u679C\u4F7F\u7528\u5F53\u524D\u540E\u7AEF\u914D\u7F6E\u3002",
         9e3
       );
@@ -20098,7 +22151,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         throw new Error(finished.error || "\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25");
       }
     } catch (error) {
-      new import_obsidian19.Notice(`\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
   async artifactIdForFile(file) {
@@ -20115,16 +22168,16 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     await this.ensureVaultFolder(folder);
     const path = folder ? `${folder}/Video Summary Library.base` : "Video Summary Library.base";
     const existing = this.app.vault.getAbstractFileByPath(path);
-    const existingContent = existing instanceof import_obsidian19.TFile ? await this.app.vault.read(existing) : void 0;
+    const existingContent = existing instanceof import_obsidian20.TFile ? await this.app.vault.read(existing) : void 0;
     const result = upsertVideoSummaryBase(existingContent);
     if (result.status === "created") {
       await this.app.vault.create(path, result.content);
-    } else if (result.status === "updated" && existing instanceof import_obsidian19.TFile) {
+    } else if (result.status === "updated" && existing instanceof import_obsidian20.TFile) {
       await this.app.vault.modify(existing, result.content);
     }
     if (notify) {
       const message = result.status === "preserved" ? `\u5DF2\u4FDD\u7559\u7528\u6237\u4FEE\u6539\u7684 Base\uFF1A${path}\u3002\u5982\u9700\u65B0\u7248\uFF0C\u8BF7\u5148\u53E6\u5B58\u6216\u624B\u52A8\u5220\u9664\u8BE5\u6587\u4EF6\u3002` : `${result.reason} ${path}`;
-      new import_obsidian19.Notice(message, 7e3);
+      new import_obsidian20.Notice(message, 7e3);
     }
   }
   async putCaptureIfAbsent(sourceHash, draft) {
@@ -20134,7 +22187,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       const remembered = this.capturedEntries.get(sourceHash);
       if (remembered) {
         const rememberedFile = this.app.vault.getAbstractFileByPath(remembered.path);
-        if (rememberedFile instanceof import_obsidian19.TFile) {
+        if (rememberedFile instanceof import_obsidian20.TFile) {
           return { created: false, entry: { ...remembered } };
         }
         this.capturedEntries.delete(sourceHash);
@@ -20193,7 +22246,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       (item) => item.source.source_hash === sourceHash && item.source.note_path
     );
     const artifactFile = artifact?.source.note_path ? this.app.vault.getAbstractFileByPath(artifact.source.note_path) : null;
-    return artifact?.source.note_path && artifactFile instanceof import_obsidian19.TFile ? {
+    return artifact?.source.note_path && artifactFile instanceof import_obsidian20.TFile ? {
       path: artifact.source.note_path,
       source_hash: sourceHash,
       source_identity: sourceIdentity,
@@ -20291,7 +22344,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       const rawUrl = (params.url || params.link || "").trim();
       const localFile = (params.local_file || params.localFile || "").trim();
       if (!rawUrl && !localFile) {
-        new import_obsidian19.Notice("\u534F\u8BAE\u8C03\u7528 video-summary \u7F3A\u5C11 URL \u6216 local_file \u53C2\u6570", 6e3);
+        new import_obsidian20.Notice("\u534F\u8BAE\u8C03\u7528 video-summary \u7F3A\u5C11 URL \u6216 local_file \u53C2\u6570", 6e3);
         return;
       }
       const requestedAction = String(params.action || "").trim().toLowerCase();
@@ -20311,18 +22364,18 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         captured_at: (params.captured_at || "").trim() || void 0
       });
       const file = this.app.vault.getAbstractFileByPath(result.entry.path);
-      if (!(file instanceof import_obsidian19.TFile)) {
+      if (!(file instanceof import_obsidian20.TFile)) {
         throw new Error(`\u6355\u83B7\u4ED3\u50A8\u8FD4\u56DE\u7684\u7B14\u8BB0\u4E0D\u5B58\u5728\uFF1A${result.entry.path}`);
       }
       await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
-        new import_obsidian19.Notice(
+        new import_obsidian20.Notice(
           result.status === "created" ? "\u5DF2\u79BB\u7EBF\u52A0\u5165\u89C6\u9891\u6536\u4EF6\u7BB1" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5DF2\u6253\u5F00\u539F\u7B14\u8BB0"
         );
         return;
       }
       if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
-        new import_obsidian19.Notice(
+        new import_obsidian20.Notice(
           "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u5F53\u524D\u81EA\u52A8\u5904\u7406\u53EA\u652F\u6301 YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u548C\u5C0F\u7EA2\u4E66\u94FE\u63A5\uFF0C\u901A\u7528 URL \u672A\u53D1\u9001\u5230\u540E\u7AEF\u3002",
           8e3
         );
@@ -20330,12 +22383,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       }
       if (localFile) {
         if (!isSupportedLocalMediaPath(localFile)) {
-          new import_obsidian19.Notice("\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 8e3);
+          new import_obsidian20.Notice("\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 8e3);
           return;
         }
         if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== "codex-worker") {
-          new import_obsidian19.Notice(
-            "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u81EA\u5E26\u7684 n8n \u65E0\u6CD5\u8BFB\u53D6\u94FE\u63A5\u91CC\u7684\u4E3B\u673A\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u590D\u5236\u5230 docker/uploads \u540E\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\uFF0C\u6216\u5207\u6362\u5230\u80FD\u8BBF\u95EE\u8BE5\u8DEF\u5F84\u7684\u672C\u673A\u670D\u52A1\u3002",
+          new import_obsidian20.Notice(
+            "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u81EA\u5E26\u7684 n8n \u65E0\u6CD5\u8BFB\u53D6\u94FE\u63A5\u91CC\u7684\u4E3B\u673A\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u590D\u5236\u5230\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u518D\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\uFF0C\u6216\u5207\u6362\u5230\u80FD\u8BBF\u95EE\u8BE5\u8DEF\u5F84\u7684\u672C\u673A\u670D\u52A1\u3002",
             9e3
           );
           return;
@@ -20348,18 +22401,18 @@ ${localFile}
 \u4EC5\u5728\u4F60\u8BA4\u8BC6\u8BE5\u6765\u6E90\u65F6\u786E\u8BA4\u3002`
         );
         if (!confirmed) {
-          new import_obsidian19.Notice("\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 6e3);
+          new import_obsidian20.Notice("\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 6e3);
           return;
         }
       }
-      new import_obsidian19.Notice(result.status === "created" ? "\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406");
+      new import_obsidian20.Notice(result.status === "created" ? "\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406");
       const requestedMode = (params.mode || "").trim();
       const mode = ["summary", "transcript-only", "info-only"].includes(
         requestedMode
       ) ? requestedMode : this.settings.defaultMode;
       const activeProcessing = this.captureProcessingLocks.get(result.entry.source_hash);
       if (activeProcessing) {
-        new import_obsidian19.Notice("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", 5e3);
+        new import_obsidian20.Notice("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", 5e3);
         return;
       }
       const processing = this.processFileWithMode(file, mode).then(() => void 0);
@@ -20372,7 +22425,7 @@ ${localFile}
         }
       }
     } catch (error) {
-      new import_obsidian19.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
     }
   }
 };
@@ -20396,7 +22449,7 @@ function normalizeSuccessStatusValue(value) {
   ]);
   return reservedStatuses.has(normalized.toLowerCase()) ? DEFAULT_SETTINGS.successStatusValue : normalized;
 }
-var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
+var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     /** Where the page was last drawn: containerEl before Obsidian 1.13, the definition row from 1.13. */
@@ -20451,16 +22504,16 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
   }
   /** 一段的标题与一句说明 */
   group(containerEl, title, desc) {
-    const head = new import_obsidian19.Setting(containerEl).setName(title).setDesc(desc).setHeading();
+    const head = new import_obsidian20.Setting(containerEl).setName(title).setDesc(desc).setHeading();
     head.settingEl.addClass("vs-settings-group");
   }
   /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
   renderSettingsHeader(containerEl) {
     const header = containerEl.createDiv({ cls: "vs-settings-header" });
-    const text = header.createDiv({ cls: "vs-settings-heading" });
-    text.createDiv({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-settings-title" });
+    const text2 = header.createDiv({ cls: "vs-settings-heading" });
+    text2.createDiv({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-settings-title" });
     const backendLabel = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n webhook";
-    text.createDiv({
+    text2.createDiv({
       text: `v${this.plugin.manifest.version} \xB7 \u8FDE\u63A5 ${backendLabel} \u5904\u7406\u89C6\u9891\u3001\u6587\u7A3F\u4E0E\u7B14\u8BB0`,
       cls: "vs-settings-sub"
     });
@@ -20495,17 +22548,18 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
     titleRow.createSpan({ text: title });
     return { section: section3, titleRow };
   }
+  /** 首次配置：粘贴连接码 → 检查 → 试运行。每一步出错都写明怎么修。 */
   createSetupGuideSection(containerEl) {
     const { section: section3, titleRow } = this.sectionCard(
       containerEl,
       "shield-check",
-      "\u5B89\u88C5\u68C0\u67E5",
+      "\u9996\u6B21\u914D\u7F6E",
       "setup-guide-section"
     );
     titleRow.addClass("setup-guide-title-row");
     if (this.plugin.settings.setupGuideDismissed) {
-      new import_obsidian19.Setting(section3).setName("\u5B89\u88C5\u68C0\u67E5\u5DF2\u6536\u8D77").setDesc("\u9700\u8981\u6392\u67E5\u8FDE\u63A5\u95EE\u9898\u65F6\uFF0C\u53EF\u4EE5\u91CD\u65B0\u663E\u793A\u68C0\u67E5\u6E05\u5355\u3002").addButton(
-        (button) => button.setButtonText("\u663E\u793A\u68C0\u67E5\u6E05\u5355").onClick(async () => {
+      new import_obsidian20.Setting(section3).setName("\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210").setDesc("\u6362\u4E86\u540E\u7AEF\u3001\u8FDE\u63A5\u51FA\u9519\u6216\u60F3\u91CD\u65B0\u68C0\u67E5\u65F6\uFF0C\u518D\u6253\u5F00\u5B83\u3002").addButton(
+        (button) => button.setButtonText("\u91CD\u65B0\u6253\u5F00").onClick(async () => {
           this.plugin.settings.setupGuideDismissed = false;
           await this.plugin.saveSettings();
           this.redraw();
@@ -20513,117 +22567,221 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       );
       return;
     }
-    section3.createEl("p", {
-      text: "\u7B2C\u4E00\u6B21\u4F7F\u7528\u65F6\uFF0C\u5148\u786E\u8BA4\u8FD9\u51E0\u9879\u3002\u8FDE\u63A5\u8BCA\u65AD\u4F1A\u53D1\u9001\u4E00\u4E2A\u8F7B\u91CF\u6D4B\u8BD5\u8BF7\u6C42\uFF0C\u4E0D\u4F1A\u5904\u7406\u771F\u5B9E\u89C6\u9891\u3002",
-      cls: "setting-item-description"
-    });
-    const checks = this.getSetupChecks();
-    const list = section3.createDiv({ cls: "setup-check-list" });
-    checks.forEach((check) => {
-      const row = list.createDiv({ cls: `setup-check-item is-${check.state}` });
-      row.createSpan({ text: this.getSetupCheckIcon(check.state), cls: "setup-check-icon" });
-      const textWrap = row.createDiv({ cls: "setup-check-text" });
-      textWrap.createEl("strong", { text: check.label });
-      textWrap.createSpan({ text: check.detail });
-    });
-    const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian19.Setting(section3).setName("\u8FDE\u63A5\u8BCA\u65AD").setDesc("\u5982\u679C\u8FD9\u91CC\u5931\u8D25\uFF0C\u4F18\u5148\u6309\u8BCA\u65AD\u5EFA\u8BAE\u5904\u7406\uFF0C\u518D\u67E5\u770B n8n \u7684\u6267\u884C\u65E5\u5FD7\u3002").addButton(
-      (button) => button.setButtonText("\u8FD0\u884C\u8BCA\u65AD").setCta().onClick(async () => {
-        button.setDisabled(true);
-        button.setButtonText("\u8BCA\u65AD\u4E2D...");
-        resultBox.empty();
-        resultBox.createEl("p", { text: "\u6B63\u5728\u53D1\u9001\u6D4B\u8BD5\u8BF7\u6C42..." });
+    const intro = section3.createEl("p", { cls: "setting-item-description" });
+    intro.appendText(
+      "\u4E09\u6B65\uFF1A\u5728\u7535\u8111\u4E0A\u542F\u52A8\u540E\u7AEF \u2192 \u628A\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801\u7C98\u8D34\u5230\u8FD9\u91CC \u2192 \u68C0\u67E5\u3002\u8FD8\u6CA1\u6709\u540E\u7AEF\uFF1F\u770B"
+    );
+    intro.createEl("a", { text: "\u5B89\u88C5\u6559\u7A0B", href: SETUP_GUIDE_URL });
+    intro.appendText("\u3002");
+    const results = section3.createDiv({ cls: "setup-check-list" });
+    const runCheck = async (deep) => {
+      results.empty();
+      results.createDiv({
+        text: deep ? "\u5B8C\u6574\u68C0\u67E5\u4E2D\uFF0C\u4F1A\u8C03\u7528\u4E00\u6B21\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\uFF0C\u7EA6 10\u201330 \u79D2\u2026" : "\u68C0\u67E5\u4E2D\u2026",
+        cls: "setup-check-progress"
+      });
+      const outcome = await this.plugin.api.checkBackend(deep);
+      const steps = interpretSetupCheck({ ...outcome, deep });
+      this.renderSetupSteps(results, steps);
+      const model = reportedChatModel(outcome.report);
+      if (model && model !== this.plugin.settings.aiModel) {
+        this.plugin.settings.aiModel = model;
+        this.plugin.api.setAiModel(model);
+        await this.plugin.saveSettings();
+      }
+    };
+    let codeInput = null;
+    const applyCode = async (raw) => {
+      const code = parseConnectionCode(raw, DEFAULT_N8N_WEBHOOK_URL);
+      if (!code) {
+        new import_obsidian20.Notice("\u8FD9\u4E0D\u662F\u8FDE\u63A5\u7801\u3002\u8BF7\u7C98\u8D34\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u6574\u884C\u3002", 8e3);
+        return;
+      }
+      await this.applyConnectionCode(code);
+      if (codeInput) codeInput.value = "";
+      new import_obsidian20.Notice("\u8FDE\u63A5\u7801\u5DF2\u4FDD\u5B58\uFF0C\u6B63\u5728\u68C0\u67E5\u2026");
+      await runCheck(false);
+    };
+    new import_obsidian20.Setting(section3).setName("\u2460 \u8FDE\u63A5\u7801").setDesc("\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u884C\uFF0C\u5B83\u4E5F\u5DF2\u7ECF\u590D\u5236\u5230\u526A\u8D34\u677F\u3002\u8FDE\u63A5\u7801\u76F8\u5F53\u4E8E\u53E3\u4EE4\uFF0C\u4E0D\u8981\u53D1\u7ED9\u522B\u4EBA\u3002").addText((text2) => {
+      codeInput = text2.inputEl;
+      text2.inputEl.type = "password";
+      text2.setPlaceholder("\u7C98\u8D34\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801");
+      text2.inputEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") fire(() => applyCode(text2.getValue()))();
+      });
+    }).addButton(
+      (button) => button.setButtonText("\u4ECE\u526A\u8D34\u677F\u7C98\u8D34").setCta().onClick(async () => {
+        let clip = "";
         try {
-          const result = await this.plugin.api.testConnection();
-          this.renderConnectionResult(resultBox, result);
-        } catch (error) {
-          this.renderConnectionResult(resultBox, {
-            success: false,
-            error: this.plugin.formatErrorForNotice(error),
-            hint: "\u786E\u8BA4\u670D\u52A1\u5DF2\u542F\u52A8\u540E\u91CD\u8BD5\uFF1B\u5FC5\u8981\u65F6\u6253\u5F00\u8C03\u8BD5\u6A21\u5F0F\u67E5\u770B\u63A7\u5236\u53F0\u3002"
-          });
-        } finally {
-          button.setDisabled(false);
-          button.setButtonText("\u8FD0\u884C\u8BCA\u65AD");
+          clip = await navigator.clipboard.readText();
+        } catch {
+          new import_obsidian20.Notice("\u8BFB\u4E0D\u5230\u526A\u8D34\u677F\uFF0C\u8BF7\u624B\u52A8\u7C98\u8D34\u5230\u8F93\u5165\u6846\u540E\u6309\u56DE\u8F66\u3002");
+          return;
         }
+        await applyCode(clip);
+      })
+    );
+    new import_obsidian20.Setting(section3).setName("\u2461 \u68C0\u67E5").setDesc("\u5FEB\u901F\u68C0\u67E5\u53EA\u770B\u540E\u7AEF\u548C\u8FDE\u63A5\u7801\uFF1B\u5B8C\u6574\u68C0\u67E5\u8FD8\u4F1A\u786E\u8BA4\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\u7684\u5BC6\u94A5\u771F\u7684\u80FD\u7528\u3002").addButton(
+      (button) => button.setButtonText("\u5FEB\u901F\u68C0\u67E5").onClick(async () => {
+        button.setDisabled(true);
+        await runCheck(false);
+        button.setDisabled(false);
       })
     ).addButton(
-      (button) => button.setButtonText("\u6536\u8D77").onClick(async () => {
+      (button) => button.setButtonText("\u5B8C\u6574\u68C0\u67E5").setCta().onClick(async () => {
+        button.setDisabled(true);
+        await runCheck(true);
+        button.setDisabled(false);
+      })
+    );
+    section3.appendChild(results);
+    const trialResult = section3.createDiv({ cls: "setup-diagnostic-result" });
+    new import_obsidian20.Setting(section3).setName("\u2462 \u8BD5\u8FD0\u884C").setDesc("\u7528\u4E00\u6BB5\u5185\u7F6E\u7684\u77ED\u6587\u7A3F\u751F\u6210\u4E00\u6B21\u603B\u7ED3\uFF0C\u786E\u8BA4\u6574\u6761\u6D41\u7A0B\u80FD\u8DD1\u901A\u3002\u4F1A\u6D88\u8017\u6781\u5C11\u91CF\u6A21\u578B\u989D\u5EA6\u3002").addButton(
+      (button) => button.setButtonText("\u8BD5\u8FD0\u884C").onClick(async () => {
+        button.setDisabled(true);
+        trialResult.empty();
+        trialResult.removeClass("is-success", "is-error");
+        trialResult.createEl("p", { text: "\u6B63\u5728\u751F\u6210\u603B\u7ED3\u2026" });
+        const result = await this.plugin.api.trialRun(SETUP_TRIAL_TRANSCRIPT);
+        trialResult.empty();
+        trialResult.addClass(result.ok ? "is-success" : "is-error");
+        trialResult.createEl("strong", {
+          text: result.ok ? `\u8DD1\u901A\u4E86\uFF0C\u7528\u65F6 ${(result.durationMs / 1e3).toFixed(1)} \u79D2` : "\u6CA1\u6709\u8DD1\u901A"
+        });
+        trialResult.createEl("p", { text: result.message });
+        button.setDisabled(false);
+      })
+    );
+    section3.appendChild(trialResult);
+    this.createBilibiliLoginStep(section3);
+    const cookies = section3.createEl("details", { cls: "setup-cookie-paste" });
+    cookies.createEl("summary", { text: "\u4E0D\u65B9\u4FBF\u626B\u7801\uFF1F\u7C98\u8D34 cookies.txt" });
+    cookies.createEl("p", {
+      text: "\u4E5F\u53EF\u4EE5\u7528\u89C6\u9891\u603B\u7ED3\u6D4F\u89C8\u5668\u6269\u5C55\u7684\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\uFF0C\u6216\u7528\u4EFB\u610F\u201C\u5BFC\u51FA cookies.txt\u201D\u6269\u5C55\u5728 bilibili.com \u5BFC\u51FA\uFF0C\u628A\u5168\u6587\u7C98\u8D34\u5230\u8FD9\u91CC\u3002\u5185\u5BB9\u53EA\u53D1\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\u3002",
+      cls: "setting-item-description"
+    });
+    const cookieText = cookies.createEl("textarea", {
+      cls: "setup-cookie-text",
+      attr: { rows: "4", placeholder: "\u7C98\u8D34 cookies.txt \u7684\u5168\u6587", spellcheck: "false" }
+    });
+    const cookieStatus = cookies.createEl("p", { cls: "setting-item-description" });
+    new import_obsidian20.Setting(cookies).addButton(
+      (button) => button.setButtonText("\u4FDD\u5B58\u5230\u540E\u7AEF").onClick(async () => {
+        button.setDisabled(true);
+        const result = await this.plugin.api.uploadCookies("bilibili", cookieText.value);
+        cookieStatus.setText(result.message);
+        if (result.ok) cookieText.value = "";
+        button.setDisabled(false);
+      })
+    );
+    new import_obsidian20.Setting(section3).addButton(
+      (button) => button.setButtonText("\u5B8C\u6210\uFF0C\u6536\u8D77").onClick(async () => {
         this.plugin.settings.setupGuideDismissed = true;
         await this.plugin.saveSettings();
         this.redraw();
       })
     );
   }
-  getSetupChecks() {
-    const backend = this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend;
-    const activeProfile = this.plugin.getActiveWebhookProfile();
-    const endpoint = backend === "codex-worker" ? this.plugin.settings.codexWorkerUrl : activeProfile?.url || this.plugin.settings.n8nWebhookUrl;
-    const modelList = this.plugin.settings.customAiModels || [];
-    const currentModel = this.plugin.settings.aiModel;
-    const endpointCheck = this.getEndpointSetupCheck(endpoint || "", backend);
-    return [
-      {
-        label: "\u5904\u7406\u540E\u7AEF",
-        state: backend ? "ready" : "missing",
-        detail: backend === "codex-worker" ? "\u5F53\u524D\u4F7F\u7528 Codex Video Worker\u3002" : "\u5F53\u524D\u4F7F\u7528 n8n / \u517C\u5BB9 Webhook\u3002"
-      },
-      endpointCheck,
-      {
-        label: "Workflow \u7248\u672C",
-        state: "warning",
-        detail: `\u63A8\u8350\u7248\u672C ${RECOMMENDED_WORKFLOW.version}\uFF1B\u8FD0\u884C\u8FDE\u63A5\u8BCA\u65AD\u53EF\u8BFB\u53D6\u5F53\u524D n8n workflow \u56DE\u4F20\u7684\u7248\u672C\u4FE1\u606F\u3002`
-      },
-      {
-        label: "\u5904\u7406\u6A21\u578B",
-        state: modelList.includes(currentModel) ? "ready" : "warning",
-        detail: modelList.includes(currentModel) ? `\u9ED8\u8BA4\u6A21\u578B ${currentModel} \u5DF2\u5728\u5217\u8868\u4E2D\u3002` : `\u9ED8\u8BA4\u6A21\u578B ${currentModel || "\u672A\u8BBE\u7F6E"} \u4E0D\u5728\u6A21\u578B\u5217\u8868\u4E2D\uFF0Cn8n Switch \u53EF\u80FD\u5339\u914D\u5931\u8D25\u3002`
-      },
-      {
-        label: "\u672C\u5730\u6587\u4EF6",
-        state: "warning",
-        detail: "Bundled Docker/n8n \u53EA\u63A5\u53D7 uploads \u6839\u76EE\u5F55\u5185\u7684\u6587\u4EF6\u540D\uFF0C\u4E0D\u63A5\u53D7\u5B50\u76EE\u5F55\u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002"
-      }
-    ];
-  }
-  getEndpointSetupCheck(endpoint, backend) {
-    const trimmedEndpoint = endpoint.trim();
-    if (!trimmedEndpoint) {
-      return {
-        label: "\u670D\u52A1 URL",
-        state: "missing",
-        detail: "\u8FD8\u6CA1\u6709\u586B\u5199\u5904\u7406\u670D\u52A1 URL\u3002"
-      };
-    }
-    if (backend === "n8n" && trimmedEndpoint === LEGACY_N8N_WEBHOOK_URL) {
-      return {
-        label: "\u670D\u52A1 URL",
-        state: "warning",
-        detail: `\u4ECD\u5728\u4F7F\u7528\u65E7\u8DEF\u5F84 ${LEGACY_N8N_WEBHOOK_URL}\uFF0C\u516C\u5F00\u7248\u5DE5\u4F5C\u6D41\u9ED8\u8BA4\u8DEF\u5F84\u662F ${DEFAULT_N8N_WEBHOOK_URL}\u3002`
-      };
-    }
-    if (backend === "n8n" && !trimmedEndpoint.includes("/webhook/")) {
-      return {
-        label: "\u670D\u52A1 URL",
-        state: "warning",
-        detail: "n8n URL \u901A\u5E38\u5E94\u5305\u542B /webhook/ \u8DEF\u5F84\u3002"
-      };
-    }
-    return {
-      label: "\u670D\u52A1 URL",
-      state: "ready",
-      detail: trimmedEndpoint
+  /** ④ 扫码登录 B 站：登录 cookie 直接交给自己的后端，插件不保存。 */
+  createBilibiliLoginStep(section3) {
+    const panel = section3.createDiv({ cls: "setup-qr" });
+    const status = section3.createEl("p", { cls: "setting-item-description" });
+    let polling = 0;
+    const stop = () => {
+      if (polling) window.clearInterval(polling);
+      polling = 0;
     };
+    new import_obsidian20.Setting(section3).setName("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09").setDesc(
+      "\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u7801\u767B\u5F55\u540E\uFF0C\u80FD\u62FF\u5230\u5B83\u7684\u5B57\u5E55\u548C AI \u5B57\u5E55\uFF0C\u4E0D\u7528\u518D\u8F6C\u5199\u3002\u767B\u5F55\u4FE1\u606F\u53EA\u4EA4\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\uFF0C\u63D2\u4EF6\u4E0D\u4FDD\u5B58\u3002"
+    ).addButton(
+      (button) => button.setButtonText("\u626B\u7801\u767B\u5F55").onClick(async () => {
+        stop();
+        panel.empty();
+        status.setText("\u6B63\u5728\u5411\u54D4\u54E9\u54D4\u54E9\u8981\u4E8C\u7EF4\u7801\u2026");
+        let ticket;
+        try {
+          ticket = await startQrLogin();
+        } catch (error) {
+          status.setText(`\u62FF\u4E0D\u5230\u4E8C\u7EF4\u7801\uFF1A${this.plugin.formatErrorForNotice(error)}`);
+          return;
+        }
+        drawQrCode(panel, ticket.url);
+        status.setText("\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u4E00\u626B\uFF0C\u5E76\u5728\u624B\u673A\u4E0A\u786E\u8BA4\u767B\u5F55\u3002");
+        const started = Date.now();
+        let busy = false;
+        polling = window.setInterval(() => {
+          if (busy) return;
+          if (Date.now() - started > 18e4) {
+            stop();
+            panel.empty();
+            status.setText("\u4E8C\u7EF4\u7801\u8FC7\u671F\u4E86\uFF0C\u518D\u70B9\u4E00\u6B21\u201C\u626B\u7801\u767B\u5F55\u201D\u3002");
+            return;
+          }
+          busy = true;
+          fire(async () => {
+            try {
+              await tick();
+            } finally {
+              busy = false;
+            }
+          })();
+        }, 2e3);
+        const tick = async () => {
+          const result = await pollQrLogin(ticket.key);
+          if (result.state === "scanned") status.setText("\u5DF2\u626B\u7801\uFF0C\u8BF7\u5728\u624B\u673A\u4E0A\u70B9\u786E\u8BA4\u3002");
+          if (result.state === "expired" || result.state === "error") {
+            stop();
+            panel.empty();
+            status.setText(
+              result.state === "expired" ? "\u4E8C\u7EF4\u7801\u8FC7\u671F\u4E86\uFF0C\u518D\u70B9\u4E00\u6B21\u201C\u626B\u7801\u767B\u5F55\u201D\u3002" : `\u767B\u5F55\u6CA1\u6709\u5B8C\u6210\uFF1A${result.message}`
+            );
+          }
+          if (result.state === "done") {
+            stop();
+            panel.empty();
+            status.setText("\u5DF2\u767B\u5F55\uFF0C\u6B63\u5728\u4EA4\u7ED9\u540E\u7AEF\u2026");
+            const saved = await this.plugin.api.uploadCookies("bilibili", result.cookies);
+            status.setText(saved.ok ? `B \u7AD9\u767B\u5F55\u5DF2\u4EA4\u7ED9\u540E\u7AEF\u3002${saved.message}` : saved.message);
+          }
+        };
+        this.plugin.register(stop);
+      })
+    );
+    section3.appendChild(panel);
+    section3.appendChild(status);
   }
-  getSetupCheckIcon(state) {
-    switch (state) {
-      case "ready":
-        return "OK";
-      case "warning":
-        return "!";
-      default:
-        return "X";
+  renderSetupSteps(container, steps) {
+    container.empty();
+    const icons = {
+      ready: "\u2713",
+      warning: "!",
+      missing: "\u2717",
+      pending: "\xB7"
+    };
+    for (const item of steps) {
+      const row = container.createDiv({ cls: `setup-check-item is-${item.state}` });
+      row.createSpan({ text: icons[item.state], cls: "setup-check-icon" });
+      const body = row.createDiv({ cls: "setup-check-text" });
+      body.createEl("strong", { text: item.label });
+      body.createSpan({ text: item.detail });
+      if (item.fix && item.state !== "ready") {
+        body.createSpan({ text: `\u600E\u4E48\u529E\uFF1A${item.fix}`, cls: "setup-check-fix" });
+      }
     }
+  }
+  async applyConnectionCode(code) {
+    const settings = this.plugin.settings;
+    let profile = this.plugin.getActiveWebhookProfile();
+    if (!profile) {
+      profile = { id: "default-webhook", name: "\u672C\u673A\u540E\u7AEF", url: "", headerName: "", secret: "" };
+      settings.webhookProfiles.push(profile);
+      settings.activeWebhookId = profile.id;
+    }
+    profile.url = code.url;
+    profile.headerName = code.headerName;
+    profile.secret = code.secret;
+    settings.n8nWebhookUrl = code.url;
+    await this.plugin.setActiveBackend("n8n");
   }
   renderConnectionResult(containerEl, result) {
     containerEl.empty();
@@ -20704,18 +22862,18 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
     }
   }
   /**
-   * Cookies 管理：定位 n8n 的 docker/cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
+   * Cookies 管理：定位后端文件夹的 cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   createCookiesSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "cookie", "Cookies \u7BA1\u7406");
     section3.createEl("p", {
-      text: "\u53D7\u9650\u5E73\u53F0\uFF08\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u3001\u5C0F\u7EA2\u4E66\uFF09\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002\u76EE\u5F55\u4E00\u822C\u662F n8n \u7684 docker \u9879\u76EE\u91CC\u7684 docker/cookies\uFF1B\u6587\u4EF6\u540D\u5982 bilibili_cookies.txt\u3002",
+      text: "\u53D7\u9650\u5E73\u53F0\uFF08\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u3001\u5C0F\u7EA2\u4E66\uFF09\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002\u76EE\u5F55\u662F\u540E\u7AEF\u6587\u4EF6\u5939\u91CC\u7684 cookies\uFF1B\u6587\u4EF6\u540D\u5982 bilibili_cookies.txt\u3002",
       cls: "setting-item-description"
     });
     const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian19.Setting(section3).setName("Cookies \u76EE\u5F55").setDesc("Cookies \u76EE\u5F55\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 ~/n8n-project/docker/cookies").addText(
-      (text) => text.setPlaceholder("/path/to/docker/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
+    new import_obsidian20.Setting(section3).setName("Cookies \u76EE\u5F55").setDesc("Cookies \u76EE\u5F55\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 ~/video-summary-backend/cookies").addText(
+      (text2) => text2.setPlaceholder("/path/to/video-summary-backend/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
       })
@@ -20723,15 +22881,15 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       (button) => button.setButtonText("\u6253\u5F00\u76EE\u5F55").onClick(() => {
         const dir = (this.plugin.settings.cookiesDirPath || "").trim();
         if (!dir) {
-          new import_obsidian19.Notice("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84");
+          new import_obsidian20.Notice("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84");
           return;
         }
         try {
           if (!openPathInSystem(dir)) {
-            new import_obsidian19.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
+            new import_obsidian20.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
           }
         } catch (error) {
-          new import_obsidian19.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
+          new import_obsidian20.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
         }
       })
     ).addButton(
@@ -20814,48 +22972,21 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       containerEl.createEl("p", { text: `\u68C0\u6D4B\u5931\u8D25: ${error.message}` });
     }
   }
-  createWorkflowCompatibilityCard(containerEl) {
-    const card = containerEl.createDiv({ cls: "workflow-compatibility-card" });
-    card.createDiv({ text: "\u63A8\u8350 workflow", cls: "vs-subsection-title" });
-    card.createEl("p", {
-      text: "\u8FDE\u63A5\u8BCA\u65AD\u4F1A\u8BFB\u53D6\u6D4B\u8BD5\u5206\u652F\u8FD4\u56DE\u7684 workflow \u5143\u6570\u636E\uFF0C\u7528\u6765\u53D1\u73B0\u65E7 workflow\u3001path \u4E0D\u5339\u914D\u6216\u6A21\u578B\u6807\u7B7E\u4E0D\u4E00\u81F4\u3002",
-      cls: "setting-item-description"
-    });
-    const rows = [
-      ["\u63A8\u8350\u7248\u672C", RECOMMENDED_WORKFLOW.version],
-      ["Webhook Path", RECOMMENDED_WORKFLOW.webhookPath],
-      ["\u63A8\u8350\u6A21\u578B\u6807\u7B7E", RECOMMENDED_WORKFLOW.models.join(", ")],
-      ["\u4F9D\u8D56\u5DE5\u5177", RECOMMENDED_WORKFLOW.requiredTools.join(", ")],
-      ["\u672C\u5730\u6587\u4EF6\u76EE\u5F55", RECOMMENDED_WORKFLOW.uploadsPath]
-    ];
-    const table = card.createEl("table", { cls: "workflow-compatibility-table" });
-    rows.forEach(([label, value]) => {
-      const row = table.createEl("tr");
-      row.createEl("th", { text: label });
-      row.createEl("td", { text: value });
-    });
-    const activeEndpoint = this.plugin.settings.activeBackend === "codex-worker" ? this.plugin.settings.codexWorkerUrl : this.plugin.getActiveWebhookProfile()?.url || this.plugin.settings.n8nWebhookUrl;
-    card.createEl("p", {
-      text: `\u5F53\u524D\u5165\u53E3: ${activeEndpoint || "\u672A\u8BBE\u7F6E"}`,
-      cls: "setting-item-description"
-    });
-  }
   createApiSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "link", "\u5904\u7406\u670D\u52A1");
-    this.createWorkflowCompatibilityCard(section3);
-    new import_obsidian19.Setting(section3).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
+    new import_obsidian20.Setting(section3).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
       "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8C03\u7528 n8n\uFF0C\u8FD8\u662F\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002"
     ).addDropdown(
       (dropdown) => dropdown.addOption("n8n", "\u517C\u5BB9 n8n \u7684 webhook").addOption("codex-worker", "Codex \u672C\u5730\u89C6\u9891\u670D\u52A1").setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
         await this.plugin.setActiveBackend(value);
-        new import_obsidian19.Notice(
+        new import_obsidian20.Notice(
           value === "codex-worker" ? "\u5DF2\u5207\u6362\u5230 Codex Video Worker" : "\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook"
         );
         this.redraw();
       })
     );
-    new import_obsidian19.Setting(section3).setName("Codex \u672C\u5730\u670D\u52A1\u5730\u5740").setDesc("\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u5728\u540C\u4E00\u4E3B\u673A\u7684 /dashboard\u3002").addText(
-      (text) => text.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
+    new import_obsidian20.Setting(section3).setName("Codex \u672C\u5730\u670D\u52A1\u5730\u5740").setDesc("\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u5728\u540C\u4E00\u4E3B\u673A\u7684 /dashboard\u3002").addText(
+      (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
         this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
         if (this.plugin.settings.activeBackend === "codex-worker") {
           this.plugin.reinitializeApi();
@@ -20867,7 +22998,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         this.plugin.openCodexWorkerDashboard();
       })
     );
-    const webhookSetting = new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09").setDesc("\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n \u6216\u517C\u5BB9\u670D\u52A1\u3002");
+    const webhookSetting = new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09").setDesc("\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n \u6216\u517C\u5BB9\u670D\u52A1\u3002");
     let webhookDropdown = null;
     webhookSetting.addDropdown((dropdown) => {
       webhookDropdown = dropdown;
@@ -20902,11 +23033,11 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
           const res = await this.plugin.api.testConnection();
           const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "\u517C\u5BB9 n8n \u7684 webhook";
           if (res.success) {
-            new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
+            new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
           } else {
             const hint = res.hint ? `
 \u5EFA\u8BAE: ${res.hint}` : "";
-            new import_obsidian19.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+            new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
           }
           this.renderConnectionResult(workflowDiagnosticResult, res);
         } catch (error) {
@@ -21010,7 +23141,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new import_obsidian19.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook");
+            new import_obsidian20.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook");
             return;
           }
           this.plugin.settings.webhookProfiles = this.plugin.settings.webhookProfiles.filter(
@@ -21028,7 +23159,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       });
     };
     renderProfiles();
-    new import_obsidian19.Setting(section3).addButton(
+    new import_obsidian20.Setting(section3).addButton(
       (button) => button.setButtonText("\u6DFB\u52A0 webhook").setCta().onClick(async () => {
         const newProfile = {
           id: `webhook-${Date.now()}`,
@@ -21046,14 +23177,14 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
   }
   createBasicSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "sliders-horizontal", "\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F");
-    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6").setDesc(
+    new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6").setDesc(
       this.plugin.settings.activeBackend === "codex-worker" ? "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF1B\u6DF1\u5EA6\u89C6\u89C9\u4F1A\u5206\u6790\u5173\u952E\u753B\u9762\u3002" : "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\u3002\u6DF1\u5EA6\u89C6\u89C9\u9700\u8981\u5148\u5207\u6362\u5230 Codex Worker\u3002"
     ).addDropdown(
       (dropdown) => dropdown.addOption("quick", "\u6781\u901F").addOption("evidence", "\u8BC1\u636E").addOption("deep-visual", "\u6DF1\u5EA6\u89C6\u89C9").setValue(this.plugin.settings.defaultProcessingDepth).onChange(async (value) => {
         const depth = value;
         if (depth === "deep-visual" && this.plugin.settings.activeBackend !== "codex-worker") {
           dropdown.setValue("evidence");
-          new import_obsidian19.Notice(
+          new import_obsidian20.Notice(
             "\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002",
             7e3
           );
@@ -21064,7 +23195,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B").setDesc("\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002").addDropdown(
+    new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B").setDesc("\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002").addDropdown(
       (dropdown) => dropdown.addOption("auto", "\u81EA\u52A8\u8BC6\u522B").addOption("course", "\u8BFE\u7A0B").addOption("interview", "\u8BBF\u8C08").addOption("tutorial", "\u6559\u7A0B").addOption("news", "\u65B0\u95FB").addOption("meeting", "\u4F1A\u8BAE").addOption("review", "\u8BC4\u6D4B").addOption("general", "\u901A\u7528").setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
         const contentType = value;
         this.plugin.settings.defaultContentType = contentType;
@@ -21076,102 +23207,24 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u89C2\u770B\u4EF7\u503C\u5224\u65AD").setDesc("\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002").addToggle(
+    new import_obsidian20.Setting(section3).setName("\u89C2\u770B\u4EF7\u503C\u5224\u65AD").setDesc("\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.attentionAssessmentEnabled).onChange(async (value) => {
         this.plugin.settings.attentionAssessmentEnabled = value;
         this.plugin.api.setAnalysisDefaults({ attentionAssessment: value });
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60").setDesc("\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002").addToggle(
+    new import_obsidian20.Setting(section3).setName("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60").setDesc("\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.generateLearningArtifacts).onChange(async (value) => {
         this.plugin.settings.generateLearningArtifacts = value;
         this.plugin.api.setAnalysisDefaults({ generateLearning: value });
         await this.plugin.saveSettings();
       })
     );
-    const aiSection = section3.createDiv({ cls: "vs-subsection" });
-    aiSection.createDiv({ text: "\u81EA\u5B9A\u4E49\u5904\u7406\u6A21\u578B", cls: "vs-subsection-title" });
-    aiSection.createEl("p", {
-      text: "\u6DFB\u52A0\u4F60\u8981\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u6A21\u578B\u540D\u79F0\uFF08\u9700\u4E0E n8n \u91CC switch \u8282\u70B9\u7684\u503C\u5B8C\u5168\u4E00\u81F4\uFF09\u3002",
-      cls: "setting-item-description"
-    });
-    const aiModelsContainer = aiSection.createDiv({ cls: "webhook-profiles-container" });
-    let aiDropdown = null;
-    const refreshAiDropdownOptions = () => {
-      if (!aiDropdown) return;
-      aiDropdown.selectEl.empty();
-      this.plugin.settings.customAiModels.forEach((model) => {
-        const option = createEl("option");
-        option.value = model;
-        option.textContent = model;
-        aiDropdown.selectEl.appendChild(option);
-      });
-      const selectedModel = this.plugin.settings.aiModel;
-      if (selectedModel && this.plugin.settings.customAiModels.includes(selectedModel)) {
-        aiDropdown.setValue(selectedModel);
-      }
-    };
-    const renderAiModels = () => {
-      aiModelsContainer.empty();
-      if (this.plugin.settings.customAiModels.length === 0) {
-        aiModelsContainer.createEl("p", {
-          text: "\u5C1A\u672A\u914D\u7F6E\u4EFB\u4F55\u81EA\u5B9A\u4E49\u5904\u7406\u6A21\u578B\u3002",
-          cls: "setting-item-description"
-        });
-        return;
-      }
-      this.plugin.settings.customAiModels.forEach((model, index) => {
-        const row = aiModelsContainer.createDiv({ cls: "webhook-profile-row" });
-        const nameInput = row.createEl("input", {
-          type: "text",
-          value: model,
-          cls: "webhook-name-input",
-          attr: { placeholder: "\u6A21\u578B\u540D\u79F0 (\u5982 Gemini 3.1)" }
-        });
-        nameInput.oninput = async () => {
-          this.plugin.settings.customAiModels[index] = nameInput.value;
-          await this.plugin.saveSettings();
-          refreshAiDropdownOptions();
-        };
-        const actions = row.createDiv({ cls: "webhook-profile-actions" });
-        const deleteBtn = actions.createEl("button", {
-          text: "\u5220\u9664",
-          cls: "btn-text-only webhook-delete-btn"
-        });
-        deleteBtn.onclick = async () => {
-          if (this.plugin.settings.customAiModels.length <= 1) {
-            new import_obsidian19.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A\u5904\u7406\u6A21\u578B");
-            return;
-          }
-          this.plugin.settings.customAiModels.splice(index, 1);
-          if (this.plugin.settings.aiModel === model) {
-            this.plugin.settings.aiModel = this.plugin.settings.customAiModels[0];
-          }
-          await this.plugin.saveSettings();
-          refreshAiDropdownOptions();
-          renderAiModels();
-        };
-      });
-    };
-    renderAiModels();
-    new import_obsidian19.Setting(aiSection).addButton(
-      (button) => button.setButtonText("\u6DFB\u52A0\u65B0\u6A21\u578B").onClick(async () => {
-        this.plugin.settings.customAiModels.push("\u65B0\u6A21\u578B");
-        await this.plugin.saveSettings();
-        refreshAiDropdownOptions();
-        renderAiModels();
-      })
+    new import_obsidian20.Setting(section3).setName("\u5904\u7406\u6A21\u578B").setDesc(
+      `\u7531\u540E\u7AEF .env \u91CC\u7684 VS_CHAT_MODEL \u51B3\u5B9A\uFF0C\u6240\u6709\u603B\u7ED3\u6B65\u9AA4\u5171\u7528\u4E00\u4E2A\u6A21\u578B\u3002\u4E0A\u6B21\u68C0\u67E5\uFF1A${this.plugin.settings.aiModel || "\u8FD8\u6CA1\u68C0\u67E5"}\u3002\u6362\u6A21\u578B\u65F6\u6539 .env\uFF0C\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C\u3002`
     );
-    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u5904\u7406\u6A21\u578B").setDesc("\u5728 n8n \u4E2D\u4F7F\u7528\u7684\u9ED8\u8BA4\u6A21\u578B\u6807\u7B7E").addDropdown((dropdown) => {
-      aiDropdown = dropdown;
-      dropdown.onChange(async (value) => {
-        this.plugin.settings.aiModel = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    refreshAiDropdownOptions();
-    new import_obsidian19.Setting(section3).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian20.Setting(section3).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
@@ -21181,34 +23234,34 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
   }
   createOutputSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "folder", "\u7B14\u8BB0");
-    new import_obsidian19.Setting(section3).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
+    new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
+    new import_obsidian20.Setting(section3).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u5728\u5E93\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002").addText(
-      (text) => text.setPlaceholder("\u4F8B\u5982: Videos/2024").setValue(this.plugin.settings.outputFolder).onChange(async (value) => {
+    new import_obsidian20.Setting(section3).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u5728\u5E93\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002").addText(
+      (text2) => text2.setPlaceholder("\u4F8B\u5982: Videos/2024").setValue(this.plugin.settings.outputFolder).onChange(async (value) => {
         try {
           const normalized = normalizeVideoSummaryBaseFolder(value.trim());
           this.plugin.settings.outputFolder = normalized;
           await this.plugin.saveSettings();
         } catch {
-          text.setValue(this.plugin.settings.outputFolder);
-          new import_obsidian19.Notice("\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5E93\u5185\u7684\u5B89\u5168\u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002", 6e3);
+          text2.setValue(this.plugin.settings.outputFolder);
+          new import_obsidian20.Notice("\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5E93\u5185\u7684\u5B89\u5168\u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002", 6e3);
         }
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F").setDesc(
+    new import_obsidian20.Setting(section3).setName("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F").setDesc(
       "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002"
     ).addText(
-      (text) => text.setPlaceholder(DEFAULT_QUOTE_TEMPLATE).setValue(this.plugin.settings.readerQuoteTemplate).onChange(async (value) => {
+      (text2) => text2.setPlaceholder(DEFAULT_QUOTE_TEMPLATE).setValue(this.plugin.settings.readerQuoteTemplate).onChange(async (value) => {
         this.plugin.settings.readerQuoteTemplate = value.trim() || DEFAULT_QUOTE_TEMPLATE;
         await this.plugin.saveSettings();
       })
@@ -21218,13 +23271,13 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
     const { section: section3 } = this.sectionCard(containerEl, "zap", "\u547D\u4EE4\u9762\u677F\u91CC\u7684\u4E00\u952E\u5904\u7406");
     const summarySubsection = section3.createDiv({ cls: "vs-subsection" });
     summarySubsection.createDiv({ text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian19.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    new import_obsidian20.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian20.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -21232,13 +23285,13 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
     );
     const transcriptSubsection = section3.createDiv({ cls: "vs-subsection" });
     transcriptSubsection.createDiv({ text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian19.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
+    new import_obsidian20.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian20.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -21247,29 +23300,29 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
   }
   createFileProcessingSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "files", "\u6587\u4EF6\u4E0E\u547D\u540D");
-    new import_obsidian19.Setting(section3).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
+    new import_obsidian20.Setting(section3).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
+    new import_obsidian20.Setting(section3).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
       (drop) => drop.addOption("append-number", "\u8FFD\u52A0\u7F16\u53F7").addOption("append-date", "\u8FFD\u52A0\u65E5\u671F").addOption("skip", "\u8DF3\u8FC7").setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
+    new import_obsidian20.Setting(section3).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
-      (text) => text.setPlaceholder("\u4F8B\u5982 success").setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
+    new import_obsidian20.Setting(section3).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
+      (text2) => text2.setPlaceholder("\u4F8B\u5982 success").setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
-          new import_obsidian19.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
+          new import_obsidian20.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
         }
         this.plugin.settings.successStatusValue = normalized;
         await this.plugin.saveSettings();
@@ -21284,8 +23337,8 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
     });
     const keys = this.plugin.settings.payloadKeys;
     const createKeySetting = (name, desc, key) => {
-      new import_obsidian19.Setting(section3).setName(name).setDesc(desc).addText(
-        (text) => text.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
+      new import_obsidian20.Setting(section3).setName(name).setDesc(desc).addText(
+        (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
           keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
           this.plugin.api.setPayloadKeys(keys);
           await this.plugin.saveSettings();
@@ -21302,14 +23355,14 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
   }
   createAdvancedSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "wrench", "\u7F13\u5B58\u4E0E\u8C03\u8BD5");
-    new import_obsidian19.Setting(section3).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
+    new import_obsidian20.Setting(section3).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
+    new import_obsidian20.Setting(section3).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
       "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.preflightCheckEnabled !== false).onChange(async (value) => {
@@ -21317,7 +23370,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian19.Setting(section3).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
+    new import_obsidian20.Setting(section3).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
       "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002"
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
@@ -21326,7 +23379,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    const historyLimitSetting = new import_obsidian19.Setting(section3).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
+    const historyLimitSetting = new import_obsidian20.Setting(section3).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
       `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`
     ).addSlider(
       (slider) => slider.setLimits(100, 1e3, 50).setValue(this.plugin.settings.historyLimit ?? 300).setDynamicTooltip().onChange(async (value) => {
@@ -21339,28 +23392,28 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
     );
     const cacheSubsection = section3.createDiv({ cls: "vs-subsection" });
     cacheSubsection.createDiv({ text: "\u7F13\u5B58\u914D\u7F6E", cls: "vs-subsection-title" });
-    const cacheStatusSetting = new import_obsidian19.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
+    const cacheStatusSetting = new import_obsidian20.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
       (button) => button.setButtonText("\u{1F4CA} \u67E5\u770B\u72B6\u6001").setClass("cache-status-btn").onClick(async () => {
         try {
           const stats = this.plugin.api.getCacheStats();
           await this.showCachePreviewModal(stats);
         } catch (error) {
           console.error("\u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-          new import_obsidian19.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+          new import_obsidian20.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${errorMessage(error)}`, 5e3);
         }
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian19.Setting(cacheSubsection).setName("\u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
+    const enableCacheSetting = new import_obsidian20.Setting(cacheSubsection).setName("\u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
         await this.plugin.saveSettings();
-        new import_obsidian19.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
+        new import_obsidian20.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian19.Setting(cacheSubsection).setName("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
+    const expirySetting = new import_obsidian20.Setting(cacheSubsection).setName("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
       (slider) => slider.setLimits(1, 365, 1).setValue(this.plugin.settings.cacheExpiryDays ?? 30).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.cacheExpiryDays = value;
         this.plugin.api.setCacheConfig(1e3, value);
@@ -21381,7 +23434,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new import_obsidian19.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+        new import_obsidian20.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
       }
     };
     const cleanupBtn = quickActionsContainer.createEl("button", {
@@ -21392,10 +23445,10 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       try {
         this.plugin.api.cleanupCache();
         const stats = this.plugin.api.getCacheStats();
-        new import_obsidian19.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
+        new import_obsidian20.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
       } catch (error) {
         console.error("\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25:", error);
-        new import_obsidian19.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+        new import_obsidian20.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
       }
     };
     const clearBtn = quickActionsContainer.createEl("button", {
@@ -21415,10 +23468,10 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       if (confirmed) {
         try {
           this.plugin.api.clearCache();
-          new import_obsidian19.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
+          new import_obsidian20.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
         } catch (error) {
           console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-          new import_obsidian19.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+          new import_obsidian20.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
         }
       }
     };
@@ -21437,7 +23490,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
    * 显示缓存预览模态框
    */
   async showCachePreviewModal(stats) {
-    const modal = new import_obsidian20.Modal(this.app);
+    const modal = new import_obsidian21.Modal(this.app);
     modal.modalEl.addClass("ap", "ap-modal");
     modal.titleEl.setText("\u{1F4CA} \u7F13\u5B58\u9884\u89C8");
     const { contentEl } = modal;
@@ -21448,7 +23501,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error("\u274C \u5237\u65B0\u6A21\u6001\u6846\u5185\u5BB9\u5931\u8D25:", error);
-        new import_obsidian19.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+        new import_obsidian20.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${errorMessage(error)}`, 5e3);
       }
     };
     const renderModalContent = async (container, currentStats) => {
@@ -21471,7 +23524,7 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
       addStatCard("\u603B\u5927\u5C0F", this.formatBytes(currentStats.totalSize));
       if (currentStats.size > 0) {
         const previewSection = container.createDiv({ cls: "cache-preview-content" });
-        new import_obsidian19.Setting(previewSection).setName("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8").setHeading();
+        new import_obsidian20.Setting(previewSection).setName("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8").setHeading();
         await this.showCacheContentPreview(previewSection);
       } else {
         const emptySection = container.createDiv({ cls: "cache-empty-section" });
@@ -21557,9 +23610,9 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new import_obsidian19.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
+            new import_obsidian20.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
           } catch (error) {
-            new import_obsidian19.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+            new import_obsidian20.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${errorMessage(error)}`, 5e3);
           }
         };
       }
@@ -21620,11 +23673,11 @@ var VideoSummarySettingTab = class extends import_obsidian19.PluginSettingTab {
         "zh",
         testResult
       );
-      new import_obsidian19.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
+      new import_obsidian20.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
       this.plugin.api.getCacheStats();
     } catch (error) {
       console.error("\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25:", error);
-      new import_obsidian19.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+      new import_obsidian20.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
     }
   }
   /**

@@ -1,0 +1,275 @@
+{
+  "id": "vsSpeechToText01",
+  "name": "Video Summary 语音转写",
+  "nodes": [
+    {
+      "id": "fc0241d7-0dcc-4ff6-8c02-41d70dcc1ff6",
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "audio_file_path"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ad350b09-f192-4789-8d35-0b09f192d789",
+      "name": "CMD: Split Audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "command": "={{ (() => { const file = String($json.audio_file_path || \"\"); if (!file.startsWith(\"/home/node/\")) { throw new Error(\"audio_file_path must be inside the container\"); } const token = encodeURIComponent(file).replace(/[!'()*]/g, (c) => \"%\" + c.charCodeAt(0).toString(16).toUpperCase()); return \"node -e '(async function splitAudioProgram() {\\n  const fs = await import('\\\\''node:fs'\\\\'');\\n  const path = await import('\\\\''node:path'\\\\'');\\n  const crypto = await import('\\\\''node:crypto'\\\\'');\\n  const { spawnSync } = await import('\\\\''node:child_process'\\\\'');\\n\\n  const token = String(process.argv[1] || '\\\\'''\\\\'');\\n  if (!/^[A-Za-z0-9._~%-]{1,4096}$/.test(token)) throw new Error('\\\\''Audio path token is invalid'\\\\'');\\n  const requested = decodeURIComponent(token);\\n  if (!requested.startsWith('\\\\''/'\\\\'') || /[\\\\0\\\\r\\\\n]/.test(requested)) {\\n    throw new Error('\\\\''Audio path must be absolute'\\\\'');\\n  }\\n  const roots = ['\\\\''/home/node/files/'\\\\'', '\\\\''/home/node/uploads/'\\\\''];\\n  const real = fs.realpathSync(requested);\\n  const link = fs.lstatSync(requested);\\n  if (\\n    link.isSymbolicLink() ||\\n    !fs.statSync(real).isFile() ||\\n    !roots.some((root) => real.startsWith(root))\\n  ) {\\n    throw new Error('\\\\''Audio file must be a regular file under the uploads or working folder'\\\\'');\\n  }\\n\\n  const now = Date.now();\\n  for (const name of fs.readdirSync('\\\\''/home/node/files'\\\\'')) {\\n    if (!/^stt-[a-f0-9]{12}$/.test(name)) continue;\\n    const dir = path.join('\\\\''/home/node/files'\\\\'', name);\\n    if (now - fs.statSync(dir).mtimeMs > 6 * 60 * 60 * 1000)\\n      fs.rmSync(dir, { recursive: true, force: true });\\n  }\\n\\n  const workdir = `/home/node/files/stt-${crypto.randomBytes(6).toString('\\\\''hex'\\\\'')}`;\\n  fs.mkdirSync(workdir);\\n  const probe = spawnSync(\\n    '\\\\''ffprobe'\\\\'',\\n    ['\\\\''-v'\\\\'', '\\\\''error'\\\\'', '\\\\''-show_entries'\\\\'', '\\\\''format=duration'\\\\'', '\\\\''-of'\\\\'', '\\\\''default=nw=1:nk=1'\\\\'', real],\\n    { encoding: '\\\\''utf8'\\\\'', timeout: 60000 },\\n  );\\n  const duration = Number.parseFloat(String(probe.stdout || '\\\\'''\\\\'').trim()) || 0;\\n  const chunkSeconds = 600;\\n  const result = spawnSync(\\n    '\\\\''ffmpeg'\\\\'',\\n    [\\n      '\\\\''-nostdin'\\\\'',\\n      '\\\\''-hide_banner'\\\\'',\\n      '\\\\''-loglevel'\\\\'',\\n      '\\\\''error'\\\\'',\\n      '\\\\''-y'\\\\'',\\n      '\\\\''-i'\\\\'',\\n      real,\\n      '\\\\''-vn'\\\\'',\\n      '\\\\''-ac'\\\\'',\\n      '\\\\''1'\\\\'',\\n      '\\\\''-ar'\\\\'',\\n      '\\\\''16000'\\\\'',\\n      '\\\\''-c:a'\\\\'',\\n      '\\\\''libmp3lame'\\\\'',\\n      '\\\\''-b:a'\\\\'',\\n      '\\\\''48k'\\\\'',\\n      '\\\\''-f'\\\\'',\\n      '\\\\''segment'\\\\'',\\n      '\\\\''-segment_time'\\\\'',\\n      String(chunkSeconds),\\n      '\\\\''-reset_timestamps'\\\\'',\\n      '\\\\''1'\\\\'',\\n      path.join(workdir, '\\\\''part-%03d.mp3'\\\\''),\\n    ],\\n    { encoding: '\\\\''utf8'\\\\'', timeout: 60 * 60 * 1000, maxBuffer: 8 * 1024 * 1024 },\\n  );\\n  if (result.status !== 0) {\\n    fs.rmSync(workdir, { recursive: true, force: true });\\n    throw new Error(\\n      `ffmpeg could not read the audio: ${String(result.stderr || '\\\\'''\\\\'').slice(0, 500)}`,\\n    );\\n  }\\n  const parts = fs\\n    .readdirSync(workdir)\\n    .filter((name) => /^part-\\\\d{3}\\\\.mp3$/.test(name))\\n    .sort()\\n    .map((name, index) => {\\n      const file = path.join(workdir, name);\\n      const size = fs.statSync(file).size;\\n      if (size > 45 * 1024 * 1024)\\n        throw new Error('\\\\''An audio chunk exceeded the 45 MB upload limit'\\\\'');\\n      const start = index * chunkSeconds;\\n      const end = duration ? Math.min(duration, start + chunkSeconds) : start + chunkSeconds;\\n      return { path: file, index, start, end };\\n    });\\n  if (parts.length === 0) {\\n    fs.rmSync(workdir, { recursive: true, force: true });\\n    throw new Error('\\\\''The file has no audio track'\\\\'');\\n  }\\n  process.stdout.write(JSON.stringify({ workdir, duration, parts }));\\n})().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });' \" + token; })() }}"
+      }
+    },
+    {
+      "id": "a7984892-4dee-456d-8798-48924dee456d",
+      "name": "Code: Audio Parts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const parsed = JSON.parse(String($input.first().json.stdout || '{}'));\n  if (!Array.isArray(parsed.parts) || parsed.parts.length === 0) {\n    throw new Error('Audio splitting returned no parts');\n  }\n  return parsed.parts.map((part) => ({\n    json: { ...part, workdir: parsed.workdir, duration: parsed.duration },\n  }));"
+      }
+    },
+    {
+      "id": "1b01d610-7892-43c9-8b01-d6107892f3c9",
+      "name": "Read Audio Part",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "fileSelector": "={{ $json.path }}",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      }
+    },
+    {
+      "id": "05ba1b33-77ea-4685-85ba-1b3377eaf685",
+      "name": "Speech to Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "__VS_SPEECH_BASE_URL__/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "__VS_SPEECH_MODEL__"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "vsSpeechKey00001",
+          "name": "Video Summary 语音转写"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "83e6d01c-6440-42c3-83e6-d01c6440f2c3",
+      "name": "Code: Join Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const parts = $('Code: Audio Parts').all();\n  const results = $input.all();\n  const clean = (value) =>\n    String(value || '')\n      .replace(/<\\|[^|>]*\\|>/g, '')\n      .replace(/\\s+\\n/g, '\\n')\n      .trim();\n  const segments = results.map((item, index) => {\n    const part = parts[index]?.json || {};\n    const text = clean(item.json.text);\n    return {\n      id: `stt-${String(index + 1).padStart(3, '0')}`,\n      start: Number(part.start) || 0,\n      end: Number(part.end) || 0,\n      text,\n    };\n  });\n  return [\n    {\n      json: {\n        workdir: parts[0]?.json.workdir || '',\n        full_transcript: segments\n          .map((segment) => segment.text)\n          .filter(Boolean)\n          .join('\\n'),\n        video_segments: segments.filter((segment) => segment.text),\n        timing_quality: 'estimated',\n        transcript_source: 'asr',\n      },\n    },\n  ];"
+      }
+    },
+    {
+      "id": "07b01603-50c9-47fa-87b0-160350c987fa",
+      "name": "CMD: Clean Up",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "command": "={{ (() => { const dir = String($json.workdir || \"\"); if (!/^\\/home\\/node\\/files\\/stt-[a-f0-9]{12}$/.test(dir)) { throw new Error(\"Unexpected working folder\"); } return \"node -e '(async function cleanUpProgram() {\\n  const fs = await import('\\\\''node:fs'\\\\'');\\n  const dir = String(process.argv[1] || '\\\\'''\\\\'');\\n  if (!/^\\\\/home\\\\/node\\\\/files\\\\/stt-[a-f0-9]{12}$/.test(dir))\\n    throw new Error('\\\\''Refusing to remove that path'\\\\'');\\n  fs.rmSync(dir, { recursive: true, force: true });\\n  process.stdout.write('\\\\''removed'\\\\'');\\n})().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });' \" + dir; })() }}"
+      }
+    },
+    {
+      "id": "0323d3c8-2332-4801-8323-d3c82332d801",
+      "name": "Set: Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "835e811b-b87f-4731-835e-811bb87f5731",
+              "name": "full_transcript",
+              "value": "={{ $('Code: Join Transcript').item.json.full_transcript }}",
+              "type": "string"
+            },
+            {
+              "id": "120319d7-e78d-4f6e-8203-19d7e78dff6e",
+              "name": "video_segments",
+              "value": "={{ $('Code: Join Transcript').item.json.video_segments }}",
+              "type": "array"
+            },
+            {
+              "id": "8e93a4e5-84c6-4048-8e93-a4e584c66048",
+              "name": "timing_quality",
+              "value": "={{ $('Code: Join Transcript').item.json.timing_quality }}",
+              "type": "string"
+            },
+            {
+              "id": "29d34815-66fb-4719-89d3-481566fb2719",
+              "name": "transcript_source",
+              "value": "={{ $('Code: Join Transcript').item.json.transcript_source }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "CMD: Split Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CMD: Split Audio": {
+      "main": [
+        [
+          {
+            "node": "Code: Audio Parts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Audio Parts": {
+      "main": [
+        [
+          {
+            "node": "Read Audio Part",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Audio Part": {
+      "main": [
+        [
+          {
+            "node": "Speech to Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Speech to Text": {
+      "main": [
+        [
+          {
+            "node": "Code: Join Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Join Transcript": {
+      "main": [
+        [
+          {
+            "node": "CMD: Clean Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CMD: Clean Up": {
+      "main": [
+        [
+          {
+            "node": "Set: Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "videoSummaryWorkflow": {
+      "name": "Video Summary 语音转写",
+      "version": "3.0.0",
+      "role": "speech-to-text",
+      "chunkSeconds": 600
+    }
+  },
+  "active": false
+}

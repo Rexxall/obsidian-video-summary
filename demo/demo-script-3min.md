@@ -27,4 +27,4 @@ while short-video platforms may require cookies.
 ## 2:45 - 3:00
 
 Show the install guide and GitHub release assets: `main.js`, `manifest.json`, `styles.css`, and
-`Obsidian Video Summary.json`.
+the backend package.

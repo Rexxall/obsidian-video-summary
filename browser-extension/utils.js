@@ -15,7 +15,8 @@
     obsidianRestPort: 27123,
     obsidianRestToken: '',
     codexWorkerUrl: 'http://127.0.0.1:8787/video-summary/jobs',
-    n8nWebhookUrl: 'http://localhost:5678/webhook/video-summary-merge',
+    n8nWebhookUrl: 'http://127.0.0.1:5678/webhook/obsidian-video-summary',
+    n8nToken: '',
     webhookFormat: 'unified',
     defaultMode: 'summary',
     defaultLanguage: 'zh',
@@ -199,12 +200,57 @@
     };
   }
 
+  /** The backend start script's connection code: `<webhook URL>#token=<token>`. */
+  function parseConnectionCode(raw) {
+    const text = String(raw || '').trim();
+    let parsed;
+    try {
+      parsed = new URL(text);
+    } catch {
+      return null;
+    }
+    if (!/^https?:$/.test(parsed.protocol)) return null;
+    const token = new URLSearchParams(parsed.hash.replace(/^#/, '')).get('token') || '';
+    if (!/^[A-Za-z0-9_-]{24,128}$/.test(token)) return null;
+    parsed.hash = '';
+    return { url: parsed.toString(), token };
+  }
+
+  /** chrome.cookies results as a Netscape cookies.txt, the format yt-dlp reads. */
+  function buildNetscapeCookies(cookies) {
+    const lines = ['# Netscape HTTP Cookie File'];
+    for (const cookie of cookies || []) {
+      if (
+        !cookie ||
+        !cookie.domain ||
+        !cookie.name ||
+        /[\t\r\n]/.test(`${cookie.name}${cookie.value}`)
+      ) {
+        continue;
+      }
+      const domain = cookie.hostOnly ? cookie.domain : `.${cookie.domain.replace(/^\./, '')}`;
+      lines.push(
+        [
+          cookie.httpOnly ? `#HttpOnly_${domain}` : domain,
+          cookie.hostOnly ? 'FALSE' : 'TRUE',
+          cookie.path || '/',
+          cookie.secure ? 'TRUE' : 'FALSE',
+          String(Math.floor(cookie.expirationDate || 0)),
+          cookie.name,
+          cookie.value || '',
+        ].join('\t'),
+      );
+    }
+    return `${lines.join('\n')}\n`;
+  }
+
   global.VideoCaptureUtils = {
     DEFAULT_SETTINGS,
     VIDEO_HOST_PATTERNS,
     appendTimestamp,
     buildLegacyBridgePayload,
     buildMarkdownLink,
+    buildNetscapeCookies,
     buildObsidianFilePath,
     buildObsidianAppendUri,
     buildObsidianNewUri,
@@ -216,6 +262,7 @@
     detectPlatform,
     formatTimestamp,
     isVideoUrl,
+    parseConnectionCode,
     sanitizeFilename,
     stripTimestamp,
   };

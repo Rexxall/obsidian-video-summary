@@ -621,8 +621,17 @@
 
         <div class="group-title">连接</div>
         <div class="field">
-          <label for="setting-n8n">n8n Webhook</label>
-          <input id="setting-n8n" />
+          <label for="setting-n8n">后端连接码</label>
+          <input
+            id="setting-n8n"
+            type="password"
+            autocomplete="off"
+            placeholder="粘贴启动脚本给的连接码"
+          />
+        </div>
+        <div class="field">
+          <label for="btn-sync-bilibili">B 站登录</label>
+          <button id="btn-sync-bilibili" type="button">同步到后端</button>
         </div>
         <div class="field">
           <label for="setting-webhook-format">请求格式</label>

@@ -6,7 +6,7 @@
 
 把视频链接、本地录音录像和现成文稿，整理成带时间戳出处、可检索的 Obsidian 笔记。
 
-[What's new](#whats-new-in-270) · [Install](#install) · [n8n workflow](#n8n-workflow) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
+[What's new](#whats-new-in-280) · [Install](#install) · [Backend](#backend) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/panel-dark.jpg">
@@ -20,28 +20,39 @@ general-purpose n8n workflow; the plugin can also talk to a compatible external 
 It keeps the reader-facing result in Markdown and stores structured evidence, learning state, and
 reproducibility metadata as local plugin sidecars.
 
-## What's new in 2.7.0
+## What's new in 2.8.0
 
-- **New glass design.** The side panel, every dialog, the settings page and the browser extension were redone in the style of current macOS: content on solid grouped lists and cards, the tab bar and dialogs on glass, one accent colour (yours from Obsidian), capsule buttons and segmented controls. It follows light/dark mode and falls back to solid surfaces under the system's reduce-transparency and increase-contrast settings. The "Paper & ink style" option is gone, in the plugin and in the extension.
-- Browser extension 0.5.0: the same design, with grouped settings and switches.
-
-  <img src="docs/screenshots/batch.jpg" width="860">
-
-- **Quote the transcript into your notes.** In Reader, right-click a transcript line to copy it as
-  a quote or insert it at the cursor of the note you were editing, or drag the line into a note.
-  The quote links back to that second of the video. Change the format in Settings → 输出 →
-  文稿引用格式 (`{{text}}`, `{{time}}`, `{{link}}`, `{{url}}`, `{{speaker}}`, `{{title}}`,
-  `{{note}}`).
-- **Collect the video links in a note.** New command 收集当前笔记里的视频链接到侧栏 puts every
-  supported video link from the current note, including its properties, into the side panel's add
-  box, once per video. Pick a mode and start; nothing runs until you do.
-- n8n webhook requests now go through Obsidian's own network layer, like the Worker requests, so a
-  browser CORS policy can no longer block them.
-- Settings section titles use Obsidian's native headings; the webhook rows, batch progress and
-  language switch use theme classes instead of inline styles.
-- Command names no longer start with emoji, so they read cleanly in the command palette.
-- Deleting a note from the library follows your Obsidian "Deleted files" setting.
-- Requires Obsidian 1.8.7 or later.
+- **One-download backend.** The release now has `video-summary-backend-2.8.0.zip` in place of the
+  bare n8n workflow. Unzip it, double-click `start-mac.command` (macOS) or `start-windows.cmd`
+  (Windows), paste your keys, and it builds and starts n8n with yt-dlp and ffmpeg. It switches to
+  mainland-China mirrors by itself when Docker Hub is unreachable, picks a free port when 5678 is
+  taken, and prints a connection code. Nothing to import or click in n8n: credentials and both
+  workflows are created on first start.
+- **One model for everything.** Every AI step uses one OpenAI-compatible model, set in `.env`.
+  Default DeepSeek `deepseek-flash`; SiliconFlow, Qwen, Kimi or Gemini need only a different
+  address and model name. The ten per-provider model nodes and unused branches are gone (61 → 51
+  nodes).
+- **Speech-to-text included.** Videos without subtitles and local audio/video work out of the box
+  with SiliconFlow's free SenseVoice. Long audio is cut into 10-minute parts and joined in order.
+  Local images are read by an OpenAI-compatible vision model; PDFs by n8n's own text extraction.
+- **Bilibili first.** Uploader subtitles, then Bilibili's AI subtitles, then speech-to-text;
+  danmaku is never used as a transcript. New in the setup wizard: scan a QR code with the Bilibili
+  app to give your backend the login it needs for subtitles. Browser extension 0.6.0 can sync the
+  login too, and now sends the backend password with its requests.
+- **First-run setup in the plugin.** Settings → 视频总结 → 首次配置: paste the connection code
+  from the clipboard, run the full check (backend, code, workflow version, yt-dlp and ffmpeg,
+  model key and name, speech-to-text, Bilibili login), then a trial run. Every failed step says
+  what to change. Wrong or missing model keys now end a job with that message instead of four
+  silent retries.
+- The plugin no longer keeps a list of model labels; the model name shown with each result comes
+  from the backend.
+- **Fixed (affects 2.7.0):** requests from the plugin to the backend failed inside Obsidian with
+  "Failed to resolve module specifier 'obsidian'"; the bundle now loads Obsidian's API with
+  `require`. Also fixed: every Bilibili link stopped at "Short-link redirect limit exceeded";
+  logged-in Bilibili videos ignored their AI subtitles; `local_file: '…'` written with quotes was
+  never found; links failed in n8n 2.x Code nodes, which have no `URL` global.
+- Downloaded audio and subtitles older than a day are removed from the backend's working volume.
+- Install guide rewritten in Chinese, with shorter English and Japanese versions.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).
 
@@ -155,10 +166,6 @@ styles.css
 
 Restart Obsidian, then enable `Video Summary` from `Settings -> Community plugins`.
 
-The separately attached `Obsidian.Video.Summary.json` is an n8n import, not an Obsidian plugin
-file. Its source in the repository is `Obsidian Video Summary.json`; the release uses a
-space-free asset name so downloaded checksums remain directly verifiable.
-
 This release is desktop-only. Its manifest minimum is Obsidian 1.8.7 and it was exercised on
 Obsidian 1.12.7. The generated `.base` library views require Obsidian 1.9.10 or newer with the
 Bases core plugin enabled.
@@ -186,43 +193,18 @@ Recommended folder:
 <your-vault>/.obsidian/plugins/video-summary/
 ```
 
-### n8n workflow
+### Backend
 
-Import `Obsidian Video Summary.json` into n8n and configure your own service credentials inside n8n.
-The repository never includes private credentials, cookies, personal cache files, or vault data.
+Download `video-summary-backend-<version>.zip` from the same release, unzip it outside your vault,
+and run `start-mac.command` (macOS), `start-windows.cmd` (Windows) or `./vs-backend.sh` (Linux).
+It needs Docker Desktop or OrbStack, builds n8n with yt-dlp and ffmpeg, asks for your model and
+speech-to-text keys, and prints a connection code. Paste that code into Settings → 视频总结 →
+首次配置 and run the check. The full guide is [INSTALL.md](INSTALL.md) (Chinese), with
+[English](docs/INSTALL.en.md) and [Japanese](docs/INSTALL.ja.md) versions.
 
-Default webhook:
-
-```text
-http://127.0.0.1:5678/webhook/obsidian-video-summary
-```
-
-The public workflow requires n8n Header Auth even on localhost. Create a Header Auth credential
-with a random value (recommended header name `X-Video-Summary-Token`), select it on the `Webhook`
-node, and enter the same header name and secret in the active Obsidian Webhook profile. The workflow
-cannot be activated safely until that credential is selected.
-
-Model credentials stay in n8n. The optional `Gemini Vision` OCR node uses an unbound Header Auth
-credential: set its header name to `x-goog-api-key`, its value to your Gemini API key, and select it
-on that node. Never paste a model key into a URL, node parameter, workflow export, or support chat.
-
-The public workflow deliberately leaves both ASR subworkflow selectors at
-`CONFIGURE_ASR_WORKFLOW_ID`. Native subtitles and pasted transcripts work without that integration;
-videos with no usable subtitle and local audio/video require your own ASR subworkflow. Configure the
-two `SubFlow: Transcript...` nodes using the
-[ASR subworkflow contract](docs/ASR_SUBWORKFLOW_CONTRACT.md).
-
-For bundled n8n local-file processing, copy media directly into `docker/uploads/` and submit only
-the basename. Subdirectories and host absolute paths are rejected. URI capture can still save an
-absolute local path offline, but automatic processing requires a Worker configured with an explicit
-media root that contains that file.
-
-For a full setup guide, see [INSTALL.md](INSTALL.md).
-
-If you are setting this up for the first time, also read
-[Beginner Deployment Test and Troubleshooting](docs/BEGINNER_DEPLOYMENT_TEST.md). It records
-real clean-environment install issues and fixes, including Docker, n8n, webhook paths, local
-files, cookies, and credentials.
+The backend listens only on `127.0.0.1` and requires the connection code's token on every
+request. Keys stay in the backend's `.env` and n8n's credential store; the repository never
+includes credentials, cookies or vault data. See [backend/SECURITY.md](backend/SECURITY.md).
 
 For a publishing-ready walkthrough, see the sample notes and scripts in [demo/](demo/).
 
@@ -335,7 +317,7 @@ or usage payment.
   platform requests.
 - A local-media input can include a path that is sent as text to your configured backend. The
   backend, not the plugin, decides whether it can read that file. The bundled n8n setup accepts only
-  safe basenames placed directly in `docker/uploads/`; a compatible Worker must define and enforce
+  safe basenames placed directly in the backend's `uploads/` folder; a compatible Worker must define and enforce
   its own allowed media root.
 - Reader auto-plays only media files that resolve to an existing file inside the current vault.
   Absolute paths and `http:`, `https:`, `file:`, or `app:` values in `local_file` are never assigned
@@ -434,7 +416,7 @@ the manifest version. Before each submission or release, confirm:
 
 ## 中文说明
 
-**是什么：** 一个 Obsidian 插件。贴一个视频链接（YouTube、B 站、抖音、TikTok、小红书等）、选一个本地音视频文件，或者直接粘贴文稿，它会交给你自己部署的处理服务（仓库附带 n8n 工作流），拿回结构化的总结和带时间戳的文稿，写成 Obsidian 笔记。
+**是什么：** 一个 Obsidian 插件。贴一个视频链接（YouTube、B 站、抖音、TikTok、小红书等）、选一个本地音视频文件，或者直接粘贴文稿，它会交给你自己部署的处理服务（仓库附带一键启动的 n8n 后端），拿回结构化的总结和带时间戳的文稿，写成 Obsidian 笔记。
 
 **特点：**
 
@@ -442,7 +424,7 @@ the manifest version. Before each submission or release, confirm:
 - 重新处理时只替换插件自己的区块，你写在笔记里的内容不会被覆盖；处理期间你改过笔记，插件会停下来，不会覆盖。
 - 侧栏可以看任务进度、取消任务、跟着时间戳阅读文稿。
 
-**安装：** 从 Releases 下载 `video-summary-<version>.zip`，把三个文件解压到 `<库>/.obsidian/plugins/video-summary/`，在“第三方插件”里启用；再按上面 n8n 一节导入工作流。
+**安装：** 在第三方插件里装好插件；从 Releases 下载 `video-summary-backend-<version>.zip`，解压后双击启动脚本，按提示填 DeepSeek 和硅基流动的密钥；最后把它给的连接码粘贴到 设置 → 视频总结 → 首次配置。完整步骤和排错见 [安装教程](INSTALL.md)。
 
 ## 日本語
 

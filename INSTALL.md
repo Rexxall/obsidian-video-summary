@@ -1,315 +1,168 @@
-# Installation Guide
+# 安装教程
 
-This guide covers local installation, n8n setup, and the checks needed before sharing the plugin publicly.
+[English](docs/INSTALL.en.md) · [日本語](docs/INSTALL.ja.md)
 
-## Requirements
+视频总结由两部分组成：
 
-- Obsidian desktop app
-- Node.js 20 or newer when building from source
-- npm
-- The repository's custom self-hosted Docker environment for the bundled n8n processing path
-- A configured n8n workflow based on `Obsidian Video Summary.json`, or an already deployed
-  compatible Worker endpoint
+- **Obsidian 插件：** 在笔记里贴链接、看进度、读结果。
+- **后端：** 在你自己电脑上运行，负责下载字幕或音频、转文字、调用模型写总结。它跑在 Docker 里，用一个启动脚本就能装好，不需要会写代码。
 
-The included workflow uses Execute Command nodes, `/home/node/` mounts, `yt-dlp`, and ffmpeg. The
-repository's custom Docker image is the supported default. n8n Cloud, a standard n8n image, and a
-plain npm-only install are not drop-in replacements; an advanced self-hosted deployment must expose
-equivalent commands, tools, paths, and mounts.
+整个过程大约 20 分钟，其中第一次构建后端要等 5–15 分钟。
 
-The optional Codex Worker service is not included in this repository or release. It is required
-only for Worker-specific progress/cancellation and `deep-visual` processing.
+## 0. 先准备
 
-The manifest minimum is Obsidian 1.8.7, and this release was exercised on Obsidian 1.12.7.
-Generated `.base` library views require Obsidian 1.9.10 or newer with the Bases core plugin
-enabled.
+| 要什么                                               | 做什么用                                 | 去哪里拿                                                                                            |
+| ---------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Obsidian 桌面版                                      | 写笔记                                   | [obsidian.md](https://obsidian.md)                                                                  |
+| Docker Desktop（Windows、macOS）或 OrbStack（macOS） | 运行后端                                 | [Docker Desktop](https://www.docker.com/products/docker-desktop/)、[OrbStack](https://orbstack.dev) |
+| DeepSeek 密钥                                        | 写总结                                   | [DeepSeek 开放平台](https://platform.deepseek.com/api_keys)，充值几元就够用很久                     |
+| 硅基流动密钥                                         | 没有字幕的视频、本地音视频转文字；读图片 | [硅基流动](https://cloud.siliconflow.cn/account/ak)，语音转写模型免费                               |
+| 哔哩哔哩账号（可选）                                 | 拿 B 站字幕和 AI 字幕                    | 手机客户端扫码即可                                                                                  |
 
-## 1. Install the plugin
+**费用：** 以下价格按 2026-10-29 的官方价格页核对，以对方页面为准。
 
-### Release ZIP
+- **DeepSeek：** 默认模型 `deepseek-flash` 每百万词元输入 1–2 元、输出 4–8 元，工作日白天是高峰价，其余时间半价（[价格页](https://api-docs.deepseek.com/zh-cn/quick_start/pricing)）。总结一个半小时以内的视频通常只要几分钱。
+- **硅基流动：** 语音转写模型 `FunAudioLLM/SenseVoiceSmall` 免费（[价格页](https://siliconflow.cn/pricing)），但账户里要有余额：实测余额为 0 时，连免费模型也会被拒绝（402），充值一两元即可。读图片默认用 `Qwen/Qwen3-VL-8B-Instruct`，按量计费，读一张图通常不到一分钱。
+- **实测：** 2026-10-29 验收时跑了 8 次总结（包括一段 47 分钟的视频），DeepSeek 一共花了约 0.4 元（非高峰时段）。
 
-Download `video-summary-<version>.zip` and its matching `SHA256SUMS` from the canonical
-[latest GitHub release](https://github.com/Rexxall/obsidian-video-summary/releases/latest).
-On macOS or Linux, verify the ZIP with:
+只想用一家？可以全部用硅基流动：把总结模型也换成硅基流动上的 DeepSeek，见 [换模型](#换模型)。
 
-```bash
-grep 'video-summary-<version>.zip' SHA256SUMS | shasum -a 256 -c -
-```
+## 1. 安装插件
 
-Then extract it into:
+在 Obsidian 里打开 **设置 → 第三方插件 → 浏览**，搜索 **Video Summary**，安装并启用。
 
-```text
-<your-vault>/.obsidian/plugins/video-summary/
-```
+如果商店里暂时搜不到：从 [最新 Release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 下载 `video-summary-<版本>.zip`，把里面的 `main.js`、`manifest.json`、`styles.css` 三个文件放进 `<你的库>/.obsidian/plugins/video-summary/`，重启 Obsidian 后在第三方插件里启用。
 
-The folder must directly contain `main.js`, `manifest.json`, and `styles.css`.
+## 2. 安装并打开 Docker
 
-### Build from source
+装好 Docker Desktop 或 OrbStack 后打开它，等它显示正在运行（Docker Desktop 左下角是绿色的 Engine running）。以后每次开机，后端都会随 Docker 自动启动。
 
-```bash
-git clone https://github.com/Rexxall/obsidian-video-summary.git
-cd obsidian-video-summary
-npm install
-npm run build
-```
+## 3. 下载并启动后端
 
-## 2. Install into a vault
+1. 从 [最新 Release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 下载 `video-summary-backend-<版本>.zip`。
+2. 解压到一个不会被删掉的位置，例如“文稿”或 `D:\`。**不要放进 Obsidian 库里**，否则会被同步软件同步。
+3. 打开解压出来的 `video-summary-backend` 文件夹：
+   - **macOS：** 右键点 `start-mac.command`，选“打开”。第一次 macOS 会问是否打开来自网络的文件，选“打开”。
+   - **Windows：** 双击 `start-windows.cmd`。如果出现“Windows 已保护你的电脑”，点“更多信息 → 仍要运行”。
+4. 按提示粘贴两个密钥。输入时屏幕上不显示内容，粘贴后直接按回车；暂时没有的可以直接回车跳过，以后再填。
+5. 等待。第一次要下载和构建，约 5–15 分钟。脚本会自动判断网络：连不上 Docker Hub 时自动改用国内镜像。
+6. 看到“好了”和一行 **连接码** 就成功了。连接码已经复制到剪贴板。
 
-Create the plugin folder:
+启动脚本最后会显示（连接码里的端口可能是 5679 等，以实际显示为准）：
 
 ```text
-<your-vault>/.obsidian/plugins/video-summary/
+等待后端就绪.......... 好了。
+
+连接码（在 Obsidian → 设置 → 视频总结 → 首次配置 里粘贴）：
+
+  http://127.0.0.1:5678/webhook/obsidian-video-summary#token=…
+
+已复制到剪贴板。
 ```
 
-Copy these plugin files into that folder:
+**连接码** 长这样：`http://127.0.0.1:5678/webhook/obsidian-video-summary#token=…`。它相当于后端的口令，不要发给别人。忘了的话，在后端文件夹里运行 `./vs-backend.sh code`（Windows：`.\vs-backend.ps1 code`）可以再显示一次。
 
-```text
-main.js
-manifest.json
-styles.css
-```
+## 4. 在 Obsidian 里完成首次配置
 
-Restart Obsidian and enable `Video Summary` from `Settings -> Community plugins`.
+打开 **设置 → 视频总结**，最上面是 **首次配置**：
 
-`Obsidian Video Summary.json` is a separate n8n workflow import. Do not copy it into the Obsidian
-plugin folder.
+1. **① 连接码：** 点“从剪贴板粘贴”。
+2. **② 检查：** 点“完整检查”。它会确认后端、连接码、模型和语音转写都能用。哪一项不对，会直接写出怎么改。
+3. **③ 试运行：** 用一段内置短文稿生成一次总结，看到“跑通了”就说明整条流程没问题。
+4. **④ 哔哩哔哩登录（可选）：** 点“扫码登录”，用 B 站手机客户端扫一下并确认。之后有字幕的 B 站视频会直接用字幕（包括 B 站的 AI 字幕），更快也更准；不登录也能用，只是会改用语音转写。
 
-## 3. Start n8n
+<img src="docs/screenshots/setup-check.jpg" width="640" alt="首次配置：完整检查全部通过">
 
-Recommended Docker path:
+## 5. 总结第一个视频
 
-```bash
-cd docker
-mkdir -p n8n-data files uploads cookies
-docker compose -f docker-compose.video-summary.yml up --build
-```
-
-This custom image includes n8n, `yt-dlp`, and `ffmpeg`. The official `n8nio/n8n` image does not
-include the media tools required by the workflow.
-
-If Bilibili returns `HTTP Error 412: Precondition Failed`, rebuild the image without Docker cache so
-the container gets the latest `yt-dlp`:
-
-```bash
-docker compose -f docker-compose.video-summary.yml build --no-cache
-docker compose -f docker-compose.video-summary.yml up -d
-docker compose -f docker-compose.video-summary.yml exec n8n-video-summary yt-dlp --version
-```
-
-Open:
-
-```text
-http://localhost:5678
-```
-
-## 4. Import the workflow
-
-1. In n8n, create a new workflow.
-2. Choose `Import from File`.
-3. Select `Obsidian Video Summary.json`.
-4. Create an n8n **Header Auth** credential with a random value. Use
-   `X-Video-Summary-Token` as the recommended header name, then select it on the `Webhook` node.
-5. Configure the Google Gemini model nodes with your own n8n credentials. For the optional
-   `Gemini Vision` OCR node, create a separate Header Auth credential whose name is
-   `x-goog-api-key` and whose value is your Gemini API key; select it on that node. Do not put the
-   key in a URL or ordinary node parameter.
-6. Create or select an ASR subworkflow that follows
-   [docs/ASR_SUBWORKFLOW_CONTRACT.md](docs/ASR_SUBWORKFLOW_CONTRACT.md).
-7. In the main workflow, open `SubFlow: Transcript` and
-   `SubFlow: Transcript from Local File`; replace `CONFIGURE_ASR_WORKFLOW_ID` by selecting your
-   saved ASR workflow.
-8. Save and activate the workflow.
-
-You can defer steps 6–7 if you only use pasted transcripts or videos with usable native subtitles.
-Without them, no-subtitle videos and local audio/video cannot use the ASR fallback.
-
-Default production webhook:
-
-```text
-http://127.0.0.1:5678/webhook/obsidian-video-summary
-```
-
-If port `5678` is already in use, change the Docker host port and update the Obsidian plugin URL.
-For a full list of beginner setup issues and fixes, see
-[docs/BEGINNER_DEPLOYMENT_TEST.md](docs/BEGINNER_DEPLOYMENT_TEST.md).
-
-The bundled workflow's internal contract version is `2.1.5` (independent of the plugin release
-version), its webhook path is `obsidian-video-summary`, and its included model labels are
-`Gemini 3.1` / `Gemini 3.0`.
-
-## 5. Configure the plugin
-
-In Obsidian settings, open `Video Summary`.
-
-Required:
-
-- Webhook URL: `http://127.0.0.1:5678/webhook/obsidian-video-summary`
-- Webhook Header: the same header name selected in n8n (recommended
-  `X-Video-Summary-Token`).
-- Webhook Secret: the same random Header Auth value. It is stored locally in the plugin settings;
-  do not reuse a model API key or account password.
-
-Recommended:
-
-- Request timeout: 10 minutes
-- Batch concurrency: 2 or 3
-- Cache: enabled
-- Debug mode: disabled unless you are troubleshooting
-- Run the setup check in the plugin settings before sending a real video.
-- Native subtitle language: leave it automatic. The bundled n8n workflow chooses the video's original
-  audio language and does not use the note output language for subtitle selection.
-- Processing depth: use `quick` or `evidence` with n8n. n8n does not perform real frame analysis and
-  will downgrade `deep-visual` to `evidence`.
-
-Optional:
-
-- Put browser-exported cookies in the mounted `cookies` folder when a platform requires login.
-- Expected cookie filenames: `youtube_cookies.txt`, `bilibili_cookies.txt`,
-  `douyin_cookies.txt`, `tiktok_cookies.txt`, and `xiaohongshu_cookies.txt`.
-
-- Add more profiles for local or staging endpoints. The bundled n8n 2.4.2 setup supports only the
-  same-machine endpoint; use a remote profile only with a separately hardened compatible service
-  protected by TLS, authentication, rate limiting, and its own security review.
-- Change payload key names if your n8n workflow uses different field names.
-- Add more processing model labels if your n8n switch node supports them.
-
-For platform-specific expectations, see
-[docs/PLATFORM_CAPABILITY_MATRIX.md](docs/PLATFORM_CAPABILITY_MATRIX.md).
-For the exact n8n / Worker / capture boundary, see
-[docs/BACKEND_CAPABILITY_MATRIX.md](docs/BACKEND_CAPABILITY_MATRIX.md).
-
-## 6. Create a note
-
-URL input:
+新建一篇笔记，写上：
 
 ```yaml
 ---
-link: 'https://www.youtube.com/watch?v=example'
+link: 'https://www.bilibili.com/video/BV…'
 status: pending
 ---
 ```
 
-Local file input:
+然后点左侧栏的视频总结图标，或运行命令“处理当前笔记”。也可以直接在侧栏的输入框里粘贴链接。
 
-```yaml
----
-local_file: 'lecture-01.mp4'
-status: pending
----
-```
+| 输入                        | 后端怎么做                                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------------------- |
+| 有字幕的 B 站、YouTube 视频 | 直接用字幕，最快                                                                             |
+| 没有字幕的视频              | 下载音频，用语音转写，长音频自动按 10 分钟切段                                               |
+| 本地音视频                  | 先把文件放进后端文件夹的 `uploads` 里，再在笔记里写 `local_file: '文件名.mp4'`（只写文件名） |
+| 本地图片、PDF               | 同上放进 `uploads`；PDF 直接提取文字，图片用识图模型读                                       |
+| 已经有文稿                  | 粘贴到侧栏的“粘贴文稿”，不经过下载和转写                                                     |
 
-For the bundled n8n workflow, first copy the file directly into `docker/uploads/`, then use only its
-basename. Subdirectories and macOS/Windows absolute paths are rejected. An absolute path can be
-processed only by a separately configured Worker or compatible endpoint that confines access to an
-explicit media root.
+## 平台说明
 
-Multiple local files:
+- **B 站：** 优先使用。顺序是“UP 主上传的字幕 → B 站 AI 字幕 → 语音转写”。AI 字幕需要先完成第 4 步的扫码登录。
+- **YouTube：** 在中国大陆需要代理。在后端的 `.env` 里填 `VS_HTTP_PROXY`（例如 `http://host.docker.internal:7890`），再运行一次启动脚本。
+- **抖音、小红书、TikTok：** 尽力而为。平台经常改接口，失败时多半要更新下载器（运行 `./vs-backend.sh update`）或导入登录 cookie；实在不行，就把文案复制出来走“粘贴文稿”。
 
-```yaml
----
-local_file: 'part-1.mp3, part-2.mp3, part-3.mp3'
-status: pending
----
-```
+## 日常使用
 
-## 7. Run a command
+在后端文件夹里运行（Windows 把 `./vs-backend.sh` 换成 `.\vs-backend.ps1`）：
 
-Open the command palette and run one of:
+| 命令                     | 作用                                                 |
+| ------------------------ | ---------------------------------------------------- |
+| `./vs-backend.sh`        | 启动；改过 `.env` 后也用它让设置生效                 |
+| `./vs-backend.sh check`  | 检查模型、语音转写和 B 站登录是否可用                |
+| `./vs-backend.sh code`   | 再显示一次连接码                                     |
+| `./vs-backend.sh keys`   | 重新输入密钥                                         |
+| `./vs-backend.sh logs`   | 看后端日志                                           |
+| `./vs-backend.sh stop`   | 停止后端（数据保留）                                 |
+| `./vs-backend.sh update` | 更新下载器和基础镜像；B 站、抖音突然下载失败时先试它 |
 
-- `快速总结当前笔记`
-- `快速提取文稿`
-- `更新视频信息（不改正文）`
-- `批量处理视频`
-- `搜索跨模态视频记忆`
-- `生成多视频论点实验室`
-- `复习当前视频的学习卡`
-- `复习所有到期的视频学习卡`
-- `用本地可复现工件重新处理`
-- `生成或安全更新视频库 Base`
+升级到新版本：下载新的后端压缩包，解压覆盖旧文件夹（`.env`、`uploads`、`cookies` 会保留），再运行 `./vs-backend.sh update`。
 
-If you upgrade from a manually installed 2.4.1 build, reassign any custom Video Summary shortcuts
-in Obsidian's Hotkeys settings. Version 2.4.2 changes the internal command IDs to comply with the
-community-directory requirements; command labels and behavior are unchanged.
+### 换模型
 
-## Local knowledge data
+所有总结步骤共用一个模型，任何兼容 OpenAI 接口的服务都可以。改后端文件夹里的 `.env`，再运行一次启动脚本：
 
-Since version 2.4.1, structured state is stored below the installed plugin folder:
+| 服务             | `VS_CHAT_BASE_URL`                                        | `VS_CHAT_MODEL`                   |
+| ---------------- | --------------------------------------------------------- | --------------------------------- |
+| DeepSeek（默认） | `https://api.deepseek.com`                                | `deepseek-flash`                  |
+| 硅基流动         | `https://api.siliconflow.cn/v1`                           | `deepseek-ai/DeepSeek-V4.1-Flash` |
+| 通义千问         | `https://dashscope.aliyuncs.com/compatible-mode/v1`       | `qwen-plus`                       |
+| Kimi             | `https://api.moonshot.cn/v1`                              | 以 Kimi 控制台的模型列表为准      |
+| Gemini（可选）   | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-flash-latest`             |
 
-```text
-data/knowledge-artifacts/
-data/learning-progress/
-data/reproducibility/
-data/course-manifests/
-```
+`VS_CHAT_API_KEY` 填对应服务的密钥。语音转写（`VS_SPEECH_*`）和识图（`VS_VISION_*`）同理，可以换成任何兼容 `/audio/transcriptions` 和 `/chat/completions` 的服务。
 
-This can include transcripts, evidence, claims, learning attempts, and course progress. Keep it in
-private backups if you need it, and do not publish it with a source checkout or release.
+## 排错
 
-## Troubleshooting
+先在 Obsidian 的“首次配置”里点“完整检查”，它会给出具体做法。常见情况：
 
-### Cannot connect to n8n
+| 现象                                                                                    | 原因                                            | 怎么办                                                        |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| 启动脚本说“没有找到 Docker”或“Docker 没有在运行”                                        | Docker 没装或没打开                             | 打开 Docker Desktop／OrbStack，等它显示运行中，再运行启动脚本 |
+| macOS 提示“无法打开，因为它来自身份不明的开发者”                                        | 系统对下载文件的保护                            | 右键 `start-mac.command` →“打开”                              |
+| 第一次构建卡在下载很久                                                                  | 网络慢                                          | 在 `.env` 设 `VS_MIRROR=cn` 强制用国内镜像，再运行启动脚本    |
+| “端口 5678 已被占用，改用 5679”                                                         | 电脑上已有别的 n8n                              | 不用管，连接码里已经是新端口                                  |
+| 检查显示“连不上后端”                                                                    | 后端没在运行                                    | 打开 Docker，再运行启动脚本                                   |
+| 检查显示“后端还没准备好”                                                                | 刚启动，n8n 还在加载                            | 等一分钟再检查                                                |
+| 检查显示“连接码不对”                                                                    | 重新生成过 `.env`，或复制不完整                 | 运行 `./vs-backend.sh code`，重新粘贴                         |
+| 总结模型“服务商不认这个密钥”                                                            | 密钥填错或已删除                                | 运行 `./vs-backend.sh keys` 重新输入                          |
+| 总结模型或语音转写“余额不足”“Payment required”                                          | 账户没钱了；硅基流动余额为 0 时免费模型也不能用 | 到服务商控制台充值一两元                                      |
+| “服务商的模型列表里没有这个名字”                                                        | `VS_CHAT_MODEL` 写错                            | 按上面的换模型表核对                                          |
+| “后端连不上 api.xxx.com”                                                                | 网络或代理问题                                  | 检查网络；需要代理时填 `VS_HTTP_PROXY`                        |
+| B 站视频下载报 412                                                                      | B 站拦截了旧版下载器                            | 运行 `./vs-backend.sh update`；仍不行就在首次配置里扫码登录   |
+| B 站视频没用字幕、走了语音转写                                                          | 没登录，或视频本身没有字幕                      | 扫码登录；没有字幕的视频只能转写                              |
+| 本地文件报“must be a supported file name placed directly in the backend uploads folder” | 文件不在 `uploads` 里，或写了路径               | 把文件放进后端的 `uploads`，笔记里只写文件名                  |
+| 笔记里出现“Error: 模型调用失败”                                                         | 模型密钥、余额或模型名有问题                    | 按错误后面的提示改 `.env`                                     |
 
-Check:
+还解决不了：运行 `./vs-backend.sh logs`，把最后几十行（先删掉看起来像密钥的内容）附在 [Issue](https://github.com/Rexxall/obsidian-video-summary/issues) 里。
 
-- n8n is running.
-- The webhook URL is correct.
-- The workflow is active.
-- The endpoint is reachable from the machine running Obsidian.
+## 安全说明
 
-### Processing times out
+- 后端只在本机 `127.0.0.1` 上开放，局域网和外网访问不到。
+- 密钥只存在后端文件夹的 `.env` 和后端自己的数据卷里，插件不保存模型密钥。
+- B 站登录信息只交给你自己的后端，用于下载字幕，插件不保存。
+- 不要把后端端口改成对外开放；确实需要远程访问时，见 [backend/SECURITY.md](backend/SECURITY.md)。
 
-Try:
+## 进阶
 
-- Increase timeout in plugin settings.
-- Reduce batch concurrency.
-- Test the same URL directly in n8n.
-- Check whether the video platform blocks download or transcript extraction.
-
-### Video cannot be processed
-
-Check:
-
-- The URL is publicly accessible or your workflow has the required cookies.
-- The platform is supported by your download step.
-- The note has `link`, `local_file`, or pasted transcript content.
-- Both transcript subflow nodes point to an existing ASR workflow when no native subtitle is
-  available.
-
-### Output quality is poor
-
-Tune the generation prompt and model selection inside n8n. The plugin validates and organizes the
-returned evidence, but generation quality still depends on the configured workflow and model.
-
-### Deep visual is unavailable
-
-The bundled n8n path supports `evidence`, not real frame analysis. Deep visual requires a separately
-deployed compatible Worker with ffmpeg and a configured visual model. The Worker is not included in
-this repository.
-
-## Public release checklist
-
-Before posting the project publicly:
-
-- Run `npm run build`.
-- Confirm `manifest.json` version matches the Git tag.
-- Confirm `main.js`, `manifest.json`, and `styles.css` are attached to the release.
-- Confirm the install ZIP contains only those three files at its root.
-- Confirm the optional n8n asset is attached as `Obsidian.Video.Summary.json`.
-- Confirm `SHA256SUMS` matches every uploaded custom asset.
-- Confirm `README.md`, `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, and `CONTRIBUTING.md` are committed.
-- Confirm ignored local files are not tracked by Git.
-- Confirm workflow exports contain no private credentials, cookies, local absolute vault paths, or personal transcripts.
-
-## Development
-
-```bash
-npm install
-npm run dev
-```
-
-In another terminal, run n8n and keep Obsidian open with the plugin enabled.
-
-For a production build:
-
-```bash
-npm run build
-```
+- **改用自己的 n8n：** 安装包里的工作流在 `workflows/` 文件夹，凭据由 `init/configure.mjs` 生成，可以参考。手动导入时要自己装 yt-dlp 和 ffmpeg，并设置 `NODES_EXCLUDE` 放行 Execute Command 节点。
+- **换语音转写方案：** 见 [语音转写子流程约定](docs/ASR_SUBWORKFLOW_CONTRACT.md)。
+- **从源码构建插件：** `npm install && npm run build`。

@@ -15,6 +15,7 @@ import {
   upgradeWorkflow,
   validateWorkflow,
 } from '../tools/upgrade-workflow-v3.mjs';
+import { CREDENTIALS, WORKFLOW_IDS, buildSpeechWorkflow } from '../tools/backend-workflow.mjs';
 
 function loadWorkflow() {
   return JSON.parse(readFileSync(DEFAULT_WORKFLOW_PATH, 'utf8'));
@@ -101,15 +102,10 @@ test('workflow upgrade is idempotent and passes structural validation', () => {
 
 test('public workflow security revision is consistently versioned', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
-  const testResponseNode = workflow.nodes.find(
-    (candidate) => candidate.name === 'Respond to Webhook: Test',
-  );
-  const testResponse = JSON.parse(testResponseNode.parameters.responseBody);
-
-  assert.equal(PUBLIC_WORKFLOW_VERSION, '2.1.5');
+  assert.equal(PUBLIC_WORKFLOW_VERSION, '3.0.0');
   assert.equal(workflow.version, PUBLIC_WORKFLOW_VERSION);
   assert.equal(workflow.meta.videoSummaryWorkflow.version, PUBLIC_WORKFLOW_VERSION);
-  assert.equal(testResponse.workflow.version, PUBLIC_WORKFLOW_VERSION);
+  assert.match(nodeCode(workflow, 'Code: Health Report'), /"version":"3\.0\.0"/);
 });
 
 test('public workflow does not embed a private user profile', () => {
@@ -123,14 +119,7 @@ test('public workflow does not embed a private user profile', () => {
 
 test('active AI prompt expressions remain syntactically executable', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
-  for (const name of [
-    'AI Agent',
-    'AI Agent1',
-    'AI Agent2',
-    'AI Agent3',
-    'AI Agent5',
-    'AI Agent6',
-  ]) {
+  for (const name of ['AI Agent1', 'AI Agent6']) {
     const node = workflow.nodes.find((candidate) => candidate.name === name);
     assert.ok(node, `Missing node: ${name}`);
     const materialized = materializeN8nPromptExpression(node.parameters.text);
@@ -140,14 +129,7 @@ test('active AI prompt expressions remain syntactically executable', () => {
 
 test('all active AI prompts carry every durable content route contract', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
-  for (const name of [
-    'AI Agent',
-    'AI Agent1',
-    'AI Agent2',
-    'AI Agent3',
-    'AI Agent5',
-    'AI Agent6',
-  ]) {
+  for (const name of ['AI Agent1', 'AI Agent6']) {
     const node = workflow.nodes.find((candidate) => candidate.name === name);
     assert.ok(node, `Missing node: ${name}`);
     assert.match(node.parameters.text, new RegExp(CONTENT_ROUTE_PROMPT_MARKER));
@@ -167,17 +149,19 @@ test('all active AI prompts carry every durable content route contract', () => {
   }
 });
 
-test('public workflow requires an explicit local ASR subworkflow selection', () => {
+test('transcript subflows call the bundled speech-to-text workflow', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
-  for (const name of ['SubFlow: Transcript', 'SubFlow: Transcript from Local File']) {
+  for (const name of [
+    'SubFlow: Transcript',
+    'SubFlow: Transcript from Local File',
+    'Health: Speech to Text',
+  ]) {
     const node = workflow.nodes.find((candidate) => candidate.name === name);
     assert.ok(node, `Missing node: ${name}`);
-    assert.deepEqual(node.parameters.workflowId, {
-      __rl: true,
-      value: 'CONFIGURE_ASR_WORKFLOW_ID',
-      mode: 'id',
-    });
+    assert.equal(node.parameters.workflowId.value, WORKFLOW_IDS.speech);
+    assert.equal(node.parameters.workflowId.mode, 'id');
   }
+  assert.equal(buildSpeechWorkflow().id, WORKFLOW_IDS.speech);
 });
 
 test('incoming video URLs require HTTPS and an exact supported hostname', () => {
@@ -259,22 +243,59 @@ test('download commands contain only a URL token and fixed runner arguments', ()
   assert.doesNotThrow(() => new vm.Script(`(async function () {\n${MEDIA_RUNNER_PROGRAM}\n})`));
 });
 
-test('public workflow requires unbound n8n credentials instead of inline secrets', () => {
+test('every AI step shares one model and only packaged credentials are referenced', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
   const webhook = workflow.nodes.find((candidate) => candidate.name === 'Webhook');
-  const geminiVision = workflow.nodes.find((candidate) => candidate.name === 'Gemini Vision');
-
   assert.equal(webhook.parameters.authentication, 'headerAuth');
-  assert.equal(webhook.credentials, undefined);
-  assert.equal(geminiVision.parameters.authentication, 'genericCredentialType');
-  assert.equal(geminiVision.parameters.genericAuthType, 'httpHeaderAuth');
-  assert.equal(geminiVision.parameters.sendQuery, undefined);
-  assert.equal(geminiVision.parameters.queryParameters, undefined);
-  assert.equal(geminiVision.credentials, undefined);
+  assert.equal(webhook.credentials.httpHeaderAuth.id, CREDENTIALS.webhook.id);
 
-  const serialized = JSON.stringify(workflow);
-  assert.doesNotMatch(serialized, /YOUR_GEMINI_API_KEY/i);
-  assert.doesNotMatch(serialized, /[?&]key=/i);
+  const models = workflow.nodes.filter((node) => /\.lmChat/.test(node.type));
+  assert.deepEqual(
+    models.map((node) => node.name),
+    ['Model: Chat'],
+  );
+  assert.deepEqual(
+    workflow.connections['Model: Chat'].ai_languageModel[0].map((edge) => edge.node).sort(),
+    ['AI Agent1', 'AI Agent6'],
+  );
+  assert.equal(models[0].parameters.model.value, '__VS_CHAT_MODEL__');
+  assert.ok(
+    !workflow.nodes.some((node) => /googleGemini|Gemini/i.test(`${node.type} ${node.name}`)),
+  );
+
+  const known = new Set(Object.values(CREDENTIALS).map((credential) => credential.id));
+  for (const flow of [workflow, buildSpeechWorkflow()]) {
+    for (const node of flow.nodes) {
+      for (const reference of Object.values(node.credentials || {})) {
+        assert.ok(known.has(reference.id), `${node.name} uses ${reference.id}`);
+      }
+    }
+    const serialized = JSON.stringify(flow);
+    assert.doesNotMatch(serialized, /YOUR_GEMINI_API_KEY|[?&]key=|sk-[A-Za-z0-9]{8}/i);
+  }
+
+  // Every node except the triggers and the model is reachable.
+  const targets = new Set();
+  for (const kinds of Object.values(workflow.connections)) {
+    for (const branches of Object.values(kinds)) {
+      for (const branch of branches) for (const edge of branch || []) targets.add(edge.node);
+    }
+  }
+  const orphans = workflow.nodes
+    .filter((node) => !targets.has(node.name) && !['Webhook', 'Model: Chat'].includes(node.name))
+    .map((node) => node.name);
+  assert.deepEqual(orphans, []);
+});
+
+test('model errors that retrying cannot fix end the run with an actionable message', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  const [item] = executeNodeCode(
+    nodeCode(workflow, 'Code: Parse AI JSON Output & Manage Retries'),
+    [{ json: { error: 'Authorization failed - please check your credentials' } }],
+    { 'Set: Final Transcript for AI': { video_transcript: 'x' } },
+  );
+  assert.equal(item.json.trigger_ai_retry, false);
+  assert.match(item.json.output.summary, /VS_CHAT_API_KEY/);
 });
 
 test('workflow command nodes never interpolate the raw webhook link', () => {
@@ -302,18 +323,15 @@ test('workflow command nodes never interpolate the raw webhook link', () => {
 });
 
 test('bundled n8n is pinned and published on localhost only', () => {
-  const dockerfile = readFileSync(
-    new URL('../docker/n8n-video-summary.Dockerfile', import.meta.url),
-    'utf8',
-  );
-  const compose = readFileSync(
-    new URL('../docker/docker-compose.video-summary.yml', import.meta.url),
-    'utf8',
-  );
+  const dockerfile = readFileSync(new URL('../backend/Dockerfile', import.meta.url), 'utf8');
+  const compose = readFileSync(new URL('../backend/compose.yaml', import.meta.url), 'utf8');
 
-  assert.match(dockerfile, /^ARG N8N_VERSION=2\.35\.7$/m);
-  assert.match(dockerfile, /^ARG YT_DLP_VERSION=2026\.8\.19$/m);
-  assert.match(compose, /127\.0\.0\.1:5678:5678/);
+  assert.match(dockerfile, /^ARG N8N_VERSION=2\.43\.8$/m);
+  assert.match(dockerfile, /^ARG YT_DLP_VERSION=2026\.10\.26$/m);
+  assert.match(compose, /'127\.0\.0\.1:\$\{VS_PORT:-5678\}:5678'/);
+  assert.match(compose, /NODES_EXCLUDE=\["n8n-nodes-base\.localFileTrigger"\]/);
+  assert.match(compose, /\.\/\.env:\/run\/video-summary\/config\.env:ro/);
+  assert.doesNotMatch(compose, /env_file/);
   assert.doesNotMatch(compose, /^\s*- ['"]?5678:5678['"]?\s*$/m);
   assert.match(
     compose,
@@ -369,7 +387,7 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
             },
           ],
         }),
-      /safe filenames/,
+      /backend uploads folder/,
       localFile,
     );
   }
@@ -387,14 +405,14 @@ test('local-file workflow paths remain inside the mounted uploads directory', ()
       body: { metadata: { local_file: localFile } },
     });
   assert.equal(evaluate('课程 01.mp4'), '/home/node/uploads/课程 01.mp4');
-  assert.throws(() => evaluate('../cookies/token.txt'), /safe filenames/);
-  assert.throws(() => evaluate('/etc/passwd'), /safe filenames/);
-  assert.throws(() => evaluate('$(touch hacked).mp3'), /safe filenames/);
-  assert.throws(() => evaluate('`touch hacked`.mp3'), /safe filenames/);
-  assert.throws(() => evaluate('quote"name.mp3'), /safe filenames/);
-  assert.throws(() => evaluate('semi;colon.mp3'), /safe filenames/);
-  assert.throws(() => evaluate('amp&ersand.mp3'), /safe filenames/);
-  assert.throws(() => evaluate('pipe|name.mp3'), /safe filenames/);
+  assert.throws(() => evaluate('../cookies/token.txt'), /backend uploads folder/);
+  assert.throws(() => evaluate('/etc/passwd'), /backend uploads folder/);
+  assert.throws(() => evaluate('$(touch hacked).mp3'), /backend uploads folder/);
+  assert.throws(() => evaluate('`touch hacked`.mp3'), /backend uploads folder/);
+  assert.throws(() => evaluate('quote"name.mp3'), /backend uploads folder/);
+  assert.throws(() => evaluate('semi;colon.mp3'), /backend uploads folder/);
+  assert.throws(() => evaluate('amp&ersand.mp3'), /backend uploads folder/);
+  assert.throws(() => evaluate('pipe|name.mp3'), /backend uploads folder/);
 });
 
 test('rich Set node expressions evaluate with representative context', () => {
@@ -575,10 +593,7 @@ test('both AI parsers preserve rich output and restore transcript evidence conte
     transcript_source: 'native_subtitle',
   };
 
-  for (const parserName of [
-    'Code: Parse AI JSON Output & Manage Retries',
-    'Code: Parse AI JSON Output & Manage Retries1',
-  ]) {
+  for (const parserName of ['Code: Parse AI JSON Output & Manage Retries']) {
     const result = executeNodeCode(
       nodeCode(workflow, parserName),
       [{ json: { output: JSON.stringify(richOutput) } }],
@@ -622,4 +637,25 @@ test('AI parse failure retains evidence context for retry', () => {
   assert.deepEqual(result.video_segments, transcriptContext.video_segments);
   assert.equal(result.video_transcript, transcriptContext.video_transcript);
   assert.match(result.parsing_error_details, /JSON解析失败/);
+});
+
+test('Code nodes that parse links work without a URL global, as in the n8n 2.x sandbox', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  const compose = readFileSync(new URL('../backend/compose.yaml', import.meta.url), 'utf8');
+  assert.match(compose, /NODE_FUNCTION_ALLOW_BUILTIN=url$/m);
+  for (const name of ['Code: Validate Video URL', 'Code: Detect Platform & Prepare Download']) {
+    const code = nodeCode(workflow, name);
+    assert.ok(code.startsWith("const URL = globalThis.URL || require('url').URL;"), name);
+    // Same sandbox shape as the n8n task runner: no URL, but require('url') is allowed.
+    const sandbox = { require: (id) => (id === 'url' ? { URL } : assert.fail(id)), Buffer };
+    const run = vm.runInNewContext(`(function ($input) {\n${code}\n})`, sandbox);
+    if (name === 'Code: Validate Video URL') {
+      const [item] = run({
+        all: () => [
+          { json: { body: { metadata: { link: 'https://www.bilibili.com/video/BV1uv411q7Mv' } } } },
+        ],
+      });
+      assert.equal(item.json.validated_video_url, 'https://www.bilibili.com/video/BV1uv411q7Mv');
+    }
+  }
 });

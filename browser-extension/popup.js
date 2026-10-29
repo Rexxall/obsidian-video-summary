@@ -278,7 +278,10 @@ function renderSettings() {
   els.settings.appendPath.value = s.appendPath || '';
   els.settings.quickAction.value = s.quickAction || 'create-pending-note';
   els.settings.codexWorkerUrl.value = s.codexWorkerUrl || U.DEFAULT_SETTINGS.codexWorkerUrl;
-  els.settings.n8nWebhookUrl.value = s.n8nWebhookUrl || U.DEFAULT_SETTINGS.n8nWebhookUrl;
+  els.settings.n8nWebhookUrl.value = '';
+  els.settings.n8nWebhookUrl.placeholder = s.n8nToken
+    ? `已保存：${s.n8nWebhookUrl}`
+    : '粘贴启动脚本给的连接码';
   els.settings.webhookFormat.value = s.webhookFormat || 'unified';
   els.settings.defaultMode.value = s.defaultMode || 'summary';
   els.settings.defaultLanguage.value = s.defaultLanguage || 'zh';
@@ -376,6 +379,30 @@ async function copyItems(items) {
   setStatus(`已复制 ${items.length} 个 Markdown 链接。`, 'success');
 }
 
+/** The connection code sets address and token; a plain URL changes only the address. */
+function backendFromInput(raw) {
+  const text = raw.trim();
+  if (!text) return {};
+  const code = U.parseConnectionCode(text);
+  if (code) return { n8nWebhookUrl: code.url, n8nToken: code.token };
+  return { n8nWebhookUrl: text };
+}
+
+async function syncBilibiliLogin() {
+  // Asked only when used, so the extension does not hold cookie access by default.
+  const granted = await chrome.permissions.request({
+    permissions: ['cookies'],
+    origins: ['https://*.bilibili.com/*'],
+  });
+  if (!granted) {
+    setStatus('没有允许读取 B 站 cookie，未同步。', 'error');
+    return;
+  }
+  setStatus('正在同步 B 站登录…');
+  const response = await send('SYNC_COOKIES', { platform: 'bilibili' });
+  setStatus(`已同步 ${response.result.count} 条 B 站 cookie 到后端。`, 'success');
+}
+
 async function saveSettings() {
   const settings = {
     vaultName: els.settings.vault.value.trim(),
@@ -383,7 +410,9 @@ async function saveSettings() {
     appendPath: els.settings.appendPath.value.trim(),
     quickAction: els.settings.quickAction.value,
     codexWorkerUrl: els.settings.codexWorkerUrl.value.trim(),
-    n8nWebhookUrl: els.settings.n8nWebhookUrl.value.trim(),
+    n8nWebhookUrl: state.settings.n8nWebhookUrl,
+    n8nToken: state.settings.n8nToken || '',
+    ...backendFromInput(els.settings.n8nWebhookUrl.value),
     webhookFormat: els.settings.webhookFormat.value,
     defaultMode: els.settings.defaultMode.value,
     defaultLanguage: els.settings.defaultLanguage.value,
@@ -478,6 +507,9 @@ function bindEvents() {
     setStatus('记录已清空。', 'success');
   });
   $('btn-save-settings').addEventListener('click', saveSettings);
+  $('btn-sync-bilibili').addEventListener('click', () =>
+    syncBilibiliLogin().catch((error) => setStatus(error.message, 'error')),
+  );
 }
 
 document.addEventListener('DOMContentLoaded', async () => {

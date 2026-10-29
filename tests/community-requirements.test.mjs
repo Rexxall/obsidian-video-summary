@@ -78,3 +78,9 @@ test('README discloses network and external-file access', async () => {
   assert.match(readme, /^### Files outside the vault$/m);
   assert.match(readme, /does not include client-side telemetry/i);
 });
+
+test('the bundle loads obsidian with require, never with a native import()', async () => {
+  const bundle = await readFile(new URL('../main.js', import.meta.url), 'utf8');
+  // Obsidian evaluates main.js as CommonJS; import('obsidian') fails there at request time.
+  assert.doesNotMatch(bundle, /\bimport\(\s*["']obsidian["']\s*\)/);
+});

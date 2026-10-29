@@ -1,27 +1,32 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  ACTIVE_AGENT_NAMES,
+  BACKEND_WORKFLOW_VERSION,
+  CREDENTIALS,
+  NODE_NAMES,
+  WORKFLOW_IDS,
+  applyBackendLayout,
+  buildSpeechWorkflow,
+} from './backend-workflow.mjs';
 
 const DEFAULT_WORKFLOW_PATH = fileURLToPath(
-  new URL('../Obsidian Video Summary.json', import.meta.url),
+  new URL('../backend/workflows/video-summary.json', import.meta.url),
+);
+const DEFAULT_SPEECH_WORKFLOW_PATH = fileURLToPath(
+  new URL('../backend/workflows/video-summary-speech.json', import.meta.url),
 );
 
-const ACTIVE_AI_AGENT_NAMES = [
-  'AI Agent',
-  'AI Agent1',
-  'AI Agent2',
-  'AI Agent3',
-  'AI Agent5',
-  'AI Agent6',
-];
+const ACTIVE_AI_AGENT_NAMES = ACTIVE_AGENT_NAMES;
 
 const RICH_PROMPT_MARKER = 'VIDEO_KNOWLEDGE_V3_EVIDENCE_OUTPUT';
 const CONTENT_ROUTE_PROMPT_MARKER = 'VIDEO_CONTENT_ROUTE_V1';
 const VIDEO_URL_SECURITY_MARKER = 'VIDEO_URL_SECURITY_V2';
-const PUBLIC_WORKFLOW_VERSION = '2.1.5';
-const ASR_WORKFLOW_PLACEHOLDER = 'CONFIGURE_ASR_WORKFLOW_ID';
+const PUBLIC_WORKFLOW_VERSION = BACKEND_WORKFLOW_VERSION;
+const URL_GLOBAL_LINE = "const URL = globalThis.URL || require('url').URL;";
 const ALLOWED_LOCAL_FILE_EXTENSIONS = [
   '.jpg',
   '.jpeg',
@@ -35,7 +40,7 @@ const ALLOWED_LOCAL_FILE_EXTENSIONS = [
   '.webm',
 ];
 const SAFE_LOCAL_FILE_EXPRESSION =
-  '={{ (() => { const input = String($json.body.metadata.local_file || ""); const files = input.split(",").map((value) => value.trim()).filter(Boolean); const allowed = new Set([".jpg",".jpeg",".png",".webp",".pdf",".mp3",".wav",".m4a",".mp4",".webm"]); const isSafe = (file) => { const dot = file.lastIndexOf("."); const extension = dot >= 0 ? file.slice(dot).toLowerCase() : ""; return file.length <= 255 && /^[\\p{L}\\p{N}][\\p{L}\\p{N} ._-]*$/u.test(file) && allowed.has(extension); }; if (!files.length || files.some((file) => !isSafe(file))) { throw new Error("local_file must contain safe filenames with supported extensions from the docker/uploads root"); } return files.length === 1 ? "/home/node/uploads/" + files[0] : ""; })() }}';
+  '={{ (() => { const input = String($json.body.metadata.local_file || ""); const files = input.split(",").map((value) => value.trim()).filter(Boolean); const allowed = new Set([".jpg",".jpeg",".png",".webp",".pdf",".mp3",".wav",".m4a",".mp4",".webm"]); const isSafe = (file) => { const dot = file.lastIndexOf("."); const extension = dot >= 0 ? file.slice(dot).toLowerCase() : ""; return file.length <= 255 && /^[\\p{L}\\p{N}][\\p{L}\\p{N} ._-]*$/u.test(file) && allowed.has(extension); }; if (!files.length || files.some((file) => !isSafe(file))) { throw new Error("local_file must be a supported file name placed directly in the backend uploads folder"); } return files.length === 1 ? "/home/node/uploads/" + files[0] : ""; })() }}';
 const TRANSCRIPT_SUBFLOW_NODE_NAMES = [
   'SubFlow: Transcript',
   'SubFlow: Transcript from Local File',
@@ -511,6 +516,9 @@ async function mediaCommandRunner() {
   async function resolveRestrictedRedirects(input, platform) {
     let current = validateVideoUrl(input, platform);
     for (let count = 0; count < 5; count += 1) {
+      // Canonical links are already final. Following them can loop: Bilibili redirects
+      // /video/BV… to /video/BV…/, which canonicalisation turns back into the first URL.
+      if (!shortHosts.has(current.hostname)) return current.url;
       const response = await fetch(current.url, {
         method: 'GET',
         headers: {
@@ -625,7 +633,24 @@ async function mediaCommandRunner() {
     return normalized.split('-')[0] || '';
   }
 
+  // Bilibili: uploader subtitles first, then Bilibili's own AI subtitles (ai-zh and other ai-*,
+  // which need a logged-in cookie). Danmaku is not a transcript. Returns one exact track name.
+  function selectBilibiliSubtitle(info) {
+    const tracks = Object.keys(info.subtitles || {}).filter(
+      (key) => key && key !== 'danmaku' && key !== 'live_chat',
+    );
+    const rank = (key) => {
+      const lower = key.toLowerCase();
+      if (!lower.startsWith('ai-') && lower.startsWith('zh')) return 0;
+      if (lower === 'ai-zh') return 1;
+      if (lower.startsWith('ai-')) return 3;
+      return 2;
+    };
+    return tracks.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))[0] || '';
+  }
+
   function selectSubtitleLanguages(info) {
+    if (validated.platform === 'bilibili') return selectBilibiliSubtitle(info);
     const keys = (object) => Object.keys(object || {}).filter((key) => key && key !== 'live_chat');
     const manual = keys(info.subtitles);
     const automatic = keys(info.automatic_captions);
@@ -681,11 +706,26 @@ async function mediaCommandRunner() {
     throw new Error('Media output stem is invalid');
   }
 
+  // Downloaded audio and subtitles are only needed during their own job; drop day-old ones.
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  for (const name of fs.readdirSync('/home/node/files')) {
+    if (!/^(?:audio|subtitle)_[A-Za-z0-9_-]+\.[A-Za-z0-9.-]+$/.test(name)) continue;
+    const file = `/home/node/files/${name}`;
+    try {
+      if (fs.statSync(file).mtimeMs < dayAgo) fs.rmSync(file, { force: true });
+    } catch {
+      // another job may have removed it already
+    }
+  }
+
   const decoded = decodeToken(token);
   const validated = validateVideoUrl(decoded, claimedPlatform);
   const link = await resolveRestrictedRedirects(validated.url, validated.platform);
   const commonArgs = [
     '--ignore-config',
+    // YouTube needs a JavaScript runtime for its player challenges; node is in the image.
+    '--js-runtimes',
+    'node',
     '--no-playlist',
     '--socket-timeout',
     '20',
@@ -694,8 +734,12 @@ async function mediaCommandRunner() {
 
   if (action === 'metadata') {
     if (validated.platform === 'bilibili') {
-      await bilibiliMetadata(link);
-      return;
+      try {
+        await bilibiliMetadata(link);
+        return;
+      } catch {
+        // The public view API answers 412 to unsigned requests at times; yt-dlp signs its own.
+      }
     }
     const result = run(
       'yt-dlp',
@@ -753,7 +797,15 @@ async function mediaCommandRunner() {
   }
   const metadataResult = run(
     'yt-dlp',
-    [...commonArgs, '--skip-download', '--dump-single-json', link],
+    // Bilibili lists subtitles only when they are asked for; the flags write nothing here.
+    [
+      ...commonArgs,
+      '--skip-download',
+      '--write-subs',
+      '--write-auto-subs',
+      '--dump-single-json',
+      link,
+    ],
     { allowFailure: true, timeout: 2 * 60 * 1000, maxBuffer: 32 * 1024 * 1024 },
   );
   if (metadataResult.status !== 0) {
@@ -1158,7 +1210,7 @@ export function runSplitLocalFilesNode($input) {
       !allowedExtensions.has(extension)
     ) {
       throw new Error(
-        'local_file must contain safe filenames with supported extensions from the docker/uploads root',
+        'local_file must be a supported file name placed directly in the backend uploads folder',
       );
     }
     return `/home/node/uploads/${fileName}`;
@@ -1195,6 +1247,23 @@ export function runAiParserNode($input, $, switchNodeName) {
     } catch (_error) {
       return {};
     }
+  }
+
+  function describeModelError(text) {
+    if (
+      /Authorization failed|\b401\b|invalid[^.]{0,40}api[ _-]?key|incorrect api key|unauthori[sz]ed/i.test(
+        text,
+      )
+    ) {
+      return '模型密钥无效或没有填写。检查后端 .env 里的 VS_CHAT_API_KEY，改完重新运行启动脚本。';
+    }
+    if (/\b402\b|payment required|insufficient[_ ]?(balance|quota)|余额不足|quota/i.test(text)) {
+      return '模型服务商账户余额不足或额度用完，请到服务商控制台充值或换一个密钥。';
+    }
+    if (/model[^.]{0,40}(not exist|not found|does not exist|invalid)|\b404\b/i.test(text)) {
+      return '服务商找不到这个模型名。检查 .env 里的 VS_CHAT_MODEL，名称以服务商文档为准。';
+    }
+    return '';
   }
 
   const finalTranscriptContext = nodeJson('Set: Final Transcript for AI');
@@ -1238,13 +1307,27 @@ export function runAiParserNode($input, $, switchNodeName) {
     };
 
     if (item.json.error) {
-      if (item.json.ai_retry_count < MAX_AI_RETRIES) {
+      const upstream = String(item.json.error);
+      const fatal = describeModelError(upstream);
+      if (fatal) {
+        // A wrong key or model name fails the same way every time; say so instead of retrying.
+        item.json.parsing_error_details = `模型调用失败：${fatal}`;
+        parsedDataForNextNode = {
+          summary: `Error: 模型调用失败。${fatal}`,
+          note: `Error: 模型调用失败。${fatal}\n\n服务商原话：${upstream.slice(0, 300)}`,
+        };
+        delete item.json.error;
+      } else if (item.json.ai_retry_count < MAX_AI_RETRIES) {
         item.json.ai_retry_count += 1;
         item.json.trigger_ai_retry = true;
-        item.json.parsing_error_details = `上游错误，第${item.json.ai_retry_count}次重试: ${item.json.error}`;
+        item.json.parsing_error_details = `上游错误，第${item.json.ai_retry_count}次重试: ${upstream}`;
         delete item.json.error;
       } else {
-        item.json.parsing_error_details = `上游错误，已达最大重试次数: ${item.json.error}`;
+        item.json.parsing_error_details = `上游错误，已达最大重试次数: ${upstream}`;
+        parsedDataForNextNode = {
+          summary: `Error: 模型多次调用失败。${upstream.slice(0, 300)}`,
+          note: `Error: 模型多次调用失败。${upstream.slice(0, 300)}`,
+        };
       }
     } else {
       const rawOutput = item.json.output;
@@ -1373,31 +1456,10 @@ export function upgradeWorkflow(workflow) {
   if (!upgraded.meta?.videoSummaryWorkflow) {
     throw new Error('Public workflow metadata is missing');
   }
-  upgraded.meta.videoSummaryWorkflow.version = PUBLIC_WORKFLOW_VERSION;
-  const testResponse = getNode(upgraded, 'Respond to Webhook: Test');
-  const testResponseBody = JSON.parse(testResponse.parameters.responseBody);
-  if (!testResponseBody.workflow) throw new Error('Workflow test response metadata is missing');
-  testResponseBody.workflow.version = PUBLIC_WORKFLOW_VERSION;
-  testResponse.parameters.responseBody = JSON.stringify(testResponseBody);
+  applyBackendLayout(upgraded);
+  upgraded.version = PUBLIC_WORKFLOW_VERSION;
 
   ensureVideoValidationNode(upgraded);
-
-  const webhook = getNode(upgraded, 'Webhook');
-  webhook.parameters.authentication = 'headerAuth';
-  delete webhook.credentials;
-  webhook.notesInFlow = true;
-  webhook.notes =
-    'Required setup: create an n8n Header Auth credential (recommended name X-Video-Summary-Token with a random value), select it on this node, and enter the same header name/value in the Obsidian plugin. Keep the bundled deployment on 127.0.0.1.';
-
-  const geminiVision = getNode(upgraded, 'Gemini Vision');
-  geminiVision.parameters.authentication = 'genericCredentialType';
-  geminiVision.parameters.genericAuthType = 'httpHeaderAuth';
-  delete geminiVision.parameters.sendQuery;
-  delete geminiVision.parameters.queryParameters;
-  delete geminiVision.credentials;
-  geminiVision.notesInFlow = true;
-  geminiVision.notes =
-    'Optional OCR credential: create an n8n Header Auth credential whose name is x-goog-api-key and whose value is your Gemini API key, then select it here. Never place the key in the URL, node parameters, or workflow export.';
 
   const videoLinkInput = getNode(upgraded, 'Set: Video Link from Input');
   const videoLinkAssignment = videoLinkInput.parameters.assignments.assignments.find(
@@ -1426,14 +1488,6 @@ export function upgradeWorkflow(workflow) {
         node.parameters.options.systemMessage,
       );
     }
-  }
-
-  for (const name of TRANSCRIPT_SUBFLOW_NODE_NAMES) {
-    getNode(upgraded, name).parameters.workflowId = {
-      __rl: true,
-      value: ASR_WORKFLOW_PLACEHOLDER,
-      mode: 'id',
-    };
   }
 
   const localAudioPath = getNode(upgraded, 'Set: Local Audio File Path');
@@ -1480,8 +1534,6 @@ export function upgradeWorkflow(workflow) {
 
   getNode(upgraded, 'Code: Parse AI JSON Output & Manage Retries').parameters.jsCode =
     buildAiParserCode('Switch: AI Parse Retry?');
-  getNode(upgraded, 'Code: Parse AI JSON Output & Manage Retries1').parameters.jsCode =
-    buildAiParserCode('Switch: AI Parse Retry ??');
 
   const summary = getNode(upgraded, 'Set: Summary');
   summary.parameters.includeOtherFields = false;
@@ -1545,6 +1597,15 @@ export function upgradeWorkflow(workflow) {
     agent.parameters.text = insertRichPrompt(agent.parameters.text);
   }
 
+  // n8n 2.x Code nodes run in a sandbox without the URL global; the url builtin is allowed in
+  // compose.yaml (NODE_FUNCTION_ALLOW_BUILTIN=url).
+  for (const name of ['Code: Validate Video URL', 'Code: Detect Platform & Prepare Download']) {
+    const node = getNode(upgraded, name);
+    if (!node.parameters.jsCode.startsWith(URL_GLOBAL_LINE)) {
+      node.parameters.jsCode = `${URL_GLOBAL_LINE}\n${node.parameters.jsCode}`;
+    }
+  }
+
   return upgraded;
 }
 
@@ -1564,11 +1625,12 @@ export function validateWorkflow(workflow) {
     ) {
       errors.push(`Public workflow version must be ${PUBLIC_WORKFLOW_VERSION}.`);
     }
-    const testResponse = JSON.parse(
-      getNode(workflow, 'Respond to Webhook: Test').parameters.responseBody,
-    );
-    if (testResponse.workflow?.version !== PUBLIC_WORKFLOW_VERSION) {
-      errors.push(`Workflow test response version must be ${PUBLIC_WORKFLOW_VERSION}.`);
+    const healthReport = getNode(workflow, NODE_NAMES.healthReport).parameters.jsCode;
+    if (!healthReport.includes(`"version":"${PUBLIC_WORKFLOW_VERSION}"`)) {
+      errors.push(`Health report version must be ${PUBLIC_WORKFLOW_VERSION}.`);
+    }
+    if (!hasConnection(workflow, NODE_NAMES.healthReport, NODE_NAMES.testResponse)) {
+      errors.push('Health report does not answer the test request.');
     }
     for (const pattern of PRIVATE_PROFILE_PATTERNS) {
       if (pattern.test(serializedWorkflow)) {
@@ -1592,25 +1654,34 @@ export function validateWorkflow(workflow) {
     }
 
     const webhook = getNode(workflow, 'Webhook');
-    if (webhook.parameters.authentication !== 'headerAuth' || webhook.credentials) {
-      errors.push('Webhook must require an unbound Header Auth credential in the public template.');
+    if (
+      webhook.parameters.authentication !== 'headerAuth' ||
+      webhook.credentials?.httpHeaderAuth?.id !== CREDENTIALS.webhook.id
+    ) {
+      errors.push('Webhook must require the packaged Header Auth credential.');
     }
-    if (!/127\.0\.0\.1|Header Auth/.test(webhook.notes || '')) {
-      errors.push('Webhook does not document its local-only and Header Auth boundary.');
+    if (!/127\.0\.0\.1/.test(webhook.notes || '')) {
+      errors.push('Webhook does not document its local-only boundary.');
     }
 
-    const geminiVision = getNode(workflow, 'Gemini Vision');
-    if (
-      geminiVision.parameters.authentication !== 'genericCredentialType' ||
-      geminiVision.parameters.genericAuthType !== 'httpHeaderAuth' ||
-      geminiVision.parameters.sendQuery ||
-      geminiVision.parameters.queryParameters ||
-      geminiVision.credentials
-    ) {
-      errors.push('Gemini Vision must use an unbound Header Auth credential without query keys.');
+    for (const node of workflow.nodes) {
+      for (const [type, reference] of Object.entries(node.credentials || {})) {
+        const known = Object.values(CREDENTIALS).some(
+          (credential) => credential.id === reference.id && credential.type === type,
+        );
+        if (!known) errors.push(`${node.name} uses a credential outside the packaged set.`);
+      }
     }
-    if (/YOUR_GEMINI_API_KEY|[?&]key=/i.test(serializedWorkflow)) {
-      errors.push('Workflow contains an inline or query-string Gemini API key.');
+    if (
+      /YOUR_GEMINI_API_KEY|[?&]key=|Bearer\s+[A-Za-z0-9]|sk-[A-Za-z0-9]{8}/i.test(
+        serializedWorkflow,
+      )
+    ) {
+      errors.push('Workflow contains an inline API key.');
+    }
+    const modelNodes = workflow.nodes.filter((node) => /\.lmChat/.test(node.type));
+    if (modelNodes.length !== 1 || modelNodes[0].name !== NODE_NAMES.model) {
+      errors.push('Every AI step must share the single packaged chat model.');
     }
 
     for (const node of workflow.nodes.filter(
@@ -1667,10 +1738,7 @@ export function validateWorkflow(workflow) {
       }
     }
 
-    for (const parserName of [
-      'Code: Parse AI JSON Output & Manage Retries',
-      'Code: Parse AI JSON Output & Manage Retries1',
-    ]) {
+    for (const parserName of ['Code: Parse AI JSON Output & Manage Retries']) {
       const parser = getNode(workflow, parserName);
       if (!parser.parameters.jsCode.includes('parsedDataForNextNode = parsedJson')) {
         errors.push(`${parserName} does not preserve the complete rich output.`);
@@ -1719,8 +1787,8 @@ export function validateWorkflow(workflow) {
 
     for (const name of TRANSCRIPT_SUBFLOW_NODE_NAMES) {
       const workflowId = getNode(workflow, name).parameters.workflowId;
-      if (workflowId?.value !== ASR_WORKFLOW_PLACEHOLDER || workflowId?.mode !== 'id') {
-        errors.push(`${name} contains an instance-specific ASR workflow id.`);
+      if (workflowId?.value !== WORKFLOW_IDS.speech || workflowId?.mode !== 'id') {
+        errors.push(`${name} does not call the bundled speech-to-text workflow.`);
       }
     }
 
@@ -1736,7 +1804,7 @@ export function validateWorkflow(workflow) {
       !splitFiles.parameters.jsCode.includes('safeUploadPath') ||
       !splitFiles.parameters.jsCode.includes('allowedExtensions') ||
       !splitFiles.parameters.jsCode.includes('\\p{L}') ||
-      !splitFiles.parameters.jsCode.includes('docker/uploads root')
+      !splitFiles.parameters.jsCode.includes('backend uploads folder')
     ) {
       errors.push('Local files do not enforce the uploads-root basename boundary.');
     }
@@ -1746,19 +1814,12 @@ export function validateWorkflow(workflow) {
       }
     }
 
-    const analyzeVideo = getNode(workflow, 'Analyze video');
-    if (!analyzeVideo.disabled) {
-      errors.push('Analyze video must remain disabled until a real visual path exists.');
-    }
-    if (workflow.connections['Analyze video']) {
-      errors.push('Analyze video unexpectedly has outgoing connections.');
-    }
-    for (const [from, connectionKinds] of Object.entries(workflow.connections)) {
-      for (const branches of Object.values(connectionKinds)) {
-        if (branches.some((branch) => branch.some((edge) => edge.node === 'Analyze video'))) {
-          errors.push(`Analyze video unexpectedly has an incoming edge from ${from}.`);
-        }
-      }
+    if (
+      workflow.nodes.some(
+        (node) => node.name === 'Analyze video' || /googleGemini/i.test(node.type),
+      )
+    ) {
+      errors.push('Gemini-only nodes must not remain in the packaged workflow.');
     }
 
     const requiredEdges = [
@@ -1808,22 +1869,35 @@ export function runCli(argv = process.argv.slice(2)) {
     throw new Error(`Workflow v3 validation failed:\n- ${errors.join('\n- ')}`);
   }
 
-  const upgradedText = `${JSON.stringify(upgraded, null, 2)}\n`;
+  const outputs = [
+    [args.workflowPath, originalText, `${JSON.stringify(upgraded, null, 2)}\n`],
+    [
+      DEFAULT_SPEECH_WORKFLOW_PATH,
+      existsSync(DEFAULT_SPEECH_WORKFLOW_PATH)
+        ? readFileSync(DEFAULT_SPEECH_WORKFLOW_PATH, 'utf8')
+        : '',
+      `${JSON.stringify(buildSpeechWorkflow(), null, 2)}\n`,
+    ],
+  ];
   if (args.check) {
-    if (originalText !== upgradedText) {
-      throw new Error(
-        'Workflow is not upgraded or is not deterministically formatted. Run tools/upgrade-workflow-v3.mjs.',
-      );
+    for (const [path, current, expected] of outputs) {
+      if (current !== expected) {
+        throw new Error(
+          `${path} is not current or not deterministically formatted. Run tools/upgrade-workflow-v3.mjs.`,
+        );
+      }
     }
-    process.stdout.write('Workflow v3 check passed.\n');
+    process.stdout.write('Workflow check passed.\n');
     return;
   }
 
-  if (originalText !== upgradedText) {
-    writeFileSync(args.workflowPath, upgradedText, 'utf8');
-    process.stdout.write(`Upgraded workflow: ${args.workflowPath}\n`);
-  } else {
-    process.stdout.write(`Workflow already current: ${args.workflowPath}\n`);
+  for (const [path, current, expected] of outputs) {
+    if (current !== expected) {
+      writeFileSync(path, expected, 'utf8');
+      process.stdout.write(`Updated workflow: ${path}\n`);
+    } else {
+      process.stdout.write(`Workflow already current: ${path}\n`);
+    }
   }
 }
 
@@ -1840,6 +1914,7 @@ if (isDirectRun) {
 
 export {
   CONTENT_ROUTE_PROMPT_MARKER,
+  DEFAULT_SPEECH_WORKFLOW_PATH,
   DEFAULT_WORKFLOW_PATH,
   MEDIA_RUNNER_PROGRAM,
   PUBLIC_WORKFLOW_VERSION,
