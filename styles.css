@@ -2092,6 +2092,13 @@ body {
   font-size: var(--font-ui-smaller);
   line-height: 1.5;
 }
+:is(.video-summary-view, .vs-modal) .vs-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
 
 /* ── 笔记库 ───────────────────────────────────── */
 .video-summary-view .vs-library-header {

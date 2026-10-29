@@ -1,3 +1,4 @@
+import { tr } from '../../utils/i18n';
 import { Notice, TFile } from 'obsidian';
 import { ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
@@ -106,7 +107,37 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
   }
 
   if (active.length === 0 && review.length === 0 && historyRows.length === 0) {
-    emptyState(container, 'inbox', '还没有任务', '在上面贴一条链接，或者到笔记库里挑一篇处理');
+    const demo = {
+      label: tr('看示例笔记', 'See an example note'),
+      run: () => void ctx.plugin.openDemoNote(),
+    };
+    if (!ctx.plugin.isBackendConfigured()) {
+      emptyState(
+        container,
+        'plug-zap',
+        tr('还没连上后端', 'No backend connected yet'),
+        tr(
+          '视频要交给你电脑上的后端处理。先看一篇示例笔记，或者按首次配置把后端连上。',
+          'Videos are processed by a backend on your computer. Look at an example note first, or connect the backend in the first-run setup.',
+        ),
+        {
+          label: tr('打开首次配置', 'Open first-run setup'),
+          run: () => ctx.plugin.openSettingsPage(),
+        },
+        demo,
+      );
+    } else {
+      emptyState(
+        container,
+        'inbox',
+        tr('还没有任务', 'No jobs yet'),
+        tr(
+          '在上面贴一条视频链接，或者到笔记库里挑一篇处理。',
+          'Paste a video link above, or pick a note from the library.',
+        ),
+        demo,
+      );
+    }
   }
 }
 

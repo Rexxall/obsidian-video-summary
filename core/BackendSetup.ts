@@ -96,7 +96,10 @@ function serviceFailure(error: string, host: string, keyName: string, modelName:
   if (/\b404\b|not found|could not be found/i.test(error)) {
     return `服务商找不到这个地址或模型名。检查 .env 里的接口地址和 ${modelName}，${RESTART}。`;
   }
-  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ECONNRESET|timeout|socket|network/i.test(error)) {
+  if (/timed? ?out|timeout|ETIMEDOUT|aborted/i.test(error)) {
+    return `等了很久 ${host} 没有回应。服务商可能繁忙，稍后再点“完整检查”；一直这样就检查网络或在 .env 填 VS_HTTP_PROXY。`;
+  }
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|socket|network/i.test(error)) {
     return `后端连不上 ${host}。检查电脑网络；如果需要代理，在 .env 填 VS_HTTP_PROXY，${RESTART}。`;
   }
   return `${error || '未知错误'}。运行 vs-backend logs 查看后端日志。`;

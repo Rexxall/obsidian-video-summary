@@ -191,3 +191,16 @@ test('an empty provider balance says to top up, including for free models', () =
   });
   assert.match(stateOf(steps, 'speech').fix ?? '', /充值/);
 });
+
+test('a slow provider is told apart from an unreachable one', () => {
+  const failing = (error: string) =>
+    interpretSetupCheck({
+      status: 200,
+      report: healthReport({
+        chat: { configured: true, model: 'm', host: 'h', checked: true, ok: false, error },
+      }),
+      deep: true,
+    }).find((step) => step.id === 'chat')?.fix ?? '';
+  assert.match(failing('timeout of 20000ms exceeded'), /没有回应/);
+  assert.match(failing('getaddrinfo ENOTFOUND h'), /连不上/);
+});

@@ -327,10 +327,38 @@ export function parseLocaleTime(value: string): number | null {
   ).getTime();
 }
 
-export function emptyState(parent: HTMLElement, icon: string, title: string, hint?: string) {
+export interface EmptyAction {
+  label: string;
+  run: () => void;
+}
+
+/** An empty or waiting state with at most one main action (and one quieter alternative). */
+export function emptyState(
+  parent: HTMLElement,
+  icon: string,
+  title: string,
+  hint?: string,
+  action?: EmptyAction,
+  secondary?: EmptyAction,
+) {
   const wrapper = parent.createDiv({ cls: 'vs-empty' });
   const iconEl = wrapper.createDiv({ cls: 'vs-empty-icon' });
   setIcon(iconEl, icon);
   wrapper.createDiv({ text: title, cls: 'vs-empty-title' });
   if (hint) wrapper.createDiv({ text: hint, cls: 'vs-empty-hint' });
+  if (action || secondary) {
+    const row = wrapper.createDiv({ cls: 'vs-empty-actions' });
+    if (action) {
+      const button = row.createEl('button', {
+        text: action.label,
+        cls: 'mod-cta',
+        attr: { type: 'button' },
+      });
+      button.addEventListener('click', action.run);
+    }
+    if (secondary) {
+      const button = row.createEl('button', { text: secondary.label, attr: { type: 'button' } });
+      button.addEventListener('click', secondary.run);
+    }
+  }
 }

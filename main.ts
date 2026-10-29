@@ -10,8 +10,11 @@ import {
   TFile,
   WorkspaceLeaf,
   DropdownComponent,
+  getLanguage,
   type SettingDefinitionItem,
 } from 'obsidian';
+import { setInterfaceLanguage } from './utils/i18n';
+import { DEMO_NOTE_NAME, demoNoteContent } from './core/DemoNote';
 import { VideoSummaryModal } from './modals';
 import { BatchProcessingModal } from './BatchProcessingModal';
 import {
@@ -125,6 +128,7 @@ export default class VideoSummaryPlugin extends Plugin {
   } | null = null;
 
   async onload() {
+    setInterfaceLanguage(getLanguage());
     // 加载设置
     await this.loadSettings();
 
@@ -1579,6 +1583,30 @@ export default class VideoSummaryPlugin extends Plugin {
     }
 
     return profile;
+  }
+
+  /** True once a connection code (or a Worker URL) is in place; the side panel uses it for its first-run state. */
+  isBackendConfigured(): boolean {
+    if (this.settings.activeBackend === 'codex-worker')
+      return !!this.settings.codexWorkerUrl?.trim();
+    const profile = this.getActiveWebhookProfile();
+    return !!profile?.url?.trim() && !!profile.secret?.trim();
+  }
+
+  /** Open (or create) the demo note: a real processed result, made without any backend. */
+  async openDemoNote() {
+    const path = DEMO_NOTE_NAME();
+    let file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) file = await this.app.vault.create(path, demoNoteContent());
+    if (file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
+  }
+
+  openSettingsPage() {
+    const settingApi = (
+      this.app as unknown as { setting?: { open(): void; openTabById(id: string): void } }
+    ).setting;
+    settingApi?.open();
+    settingApi?.openTabById(this.manifest.id);
   }
 
   getActiveWebhookProfile(): WebhookProfile | undefined {
