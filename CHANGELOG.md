@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## 2.9.1
+
+- The plugin description no longer names Obsidian, as the community directory requires. No
+  other changes; the 2.9.0 backend package still applies.
+
 ## 2.9.0
 
 English interface and a first result before any setup.
