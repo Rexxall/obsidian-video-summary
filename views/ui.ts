@@ -2,6 +2,7 @@ import { Menu, setIcon } from 'obsidian';
 import { isPlaceholderCover } from '../core/CoverPlaceholder';
 import { fire } from '../utils/fire';
 
+import { tr } from '../utils/i18n';
 export interface MenuItemSpec {
   title: string;
   icon?: string;
@@ -93,21 +94,21 @@ export function showMenu(event: MouseEvent, items: MenuItemSpec[]) {
 export function statusMeta(status: string): { label: string; cls: string } {
   switch (status) {
     case 'success':
-      return { label: '已完成', cls: 'is-success' };
+      return { label: tr('已完成', 'Done'), cls: 'is-success' };
     case 'running':
-      return { label: '处理中', cls: 'is-running' };
+      return { label: tr('处理中', 'Processing'), cls: 'is-running' };
     case 'interrupted':
-      return { label: '已中断', cls: 'is-interrupted' };
+      return { label: tr('已中断', 'Interrupted'), cls: 'is-interrupted' };
     case 'error':
-      return { label: '失败', cls: 'is-error' };
+      return { label: tr('失败', 'Failed'), cls: 'is-error' };
     case 'review':
-      return { label: '待确认', cls: 'is-review' };
+      return { label: tr('待确认', 'To confirm'), cls: 'is-review' };
     case 'cancelled':
-      return { label: '已取消', cls: 'is-muted' };
+      return { label: tr('已取消', 'Cancelled'), cls: 'is-muted' };
     case 'queued':
-      return { label: '排队中', cls: 'is-queued' };
+      return { label: tr('排队中', 'Queued'), cls: 'is-queued' };
     default:
-      return { label: '待处理', cls: 'is-pending' };
+      return { label: tr('待处理', 'Pending'), cls: 'is-pending' };
   }
 }
 
@@ -272,11 +273,11 @@ export function platformIcon(platform?: string): string {
 export function modeLabel(mode: string): string {
   switch (mode) {
     case 'transcript-only':
-      return '仅文稿';
+      return tr('仅文稿', 'Transcript only');
     case 'info-only':
-      return '仅信息';
+      return tr('仅信息', 'Info only');
     default:
-      return '完整总结';
+      return tr('完整总结', 'Full summary');
   }
 }
 
@@ -302,11 +303,13 @@ export function formatElapsed(ms: number): string {
 
 export function formatRelative(timestamp: number): string {
   const diff = Date.now() - timestamp;
-  if (diff < 60_000) return '刚刚';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`;
+  if (diff < 60_000) return tr('刚刚', 'Just now');
+  if (diff < 3_600_000)
+    return tr(`${Math.floor(diff / 60_000)} 分钟前`, `${Math.floor(diff / 60_000)} min ago`);
+  if (diff < 86_400_000)
+    return tr(`${Math.floor(diff / 3_600_000)} 小时前`, `${Math.floor(diff / 3_600_000)} h ago`);
   const days = Math.floor(diff / 86_400_000);
-  if (days < 30) return `${days} 天前`;
+  if (days < 30) return tr(`${days} 天前`, `${days} days ago`);
   return new Date(timestamp).toLocaleDateString('zh-CN');
 }
 

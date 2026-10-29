@@ -24,6 +24,7 @@ import { liveJobForNote, noteDisplayStatus } from '../noteStatus';
 
 import { fire } from '../../utils/fire';
 import { errorMessage } from '../../utils/errors';
+import { tr } from '../../utils/i18n';
 const BACKEND_PROBE_TIMEOUT_MS = 8_000;
 const BACKEND_ONLINE_TTL_MS = 5 * 60_000;
 const BACKEND_OFFLINE_TTL_MS = 60_000;
@@ -78,8 +79,11 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     cls: 'vs-input',
     attr: {
       rows: '2',
-      placeholder: '粘贴链接、拖入音视频，或直接粘贴文稿',
-      'aria-label': '添加视频',
+      placeholder: tr(
+        '粘贴链接、拖入音视频，或直接粘贴文稿',
+        'Paste links, drop audio or video, or paste a transcript',
+      ),
+      'aria-label': tr('添加视频', 'Add video'),
     },
   });
   input.value = state.inputDraft;
@@ -88,7 +92,10 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   });
   autoGrow(input);
   const boxBar = box.createDiv({ cls: 'vs-add-bar' });
-  boxBar.createSpan({ cls: 'vs-add-hint', text: '多行即批量 · ⌘ Enter 开始' });
+  boxBar.createSpan({
+    cls: 'vs-add-hint',
+    text: tr('多行即批量 · ⌘ Enter 开始', 'One per line for a batch · ⌘ Enter to start'),
+  });
   iconButton(
     boxBar,
     'folder-open',
@@ -97,7 +104,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     'vs-add-file',
   );
   const submitBtn = boxBar.createEl('button', {
-    text: '开始',
+    text: tr('开始', 'Start'),
     cls: 'vs-primary-btn',
     attr: { type: 'button' },
   });
@@ -115,7 +122,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     cls: 'vs-fold-toggle',
     attr: { type: 'button', 'aria-expanded': state.advancedOpen ? 'true' : 'false' },
   });
-  foldToggle.createSpan({ text: '选项', cls: 'vs-fold-title' });
+  foldToggle.createSpan({ text: tr('选项', 'Options'), cls: 'vs-fold-title' });
   foldToggle.createSpan({
     cls: 'vs-fold-value',
     text: [
@@ -137,7 +144,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   const learn = controls.createEl('label', { cls: 'vs-check' });
   const learnBox = learn.createEl('input', { attr: { type: 'checkbox' } });
   learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
-  learn.createSpan({ text: '学习卡' });
+  learn.createSpan({ text: tr('学习卡', 'Learning cards') });
   learnBox.addEventListener(
     'change',
     fire(async () => {
@@ -194,7 +201,7 @@ function bindFileDrop(box: HTMLElement, ctx: ViewContext, input: HTMLTextAreaEle
 
 function renderHeader(root: HTMLElement, ctx: ViewContext) {
   const header = root.createDiv({ cls: 'vs-header' });
-  header.createSpan({ text: '视频总结', cls: 'vs-header-title' });
+  header.createSpan({ text: tr('视频总结', 'Video summary'), cls: 'vs-header-title' });
   iconButton(
     header,
     'more-horizontal',
@@ -232,8 +239,14 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
       updateBackendPill(statusLine, dot, label, backend, result.state, result);
       new Notice(
         result.state === 'is-online'
-          ? `${backend.label} 连接正常（${result.durationMs ?? 0}ms）`
-          : `${backend.label} 连接失败：${result.reason || '未知原因'}`,
+          ? tr(
+              `${backend.label} 连接正常（${result.durationMs ?? 0}ms）`,
+              `${backend.label} connected (${result.durationMs ?? 0} ms)`,
+            )
+          : tr(
+              `${backend.label} 连接失败：${result.reason || '未知原因'}`,
+              `${backend.label} connection failed: ${result.reason || 'unknown reason'}`,
+            ),
         result.state === 'is-online' ? 3000 : 6000,
       );
       ctx.renderAll();
@@ -260,20 +273,52 @@ function showMoreMenu(ctx: ViewContext, event: MouseEvent) {
     commands?.executeCommandById(`${ctx.plugin.manifest.id}:${id}`);
   };
   showMenu(event, [
-    { title: '批量处理视频', icon: 'list-plus', onClick: () => run('batch') },
-    { title: '处理所有待处理视频', icon: 'zap', onClick: () => run('process-all-pending') },
-    { title: '复习到期的学习卡', icon: 'brain', onClick: () => run('learning-review-due') },
-    { title: '搜索跨模态视频记忆', icon: 'search', onClick: () => run('memory-search') },
-    { title: '多视频论点实验室', icon: 'flask-conical', onClick: () => run('claim-lab') },
-    { title: '生成或更新视频库 Base', icon: 'table', onClick: () => run('generate-base') },
-    { title: '测试处理后端', icon: 'plug', onClick: () => run('test-connection') },
     {
-      title: 'Codex 本地服务控制台',
+      title: tr('批量处理视频', 'Batch process videos'),
+      icon: 'list-plus',
+      onClick: () => run('batch'),
+    },
+    {
+      title: tr('处理所有待处理视频', 'Process all pending videos'),
+      icon: 'zap',
+      onClick: () => run('process-all-pending'),
+    },
+    {
+      title: tr('复习到期的学习卡', 'Review due learning cards'),
+      icon: 'brain',
+      onClick: () => run('learning-review-due'),
+    },
+    {
+      title: tr('搜索跨模态视频记忆', 'Search video memory across media'),
+      icon: 'search',
+      onClick: () => run('memory-search'),
+    },
+    {
+      title: tr('多视频论点实验室', 'Multi-video claim lab'),
+      icon: 'flask-conical',
+      onClick: () => run('claim-lab'),
+    },
+    {
+      title: tr('生成或更新视频库 Base', 'Create or update the video library Base'),
+      icon: 'table',
+      onClick: () => run('generate-base'),
+    },
+    {
+      title: tr('测试处理后端', 'Test the backend'),
+      icon: 'plug',
+      onClick: () => run('test-connection'),
+    },
+    {
+      title: tr('Codex 本地服务控制台', 'Codex local service dashboard'),
       icon: 'gauge',
       disabled: ctx.plugin.settings.activeBackend !== 'codex-worker',
       onClick: () => run('open-worker-dashboard'),
     },
-    { title: '插件设置', icon: 'settings', onClick: () => openSettings(ctx) },
+    {
+      title: tr('插件设置', 'Plugin settings'),
+      icon: 'settings',
+      onClick: () => openSettings(ctx),
+    },
   ]);
 }
 
@@ -402,13 +447,13 @@ function updateBackendPill(
 ) {
   dot.className = `vs-backend-dot ${state}`;
   if (state === 'is-checking') {
-    label.setText(`正在检测 ${backend.label}…`);
+    label.setText(tr(`正在检测 ${backend.label}…`, `Checking ${backend.label}…`));
     pill.setAttr('title', `${backend.label}：正在检测连接`);
     return;
   }
   if (state === 'is-online') {
     const reachabilityOnly = result?.verified === false;
-    label.setText(`${backend.label} 已连接`);
+    label.setText(tr(`${backend.label} 已连接`, `${backend.label} connected`));
     pill.setAttr(
       'title',
       `${backend.label} ${
@@ -421,7 +466,9 @@ function updateBackendPill(
   }
   if (state === 'is-offline') {
     const reason = result?.reason || '无法连接';
-    label.setText(`${backend.label} 未连接 · ${reason}`);
+    label.setText(
+      tr(`${backend.label} 未连接 · ${reason}`, `${backend.label} not connected · ${reason}`),
+    );
     pill.setAttr(
       'title',
       `${backend.label} 离线：${reason}${
@@ -430,7 +477,9 @@ function updateBackendPill(
     );
     return;
   }
-  label.setText(`${backend.label} 未检测 · 点此测试`);
+  label.setText(
+    tr(`${backend.label} 未检测 · 点此测试`, `${backend.label} not checked · click to test`),
+  );
   pill.setAttr('title', `${backend.label}：点击测试连接`);
 }
 
@@ -444,23 +493,24 @@ function formatProbeTime(timestamp: number): string {
 /** 连接状态同样只显示分类后的安全原因，避免把 webhook URL 或本机路径带到页头。 */
 function summarizeBackendFailure(raw: string, endpoint = ''): string {
   const error = raw.toLowerCase();
-  if (!error) return '未知原因';
-  if (/空响应|empty response|no response body/.test(error)) return '空响应';
+  if (!error) return tr('未知原因', 'unknown reason');
+  if (/空响应|empty response|no response body/.test(error)) return tr('空响应', 'empty response');
   if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
-    return '流程未启用';
+    return tr('流程未启用', 'workflow not active');
   }
-  if (/401|unauthorized|api.?key|鉴权|授权失败/.test(error)) return '授权失败';
-  if (/403|forbidden|拒绝访问/.test(error)) return '访问被拒绝';
-  if (/429|rate.?limit|too many requests|限流/.test(error)) return '请求过频';
-  if (/json|返回格式|unexpected token/.test(error)) return '格式异常';
-  if (/timeout|timed out|etimedout|超时|abort/.test(error)) return '连接超时';
+  if (/401|unauthorized|api.?key|鉴权|授权失败/.test(error)) return tr('授权失败', 'auth failed');
+  if (/403|forbidden|拒绝访问/.test(error)) return tr('访问被拒绝', 'access denied');
+  if (/429|rate.?limit|too many requests|限流/.test(error))
+    return tr('请求过频', 'too many requests');
+  if (/json|返回格式|unexpected token/.test(error)) return tr('格式异常', 'bad format');
+  if (/timeout|timed out|etimedout|超时|abort/.test(error)) return tr('连接超时', 'timed out');
   if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
     if (/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(endpoint)) {
-      return '本机服务未启动';
+      return tr('本机服务未启动', 'local service not running');
     }
-    return '无法连接';
+    return tr('无法连接', 'cannot connect');
   }
-  return '检测失败';
+  return tr('检测失败', 'check failed');
 }
 
 /** 当前笔记上下文条：侧栏里直接看到正在编辑的这篇处于什么状态 */
@@ -482,7 +532,7 @@ function renderContextStrip(root: HTMLElement, ctx: ViewContext) {
   const body = strip.createDiv({ cls: 'vs-context-body' });
   body.createDiv({ text: activeFile.basename, cls: 'vs-context-title' });
   const sub = body.createDiv({ cls: 'vs-context-sub' });
-  sub.createSpan({ text: '当前笔记 · ' });
+  sub.createSpan({ text: tr('当前笔记 · ', 'Current note · ') });
   sub.createSpan({ text: meta.label, cls: `vs-state-text ${meta.cls}` });
   if (entry?.platform) {
     sub.createSpan({ text: ' · ' });
@@ -559,7 +609,13 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     settings.defaultProcessingDepth,
     fire(async (depth) => {
       if (depth === 'deep-visual' && settings.activeBackend !== 'codex-worker') {
-        new Notice('深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。', 7000);
+        new Notice(
+          tr(
+            '深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。',
+            'Deep visual runs only on the local video service; the n8n backend goes up to evidence.',
+          ),
+          7000,
+        );
         return;
       }
       settings.defaultProcessingDepth = depth;
@@ -612,7 +668,7 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
   const folderBtn = row('保存位置').createEl('button', {
     text: shortenPath(settings.outputFolder || '当前文件夹'),
     cls: 'vs-link-btn',
-    attr: { type: 'button', title: settings.outputFolder || '当前文件夹' },
+    attr: { type: 'button', title: settings.outputFolder || tr('当前文件夹', 'Current folder') },
   });
   folderBtn.addEventListener('click', (event) => {
     event.preventDefault();
@@ -691,7 +747,7 @@ function renderAdvanced(
   const profiles = plugin.settings.webhookProfiles || [];
   if (profiles.length > 1) {
     const backendRow = container.createDiv({ cls: 'vs-field' });
-    backendRow.createEl('label', { text: '处理后端', cls: 'vs-field-label' });
+    backendRow.createEl('label', { text: tr('处理后端', 'Backend'), cls: 'vs-field-label' });
     const backendSelect = backendRow.createEl('select', { cls: 'vs-field-input' });
     profiles.forEach((profile) => {
       backendSelect.createEl('option', {
@@ -710,10 +766,19 @@ function renderAdvanced(
   }
 
   const transcriptRow = container.createDiv({ cls: 'vs-field' });
-  transcriptRow.createEl('label', { text: '手动文稿', cls: 'vs-field-label' });
+  transcriptRow.createEl('label', {
+    text: tr('手动文稿', 'Manual transcript'),
+    cls: 'vs-field-label',
+  });
   const transcript = transcriptRow.createEl('textarea', {
     cls: 'vs-field-input vs-transcript-input',
-    attr: { rows: '3', placeholder: '视频没有字幕时，在这里贴文稿' },
+    attr: {
+      rows: '3',
+      placeholder: tr(
+        '视频没有字幕时，在这里贴文稿',
+        'Paste a transcript here when the video has no subtitles',
+      ),
+    },
   });
   transcript.value = ctx.state.transcriptDraft;
   transcript.addEventListener('input', () => {
@@ -721,22 +786,36 @@ function renderAdvanced(
   });
 
   const localRow = container.createDiv({ cls: 'vs-field' });
-  localRow.createEl('label', { text: '本地文件', cls: 'vs-field-label' });
+  localRow.createEl('label', { text: tr('本地文件', 'Local file'), cls: 'vs-field-label' });
   const localFile = localRow.createEl('input', {
     cls: 'vs-field-input',
-    attr: { type: 'text', placeholder: '例如 lecture-01.mp4，多个用逗号分隔' },
+    attr: {
+      type: 'text',
+      placeholder: tr(
+        '例如 lecture-01.mp4，多个用逗号分隔',
+        'For example lecture-01.mp4; separate several with commas',
+      ),
+    },
   });
   localFile.value = ctx.state.localFileDraft;
   localFile.addEventListener('input', () => {
     ctx.state.localFileDraft = localFile.value;
   });
   localRow.createDiv({
-    text: '先把文件放进后端文件夹的 uploads 里，这里只填文件名。',
+    text: tr(
+      '先把文件放进后端文件夹的 uploads 里，这里只填文件名。',
+      "Put the file in the backend's uploads folder first; type only its name here.",
+    ),
     cls: 'vs-field-hint',
   });
   localFile.addEventListener('blur', () => {
     if (isAbsoluteLocalPath(localFile.value)) {
-      new Notice('这看起来是绝对路径。用 docker 时请改填 uploads 里的文件名或相对路径。');
+      new Notice(
+        tr(
+          '这看起来是绝对路径。用 docker 时请改填 uploads 里的文件名或相对路径。',
+          'This looks like an absolute path. With Docker, use the file name inside uploads or a relative path.',
+        ),
+      );
     }
   });
 
@@ -746,7 +825,7 @@ function renderAdvanced(
   });
   partsToggle.checked = ctx.state.partsEnabled;
   partsRow.createEl('label', {
-    text: '按分集范围展开',
+    text: tr('按分集范围展开', 'Expand by episode range'),
     attr: { for: 'vs-parts-toggle' },
     cls: 'vs-field-label',
   });
@@ -754,7 +833,7 @@ function renderAdvanced(
     cls: 'vs-num-input',
     attr: { type: 'number', min: '1', max: '1000', value: String(ctx.state.partsStart) },
   });
-  partsRow.createSpan({ text: '到', cls: 'vs-field-hint' });
+  partsRow.createSpan({ text: tr('到', 'to'), cls: 'vs-field-hint' });
   const partsEnd = partsRow.createEl('input', {
     cls: 'vs-num-input',
     attr: { type: 'number', min: '1', max: '1000', value: String(ctx.state.partsEnd) },
@@ -780,7 +859,12 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
   const localFiles = fields.localFile.value.trim();
 
   if (!raw && !transcript && !localFiles) {
-    new Notice('先粘贴一个链接、本地文件名或文稿');
+    new Notice(
+      tr(
+        '先粘贴一个链接、本地文件名或文稿',
+        'Paste a link, a local file name or a transcript first',
+      ),
+    );
     return;
   }
 
@@ -793,18 +877,23 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
   if (fields.partsToggle.checked) {
     const url = drafts.find((draft) => draft.source === 'url')?.input.url;
     if (!url) {
-      new Notice('按分集展开需要一条视频链接');
+      new Notice(tr('按分集展开需要一条视频链接', 'Expanding by episode needs a video link'));
       return;
     }
     const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
     const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
     if (end - start + 1 > 100) {
-      new Notice('一次最多展开 100 集');
+      new Notice(tr('一次最多展开 100 集', 'At most 100 episodes at a time'));
       return;
     }
     const expanded = expandParts(url, start, end, { transcript, localFiles });
     if (expanded.length === 0) {
-      new Notice('无法从链接里识别视频 ID，改用逐条链接吧');
+      new Notice(
+        tr(
+          '无法从链接里识别视频 ID，改用逐条链接吧',
+          'Cannot find a video ID in the link; use one link per episode instead',
+        ),
+      );
       return;
     }
     drafts = expanded;
@@ -813,7 +902,7 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
   }
 
   if (drafts.length === 0) {
-    new Notice('没解析出可处理的内容');
+    new Notice(tr('没解析出可处理的内容', 'Nothing to process was found'));
     return;
   }
 
@@ -827,14 +916,17 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
     !raw.includes('\n');
   if (looksAccidental) {
     new Notice(
-      `"${raw}" 不像链接或文件名。要当作文稿处理，请把内容贴进高级选项里的「手动文稿」。`,
+      tr(
+        `"${raw}" 不像链接或文件名。要当作文稿处理，请把内容贴进高级选项里的「手动文稿」。`,
+        `"${raw}" does not look like a link or file name. To process it as a transcript, paste it into "Manual transcript" under the advanced options.`,
+      ),
       8000,
     );
     return;
   }
 
   if (drafts.length > 50) {
-    new Notice('一次最多提交 50 条');
+    new Notice(tr('一次最多提交 50 条', 'At most 50 at a time'));
     return;
   }
 
@@ -847,7 +939,7 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
     ctx.state.transcriptDraft = '';
     ctx.state.localFileDraft = '';
     input.dispatchEvent(new Event('input'));
-    new Notice(`已提交 ${queued} 个任务`);
+    new Notice(tr(`已提交 ${queued} 个任务`, `Sent ${queued} jobs`));
     ctx.state.tab = 'jobs';
     ctx.renderPanels();
   }
@@ -872,7 +964,12 @@ function appendFileNames(ctx: ViewContext, input: HTMLTextAreaElement, names: st
   input.value = current ? `${current}\n${names.join('\n')}` : names.join('\n');
   ctx.state.inputDraft = input.value;
   input.dispatchEvent(new Event('input'));
-  new Notice(`已填入 ${names.length} 个文件名，确认它们在后端可访问的目录里`);
+  new Notice(
+    tr(
+      `已填入 ${names.length} 个文件名，确认它们在后端可访问的目录里`,
+      `Filled in ${names.length} file names; make sure they are in a folder the backend can read`,
+    ),
+  );
 }
 
 function autoGrow(input: HTMLTextAreaElement) {

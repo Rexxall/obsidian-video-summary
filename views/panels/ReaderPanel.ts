@@ -13,6 +13,7 @@ import { showMenu } from '../ui';
 
 import { errorMessage } from '../../utils/errors';
 import { asRecord } from '../../utils/json';
+import { tr } from '../../utils/i18n';
 interface PlayerController {
   seek(seconds: number): void;
   onTimeChange(listener: (seconds: number) => void): () => void;
@@ -37,17 +38,27 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
   const toolbar = reader.createDiv({ cls: 'vs-reader-toolbar' });
   const search = toolbar.createEl('input', {
     cls: 'vs-reader-search',
-    attr: { type: 'search', placeholder: '搜索文稿…', 'aria-label': '搜索文稿' },
+    attr: {
+      type: 'search',
+      placeholder: tr('搜索文稿…', 'Search the transcript…'),
+      'aria-label': tr('搜索文稿', 'Search the transcript'),
+    },
   });
   const count = toolbar.createSpan({
-    text: `${segments.length.toLocaleString()} 段`,
+    text: tr(
+      `${segments.length.toLocaleString()} 段`,
+      `${segments.length.toLocaleString()} segments`,
+    ),
     cls: 'vs-reader-count',
   });
   void count;
 
   if (segments.length === 0) {
     reader.createDiv({
-      text: '当前结果没有结构化时间轴。重新处理时选择“证据模式”即可生成。',
+      text: tr(
+        '当前结果没有结构化时间轴。重新处理时选择“证据模式”即可生成。',
+        'This result has no structured timeline. Process it again in "Evidence" mode to get one.',
+      ),
       cls: 'vs-hint',
     });
     return;
@@ -80,7 +91,10 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
           type: 'button',
           'data-segment-id': segment.id,
           draggable: 'true',
-          title: '点击跳到这里 · 右键复制引用 · 拖进笔记插入引用',
+          title: tr(
+            '点击跳到这里 · 右键复制引用 · 拖进笔记插入引用',
+            'Click to jump here · right-click to copy a quote · drag into a note to insert a quote',
+          ),
         },
       });
       const time = row.createSpan({
@@ -97,7 +111,7 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
       content.createSpan({ text: segment.text, cls: 'vs-reader-text' });
       if (segment.visual_text) {
         content.createSpan({
-          text: `屏幕：${segment.visual_text}`,
+          text: tr(`屏幕：${segment.visual_text}`, `On screen: ${segment.visual_text}`),
           cls: 'vs-reader-visual-text',
         });
       }
@@ -131,14 +145,16 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
         const quote = quoteFor(ctx, job, sourceUrl, segment);
         showMenu(event, [
           {
-            title: '复制引用',
+            title: tr('复制引用', 'Copy quote'),
             icon: 'quote',
             onClick: () => {
-              void navigator.clipboard.writeText(quote).then(() => new Notice('已复制引用'));
+              void navigator.clipboard
+                .writeText(quote)
+                .then(() => new Notice(tr('已复制引用', 'Quote copied')));
             },
           },
           {
-            title: '插入到笔记',
+            title: tr('插入到笔记', 'Insert into note'),
             icon: 'text-cursor-input',
             onClick: () => insertIntoRecentNote(ctx, quote),
           },
@@ -151,7 +167,9 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
       });
       row.addEventListener('click', () => {
         if (segment.start === null || segment.timing_quality === 'none') {
-          new Notice('这段文稿没有可靠时间点');
+          new Notice(
+            tr('这段文稿没有可靠时间点', 'This transcript line has no reliable timestamp'),
+          );
           return;
         }
         activeId = segment.id;
@@ -162,7 +180,10 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
 
     if (!query && visibleCount < matching.length) {
       const more = footer.createEl('button', {
-        text: `继续加载 ${Math.min(PAGE_SIZE, matching.length - visibleCount)} 段`,
+        text: tr(
+          `继续加载 ${Math.min(PAGE_SIZE, matching.length - visibleCount)} 段`,
+          `Load ${Math.min(PAGE_SIZE, matching.length - visibleCount)} more`,
+        ),
         cls: 'vs-text-btn',
         attr: { type: 'button' },
       });
@@ -173,7 +194,10 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
     }
     if (query && matching.length > visible.length) {
       footer.createSpan({
-        text: `显示前 ${visible.length} 条，共 ${matching.length} 条匹配`,
+        text: tr(
+          `显示前 ${visible.length} 条，共 ${matching.length} 条匹配`,
+          `Showing ${visible.length} of ${matching.length} matches`,
+        ),
         cls: 'vs-hint',
       });
     }
@@ -205,7 +229,10 @@ export function renderReaderPanel(container: HTMLElement, ctx: ViewContext, job:
     ).length;
     if (needsReview > 0) {
       toolbar.createSpan({
-        text: `${needsReview} 个旧重点待重新定位`,
+        text: tr(
+          `${needsReview} 个旧重点待重新定位`,
+          `${needsReview} older highlights need relocating`,
+        ),
         cls: 'vs-hint is-warning',
       });
     }
@@ -231,11 +258,21 @@ function insertIntoRecentNote(ctx: ViewContext, text: string) {
   const { workspace } = ctx.plugin.app;
   const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
   if (!(view instanceof MarkdownView)) {
-    new Notice('先在主编辑区打开一篇笔记，再插入引用');
+    new Notice(
+      tr(
+        '先在主编辑区打开一篇笔记，再插入引用',
+        'Open a note in the main editor first, then insert the quote',
+      ),
+    );
     return;
   }
   view.editor.replaceSelection(`${text}\n`);
-  new Notice(`已插入到 ${view.file?.basename ?? '笔记'}`);
+  new Notice(
+    tr(
+      `已插入到 ${view.file?.basename ?? '笔记'}`,
+      `Inserted into ${view.file?.basename ?? 'the note'}`,
+    ),
+  );
 }
 
 function createPlayer(
@@ -256,9 +293,15 @@ function createPlayer(
   const fallback = container.createDiv({ cls: 'vs-reader-player-fallback' });
   const icon = fallback.createDiv({ cls: 'vs-reader-player-icon' });
   setIcon(icon, 'external-link');
-  fallback.createDiv({ text: '当前平台使用外部播放器', cls: 'vs-reader-player-title' });
   fallback.createDiv({
-    text: '点击文稿时间点时会打开对应的视频位置。',
+    text: tr('当前平台使用外部播放器', 'This platform uses an external player'),
+    cls: 'vs-reader-player-title',
+  });
+  fallback.createDiv({
+    text: tr(
+      '点击文稿时间点时会打开对应的视频位置。',
+      'Clicking a transcript time opens the video at that point.',
+    ),
     cls: 'vs-hint',
   });
   let listener: ((seconds: number) => void) | null = null;
@@ -316,7 +359,7 @@ function createYouTubePlayer(container: HTMLElement, videoId: string): PlayerCon
       src: `https://www.youtube.com/embed/${encodeURIComponent(
         videoId,
       )}?enablejsapi=1&playsinline=1&rel=0`,
-      title: 'YouTube 视频',
+      title: tr('YouTube 视频', 'YouTube video'),
       allow: 'accelerometer; autoplay; encrypted-media; picture-in-picture',
       allowfullscreen: 'true',
     },
@@ -370,13 +413,16 @@ function createBilibiliPlayer(container: HTMLElement, bvid: string): PlayerContr
   const iframe = container.createEl('iframe', {
     cls: 'vs-reader-iframe',
     attr: {
-      title: 'Bilibili 视频',
+      title: tr('Bilibili 视频', 'Bilibili video'),
       allow: 'autoplay; fullscreen',
       allowfullscreen: 'true',
     },
   });
   container.createDiv({
-    text: 'B站嵌入播放器不提供稳定的播放时间事件：点击文稿可跳转，播放时暂不自动跟随。',
+    text: tr(
+      'B站嵌入播放器不提供稳定的播放时间事件：点击文稿可跳转，播放时暂不自动跟随。',
+      'The Bilibili embedded player has no reliable playback time: clicking the transcript jumps, but it does not follow along while playing.',
+    ),
     cls: 'vs-hint is-warning',
   });
   const listeners = new Set<(seconds: number) => void>();
@@ -502,7 +548,12 @@ async function toggleHighlight(
   } catch (error) {
     if (removing) highlights.add(segment.id);
     else highlights.delete(segment.id);
-    new Notice(`保存重点失败：${error instanceof Error ? errorMessage(error) : String(error)}`);
+    new Notice(
+      tr(
+        `保存重点失败：${error instanceof Error ? errorMessage(error) : String(error)}`,
+        `Could not save the highlight: ${error instanceof Error ? errorMessage(error) : String(error)}`,
+      ),
+    );
   }
 }
 

@@ -1,5 +1,6 @@
 import qrcode from 'qrcode-generator';
 
+import { tr } from '../utils/i18n';
 /** Draw a QR code as dark squares on a white canvas; scanners need the contrast in any theme. */
 export function drawQrCode(container: HTMLElement, text: string, size = 180): HTMLCanvasElement {
   const qr = qrcode(0, 'M');
@@ -11,7 +12,11 @@ export function drawQrCode(container: HTMLElement, text: string, size = 180): HT
   const side = cell * (modules + quiet * 2);
   const canvas = container.createEl('canvas', {
     cls: 'setup-qr-canvas',
-    attr: { width: String(side), height: String(side), 'aria-label': '登录二维码' },
+    attr: {
+      width: String(side),
+      height: String(side),
+      'aria-label': tr('登录二维码', 'Login QR code'),
+    },
   });
   const context = canvas.getContext('2d');
   if (!context) return canvas;

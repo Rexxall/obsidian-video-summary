@@ -32,6 +32,7 @@ import {
 } from './ReprocessPersistence';
 
 import { errorMessage } from '../utils/errors';
+import { tr } from '../utils/i18n';
 export interface SubmitOptions {
   mode: ProcessingMode;
   language: SupportedLanguage;
@@ -91,7 +92,7 @@ export class JobService {
     if (runnableDrafts.length === 0) return jsonCreated;
 
     if (!(await this.plugin.ensureBackendReady())) {
-      new Notice('后端不可用，任务未提交');
+      new Notice(tr('后端不可用，任务未提交', 'Backend unavailable; the job was not sent'));
       return jsonCreated;
     }
 
@@ -102,7 +103,7 @@ export class JobService {
         successStatusValue: this.plugin.settings.successStatusValue ?? 'success',
       });
       if (!file) {
-        new Notice(`创建笔记失败: ${draft.title}`);
+        new Notice(tr(`创建笔记失败: ${draft.title}`, `Could not create the note: ${draft.title}`));
         continue;
       }
       this.store.enqueue({
@@ -137,7 +138,9 @@ export class JobService {
     options: SubmitOptions,
   ): Promise<Job | null> {
     if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
-      new Notice('笔记里没有链接、文稿或本地文件');
+      new Notice(
+        tr('笔记里没有链接、文稿或本地文件', 'The note has no link, transcript or local file'),
+      );
       return null;
     }
     if (!(await this.plugin.ensureBackendReady())) return null;
@@ -176,7 +179,7 @@ export class JobService {
     if (!job.result) return false;
     const file = this.fileFor(job);
     if (!file) {
-      new Notice('目标笔记已不存在');
+      new Notice(tr('目标笔记已不存在', 'The target note no longer exists'));
       return false;
     }
     try {
@@ -196,7 +199,7 @@ export class JobService {
       });
       return true;
     } catch (error) {
-      new Notice(`写入失败: ${messageOf(error)}`);
+      new Notice(tr(`写入失败: ${messageOf(error)}`, `Could not write: ${messageOf(error)}`));
       return false;
     }
   }
@@ -215,7 +218,7 @@ export class JobService {
   async applyToActiveNote(result: ProcessingResult, mode: ProcessingMode) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new Notice('请先打开一个笔记');
+      new Notice(tr('请先打开一个笔记', 'Open a note first'));
       return;
     }
     try {
@@ -237,9 +240,9 @@ export class JobService {
       const saved = await this.persistArtifact(context, result);
       await this.applyResult(activeFile, result, mode, context);
       await this.updateCourseProgressForFile(activeFile, 'complete', 100, saved.artifact_id);
-      new Notice('已应用到当前笔记');
+      new Notice(tr('已应用到当前笔记', 'Applied to the current note'));
     } catch (error) {
-      new Notice(`应用失败: ${messageOf(error)}`);
+      new Notice(tr(`应用失败: ${messageOf(error)}`, `Could not apply: ${messageOf(error)}`));
     }
   }
 
@@ -247,7 +250,7 @@ export class JobService {
   async insertIntoActiveNote(result: ProcessingResult) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new Notice('请先打开一个笔记');
+      new Notice(tr('请先打开一个笔记', 'Open a note first'));
       return;
     }
     const content = await this.plugin.app.vault.read(activeFile);
@@ -255,7 +258,7 @@ export class JobService {
       activeFile,
       `${content.trim()}\n\n${buildInsertionContent(result)}`,
     );
-    new Notice('已插入当前笔记');
+    new Notice(tr('已插入当前笔记', 'Inserted into the current note'));
   }
 
   /** 用结果新建一篇笔记 */
@@ -274,7 +277,7 @@ export class JobService {
         successStatusValue: this.plugin.settings.successStatusValue ?? 'success',
       },
     );
-    if (file) new Notice(`已创建笔记: ${file.basename}`);
+    if (file) new Notice(tr(`已创建笔记: ${file.basename}`, `Created note: ${file.basename}`));
   }
 
   async createNoteFromJson(jsonText: string, language: SupportedLanguage): Promise<TFile | null> {
@@ -286,7 +289,9 @@ export class JobService {
       result = this.plugin.api.normalizeWebhookPayload(parsed);
       input = extractVideoInputFromPayload(parsed);
     } catch (error) {
-      new Notice(`JSON 解析失败: ${messageOf(error)}`);
+      new Notice(
+        tr(`JSON 解析失败: ${messageOf(error)}`, `Could not parse the JSON: ${messageOf(error)}`),
+      );
       return null;
     }
 
@@ -337,7 +342,12 @@ export class JobService {
             file,
             this.plugin.settings.successStatusValue ?? 'success',
           );
-          new Notice(`${existingFile ? '已更新' : '已根据 JSON 创建'}笔记: ${file.basename}`);
+          new Notice(
+            tr(
+              `${existingFile ? '已更新' : '已根据 JSON 创建'}笔记: ${file.basename}`,
+              `${existingFile ? 'Updated' : 'Created from JSON'}: ${file.basename}`,
+            ),
+          );
           return file;
         } catch (error) {
           try {
@@ -345,13 +355,25 @@ export class JobService {
           } catch (statusError) {
             console.error('[Video Summary] JSON 失败状态写回失败', statusError);
           }
-          new Notice(`JSON 笔记写入失败，已保留为错误状态: ${messageOf(error)}`, 8000);
+          new Notice(
+            tr(
+              `JSON 笔记写入失败，已保留为错误状态: ${messageOf(error)}`,
+              `Could not write the JSON note; kept as an error: ${messageOf(error)}`,
+            ),
+            8000,
+          );
           return null;
         }
       }
       return null;
     } catch (error) {
-      new Notice(`JSON 工件或笔记创建失败: ${messageOf(error)}`, 8000);
+      new Notice(
+        tr(
+          `JSON 工件或笔记创建失败: ${messageOf(error)}`,
+          `Could not create the JSON artifact or note: ${messageOf(error)}`,
+        ),
+        8000,
+      );
       return null;
     }
   }

@@ -7,7 +7,7 @@ import {
   VideoInput,
   ProcessingResult,
 } from './types';
-import { LANGUAGE_OPTIONS, PROCESSING_MODES } from './constants';
+import { LANGUAGE_OPTIONS, processingModes } from './constants';
 import { NoteProcessor } from './utils/NoteProcessor';
 import {
   PlaylistInfo,
@@ -29,6 +29,7 @@ import { syncCourseIndexAtomic } from './core/CourseIndexWriter';
 import { fire } from './utils/fire';
 import { errorMessage } from './utils/errors';
 import { scalarText } from './utils/json';
+import { tr } from './utils/i18n';
 export class BatchProcessingModal extends Modal {
   private plugin: VideoSummaryPlugin;
   private noteProcessor: NoteProcessor;
@@ -87,10 +88,10 @@ export class BatchProcessingModal extends Modal {
     // 标题居中：左边留一个与关闭按钮等宽的空位
     const header = contentEl.createDiv({ cls: 'vs-modal-header is-centered' });
     header.createSpan({ cls: 'vs-modal-header-spacer' });
-    header.createSpan({ text: '批量处理', cls: 'vs-modal-title' });
+    header.createSpan({ text: tr('批量处理', 'Batch processing'), cls: 'vs-modal-title' });
     const closeBtn = header.createEl('button', {
       cls: 'vs-icon-btn',
-      attr: { type: 'button', 'aria-label': '关闭' },
+      attr: { type: 'button', 'aria-label': tr('关闭', 'Close') },
     });
     setIcon(closeBtn, 'x');
     closeBtn.onclick = () => this.close();
@@ -100,8 +101,16 @@ export class BatchProcessingModal extends Modal {
     segmented(
       bodyEl,
       [
-        { value: 'files' as const, label: '本地笔记文件', icon: 'files' },
-        { value: 'playlist' as const, label: '导入视频课程', icon: 'list-video' },
+        {
+          value: 'files' as const,
+          label: tr('本地笔记文件', 'Notes in this vault'),
+          icon: 'files',
+        },
+        {
+          value: 'playlist' as const,
+          label: tr('导入视频课程', 'Import a video course'),
+          icon: 'list-video',
+        },
       ],
       this.processingMode,
       (value: 'files' | 'playlist') => {
@@ -114,8 +123,9 @@ export class BatchProcessingModal extends Modal {
     configChip(
       chipRow,
       '处理模式',
-      PROCESSING_MODES.find((item) => item.value === this.mode)?.label || '完整总结',
-      PROCESSING_MODES.map((item) => ({
+      processingModes().find((item) => item.value === this.mode)?.label ||
+        tr('完整总结', 'Full summary'),
+      processingModes().map((item) => ({
         title: item.label,
         onClick: () => {
           this.mode = item.value as ProcessingMode;
@@ -145,7 +155,11 @@ export class BatchProcessingModal extends Modal {
     setIcon(searchIcon, 'search');
     const searchInput = search.createEl('input', {
       cls: 'vs-search-input',
-      attr: { type: 'text', placeholder: '搜索文件名…', value: this.searchFilter },
+      attr: {
+        type: 'text',
+        placeholder: tr('搜索文件名…', 'Search file names…'),
+        value: this.searchFilter,
+      },
     });
     searchInput.addEventListener(
       'input',
@@ -188,7 +202,7 @@ export class BatchProcessingModal extends Modal {
           onClick: pick(() => (this.statusFilter = value)),
         })),
         ...['all', ...this.collectFolders()].map((folder, index) => ({
-          title: folder === 'all' ? '全部文件夹' : folder,
+          title: folder === 'all' ? tr('全部文件夹', 'All folders') : folder,
           checked: this.folderFilter === folder,
           separatorBefore: index === 0,
           onClick: pick(() => (this.folderFilter = folder)),
@@ -209,21 +223,25 @@ export class BatchProcessingModal extends Modal {
     quickRow.createSpan({ cls: 'vs-quick-spacer' });
     iconButton(quickRow, 'more-horizontal', '选择', (event) =>
       showMenu(event, [
-        { title: '全选', icon: 'check-check', onClick: () => void this.selectAllVisible() },
-        { title: '清空', icon: 'x', onClick: () => void this.selectNone() },
         {
-          title: '选择待处理',
+          title: tr('全选', 'Select all'),
+          icon: 'check-check',
+          onClick: () => void this.selectAllVisible(),
+        },
+        { title: tr('清空', 'Clear'), icon: 'x', onClick: () => void this.selectNone() },
+        {
+          title: tr('选择待处理', 'Select pending'),
           icon: 'circle-dashed',
           separatorBefore: true,
           onClick: () => void this.selectByStatus('pending'),
         },
         {
-          title: '选择失败',
+          title: tr('选择失败', 'Select failed'),
           icon: 'circle-alert',
           onClick: () => void this.selectByStatus('error'),
         },
         {
-          title: '只看缺少视频信息的',
+          title: tr('只看缺少视频信息的', 'Only notes missing video info'),
           checked: this.infoFilter === 'no-info',
           separatorBefore: true,
           onClick: async () => {
@@ -241,18 +259,28 @@ export class BatchProcessingModal extends Modal {
     // ---------- 播放列表 ----------
     const playlistSelectionEl = bodyEl.createDiv({ cls: 'batch-playlist-selection' });
     new Setting(playlistSelectionEl)
-      .setName('课程来源链接')
-      .setDesc('支持 YouTube 播放列表与哔哩哔哩合集/收藏夹；解析和导入不会调用 AI')
+      .setName(tr('课程来源链接', 'Course source link'))
+      .setDesc(
+        tr(
+          '支持 YouTube 播放列表与哔哩哔哩合集/收藏夹；解析和导入不会调用 AI',
+          'YouTube playlists and Bilibili collections or favourites; reading and importing them does not call the AI',
+        ),
+      )
       .addText((text) =>
         text
-          .setPlaceholder('YouTube 播放列表或哔哩哔哩合集/收藏夹链接')
+          .setPlaceholder(
+            tr(
+              'YouTube 播放列表或哔哩哔哩合集/收藏夹链接',
+              'YouTube playlist or Bilibili collection/favourites link',
+            ),
+          )
           .setValue(this.playlistUrl)
           .onChange((value) => {
             this.playlistUrl = value;
           }),
       );
     const parseButton = playlistSelectionEl.createEl('button', {
-      text: '预览增量',
+      text: tr('预览增量', 'Preview changes'),
       cls: 'vs-text-btn is-primary',
       attr: { type: 'button' },
     });
@@ -268,9 +296,17 @@ export class BatchProcessingModal extends Modal {
     const footer = contentEl.createDiv({ cls: 'vs-modal-footer' });
     const concurrency = footer.createEl('button', {
       cls: 'vs-quick-chip',
-      attr: { type: 'button', title: '同时处理的最大数量' },
+      attr: {
+        type: 'button',
+        title: tr('同时处理的最大数量', 'Most items processed at the same time'),
+      },
     });
-    concurrency.setText(`并发 ${this.plugin.settings.batchConcurrency}`);
+    concurrency.setText(
+      tr(
+        `并发 ${this.plugin.settings.batchConcurrency}`,
+        `Parallel ${this.plugin.settings.batchConcurrency}`,
+      ),
+    );
     concurrency.addEventListener('click', (event) => {
       event.preventDefault();
       showMenu(
@@ -281,14 +317,14 @@ export class BatchProcessingModal extends Modal {
             this.plugin.settings.batchConcurrency = value;
             this.plugin.jobs.setConcurrency(value);
             await this.plugin.saveSettings();
-            concurrency.setText(`并发 ${value}`);
+            concurrency.setText(tr(`并发 ${value}`, `Parallel ${value}`));
           },
         })),
       );
     });
     footer.createSpan({ cls: 'vs-quick-spacer' });
     const cancelButton = footer.createEl('button', {
-      text: '取消',
+      text: tr('取消', 'Cancel'),
       cls: 'vs-text-btn',
       attr: { type: 'button' },
     });
@@ -299,7 +335,7 @@ export class BatchProcessingModal extends Modal {
     });
     const startIcon = this.startButtonEl.createSpan({ cls: 'vs-btn-icon' });
     setIcon(startIcon, 'play');
-    this.startLabelEl = this.startButtonEl.createSpan({ text: '开始处理' });
+    this.startLabelEl = this.startButtonEl.createSpan({ text: tr('开始处理', 'Start') });
     this.startButtonEl.addEventListener('click', () => {
       void this.startBatchProcessing();
     });
@@ -365,9 +401,19 @@ export class BatchProcessingModal extends Modal {
 
     const card = container.createDiv({ cls: 'vs-last-batch' });
     const row = card.createDiv({ cls: 'vs-last-batch-row' });
-    row.createSpan({ text: `上次批量 · ${batch.length} 个文件`, cls: 'vs-last-batch-title' });
-    row.createSpan({ text: `${success} 成功`, cls: 'vs-mono vs-last-ok' });
-    if (failed > 0) row.createSpan({ text: `${failed} 失败`, cls: 'vs-mono vs-last-fail' });
+    row.createSpan({
+      text: tr(`上次批量 · ${batch.length} 个文件`, `Last batch · ${batch.length} files`),
+      cls: 'vs-last-batch-title',
+    });
+    row.createSpan({
+      text: tr(`${success} 成功`, `${success} succeeded`),
+      cls: 'vs-mono vs-last-ok',
+    });
+    if (failed > 0)
+      row.createSpan({
+        text: tr(`${failed} 失败`, `${failed} failed`),
+        cls: 'vs-mono vs-last-fail',
+      });
 
     const bar = card.createDiv({ cls: 'vs-last-batch-bar' });
     bar.createSpan({ cls: 'is-ok' }).style.width = `${Math.round((success / batch.length) * 100)}%`;
@@ -402,28 +448,43 @@ export class BatchProcessingModal extends Modal {
         this.startLabelEl.setText(
           this.courseImport
             ? count > 0
-              ? `导入课程 · 新建 ${count} 条待处理笔记`
-              : '更新课程索引'
-            : '先预览课程增量',
+              ? tr(
+                  `导入课程 · 新建 ${count} 条待处理笔记`,
+                  `Import course · create ${count} pending notes`,
+                )
+              : tr('更新课程索引', 'Update course index')
+            : tr('先预览课程增量', 'Preview the course changes first'),
         );
       } else {
         const count = this.selectedFiles.length;
-        this.startLabelEl.setText(count > 0 ? `开始处理 ${count} 个` : '开始处理');
+        this.startLabelEl.setText(
+          count > 0 ? tr(`开始处理 ${count} 个`, `Process ${count}`) : tr('开始处理', 'Start'),
+        );
       }
     }
     if (this.countEl) {
-      this.countEl.setText(`已选 ${this.selectedFiles.length} / ${this.allVideoFiles.length}`);
+      this.countEl.setText(
+        tr(
+          `已选 ${this.selectedFiles.length} / ${this.allVideoFiles.length}`,
+          `Selected ${this.selectedFiles.length} / ${this.allVideoFiles.length}`,
+        ),
+      );
     }
   }
 
   private async parsePlaylist() {
     if (!this.playlistUrl.trim()) {
-      new Notice('请输入播放列表链接');
+      new Notice(tr('请输入播放列表链接', 'Enter a playlist link'));
       return;
     }
 
     if (!PlaylistProcessor.isPlaylistUrl(this.playlistUrl)) {
-      new Notice('请输入有效的 YouTube 播放列表或哔哩哔哩合集/收藏夹链接');
+      new Notice(
+        tr(
+          '请输入有效的 YouTube 播放列表或哔哩哔哩合集/收藏夹链接',
+          'Enter a valid YouTube playlist or Bilibili collection/favourites link',
+        ),
+      );
       return;
     }
 
@@ -431,7 +492,7 @@ export class BatchProcessingModal extends Modal {
 
     this.playlistEl.empty();
     this.playlistEl.createEl('p', {
-      text: '正在解析播放列表...',
+      text: tr('正在解析播放列表...', 'Reading the playlist...'),
       cls: 'mod-muted',
     });
 
@@ -460,13 +521,21 @@ export class BatchProcessingModal extends Modal {
       this.selectedPlaylistKeys = new Set(selectableKeys);
 
       this.playlistEl.empty();
-      this.playlistEl.createEl('h4', { text: `课程: ${playlistInfo.title}` });
+      this.playlistEl.createEl('h4', {
+        text: tr(`课程: ${playlistInfo.title}`, `Course: ${playlistInfo.title}`),
+      });
       this.playlistEl.createEl('p', {
-        text: `共 ${playlistInfo.itemCount} 个 · 新增 ${courseImport.diff.new.length} · 已存在 ${courseImport.diff.existing.length} · 来源移除 ${courseImport.diff.removed.length}`,
+        text: tr(
+          `共 ${playlistInfo.itemCount} 个 · 新增 ${courseImport.diff.new.length} · 已存在 ${courseImport.diff.existing.length} · 来源移除 ${courseImport.diff.removed.length}`,
+          `${playlistInfo.itemCount} videos · ${courseImport.diff.new.length} new · ${courseImport.diff.existing.length} existing · ${courseImport.diff.removed.length} removed at the source`,
+        ),
       });
       if (playlistInfo.truncated) {
         this.playlistEl.createEl('p', {
-          text: `已触达安全上限（${playlistInfo.fetchedPages} 页），当前预览可能不是完整列表`,
+          text: tr(
+            `已触达安全上限（${playlistInfo.fetchedPages} 页），当前预览可能不是完整列表`,
+            `Reached the safety limit (${playlistInfo.fetchedPages} pages); this preview may be incomplete`,
+          ),
           cls: 'mod-warning',
         });
       }
@@ -496,38 +565,57 @@ export class BatchProcessingModal extends Modal {
           cls: 'playlist-item-title',
         });
         infoEl.createDiv({
-          text: `${item.platform === 'youtube' ? '频道' : 'UP主'}: ${item.author || '未知'}`,
+          text: tr(
+            `${item.platform === 'youtube' ? '频道' : 'UP主'}: ${item.author || '未知'}`,
+            `${item.platform === 'youtube' ? 'Channel' : 'Uploader'}: ${item.author || 'unknown'}`,
+          ),
           cls: 'playlist-item-author',
         });
         if (item.duration) {
           infoEl.createDiv({
-            text: `时长: ${item.duration}`,
+            text: tr(`时长: ${item.duration}`, `Length: ${item.duration}`),
             cls: 'playlist-item-duration',
           });
         }
         infoEl.createDiv({
-          text: `${
-            isNew
-              ? '新增 · 将进入待处理'
-              : canCreatePendingNote
-                ? '已在课程中 · 可补建待处理笔记'
-                : '已导入 · 不重复创建'
-          } · ${item.videoId}`,
+          text: tr(
+            `${
+              isNew
+                ? '新增 · 将进入待处理'
+                : canCreatePendingNote
+                  ? '已在课程中 · 可补建待处理笔记'
+                  : '已导入 · 不重复创建'
+            } · ${item.videoId}`,
+            `${
+              isNew
+                ? 'New · will be pending'
+                : canCreatePendingNote
+                  ? 'Already in the course · can add a pending note'
+                  : 'Already imported · not created again'
+            } · ${item.videoId}`,
+          ),
           cls: 'playlist-item-bvid',
         });
       }
 
       this.updateStartButton();
-      new Notice(`课程增量已就绪：${courseImport.diff.new.length} 个新增视频（尚未调用 AI）`);
+      new Notice(
+        tr(
+          `课程增量已就绪：${courseImport.diff.new.length} 个新增视频（尚未调用 AI）`,
+          `Course changes ready: ${courseImport.diff.new.length} new videos (no AI used yet)`,
+        ),
+      );
     } catch (error) {
       console.error('解析播放列表失败:', error);
       const message = messageOf(error);
       this.playlistEl.empty();
       this.playlistEl.createEl('p', {
-        text: `❌ 解析失败: ${message}`,
+        text: tr(`❌ 解析失败: ${message}`, `❌ Could not read it: ${message}`),
         cls: 'mod-warning',
       });
-      new Notice(`❌ 解析播放列表失败: ${message}`);
+      new Notice(
+        tr(`❌ 解析播放列表失败: ${message}`, `❌ Could not read the playlist: ${message}`),
+      );
     }
   }
 
@@ -557,7 +645,10 @@ export class BatchProcessingModal extends Modal {
 
     if (filteredFiles.length === 0) {
       this.fileListEl.createDiv({
-        text: this.allVideoFiles.length === 0 ? '库里还没有视频笔记' : '没有符合筛选条件的笔记',
+        text:
+          this.allVideoFiles.length === 0
+            ? tr('库里还没有视频笔记', 'No video notes in this vault yet')
+            : tr('没有符合筛选条件的笔记', 'No notes match the filters'),
         cls: 'vs-modal-empty',
       });
       this.updateStartButton();
@@ -585,7 +676,10 @@ export class BatchProcessingModal extends Modal {
         });
       }
       sub.createSpan({
-        text: file.parent?.path && file.parent.path !== '/' ? file.parent.path : '根目录',
+        text:
+          file.parent?.path && file.parent.path !== '/'
+            ? file.parent.path
+            : tr('根目录', 'Vault root'),
       });
       sub.createSpan({ text: new Date(file.stat.mtime).toLocaleDateString('zh-CN') });
 
@@ -678,7 +772,7 @@ export class BatchProcessingModal extends Modal {
 
   private async processFiles() {
     if (this.selectedFiles.length === 0) {
-      new Notice('请先选择要处理的文件');
+      new Notice(tr('请先选择要处理的文件', 'Select files to process first'));
       return;
     }
     if (!(await this.plugin.ensureBackendReady())) return;
@@ -740,7 +834,13 @@ export class BatchProcessingModal extends Modal {
           this.progress.failed++;
           this.progress.current = file.basename;
           this.updateProgressDisplay();
-          new Notice(`❌ ${file.basename} 无法加入批量任务: ${normalizedError.message}`, 5000);
+          new Notice(
+            tr(
+              `❌ ${file.basename} 无法加入批量任务: ${normalizedError.message}`,
+              `❌ ${file.basename} could not join the batch: ${normalizedError.message}`,
+            ),
+            5000,
+          );
         }
       }
 
@@ -785,13 +885,19 @@ export class BatchProcessingModal extends Modal {
             this.progress.completed++;
 
             // 显示成功通知
-            new Notice(`✅ ${file.basename} 处理完成`, 3000);
+            new Notice(tr(`✅ ${file.basename} 处理完成`, `✅ ${file.basename} done`), 3000);
           } catch (updateError) {
             console.error(`更新笔记失败: ${file.basename}`, updateError);
             await this.noteProcessor.setProcessingError(file, updateError);
             await this.plugin.jobService.updateCourseProgressForFile(file, 'error', 0);
             this.progress.failed++;
-            new Notice(`❌ ${file.basename} 更新失败: ${errorMessage(updateError)}`, 5000);
+            new Notice(
+              tr(
+                `❌ ${file.basename} 更新失败: ${errorMessage(updateError)}`,
+                `❌ ${file.basename} could not be updated: ${errorMessage(updateError)}`,
+              ),
+              5000,
+            );
           }
         } else {
           // 设置错误状态
@@ -802,7 +908,13 @@ export class BatchProcessingModal extends Modal {
             );
             await this.plugin.jobService.updateCourseProgressForFile(file, 'error', 0);
             this.progress.failed++;
-            new Notice(`❌ ${file.basename} 处理失败: ${result.error}`, 5000);
+            new Notice(
+              tr(
+                `❌ ${file.basename} 处理失败: ${result.error}`,
+                `❌ ${file.basename} failed: ${result.error}`,
+              ),
+              5000,
+            );
           } catch (statusError) {
             console.error(`设置状态失败: ${file.basename}`, statusError);
           }
@@ -832,13 +944,19 @@ export class BatchProcessingModal extends Modal {
       console.error('批量处理失败:', error);
       this.progress.status = 'error';
       this.updateProgressDisplay();
-      new Notice(`❌ 批量处理失败: ${errorMessage(error)}`, 0);
+      new Notice(
+        tr(
+          `❌ 批量处理失败: ${errorMessage(error)}`,
+          `❌ Batch processing failed: ${errorMessage(error)}`,
+        ),
+        0,
+      );
     }
   }
 
   private async processPlaylist() {
     if (!this.courseImport || !this.playlistInfo) {
-      new Notice('请先预览课程增量');
+      new Notice(tr('请先预览课程增量', 'Preview the course changes first'));
       return;
     }
     const selectedKeys = new Set(this.selectedPlaylistKeys);
@@ -972,16 +1090,24 @@ export class BatchProcessingModal extends Modal {
       this.courseImport = compileCourseImport(this.playlistInfo, manifest);
       this.updateStartButton();
       new Notice(
-        `课程已导入：${this.progress.completed} 条待处理笔记，未调用 AI${
-          this.progress.failed > 0 ? `，${this.progress.failed} 条创建失败` : ''
-        }`,
+        tr(
+          `课程已导入：${this.progress.completed} 条待处理笔记，未调用 AI${
+            this.progress.failed > 0 ? `，${this.progress.failed} 条创建失败` : ''
+          }`,
+          `Course imported: ${this.progress.completed} pending notes, no AI used${
+            this.progress.failed > 0 ? `, ${this.progress.failed} could not be created` : ''
+          }`,
+        ),
         5000,
       );
     } catch (error) {
       console.error('课程导入失败:', error);
       this.progress.status = 'error';
       this.updateProgressDisplay();
-      new Notice(`❌ 课程导入失败: ${messageOf(error)}`, 0);
+      new Notice(
+        tr(`❌ 课程导入失败: ${messageOf(error)}`, `❌ Course import failed: ${messageOf(error)}`),
+        0,
+      );
     }
   }
 
@@ -1059,7 +1185,9 @@ export class BatchProcessingModal extends Modal {
             ? '❌ 错误'
             : '📺 就绪';
 
-    this.progressEl.createEl('h3', { text: `批量处理状态: ${statusText}` });
+    this.progressEl.createEl('h3', {
+      text: tr(`批量处理状态: ${statusText}`, `Batch status: ${statusText}`),
+    });
 
     if (this.progress.total > 0) {
       const progressBar = this.progressEl.createDiv({ cls: 'progress-bar' });
@@ -1068,15 +1196,24 @@ export class BatchProcessingModal extends Modal {
       progressFill.style.width = `${progress * 100}%`;
 
       this.progressEl.createEl('p', {
-        text: `进度: ${this.progress.completed + this.progress.failed}/${this.progress.total}`,
+        text: tr(
+          `进度: ${this.progress.completed + this.progress.failed}/${this.progress.total}`,
+          `Progress: ${this.progress.completed + this.progress.failed}/${this.progress.total}`,
+        ),
       });
       this.progressEl.createEl('p', {
-        text: `成功: ${this.progress.completed}, 失败: ${this.progress.failed}`,
+        text: tr(
+          `成功: ${this.progress.completed}, 失败: ${this.progress.failed}`,
+          `Succeeded: ${this.progress.completed}, failed: ${this.progress.failed}`,
+        ),
       });
 
       if (this.progress.current) {
         this.progressEl.createEl('p', {
-          text: `当前处理: ${this.progress.current}`,
+          text: tr(
+            `当前处理: ${this.progress.current}`,
+            `Now processing: ${this.progress.current}`,
+          ),
           cls: 'current-file',
         });
       }
@@ -1084,7 +1221,7 @@ export class BatchProcessingModal extends Modal {
       // 添加实时状态列表
       if (this.progress.status === 'running' || this.progress.status === 'complete') {
         const statusListEl = this.progressEl.createDiv({ cls: 'status-list' });
-        statusListEl.createEl('h4', { text: '处理状态详情:' });
+        statusListEl.createEl('h4', { text: tr('处理状态详情:', 'Details:') });
 
         // 显示已处理的文件状态
         const processedCount = this.progress.completed + this.progress.failed;
@@ -1092,15 +1229,21 @@ export class BatchProcessingModal extends Modal {
           const statusSummary = statusListEl.createDiv({ cls: 'status-summary' });
           statusSummary.createDiv({
             cls: 'status-item success',
-            text: `✅ 已完成: ${this.progress.completed} 个`,
+            text: tr(
+              `✅ 已完成: ${this.progress.completed} 个`,
+              `✅ Done: ${this.progress.completed}`,
+            ),
           });
           statusSummary.createDiv({
             cls: 'status-item error',
-            text: `❌ 失败: ${this.progress.failed} 个`,
+            text: tr(`❌ 失败: ${this.progress.failed} 个`, `❌ Failed: ${this.progress.failed}`),
           });
           statusSummary.createDiv({
             cls: 'status-item pending',
-            text: `⏳ 待处理: ${this.progress.total - processedCount} 个`,
+            text: tr(
+              `⏳ 待处理: ${this.progress.total - processedCount} 个`,
+              `⏳ Waiting: ${this.progress.total - processedCount}`,
+            ),
           });
         }
       }

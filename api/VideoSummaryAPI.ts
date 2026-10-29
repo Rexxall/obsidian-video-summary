@@ -33,6 +33,7 @@ import {
 
 import { errorMessage } from '../utils/errors';
 import { asArray, asRecord, asString, asText, isRecord, type JsonRecord } from '../utils/json';
+import { tr } from '../utils/i18n';
 const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
 const CACHE_PROMPT_VERSION = 'video-knowledge-v3-clean-note-1';
 
@@ -239,7 +240,11 @@ export class VideoSummaryAPI {
         if (this.debugMode) {
           console.debug(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
-        onProgress?.({ stageLabel: '命中缓存', progress: 1, message: '命中缓存，未请求后端' });
+        onProgress?.({
+          stageLabel: '命中缓存',
+          progress: 1,
+          message: tr('命中缓存，未请求后端', 'From cache; the backend was not called'),
+        });
         return cachedResult;
       }
     }
@@ -1087,7 +1092,10 @@ export class VideoSummaryAPI {
     const diagnosticText = lastDiagnostic
       ? `\n最后阶段: ${asText(lastDiagnostic.stage) ?? ''}\n诊断: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}`
       : '';
-    return `${errorMessage}${diagnosticText}\n控制台: ${this.getCodexWorkerDashboardUrl()}`;
+    return tr(
+      `${errorMessage}${diagnosticText}\n控制台: ${this.getCodexWorkerDashboardUrl()}`,
+      `${errorMessage}${diagnosticText}\nDashboard: ${this.getCodexWorkerDashboardUrl()}`,
+    );
   }
 
   private truncateError(value: string, max: number): string {
@@ -1762,13 +1770,22 @@ export class VideoSummaryAPI {
       );
       const parsed = this.tryParseJson(await response.text());
       if (response.ok && isRecord(parsed) && parsed.ok === true) {
-        return { ok: true, message: `已保存 ${String(parsed.cookies)} 条 cookie。` };
+        return {
+          ok: true,
+          message: tr(
+            `已保存 ${String(parsed.cookies)} 条 cookie。`,
+            `Saved ${String(parsed.cookies)} cookies.`,
+          ),
+        };
       }
       return {
         ok: false,
         message:
           response.status === 500
-            ? '后端没接受这段内容：需要浏览器扩展导出的 cookies.txt（每行用 Tab 分隔的 7 列），并且包含这个网站的 cookie。'
+            ? tr(
+                '后端没接受这段内容：需要浏览器扩展导出的 cookies.txt（每行用 Tab 分隔的 7 列），并且包含这个网站的 cookie。',
+                "The backend did not accept this: it needs a cookies.txt exported by a browser extension (7 tab-separated columns per line) that contains this site's cookies.",
+              )
             : this.formatUserFacingError(new Error(`HTTP ${response.status}`)),
       };
     } catch (error) {
@@ -1803,7 +1820,9 @@ export class VideoSummaryAPI {
         return {
           ok: false,
           durationMs,
-          message: summary.replace(/^Error:\s*/, '') || '后端没有返回总结。',
+          message:
+            summary.replace(/^Error:\s*/, '') ||
+            tr('后端没有返回总结。', 'The backend returned no summary.'),
         };
       }
       return { ok: true, durationMs, message: summary.slice(0, 160) };
@@ -1948,36 +1967,57 @@ export class VideoSummaryAPI {
     const lower = message.toLowerCase();
 
     if (message.includes('请求被取消')) {
-      return '请求已取消。';
+      return tr('请求已取消。', 'Request cancelled.');
     }
 
     if (message.includes('HTTP 404')) {
       if (this.backend === 'codex-worker') {
-        return `Codex Worker 端点不存在。请确认后端 App 已启动且 URL 指向正确端口。当前 URL: ${this.webhookUrl}`;
+        return tr(
+          `Codex Worker 端点不存在。请确认后端 App 已启动且 URL 指向正确端口。当前 URL: ${this.webhookUrl}`,
+          `Codex Worker endpoint not found. Check that the backend app is running and the URL points at the right port. Current URL: ${this.webhookUrl}`,
+        );
       }
-      return `后端还没准备好，或者地址不对。第一次启动要等一分钟左右；如果一直这样，确认连接码里的端口和启动脚本显示的一致。当前地址: ${this.webhookUrl}`;
+      return tr(
+        `后端还没准备好，或者地址不对。第一次启动要等一分钟左右；如果一直这样，确认连接码里的端口和启动脚本显示的一致。当前地址: ${this.webhookUrl}`,
+        `The backend is not ready yet, or the address is wrong. The first start takes about a minute; if it stays like this, check that the port in the connection code matches the start script. Current address: ${this.webhookUrl}`,
+      );
     }
 
     if (message.includes('HTTP 401') || message.includes('HTTP 403')) {
       if (this.backend === 'codex-worker') {
-        return 'Codex Worker 拒绝访问。请检查 Worker 鉴权 token 与本地服务安全配置。';
+        return tr(
+          'Codex Worker 拒绝访问。请检查 Worker 鉴权 token 与本地服务安全配置。',
+          'Codex Worker refused access. Check the Worker token and local security settings.',
+        );
       }
-      return '后端拒绝了这个连接码。在后端文件夹运行 vs-backend code，把连接码重新粘贴到设置的“首次配置”。';
+      return tr(
+        '后端拒绝了这个连接码。在后端文件夹运行 vs-backend code，把连接码重新粘贴到设置的“首次配置”。',
+        'The backend rejected this connection code. Run vs-backend code in the backend folder and paste the code again into first-run setup.',
+      );
     }
 
     if (
       lower.includes('bilibili') &&
       (lower.includes('http error 412') || lower.includes('precondition failed'))
     ) {
-      return 'B 站拒绝了下载请求。在后端文件夹运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展“同步 B 站登录”。';
+      return tr(
+        'B 站拒绝了下载请求。在后端文件夹运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展“同步 B 站登录”。',
+        'Bilibili refused the download. Run vs-backend update in the backend folder to update yt-dlp; if it still fails, use the browser extension\'s "Sync Bilibili login".',
+      );
     }
 
     if (lower.includes('yt-dlp') && lower.includes('not found')) {
-      return '后端缺少 yt-dlp。请用后端安装包里的启动脚本启动，不要用官方 n8n 镜像。';
+      return tr(
+        '后端缺少 yt-dlp。请用后端安装包里的启动脚本启动，不要用官方 n8n 镜像。',
+        'The backend has no yt-dlp. Start it with the start script from the backend package, not the official n8n image.',
+      );
     }
 
     if (lower.includes('ffmpeg') && lower.includes('not found')) {
-      return '后端缺少 ffmpeg。请用后端安装包里的启动脚本启动，不要用官方 n8n 镜像。';
+      return tr(
+        '后端缺少 ffmpeg。请用后端安装包里的启动脚本启动，不要用官方 n8n 镜像。',
+        'The backend has no ffmpeg. Start it with the start script from the backend package, not the official n8n image.',
+      );
     }
 
     if (
@@ -1986,9 +2026,15 @@ export class VideoSummaryAPI {
       message.includes('HTTP 503')
     ) {
       if (this.backend === 'codex-worker') {
-        return `Codex Worker 内部报错。请打开 Worker 控制台查看任务日志。原始错误: ${message}`;
+        return tr(
+          `Codex Worker 内部报错。请打开 Worker 控制台查看任务日志。原始错误: ${message}`,
+          `Codex Worker error. Open the Worker dashboard for the job log. Original error: ${message}`,
+        );
       }
-      return `后端处理时出错。在后端文件夹运行 vs-backend logs 查看日志。原始错误: ${message}`;
+      return tr(
+        `后端处理时出错。在后端文件夹运行 vs-backend logs 查看日志。原始错误: ${message}`,
+        `The backend failed while processing. Run vs-backend logs in the backend folder. Original error: ${message}`,
+      );
     }
 
     if (
@@ -1998,59 +2044,107 @@ export class VideoSummaryAPI {
       lower.includes('connection refused')
     ) {
       if (this.backend === 'codex-worker') {
-        return `无法连接 Codex Worker。请确认本地后端 App 已启动、端口可访问且 Worker URL 正确。当前 URL: ${this.webhookUrl}`;
+        return tr(
+          `无法连接 Codex Worker。请确认本地后端 App 已启动、端口可访问且 Worker URL 正确。当前 URL: ${this.webhookUrl}`,
+          `Cannot reach the Codex Worker. Check that the backend app is running, the port is reachable and the Worker URL is right. Current URL: ${this.webhookUrl}`,
+        );
       }
-      return `无法连接后端。先打开 Docker，再在后端文件夹运行启动脚本。当前地址: ${this.webhookUrl}`;
+      return tr(
+        `无法连接后端。先打开 Docker，再在后端文件夹运行启动脚本。当前地址: ${this.webhookUrl}`,
+        `Cannot reach the backend. Open Docker, then run the start script in the backend folder. Current address: ${this.webhookUrl}`,
+      );
     }
 
     if (message.includes('服务器返回空响应')) {
-      return '服务器返回空响应。请确认 n8n workflow 已激活，并且 Respond to Webhook 节点已连到测试/处理分支。';
+      return tr(
+        '服务器返回空响应。请确认 n8n workflow 已激活，并且 Respond to Webhook 节点已连到测试/处理分支。',
+        'The server returned an empty response. Check that the n8n workflow is active and the Respond to Webhook node is connected.',
+      );
     }
 
     if (message.includes('服务器返回的不是 JSON')) {
-      return `${message}。请确认 URL 指向 n8n Webhook，而不是 n8n 登录页、反向代理错误页或普通网页。`;
+      return tr(
+        `${message}。请确认 URL 指向 n8n Webhook，而不是 n8n 登录页、反向代理错误页或普通网页。`,
+        `${message}. Make sure the URL points at the n8n webhook, not the n8n login page, a proxy error page or a normal web page.`,
+      );
     }
 
     if (message.includes('服务器返回的数据中没有有效内容')) {
-      return '处理服务已响应，但没有返回 summary、note、video_transcript 或视频信息字段。请检查 n8n 最后的 Respond to Webhook 输出。';
+      return tr(
+        '处理服务已响应，但没有返回 summary、note、video_transcript 或视频信息字段。请检查 n8n 最后的 Respond to Webhook 输出。',
+        'The backend answered without summary, note, video_transcript or video info fields. Check the last Respond to Webhook node in n8n.',
+      );
     }
 
-    return message || '未知错误。请打开调试模式后重试，并查看 Obsidian 开发者控制台。';
+    return (
+      message ||
+      tr(
+        '未知错误。请打开调试模式后重试，并查看 Obsidian 开发者控制台。',
+        "Unknown error. Turn on debug mode, try again and check Obsidian's developer console.",
+      )
+    );
   }
 
   private getConnectionHint(message: string): string {
-    if (message.includes('Webhook 不存在') || message.includes('HTTP 404')) {
-      return '等一分钟再试；仍不行就重新运行启动脚本，并重新粘贴它显示的连接码。';
+    if (/Webhook 不存在|HTTP 404|后端还没准备好|not ready yet/.test(message)) {
+      return tr(
+        '等一分钟再试；仍不行就重新运行启动脚本，并重新粘贴它显示的连接码。',
+        'Wait a minute and try again; if it still fails, run the start script again and paste the connection code it shows.',
+      );
     }
 
-    if (message.includes('无法连接处理服务')) {
-      return '先打开 Docker，再在后端文件夹运行启动脚本（macOS 双击 start-mac.command，Windows 双击 start-windows.cmd）。';
+    if (/无法连接处理服务|无法连接后端|Cannot reach the backend/.test(message)) {
+      return tr(
+        '先打开 Docker，再在后端文件夹运行启动脚本（macOS 双击 start-mac.command，Windows 双击 start-windows.cmd）。',
+        'Open Docker, then run the start script in the backend folder (macOS: double-click start-mac.command; Windows: double-click start-windows.cmd).',
+      );
     }
 
-    if (message.includes('无法连接 Codex Worker')) {
-      return '先启动本地后端 App，再确认 Worker URL 与端口配置。';
+    if (/无法连接 Codex Worker|Cannot reach the Codex Worker/.test(message)) {
+      return tr(
+        '先启动本地后端 App，再确认 Worker URL 与端口配置。',
+        'Start the local backend app first, then check the Worker URL and port.',
+      );
     }
 
-    if (message.includes('Bilibili 拒绝')) {
-      return '运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展同步 B 站登录。';
+    if (/Bilibili 拒绝|B 站拒绝|Bilibili refused/.test(message)) {
+      return tr(
+        '运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展同步 B 站登录。',
+        'Run vs-backend update to update yt-dlp; if it still fails, sync your Bilibili login with the browser extension.',
+      );
     }
 
-    if (message.includes('空响应')) {
-      return '检查 Respond to Webhook: Test 节点是否仍连接在测试分支上。';
+    if (/空响应|empty response/.test(message)) {
+      return tr(
+        '检查 Respond to Webhook: Test 节点是否仍连接在测试分支上。',
+        'Check that the Respond to Webhook: Test node is still connected to the test branch.',
+      );
     }
 
-    if (message.includes('不是 JSON') || message.includes('没有有效内容')) {
-      return '检查最后一个 Respond to Webhook 节点，确保返回 JSON，且包含 note、summary、video_transcript 或 video_title。';
+    if (/不是 JSON|没有有效内容|not JSON|without summary/.test(message)) {
+      return tr(
+        '检查最后一个 Respond to Webhook 节点，确保返回 JSON，且包含 note、summary、video_transcript 或 video_title。',
+        'Check the last Respond to Webhook node: it must return JSON with note, summary, video_transcript or video_title.',
+      );
     }
 
-    if (message.includes('拒绝访问')) {
+    if (/拒绝访问|refused access|rejected this connection code/.test(message)) {
       if (this.backend === 'codex-worker') {
-        return '检查 Worker 的共享 token；/health 应保持可读，任务接口需使用匹配的鉴权配置。';
+        return tr(
+          '检查 Worker 的共享 token；/health 应保持可读，任务接口需使用匹配的鉴权配置。',
+          "Check the Worker's shared token; /health should stay readable and job endpoints need matching auth.",
+        );
       }
-      return '如果你使用远程 n8n，请检查登录、反向代理和 CORS/鉴权配置。';
+      return tr(
+        '如果你使用远程 n8n，请检查登录、反向代理和 CORS/鉴权配置。',
+        'If you use a remote n8n, check login, reverse proxy and CORS/auth settings.',
+      );
     }
 
-    return '打开 Obsidian 设置里的调试模式，然后查看 n8n Execution 日志定位失败节点。';
+    return tr(
+      '打开 Obsidian 设置里的调试模式，然后查看 n8n Execution 日志定位失败节点。',
+      'Turn on debug mode in Obsidian settings, then read the n8n execution log to find the failing node.',
+    );
   }
 
   private errorToString(error: unknown): string {

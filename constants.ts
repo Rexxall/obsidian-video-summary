@@ -1,6 +1,7 @@
 import { DEFAULT_QUOTE_TEMPLATE } from './core/TranscriptQuote';
 import type { PlatformCapability, VideoSummarySettings, WorkflowHealthInfo } from './types';
 
+import { tr } from './utils/i18n';
 // 已知的短链域名：发给后端前先展开成最终链接，减少一类下载失败
 export const SHORT_LINK_HOSTS = [
   'b23.tv',
@@ -36,55 +37,95 @@ export const RECOMMENDED_WORKFLOW: Required<WorkflowHealthInfo> = {
   uploadsPath: '/home/node/uploads',
 };
 
-export const PLATFORM_CAPABILITIES: PlatformCapability[] = [
+/** A function so the texts follow the interface language set when the plugin loads. */
+export const platformCapabilities = (): PlatformCapability[] => [
   {
-    platform: '本地音频/视频',
+    platform: tr('本地音频/视频', 'Local audio/video'),
     status: 'recommended',
     input: 'local_file',
-    requirements: '把文件放进后端文件夹的 uploads，只填写文件名。',
-    notes: '最稳定，适合长录音、会议、课程和个人素材。',
+    requirements: tr(
+      '把文件放进后端文件夹的 uploads，只填写文件名。',
+      "Put the file in the backend's uploads folder and give only its name.",
+    ),
+    notes: tr(
+      '最稳定，适合长录音、会议、课程和个人素材。',
+      'The most reliable; good for long recordings, meetings, lectures and your own material.',
+    ),
   },
   {
     platform: 'YouTube',
     status: 'supported',
     input: 'link',
-    requirements: '公开视频通常可用；受限视频可能需要 cookies。',
-    notes: 'workflow 会先试原生字幕，再回退到音频提取。',
+    requirements: tr(
+      '公开视频通常可用；受限视频可能需要 cookies。在中国大陆需要代理。',
+      'Public videos usually work; restricted ones may need cookies. Needs a proxy in mainland China.',
+    ),
+    notes: tr(
+      '先用视频自带的字幕，没有字幕时再下载音频转写。',
+      'Uses the video subtitles first and transcribes the audio when there are none.',
+    ),
   },
   {
     platform: 'Bilibili',
-    status: 'supported',
+    status: 'recommended',
     input: 'link',
-    requirements: '公开视频通常可用；受限视频或部分分 P 仍可能需要 cookies。',
-    notes: 'yt-dlp 遇到 HTTP 412 时会回退到公开 API 读取元数据与音轨。',
+    requirements: tr(
+      '登录后（首次配置第 ④ 步扫码）能用 UP 主字幕和 B 站 AI 字幕；不登录会改走语音转写。',
+      'After logging in (step ④ of first-run setup) it uses uploader subtitles and Bilibili AI subtitles; without login it falls back to speech-to-text.',
+    ),
+    notes: tr(
+      '顺序是 UP 主字幕 → AI 字幕 → 语音转写，弹幕不会当成文稿。',
+      'Order: uploader subtitles → AI subtitles → speech-to-text; danmaku is never used as a transcript.',
+    ),
   },
   {
-    platform: '抖音',
+    platform: tr('抖音', 'Douyin'),
     status: 'limited',
     input: 'link',
-    requirements: '经常需要浏览器导出的 cookies。',
-    notes: '短链可能过期或跳转失败；必要时改用最终链接或粘贴文稿。',
+    requirements: tr(
+      '经常需要浏览器导出的 cookies。',
+      'Often needs cookies exported from your browser.',
+    ),
+    notes: tr(
+      '尽力而为。短链可能过期或跳转失败；必要时改用最终链接或粘贴文稿。',
+      'Best effort. Short links can expire or fail to redirect; use the final link or paste the transcript.',
+    ),
   },
   {
     platform: 'TikTok',
     status: 'limited',
     input: 'link',
-    requirements: '经常需要 cookies，也可能受地区限制。',
-    notes: '下载失败通常是平台访问问题，不一定是 Obsidian 笔记问题。',
+    requirements: tr(
+      '经常需要 cookies，也可能受地区限制。',
+      'Often needs cookies and may be region-restricted.',
+    ),
+    notes: tr(
+      '尽力而为。下载失败通常是平台访问问题，不是笔记的问题。',
+      'Best effort. Download failures are usually platform access problems, not note problems.',
+    ),
   },
   {
-    platform: '小红书 / Rednote',
+    platform: tr('小红书 / Rednote', 'Xiaohongshu / Rednote'),
     status: 'limited',
     input: 'link',
-    requirements: '通常需要 cookies，部分分享链接不稳定。',
-    notes: '建议作为 best-effort 处理；先保存来源信息再处理。',
+    requirements: tr(
+      '通常需要 cookies，部分分享链接不稳定。',
+      'Usually needs cookies; some share links are unreliable.',
+    ),
+    notes: tr(
+      '尽力而为；先保存来源信息再处理。',
+      'Best effort; save the source first, then process it.',
+    ),
   },
   {
-    platform: '手动粘贴文稿',
+    platform: tr('手动粘贴文稿', 'Pasted transcript'),
     status: 'local',
     input: 'provided_transcript',
-    requirements: '不依赖下载器。',
-    notes: '平台下载受阻但你已有文字时，优先用这个方式。',
+    requirements: tr('不依赖下载器。', 'No downloader needed.'),
+    notes: tr(
+      '平台下载受阻但你已有文字时，优先用这个方式。',
+      'When a platform blocks downloads but you already have the text, use this.',
+    ),
   },
 ];
 
@@ -166,10 +207,10 @@ export const LANGUAGE_OPTIONS = [
   { value: 'ja', label: '日本語' },
 ];
 
-export const PROCESSING_MODES = [
-  { value: 'summary', label: '完整总结' },
-  { value: 'transcript-only', label: '仅提取文稿' },
-  { value: 'info-only', label: '仅获取视频信息' },
+export const processingModes = () => [
+  { value: 'summary', label: tr('完整总结', 'Full summary') },
+  { value: 'transcript-only', label: tr('仅提取文稿', 'Transcript only') },
+  { value: 'info-only', label: tr('仅获取视频信息', 'Video info only') },
 ];
 
 export const STATUS_ICONS = {
@@ -180,12 +221,13 @@ export const STATUS_ICONS = {
 };
 
 export const ERROR_MESSAGES = {
-  NO_FILE: '请先打开一个笔记',
-  NO_LINK: '笔记中没有找到视频链接',
-  NO_TRANSCRIPT: '笔记中没有找到文稿内容',
-  NO_INPUT: '请提供视频链接、文稿内容或本地文件路径中的至少一个',
-  API_ERROR: 'API调用失败',
-  TIMEOUT: '请求超时',
-  INVALID_RESPONSE: '无效的API响应',
-  NETWORK_ERROR: '网络连接错误',
+  get NO_FILE() {
+    return tr('请先打开一个笔记', 'Open a note first');
+  },
+  get NO_INPUT() {
+    return tr(
+      '请提供视频链接、文稿内容或本地文件路径中的至少一个',
+      'Give a video link, a transcript or a local file name',
+    );
+  },
 };

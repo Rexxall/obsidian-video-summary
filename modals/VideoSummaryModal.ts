@@ -1,11 +1,12 @@
 import { App, Editor, MarkdownView, Modal, Notice, Setting } from 'obsidian';
 import VideoSummaryPlugin from '../main';
 import { ProcessingMode, SupportedLanguage } from '../types';
-import { LANGUAGE_OPTIONS, PROCESSING_MODES, ERROR_MESSAGES } from '../constants';
+import { LANGUAGE_OPTIONS, processingModes, ERROR_MESSAGES } from '../constants';
 import { NoteProcessor } from '../utils/NoteProcessor';
 import { RetryUtils } from '../utils/RetryUtils';
 
 import { errorMessage } from '../utils/errors';
+import { tr } from '../utils/i18n';
 export class VideoSummaryModal extends Modal {
   private plugin: VideoSummaryPlugin;
   private editor: Editor;
@@ -34,14 +35,14 @@ export class VideoSummaryModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h2', { text: '📺 视频总结处理' });
+    contentEl.createEl('h2', { text: tr('📺 视频总结处理', '📺 Video Summary') });
 
     // 处理模式选择
     new Setting(contentEl)
-      .setName('处理模式')
-      .setDesc('选择处理方式')
+      .setName(tr('处理模式', 'Mode'))
+      .setDesc(tr('选择处理方式', 'How to process it'))
       .addDropdown((dropdown) => {
-        PROCESSING_MODES.forEach((mode) => {
+        processingModes().forEach((mode) => {
           dropdown.addOption(mode.value, mode.label);
         });
         dropdown.setValue(this.mode);
@@ -52,8 +53,8 @@ export class VideoSummaryModal extends Modal {
 
     // 语言选择（仅在完整总结模式下显示）
     const languageSetting = new Setting(contentEl)
-      .setName('输出语言')
-      .setDesc('生成总结的语言')
+      .setName(tr('输出语言', 'Output language'))
+      .setDesc(tr('生成总结的语言', 'Language of the summary'))
       .addDropdown((dropdown) => {
         LANGUAGE_OPTIONS.forEach((lang) => {
           dropdown.addOption(lang.value, lang.label);
@@ -79,26 +80,42 @@ export class VideoSummaryModal extends Modal {
 
     // 视频链接输入
     const videoUrlSetting = new Setting(contentEl)
-      .setName('视频链接')
-      .setDesc('输入视频链接（YouTube、哔哩哔哩、抖音、抖音国际版）');
+      .setName(tr('视频链接', 'Video link'))
+      .setDesc(
+        tr(
+          '输入视频链接（YouTube、哔哩哔哩、抖音、抖音国际版）',
+          'A video link (YouTube, Bilibili, Douyin, TikTok)',
+        ),
+      );
 
     this.videoUrlInput = videoUrlSetting.controlEl.createEl('input');
     this.videoUrlInput.type = 'text';
-    this.videoUrlInput.placeholder = '视频链接，例如 YouTube 或哔哩哔哩';
+    this.videoUrlInput.placeholder = tr(
+      '视频链接，例如 YouTube 或哔哩哔哩',
+      'Video link, for example YouTube or Bilibili',
+    );
 
     // 提供的文稿输入
     const transcriptSetting = new Setting(contentEl)
-      .setName('提供的文稿')
-      .setDesc('输入文稿内容（可选）');
+      .setName(tr('提供的文稿', 'Transcript you provide'))
+      .setDesc(tr('输入文稿内容（可选）', 'Transcript text (optional)'));
 
     this.providedTranscriptInput = transcriptSetting.controlEl.createEl('textarea');
-    this.providedTranscriptInput.placeholder = '在这里输入文稿内容...';
+    this.providedTranscriptInput.placeholder = tr(
+      '在这里输入文稿内容...',
+      'Type the transcript here...',
+    );
     this.providedTranscriptInput.rows = 4;
 
     // 本地文件输入
     const localFileSetting = new Setting(contentEl)
-      .setName('本地文件')
-      .setDesc('自带的 n8n（docker 版）只接受 uploads 根目录里的文件名。');
+      .setName(tr('本地文件', 'Local file'))
+      .setDesc(
+        tr(
+          '自带的 n8n（docker 版）只接受 uploads 根目录里的文件名。',
+          'The bundled n8n (Docker) accepts only file names directly inside its uploads folder.',
+        ),
+      );
 
     this.localFileInput = localFileSetting.controlEl.createEl('input');
     this.localFileInput.type = 'text';
@@ -108,8 +125,8 @@ export class VideoSummaryModal extends Modal {
     const file = this.view.file;
     if (file) {
       const infoEl = contentEl.createDiv({ cls: 'video-summary-info' });
-      infoEl.createEl('h3', { text: '当前文件信息' });
-      infoEl.createEl('p', { text: `文件名: ${file.basename}` });
+      infoEl.createEl('h3', { text: tr('当前文件信息', 'Current file') });
+      infoEl.createEl('p', { text: tr(`文件名: ${file.basename}`, `File name: ${file.basename}`) });
 
       // 检查是否有视频内容
       void this.app.vault.read(file).then((content) => {
@@ -117,12 +134,15 @@ export class VideoSummaryModal extends Modal {
         const status = this.noteProcessor.getProcessingStatus(content);
 
         infoEl.createEl('p', {
-          text: `视频内容: ${hasVideo ? '✅ 已检测到' : '❌ 未检测到'}`,
+          text: tr(
+            `视频内容: ${hasVideo ? '✅ 已检测到' : '❌ 未检测到'}`,
+            `Video content: ${hasVideo ? '✅ found' : '❌ not found'}`,
+          ),
         });
 
         if (status) {
           infoEl.createEl('p', {
-            text: `处理状态: ${status}`,
+            text: tr(`处理状态: ${status}`, `Status: ${status}`),
           });
         }
       });
@@ -133,7 +153,7 @@ export class VideoSummaryModal extends Modal {
 
     // 开始处理按钮
     const processButton = buttonContainer.createEl('button', {
-      text: '开始处理',
+      text: tr('开始处理', 'Start'),
       cls: 'mod-cta',
     });
     processButton.addEventListener('click', () => {
@@ -142,7 +162,7 @@ export class VideoSummaryModal extends Modal {
 
     // 取消按钮
     const cancelButton = buttonContainer.createEl('button', {
-      text: '取消',
+      text: tr('取消', 'Cancel'),
       cls: 'mod-warning',
     });
     cancelButton.addEventListener('click', () => {
@@ -192,15 +212,23 @@ export class VideoSummaryModal extends Modal {
       await this.plugin.jobService.updateCourseProgressForFile(file, 'processing', 10);
 
       // 显示进度通知
-      const langText = this.language === 'zh' ? '中文' : this.language === 'en' ? '英文' : '日文';
+      const langText =
+        this.language === 'zh'
+          ? tr('中文', 'Chinese')
+          : this.language === 'en'
+            ? tr('英文', 'English')
+            : tr('日文', 'Japanese');
       const noticeText = (() => {
         switch (this.mode) {
           case 'summary':
-            return `正在以${langText}生成总结，请稍候...`;
+            return tr(
+              `正在以${langText}生成总结，请稍候...`,
+              `Summarising in ${langText}, please wait...`,
+            );
           case 'transcript-only':
-            return '正在提取文稿，请稍候...';
+            return tr('正在提取文稿，请稍候...', 'Extracting the transcript, please wait...');
           default:
-            return '正在获取视频信息，请稍候...';
+            return tr('正在获取视频信息，请稍候...', 'Getting video info, please wait...');
         }
       })();
 
@@ -222,7 +250,10 @@ export class VideoSummaryModal extends Modal {
         (attempt, error) => {
           if (this.progressNotice) {
             this.progressNotice.setMessage(
-              `🔄 处理失败，第${attempt}次重试: ${errorMessage(error)}`,
+              tr(
+                `🔄 处理失败，第${attempt}次重试: ${errorMessage(error)}`,
+                `🔄 Failed, retry ${attempt}: ${errorMessage(error)}`,
+              ),
             );
           }
         },
@@ -263,11 +294,11 @@ export class VideoSummaryModal extends Modal {
       const successText = (() => {
         switch (this.mode) {
           case 'summary':
-            return `✅ 视频已${langText}总结！`;
+            return tr(`✅ 视频已${langText}总结！`, `✅ Summarised in ${langText}!`);
           case 'transcript-only':
-            return '✅ 文稿提取完成！';
+            return tr('✅ 文稿提取完成！', '✅ Transcript extracted!');
           default:
-            return '✅ 视频信息已获取！';
+            return tr('✅ 视频信息已获取！', '✅ Video info received!');
         }
       })();
       new Notice(successText, 5000);
@@ -292,7 +323,13 @@ export class VideoSummaryModal extends Modal {
       }
 
       // 显示错误通知
-      new Notice(`❌ 处理失败（已重试）: ${errorMessage(error)}`, 0);
+      new Notice(
+        tr(
+          `❌ 处理失败（已重试）: ${errorMessage(error)}`,
+          `❌ Failed (after retries): ${errorMessage(error)}`,
+        ),
+        0,
+      );
 
       // 记录历史
       this.recordHistory(file?.basename || 'unknown', 'error');

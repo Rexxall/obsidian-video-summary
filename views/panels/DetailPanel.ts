@@ -28,6 +28,7 @@ import { fire } from '../../utils/fire';
 import { errorMessage } from '../../utils/errors';
 import { openPathInSystem } from '../../utils/desktop';
 import { isPlaceholderCover } from '../../core/CoverPlaceholder';
+import { tr } from '../../utils/i18n';
 /** 详情层：结果预览 + 写入方式 + 失败日志。写入笔记前能先看到要写什么。 */
 export function renderDetailPanel(container: HTMLElement, ctx: ViewContext) {
   const ref = ctx.state.detail;
@@ -138,7 +139,10 @@ function renderJobDetail(
   });
   if (job.startedAt) {
     meta.createSpan({
-      text: `耗时 ${formatElapsed((job.endedAt || Date.now()) - job.startedAt)}`,
+      text: tr(
+        `耗时 ${formatElapsed((job.endedAt || Date.now()) - job.startedAt)}`,
+        `Took ${formatElapsed((job.endedAt || Date.now()) - job.startedAt)}`,
+      ),
       cls: 'vs-meta-pill',
     });
   }
@@ -164,7 +168,7 @@ function renderJobDetail(
     );
     textButton(actions, '复制错误', () => {
       void navigator.clipboard.writeText(job.error || '');
-      new Notice('已复制');
+      new Notice(tr('已复制', 'Copied'));
     });
     if (isCookieError(job.error)) {
       textButton(actions, '打开 cookies 目录', () => openCookiesFolder(ctx));
@@ -181,12 +185,12 @@ function renderJobDetail(
   segmented(
     body,
     [
-      { value: 'reader', label: '陪读' },
-      { value: 'evidence', label: '证据' },
-      { value: 'preview', label: '预览' },
-      { value: 'transcript', label: '文稿' },
-      { value: 'meta', label: '元数据' },
-      { value: 'logs', label: '日志' },
+      { value: 'reader', label: tr('陪读', 'Reader') },
+      { value: 'evidence', label: tr('证据', 'Evidence') },
+      { value: 'preview', label: tr('预览', 'Preview') },
+      { value: 'transcript', label: tr('文稿', 'Transcript') },
+      { value: 'meta', label: tr('元数据', 'Metadata') },
+      { value: 'logs', label: tr('日志', 'Log') },
     ],
     ctx.state.detailTab,
     (value) => {
@@ -223,7 +227,7 @@ function renderJobDetail(
       '写入笔记',
       fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
-          new Notice('已写入笔记');
+          new Notice(tr('已写入笔记', 'Written to the note'));
           ctx.closeDetail();
         }
       }),
@@ -243,7 +247,7 @@ function renderJobDetail(
   if (persistedArtifact) {
     const copy = textButton(actions, '复制工件 JSON', () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-      new Notice('已复制工件 JSON');
+      new Notice(tr('已复制工件 JSON', 'Artifact JSON copied'));
     });
     prependIcon(copy, 'clipboard');
   } else {
@@ -252,7 +256,7 @@ function renderJobDetail(
     more.addEventListener('click', (event) => {
       showMenu(event, [
         {
-          title: '新建笔记',
+          title: tr('新建笔记', 'New note'),
           icon: 'file-plus',
           onClick: async () => {
             await ctx.plugin.jobService.createNoteFromResult(job);
@@ -260,25 +264,25 @@ function renderJobDetail(
           },
         },
         {
-          title: '应用到当前笔记',
+          title: tr('应用到当前笔记', 'Apply to the current note'),
           icon: 'save',
           onClick: async () => {
             if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
           },
         },
         {
-          title: '插入当前笔记末尾',
+          title: tr('插入当前笔记末尾', 'Insert at the end of the current note'),
           icon: 'text-cursor-input',
           onClick: async () => {
             if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
           },
         },
         {
-          title: '复制 JSON',
+          title: tr('复制 JSON', 'Copy JSON'),
           icon: 'clipboard',
           onClick: () => {
             void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-            new Notice('已复制 JSON');
+            new Notice(tr('已复制 JSON', 'JSON copied'));
           },
         },
       ]);
@@ -306,7 +310,15 @@ function renderStoredArtifactDetail(
   notePath: string,
   artifactId: string,
 ) {
-  emptyState(container, 'loader', '正在加载同步陪读…', '从本地 sidecar 恢复时间轴和重点');
+  emptyState(
+    container,
+    'loader',
+    tr('正在加载同步陪读…', 'Loading the reader…'),
+    tr(
+      '从本地 sidecar 恢复时间轴和重点',
+      'Restoring the timeline and highlights from the local sidecar',
+    ),
+  );
   let active = true;
   ctx.registerPanelCleanup(() => {
     active = false;
@@ -333,7 +345,7 @@ function renderStoredArtifactDetail(
       emptyState(
         container,
         'alert-triangle',
-        '无法打开同步陪读',
+        tr('无法打开同步陪读', 'Cannot open the reader'),
         error instanceof Error ? errorMessage(error) : String(error),
       );
       const actions = container.createDiv({ cls: 'vs-detail-actions' });
@@ -351,7 +363,10 @@ function artifactToJob(artifact: VideoKnowledgeArtifact, notePath: string): Job 
   const endedAt = Date.parse(artifact.updated_at) || createdAt;
   return {
     id: `artifact-${artifact.artifact_id}`,
-    title: artifact.title || notePath.split('/').pop()?.replace(/\.md$/i, '') || '视频工件',
+    title:
+      artifact.title ||
+      notePath.split('/').pop()?.replace(/\.md$/i, '') ||
+      tr('视频工件', 'Video artifact'),
     notePath,
     input: {
       url: artifact.source.url,
@@ -409,7 +424,12 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     const route = signals.createDiv({ cls: 'vs-signal' });
     const icon = route.createSpan({ cls: 'vs-signal-icon' });
     setIcon(icon, 'route');
-    route.createSpan({ text: `结构 · ${contentTypeLabel(result.content_type)}` });
+    route.createSpan({
+      text: tr(
+        `结构 · ${contentTypeLabel(result.content_type)}`,
+        `Structure · ${contentTypeLabel(result.content_type)}`,
+      ),
+    });
   }
   if (result.attention) {
     const decision = signals.createDiv({
@@ -434,7 +454,12 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     const visual = signals.createDiv({ cls: 'vs-signal is-visual' });
     const icon = visual.createSpan({ cls: 'vs-signal-icon' });
     setIcon(icon, 'scan-eye');
-    visual.createSpan({ text: `真实画面证据 · ${result.visual_evidence.length}` });
+    visual.createSpan({
+      text: tr(
+        `真实画面证据 · ${result.visual_evidence.length}`,
+        `Real visual evidence · ${result.visual_evidence.length}`,
+      ),
+    });
   }
   const learningCount =
     (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
@@ -442,7 +467,9 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     const learning = signals.createDiv({ cls: 'vs-signal is-learning' });
     const icon = learning.createSpan({ cls: 'vs-signal-icon' });
     setIcon(icon, 'graduation-cap');
-    learning.createSpan({ text: `学习练习 · ${learningCount}` });
+    learning.createSpan({
+      text: tr(`学习练习 · ${learningCount}`, `Learning exercises · ${learningCount}`),
+    });
   }
 
   if (result.attention) {
@@ -453,7 +480,10 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     heading.createSpan({ text: attentionLabel(result.attention.action) });
     if (typeof result.attention.confidence === 'number') {
       heading.createSpan({
-        text: `置信 ${Math.round(result.attention.confidence * 100)}%`,
+        text: tr(
+          `置信 ${Math.round(result.attention.confidence * 100)}%`,
+          `Confidence ${Math.round(result.attention.confidence * 100)}%`,
+        ),
         cls: 'vs-attention-confidence',
       });
     }
@@ -461,16 +491,25 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
     const ranges = result.attention.must_watch || [];
     if (ranges.length > 0) {
       card.createDiv({
-        text: `优先看 ${ranges
-          .slice(0, 3)
-          .map((range) => `${formatShortTime(range.start)}–${formatShortTime(range.end)}`)
-          .join('、')}`,
+        text: tr(
+          `优先看 ${ranges
+            .slice(0, 3)
+            .map((range) => `${formatShortTime(range.start)}–${formatShortTime(range.end)}`)
+            .join('、')}`,
+          `Watch first ${ranges
+            .slice(0, 3)
+            .map((range) => `${formatShortTime(range.start)}–${formatShortTime(range.end)}`)
+            .join(', ')}`,
+        ),
         cls: 'vs-attention-ranges',
       });
     }
     if (result.attention.limitations?.length) {
       card.createDiv({
-        text: `限制：${result.attention.limitations.slice(0, 2).join('；')}`,
+        text: tr(
+          `限制：${result.attention.limitations.slice(0, 2).join('；')}`,
+          `Limits: ${result.attention.limitations.slice(0, 2).join('; ')}`,
+        ),
         cls: 'vs-hint',
       });
     }
@@ -503,7 +542,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || '');
         if (!(file instanceof TFile)) {
-          new Notice('目标笔记已不存在');
+          new Notice(tr('目标笔记已不存在', 'The target note no longer exists'));
           return;
         }
         void ctx.plugin.openLearningReviewForFile(file);
@@ -525,16 +564,24 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
 
 async function queueKnowledgeUpgrade(ctx: ViewContext, job: Job, depth: 'quick' | 'deep-visual') {
   if (depth === 'deep-visual' && ctx.plugin.settings.activeBackend !== 'codex-worker') {
-    new Notice('内置 n8n 工作流尚未接通安全的画面凭据。请先在设置中切换到本机视频处理服务。', 7000);
+    new Notice(
+      tr(
+        '内置 n8n 工作流尚未接通安全的画面凭据。请先在设置中切换到本机视频处理服务。',
+        'The bundled n8n workflow has no safe frame credential yet. Switch to the local video service in settings first.',
+      ),
+      7000,
+    );
     return;
   }
   if (!job.notePath) {
-    new Notice('先把结果保存为笔记，才能追加处理');
+    new Notice(
+      tr('先把结果保存为笔记，才能追加处理', 'Save the result as a note before adding processing'),
+    );
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
   if (!(file instanceof TFile)) {
-    new Notice('目标笔记已不存在');
+    new Notice(tr('目标笔记已不存在', 'The target note no longer exists'));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -548,17 +595,26 @@ async function queueKnowledgeUpgrade(ctx: ViewContext, job: Job, depth: 'quick' 
   if (!queued) return;
   ctx.state.tab = 'jobs';
   ctx.closeDetail();
-  new Notice(depth === 'deep-visual' ? '已提交深度画面分析' : '已提交快速观看判断');
+  new Notice(
+    depth === 'deep-visual'
+      ? tr('已提交深度画面分析', 'Sent for deep visual analysis')
+      : tr('已提交快速观看判断', 'Sent for a quick worth-watching check'),
+  );
 }
 
 async function queueLearningUpgrade(ctx: ViewContext, job: Job) {
   if (!job.notePath) {
-    new Notice('先把结果保存为笔记，才能生成学习卡');
+    new Notice(
+      tr(
+        '先把结果保存为笔记，才能生成学习卡',
+        'Save the result as a note before generating learning cards',
+      ),
+    );
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
   if (!(file instanceof TFile)) {
-    new Notice('目标笔记已不存在');
+    new Notice(tr('目标笔记已不存在', 'The target note no longer exists'));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -572,7 +628,7 @@ async function queueLearningUpgrade(ctx: ViewContext, job: Job) {
   if (!queued) return;
   ctx.state.tab = 'jobs';
   ctx.closeDetail();
-  new Notice('已提交学习卡生成任务');
+  new Notice(tr('已提交学习卡生成任务', 'Sent to generate learning cards'));
 }
 
 function contentTypeLabel(type: string): string {
@@ -649,11 +705,25 @@ function renderPreview(body: HTMLElement, ctx: ViewContext, job: Job) {
   const diffIcon = diff.createDiv({ cls: 'vs-write-icon' });
   setIcon(diffIcon, 'file-diff');
   const diffText = diff.createDiv({ cls: 'vs-write-text' });
-  diffText.createDiv({ text: `将写入 frontmatter：${fields.join(' · ') || '无'}` });
   diffText.createDiv({
-    text: `正文 ${(result.note || result.summary || '').length.toLocaleString()} 字${
-      result.video_transcript ? ` · 文稿 ${result.video_transcript.length.toLocaleString()} 字` : ''
-    }`,
+    text: tr(
+      `将写入 frontmatter：${fields.join(' · ') || '无'}`,
+      `Will write to frontmatter: ${fields.join(' · ') || 'nothing'}`,
+    ),
+  });
+  diffText.createDiv({
+    text: tr(
+      `正文 ${(result.note || result.summary || '').length.toLocaleString()} 字${
+        result.video_transcript
+          ? ` · 文稿 ${result.video_transcript.length.toLocaleString()} 字`
+          : ''
+      }`,
+      `Body ${(result.note || result.summary || '').length.toLocaleString()} characters${
+        result.video_transcript
+          ? ` · transcript ${result.video_transcript.length.toLocaleString()} characters`
+          : ''
+      }`,
+    ),
   });
 
   const markdown = sanitizeGeneratedMarkdownActiveResources(
@@ -667,7 +737,7 @@ function renderPreview(body: HTMLElement, ctx: ViewContext, job: Job) {
 
   const markdownEl = body.createDiv({ cls: 'vs-markdown' });
   if (!markdown) {
-    markdownEl.setText('这次没有返回可写入的正文');
+    markdownEl.setText(tr('这次没有返回可写入的正文', 'Nothing writable came back this time'));
     return;
   }
   void MarkdownRenderer.render(
@@ -708,7 +778,13 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
   const time = parseLocaleTime(record.time);
   meta.createSpan({ text: time ? formatRelative(time) : record.time, cls: 'vs-meta-pill' });
   if (record.durationMs) {
-    meta.createSpan({ text: `耗时 ${formatElapsed(record.durationMs)}`, cls: 'vs-meta-pill' });
+    meta.createSpan({
+      text: tr(
+        `耗时 ${formatElapsed(record.durationMs)}`,
+        `Took ${formatElapsed(record.durationMs)}`,
+      ),
+      cls: 'vs-meta-pill',
+    });
   }
   if (record.url) body.createDiv({ text: record.url, cls: 'vs-meta-link' });
 
@@ -719,7 +795,10 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
     errorBox.createDiv({ text: record.error, cls: 'vs-error-text' });
   } else if (record.result === 'error') {
     body.createDiv({
-      text: '这条记录是旧版本写的，没有保存失败原因。重跑一次就能看到具体错误。',
+      text: tr(
+        '这条记录是旧版本写的，没有保存失败原因。重跑一次就能看到具体错误。',
+        'This record was written by an older version without the failure reason. Run it again to see the error.',
+      ),
       cls: 'vs-hint',
     });
   }
@@ -742,7 +821,10 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
       }),
     );
   } else {
-    body.createDiv({ text: `找不到笔记：${record.file}`, cls: 'vs-hint' });
+    body.createDiv({
+      text: tr(`找不到笔记：${record.file}`, `Note not found: ${record.file}`),
+      cls: 'vs-hint',
+    });
   }
 }
 
@@ -756,7 +838,12 @@ function safeCoverUrl(value: unknown): string | undefined {
 function renderLogs(container: HTMLElement, job: Job) {
   const box = container.createDiv({ cls: 'vs-log-box' });
   if (job.logs.length === 0) {
-    emptyState(box, 'file-clock', '没有日志', '只有会上报进度的后端才会写日志');
+    emptyState(
+      box,
+      'file-clock',
+      tr('没有日志', 'No log'),
+      tr('只有会上报进度的后端才会写日志', 'Only backends that report progress write a log'),
+    );
     return;
   }
   job.logs
@@ -787,12 +874,17 @@ function isCookieError(error: string): boolean {
 function openCookiesFolder(ctx: ViewContext) {
   const path = ctx.plugin.settings.cookiesDirPath;
   if (!path) {
-    new Notice('还没配置 cookies 目录，先去插件设置里填');
+    new Notice(
+      tr(
+        '还没配置 cookies 目录，先去插件设置里填',
+        'No cookies folder yet; set it in the plugin settings first',
+      ),
+    );
     return;
   }
   // 桌面端才有 shell；移动端直接提示
   if (!openPathInSystem(path)) {
-    new Notice(`cookies 目录：${path}`);
+    new Notice(tr(`cookies 目录：${path}`, `Cookies folder: ${path}`));
   }
 }
 

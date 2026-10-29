@@ -1,5 +1,6 @@
 import { App, Modal } from 'obsidian';
 
+import { tr } from '../utils/i18n';
 export class FolderSelectModal extends Modal {
   private folders: string[];
   private onSelect: (path: string) => void;
@@ -15,11 +16,11 @@ export class FolderSelectModal extends Modal {
     this.modalEl.addClass('ap', 'ap-modal');
     const { contentEl } = this;
     contentEl.addClass('vs-modal', 'vs-folder-modal');
-    contentEl.createEl('h3', { text: '选择输出文件夹' });
+    contentEl.createEl('h3', { text: tr('选择输出文件夹', 'Choose an output folder') });
 
     const searchInput = contentEl.createEl('input', {
       cls: 'vs-folder-search',
-      attr: { type: 'text', placeholder: '搜索文件夹…' },
+      attr: { type: 'text', placeholder: tr('搜索文件夹…', 'Search folders…') },
     });
 
     this.folderContainer = contentEl.createDiv({ cls: 'vs-folder-list' });
@@ -36,7 +37,7 @@ export class FolderSelectModal extends Modal {
     this.folderContainer.empty();
 
     const current = this.folderContainer.createDiv({ cls: 'vs-folder-option' });
-    current.setText('当前文件夹（留空）');
+    current.setText(tr('当前文件夹（留空）', 'Current folder (leave empty)'));
     current.onclick = () => {
       this.onSelect('');
       this.close();

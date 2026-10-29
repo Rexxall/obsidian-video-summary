@@ -1,5 +1,6 @@
 import { App, Modal } from 'obsidian';
 
+import { tr } from '../utils/i18n';
 export class ConfirmModal extends Modal {
   private resolve: (value: boolean) => void;
   private settled = false;
@@ -34,7 +35,7 @@ export class ConfirmModal extends Modal {
 
     // 确认按钮
     const confirmBtn = buttonContainer.createEl('button', {
-      text: '确认',
+      text: tr('确认', 'Confirm'),
       cls: 'mod-cta',
     });
     confirmBtn.onclick = () => {
@@ -44,7 +45,7 @@ export class ConfirmModal extends Modal {
 
     // 取消按钮
     const cancelBtn = buttonContainer.createEl('button', {
-      text: '取消',
+      text: tr('取消', 'Cancel'),
       cls: 'mod-warning',
     });
     cancelBtn.onclick = () => {

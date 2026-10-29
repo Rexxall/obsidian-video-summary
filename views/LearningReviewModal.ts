@@ -18,6 +18,7 @@ import { safeExternalHttpUrl } from '../utils/SafeExternalUrl';
 
 import { fire } from '../utils/fire';
 import { errorMessage } from '../utils/errors';
+import { tr } from '../utils/i18n';
 export type LearningReviewMode = 'due' | 'mistakes' | 'all';
 
 export interface LearningReviewModalOptions {
@@ -71,7 +72,7 @@ export class LearningReviewModal extends Modal {
 
   onOpen(): void {
     this.modalEl.addClass('ap', 'ap-modal');
-    this.setTitle('视频学习复习');
+    this.setTitle(tr('视频学习复习', 'Video learning review'));
     this.contentEl.addClass('vs-modal', 'vs-learning-review-modal');
     this.renderLoading();
     void this.refreshQueue();
@@ -83,7 +84,10 @@ export class LearningReviewModal extends Modal {
 
   private renderLoading(): void {
     this.contentEl.empty();
-    this.contentEl.createDiv({ text: '正在读取本地复习进度…', cls: 'vs-hint' });
+    this.contentEl.createDiv({
+      text: tr('正在读取本地复习进度…', 'Reading local review progress…'),
+      cls: 'vs-hint',
+    });
   }
 
   private async refreshQueue(): Promise<void> {
@@ -108,7 +112,9 @@ export class LearningReviewModal extends Modal {
     } catch (error) {
       if (sequence !== this.refreshSequence) return;
       this.contentEl.empty();
-      this.contentEl.createEl('h3', { text: '无法读取复习进度' });
+      this.contentEl.createEl('h3', {
+        text: tr('无法读取复习进度', 'Cannot read the review progress'),
+      });
       this.contentEl.createDiv({
         text: error instanceof Error ? errorMessage(error) : String(error),
         cls: 'vs-hint is-error',
@@ -122,9 +128,14 @@ export class LearningReviewModal extends Modal {
 
     const allItems = learningItemsFromArtifact(this.options.artifact);
     if (allItems.length === 0) {
-      this.contentEl.createEl('h3', { text: '这份视频还没有学习卡片' });
+      this.contentEl.createEl('h3', {
+        text: tr('这份视频还没有学习卡片', 'This video has no learning cards yet'),
+      });
       this.contentEl.createDiv({
-        text: '重新处理时开启“学习练习”后，再回到这里复习。',
+        text: tr(
+          '重新处理时开启“学习练习”后，再回到这里复习。',
+          'Turn on "Learning exercises" when processing again, then come back here.',
+        ),
         cls: 'vs-hint',
       });
       return;
@@ -133,18 +144,27 @@ export class LearningReviewModal extends Modal {
     const item = this.queue[this.currentIndex];
     if (!item) {
       this.contentEl.createEl('h3', {
-        text: this.mode === 'due' ? '当前没有到期复习' : '这个列表已经复习完了',
+        text:
+          this.mode === 'due'
+            ? tr('当前没有到期复习', 'Nothing due right now')
+            : tr('这个列表已经复习完了', 'This list is done'),
       });
       this.contentEl.createDiv({
         text:
           this.mode === 'mistakes'
-            ? '错题会保留在本地进度中；到期后可在“到期”列表再次练习。'
-            : '答错或低把握的题会更早回来，连续答对会逐步拉长间隔。',
+            ? tr(
+                '错题会保留在本地进度中；到期后可在“到期”列表再次练习。',
+                'Wrong answers stay in your local progress; practise them again from the due list.',
+              )
+            : tr(
+                '答错或低把握的题会更早回来，连续答对会逐步拉长间隔。',
+                'Wrong or unsure answers come back sooner; consecutive right answers stretch the interval.',
+              ),
         cls: 'vs-hint',
       });
       if (this.options.onContinue) {
         const next = this.contentEl.createEl('button', {
-          text: this.options.continueLabel || '继续下一个视频',
+          text: this.options.continueLabel || tr('继续下一个视频', 'Next video'),
           cls: 'mod-cta',
           attr: { type: 'button' },
         });
@@ -162,7 +182,7 @@ export class LearningReviewModal extends Modal {
     });
     const card = this.contentEl.createDiv({ cls: 'vs-learning-review-card' });
     card.createDiv({
-      text: item.item_kind === 'flashcard' ? '闪卡' : '自测题',
+      text: item.item_kind === 'flashcard' ? tr('闪卡', 'Flashcards') : tr('自测题', 'Quiz'),
       cls: 'vs-learning-review-kind',
     });
     card.createEl('h3', { text: item.prompt });
@@ -200,7 +220,10 @@ export class LearningReviewModal extends Modal {
       });
     });
     toolbar.createSpan({
-      text: '只写本地复习 sidecar，不修改笔记正文',
+      text: tr(
+        '只写本地复习 sidecar，不修改笔记正文',
+        'Writes only the local review sidecar, never the note body',
+      ),
       cls: 'vs-hint',
     });
   }
@@ -208,7 +231,7 @@ export class LearningReviewModal extends Modal {
   private renderFlashcard(container: HTMLElement, item: LearningArtifactItem): void {
     if (!this.revealed) {
       const reveal = container.createEl('button', {
-        text: '显示答案',
+        text: tr('显示答案', 'Show answer'),
         cls: 'mod-cta',
         attr: { type: 'button' },
       });
@@ -223,11 +246,11 @@ export class LearningReviewModal extends Modal {
     this.renderConfidence(container);
     const actions = container.createDiv({ cls: 'vs-learning-review-actions' });
     const wrong = actions.createEl('button', {
-      text: '记错了',
+      text: tr('记错了', 'Got it wrong'),
       attr: { type: 'button' },
     });
     const correct = actions.createEl('button', {
-      text: '记对了',
+      text: tr('记对了', 'Got it right'),
       cls: 'mod-cta',
       attr: { type: 'button' },
     });
@@ -256,7 +279,7 @@ export class LearningReviewModal extends Modal {
     } else {
       const input = container.createEl('textarea', {
         cls: 'vs-learning-review-textarea',
-        attr: { placeholder: '写下你的答案…', rows: '4' },
+        attr: { placeholder: tr('写下你的答案…', 'Write your answer…'), rows: '4' },
       });
       input.value = this.selectedAnswer;
       input.addEventListener('input', () => {
@@ -265,14 +288,14 @@ export class LearningReviewModal extends Modal {
     }
     this.renderConfidence(container);
     const submit = container.createEl('button', {
-      text: '提交答案',
+      text: tr('提交答案', 'Submit answer'),
       cls: 'mod-cta',
       attr: { type: 'button' },
     });
     submit.addEventListener('click', () => {
       const answer = this.selectedAnswer.trim();
       if (!answer) {
-        new Notice('请先选择或填写答案');
+        new Notice(tr('请先选择或填写答案', 'Pick or write an answer first'));
         return;
       }
       void this.record(item, answer, answersMatch(answer, item.answer));
@@ -281,7 +304,7 @@ export class LearningReviewModal extends Modal {
 
   private renderConfidence(container: HTMLElement): void {
     const row = container.createEl('label', { cls: 'vs-learning-review-confidence' });
-    row.createSpan({ text: '把握程度' });
+    row.createSpan({ text: tr('把握程度', 'Confidence') });
     const select = row.createEl('select');
     const labels = ['1 · 完全没把握', '2 · 比较犹豫', '3 · 一般', '4 · 有把握', '5 · 非常确定'];
     labels.forEach((label, index) => {
@@ -323,16 +346,16 @@ export class LearningReviewModal extends Modal {
 
   private renderResult(container: HTMLElement, result: AnswerResult): void {
     container.createEl('h4', {
-      text: result.correct ? '回答正确' : '回答错误',
+      text: result.correct ? tr('回答正确', 'Correct') : tr('回答错误', 'Incorrect'),
       cls: result.correct ? 'is-success' : 'is-error',
     });
     container.createDiv({
-      text: `标准答案：${result.item.answer}`,
+      text: tr(`标准答案：${result.item.answer}`, `Answer: ${result.item.answer}`),
       cls: 'vs-learning-review-answer',
     });
     if (result.item.explanation) {
       container.createDiv({
-        text: `解释：${result.item.explanation}`,
+        text: tr(`解释：${result.item.explanation}`, `Explanation: ${result.item.explanation}`),
         cls: 'vs-learning-review-explanation',
       });
     }
@@ -345,7 +368,7 @@ export class LearningReviewModal extends Modal {
 
     const actions = container.createDiv({ cls: 'vs-learning-review-actions' });
     const suspend = actions.createEl('button', {
-      text: '暂停这道题',
+      text: tr('暂停这道题', 'Pause this question'),
       attr: { type: 'button' },
     });
     suspend.addEventListener(
@@ -362,7 +385,7 @@ export class LearningReviewModal extends Modal {
       }),
     );
     const next = actions.createEl('button', {
-      text: '下一题',
+      text: tr('下一题', 'Next question'),
       cls: 'mod-cta',
       attr: { type: 'button' },
     });
@@ -401,7 +424,7 @@ export class LearningReviewModal extends Modal {
   private renderEvidence(container: HTMLElement, item: LearningArtifactItem): void {
     const evidence = resolveLearningEvidence(this.options.artifact, item);
     const section = container.createDiv({ cls: 'vs-learning-review-evidence' });
-    section.createEl('h4', { text: '回到证据' });
+    section.createEl('h4', { text: tr('回到证据', 'Back to the evidence') });
     if (evidence.message) section.createDiv({ text: evidence.message, cls: 'vs-hint is-warning' });
     evidence.targets.forEach((target) => {
       const row = section.createDiv({
@@ -420,7 +443,7 @@ export class LearningReviewModal extends Modal {
       });
       if (target.status === 'available') {
         const open = row.createEl('button', {
-          text: '定位',
+          text: tr('定位', 'Locate'),
           attr: { type: 'button' },
         });
         open.addEventListener('click', () => void this.openEvidence(target));
@@ -430,7 +453,7 @@ export class LearningReviewModal extends Modal {
     });
     if (evidence.targets.length === 0) {
       section.createDiv({
-        text: evidence.message || '没有可验证的证据引用。',
+        text: evidence.message || tr('没有可验证的证据引用。', 'No verifiable evidence reference.'),
         cls: 'vs-hint is-warning',
       });
     }
@@ -446,7 +469,12 @@ export class LearningReviewModal extends Modal {
       window.open(externalUrl, '_blank', 'noopener,noreferrer');
       return;
     }
-    new Notice('证据有时间点，但当前入口没有播放器定位回调');
+    new Notice(
+      tr(
+        '证据有时间点，但当前入口没有播放器定位回调',
+        'The evidence has a timestamp, but this view cannot move the player',
+      ),
+    );
   }
 }
 
@@ -493,7 +521,10 @@ function normalizeAnswer(value: string): string {
 
 function progressMessage(progress: LearningProgressItem, state: LearningReviewState): string {
   const due = new Date(progress.due_at).toLocaleString();
-  if (state === 'suspended') return '这道题已暂停。';
+  if (state === 'suspended') return tr('这道题已暂停。', 'This question is paused.');
   const mastery = progress.mastery === 'mastered' ? '已掌握' : '学习中';
-  return `${mastery} · 连续答对 ${progress.consecutive_correct} 次 · 下次 ${due}`;
+  return tr(
+    `${mastery} · 连续答对 ${progress.consecutive_correct} 次 · 下次 ${due}`,
+    `${mastery} · right ${progress.consecutive_correct} times in a row · next ${due}`,
+  );
 }

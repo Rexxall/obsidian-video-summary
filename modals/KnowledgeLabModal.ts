@@ -14,6 +14,7 @@ import {
 import { safeExternalHttpUrl, safeManagedVaultImagePath } from '../utils/SafeExternalUrl';
 
 import { errorMessage } from '../utils/errors';
+import { tr } from '../utils/i18n';
 export type KnowledgeLabMode = 'memory' | 'claim-lab';
 
 /**
@@ -40,17 +41,26 @@ export class KnowledgeLabModal extends Modal {
     this.contentEl.empty();
     this.contentEl.addClass('vs-modal', 'vs-knowledge-lab');
     this.contentEl.createEl('h2', {
-      text: this.mode === 'memory' ? '跨模态视频记忆搜索' : '多视频论点实验室',
+      text:
+        this.mode === 'memory'
+          ? tr('跨模态视频记忆搜索', 'Search video memory across media')
+          : tr('多视频论点实验室', 'Multi-video claim lab'),
     });
     this.contentEl.createEl('p', {
       cls: 'vs-knowledge-lab-intro',
       text:
         this.mode === 'memory'
-          ? '从持久化工件重建本地索引：标题、时间段文稿、画面文字、OCR、视觉证据与主张。'
-          : '选择至少两个已持久化工件，生成保留真实证据与复核状态的可编辑 Markdown。',
+          ? tr(
+              '从持久化工件重建本地索引：标题、时间段文稿、画面文字、OCR、视觉证据与主张。',
+              'Rebuilds a local index from saved artifacts: titles, timed transcript, on-screen text, OCR, visual evidence and claims.',
+            )
+          : tr(
+              '选择至少两个已持久化工件，生成保留真实证据与复核状态的可编辑 Markdown。',
+              'Pick at least two saved artifacts to build editable Markdown that keeps real evidence and review status.',
+            ),
     });
     const loading = this.contentEl.createDiv({ cls: 'vs-knowledge-lab-loading' });
-    loading.setText('正在读取本地知识工件…');
+    loading.setText(tr('正在读取本地知识工件…', 'Reading local knowledge artifacts…'));
     void this.loadAndRender(loading);
   }
 
@@ -67,7 +77,10 @@ export class KnowledgeLabModal extends Modal {
       if (this.artifacts.length === 0) {
         this.contentEl.createEl('p', {
           cls: 'vs-knowledge-lab-empty',
-          text: '还没有持久化的视频知识工件。请先处理至少一个视频。',
+          text: tr(
+            '还没有持久化的视频知识工件。请先处理至少一个视频。',
+            'No saved video knowledge artifacts yet. Process at least one video first.',
+          ),
         });
         return;
       }
@@ -78,7 +91,7 @@ export class KnowledgeLabModal extends Modal {
       }
     } catch (error) {
       if (this.disposed) return;
-      loading.setText(`读取失败：${messageOf(error)}`);
+      loading.setText(tr(`读取失败：${messageOf(error)}`, `Could not read: ${messageOf(error)}`));
     }
   }
 
@@ -91,12 +104,15 @@ export class KnowledgeLabModal extends Modal {
       cls: 'vs-memory-query',
       attr: {
         type: 'search',
-        placeholder: '搜索概念、原话、画面文字或主张…',
-        'aria-label': '搜索视频记忆',
+        placeholder: tr(
+          '搜索概念、原话、画面文字或主张…',
+          'Search concepts, quotes, on-screen text or claims…',
+        ),
+        'aria-label': tr('搜索视频记忆', 'Search video memory'),
       },
     });
     const searchButton = controls.createEl('button', {
-      text: '搜索',
+      text: tr('搜索', 'Search'),
       cls: 'mod-cta',
     });
 
@@ -122,11 +138,16 @@ export class KnowledgeLabModal extends Modal {
     const dateTo = labeledInput(filtersEl, '结束日期', '', 'date');
 
     const relationRow = this.contentEl.createDiv({ cls: 'vs-memory-relation-source' });
-    relationRow.createEl('label', { text: '关系建议来源（可选）' });
-    const sourceArtifact = relationRow.createEl('select', {
-      attr: { 'aria-label': '关系建议来源工件' },
+    relationRow.createEl('label', {
+      text: tr('关系建议来源（可选）', 'Relation suggestions from (optional)'),
     });
-    sourceArtifact.createEl('option', { text: '不生成关系建议', value: '' });
+    const sourceArtifact = relationRow.createEl('select', {
+      attr: { 'aria-label': tr('关系建议来源工件', 'Artifact to suggest relations from') },
+    });
+    sourceArtifact.createEl('option', {
+      text: tr('不生成关系建议', 'No relation suggestions'),
+      value: '',
+    });
     this.artifacts.forEach((artifact) => {
       sourceArtifact.createEl('option', {
         text: artifact.title || artifact.artifact_id,
@@ -134,11 +155,19 @@ export class KnowledgeLabModal extends Modal {
       });
     });
     relationRow.createSpan({
-      text: '建议不会自动写入；每条关系都需要再次明确确认。',
+      text: tr(
+        '建议不会自动写入；每条关系都需要再次明确确认。',
+        'Suggestions are never written automatically; every relation needs your confirmation.',
+      ),
     });
 
     const status = this.contentEl.createDiv({ cls: 'vs-memory-status' });
-    status.setText(`已索引 ${index.getRecordCount()} 条本地证据记录`);
+    status.setText(
+      tr(
+        `已索引 ${index.getRecordCount()} 条本地证据记录`,
+        `Indexed ${index.getRecordCount()} local evidence records`,
+      ),
+    );
     const resultsEl = this.contentEl.createDiv({ cls: 'vs-memory-results' });
 
     const execute = () => {
@@ -154,8 +183,11 @@ export class KnowledgeLabModal extends Modal {
       const results = index.search(query.value, { filters, limit: 50 });
       status.setText(
         query.value.trim()
-          ? `找到 ${results.length} 条证据；排名可展开查看本地评分组成`
-          : '请输入搜索词',
+          ? tr(
+              `找到 ${results.length} 条证据；排名可展开查看本地评分组成`,
+              `Found ${results.length} pieces of evidence; expand a rank to see its local score`,
+            )
+          : tr('请输入搜索词', 'Enter a search term'),
       );
       this.renderMemoryResults(resultsEl, results, index, sourceArtifact.value || undefined);
     };
@@ -176,7 +208,10 @@ export class KnowledgeLabModal extends Modal {
     if (results.length === 0) {
       container.createEl('p', {
         cls: 'vs-knowledge-lab-empty',
-        text: '没有匹配的持久化证据。可以减少过滤条件或换一个搜索词。',
+        text: tr(
+          '没有匹配的持久化证据。可以减少过滤条件或换一个搜索词。',
+          'No saved evidence matches. Remove filters or try another term.',
+        ),
       });
       return;
     }
@@ -204,7 +239,7 @@ export class KnowledgeLabModal extends Modal {
       heading.createSpan({
         cls: 'vs-memory-score',
         text: result.score.toFixed(2),
-        attr: { title: '确定性本地评分' },
+        attr: { title: tr('确定性本地评分', 'Deterministic local score') },
       });
 
       const snippet = card.createEl('p', { cls: 'vs-memory-snippet' });
@@ -224,7 +259,7 @@ export class KnowledgeLabModal extends Modal {
           .join(' · '),
       );
       const details = card.createEl('details', { cls: 'vs-memory-score-details' });
-      details.createEl('summary', { text: '为什么排在这里' });
+      details.createEl('summary', { text: tr('为什么排在这里', 'Why it ranks here') });
       const list = details.createEl('ul');
       result.score_explanation.forEach((component) => {
         list.createEl('li', { text: component.explanation });
@@ -266,31 +301,44 @@ export class KnowledgeLabModal extends Modal {
   private renderRelationReview(card: HTMLElement, suggestion: ArtifactRelationSuggestion): void {
     const review = card.createDiv({ cls: 'vs-relation-review' });
     review.createEl('strong', {
-      text: `关系建议：${relationLabel(suggestion.relation)} · ${Math.round(
-        suggestion.confidence * 100,
-      )}%`,
+      text: tr(
+        `关系建议：${relationLabel(suggestion.relation)} · ${Math.round(
+          suggestion.confidence * 100,
+        )}%`,
+        `Relation suggestion: ${relationLabel(suggestion.relation)} · ${Math.round(
+          suggestion.confidence * 100,
+        )}%`,
+      ),
     });
     review.createEl('p', { text: suggestion.reason });
     review.createEl('p', {
       cls: 'vs-relation-pending',
-      text: '状态：仅建议，尚未写入工件',
+      text: tr(
+        '状态：仅建议，尚未写入工件',
+        'Status: suggestion only, not written to the artifact',
+      ),
     });
     const reviewButton = review.createEl('button', {
-      text: '审阅这条建议',
+      text: tr('审阅这条建议', 'Review this suggestion'),
     });
     reviewButton.onclick = () => {
       reviewButton.disabled = true;
       const gate = review.createDiv({ cls: 'vs-relation-confirm-gate' });
       gate.createEl('p', {
-        text: `确认后才会把“${relationLabel(
-          suggestion.relation,
-        )}”写入来源工件的 related_notes。是否确认？`,
+        text: tr(
+          `确认后才会把“${relationLabel(
+            suggestion.relation,
+          )}”写入来源工件的 related_notes。是否确认？`,
+          `"${relationLabel(
+            suggestion.relation,
+          )}" will be written to the source artifact's related_notes only after you confirm. Confirm?`,
+        ),
       });
       const confirm = gate.createEl('button', {
-        text: '确认写入关系',
+        text: tr('确认写入关系', 'Confirm and write'),
         cls: 'mod-cta',
       });
-      const cancel = gate.createEl('button', { text: '取消' });
+      const cancel = gate.createEl('button', { text: tr('取消', 'Cancel') });
       cancel.onclick = () => {
         gate.remove();
         reviewButton.disabled = false;
@@ -300,11 +348,17 @@ export class KnowledgeLabModal extends Modal {
         cancel.disabled = true;
         try {
           await applyReviewedRelationSuggestion(this.plugin.artifactStore, suggestion, true);
-          gate.setText('已确认并原子写入 related_notes。');
+          gate.setText(
+            tr('已确认并原子写入 related_notes。', 'Confirmed and written to related_notes.'),
+          );
           const pending = review.querySelector('.vs-relation-pending');
-          if (pending) pending.textContent = '状态：已由用户确认并写入';
+          if (pending)
+            pending.textContent = tr(
+              '状态：已由用户确认并写入',
+              'Status: confirmed by you and written',
+            );
         } catch (error) {
-          gate.setText(`写入失败：${messageOf(error)}`);
+          gate.setText(tr(`写入失败：${messageOf(error)}`, `Could not write: ${messageOf(error)}`));
           reviewButton.disabled = false;
         }
       };
@@ -315,7 +369,10 @@ export class KnowledgeLabModal extends Modal {
     if (this.artifacts.length < 2) {
       this.contentEl.createEl('p', {
         cls: 'vs-knowledge-lab-empty',
-        text: '至少需要两个持久化工件。请先处理更多视频。',
+        text: tr(
+          '至少需要两个持久化工件。请先处理更多视频。',
+          'At least two saved artifacts are needed. Process more videos first.',
+        ),
       });
       return;
     }
@@ -359,38 +416,42 @@ export class KnowledgeLabModal extends Modal {
           checkbox.onchange = () => {
             if (checkbox.checked) selected.add(artifact.artifact_id);
             else selected.delete(artifact.artifact_id);
-            count.setText(`已选择 ${selected.size} 个工件`);
+            count.setText(
+              tr(`已选择 ${selected.size} 个工件`, `${selected.size} artifacts selected`),
+            );
           };
         });
     };
     renderList();
-    count.setText('已选择 0 个工件');
+    count.setText(tr('已选择 0 个工件', '0 artifacts selected'));
     artifactSearch.addEventListener('input', renderList);
 
     const actions = this.contentEl.createDiv({ cls: 'vs-claim-lab-actions' });
     const generate = actions.createEl('button', {
-      text: '生成 / 更新论点实验室',
+      text: tr('生成 / 更新论点实验室', 'Build / update the claim lab'),
       cls: 'mod-cta',
     });
     const status = actions.createSpan();
     generate.onclick = async () => {
       if (selected.size < 2) {
-        new Notice('请至少选择两个持久化工件');
+        new Notice(tr('请至少选择两个持久化工件', 'Pick at least two saved artifacts'));
         return;
       }
       generate.disabled = true;
-      status.setText('正在生成本地证据矩阵…');
+      status.setText(tr('正在生成本地证据矩阵…', 'Building the local evidence matrix…'));
       try {
         const artifacts = this.artifacts.filter((artifact) => selected.has(artifact.artifact_id));
         const report = buildClaimLabReport(artifacts, {
           title: title.value.trim() || undefined,
         });
         const file = await this.saveClaimLab(report.lab_id, report);
-        status.setText(`已保存：${file.path}`);
+        status.setText(tr(`已保存：${file.path}`, `Saved: ${file.path}`));
         await this.app.workspace.getLeaf('tab').openFile(file);
         this.close();
       } catch (error) {
-        status.setText(`生成失败：${messageOf(error)}`);
+        status.setText(
+          tr(`生成失败：${messageOf(error)}`, `Could not build it: ${messageOf(error)}`),
+        );
         generate.disabled = false;
       }
     };
@@ -459,7 +520,7 @@ function labeledSelect(
   values.forEach((value) => {
     select.createEl('option', {
       value,
-      text: value || '全部',
+      text: value || tr('全部', 'All'),
     });
   });
   return select;

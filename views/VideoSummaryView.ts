@@ -15,6 +15,7 @@ import { segmented } from './ui';
 
 import { fire } from '../utils/fire';
 import { errorMessage } from '../utils/errors';
+import { tr } from '../utils/i18n';
 export const VIDEO_SUMMARY_VIEW_TYPE = 'video-summary-view';
 
 export class VideoSummaryView extends ItemView {
@@ -56,7 +57,7 @@ export class VideoSummaryView extends ItemView {
   }
 
   getDisplayText(): string {
-    return '视频总结';
+    return tr('视频总结', 'Video summary');
   }
 
   getIcon(): string {
@@ -269,7 +270,12 @@ export class VideoSummaryView extends ItemView {
       }
     }
     if (!(file instanceof TFile)) {
-      new Notice('笔记已移动或重命名，请从笔记库打开。');
+      new Notice(
+        tr(
+          '笔记已移动或重命名，请从笔记库打开。',
+          'The note was moved or renamed; open it from the library.',
+        ),
+      );
       return;
     }
     try {
@@ -277,7 +283,12 @@ export class VideoSummaryView extends ItemView {
       await leaf.openFile(file, { active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch (error) {
-      new Notice(`打开笔记失败：${error instanceof Error ? errorMessage(error) : String(error)}`);
+      new Notice(
+        tr(
+          `打开笔记失败：${error instanceof Error ? errorMessage(error) : String(error)}`,
+          `Could not open the note: ${error instanceof Error ? errorMessage(error) : String(error)}`,
+        ),
+      );
     }
   }
 

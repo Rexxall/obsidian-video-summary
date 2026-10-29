@@ -9,6 +9,7 @@ import { requestUrl } from 'obsidian';
 import { isRecord, scalarText } from '../utils/json';
 import { cookiesFromLoginUrl } from './BilibiliCookies';
 
+import { tr } from '../utils/i18n';
 const GENERATE_URL = 'https://passport.bilibili.com/x/passport-login/web/qrcode/generate';
 const POLL_URL = 'https://passport.bilibili.com/x/passport-login/web/qrcode/poll';
 const HEADERS = { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.bilibili.com/' };
@@ -45,7 +46,13 @@ export async function pollQrLogin(key: string): Promise<QrLoginState> {
   const body: unknown = response.json;
   const data = isRecord(body) && isRecord(body.data) ? body.data : null;
   if (response.status !== 200 || !data) {
-    return { state: 'error', message: `B 站登录接口返回 HTTP ${response.status}` };
+    return {
+      state: 'error',
+      message: tr(
+        `B 站登录接口返回 HTTP ${response.status}`,
+        `Bilibili login answered HTTP ${response.status}`,
+      ),
+    };
   }
   switch (Number(data.code)) {
     case 86101:
@@ -58,9 +65,18 @@ export async function pollQrLogin(key: string): Promise<QrLoginState> {
       const cookies = cookiesFromLoginUrl(scalarText(data.url), Date.now() / 1000);
       return cookies
         ? { state: 'done', cookies }
-        : { state: 'error', message: 'B 站确认了登录，但没有给出登录 cookie。' };
+        : {
+            state: 'error',
+            message: tr(
+              'B 站确认了登录，但没有给出登录 cookie。',
+              'Bilibili confirmed the login but gave no login cookie.',
+            ),
+          };
     }
     default:
-      return { state: 'error', message: scalarText(data.message) || '未知状态' };
+      return {
+        state: 'error',
+        message: scalarText(data.message) || tr('未知状态', 'Unknown state'),
+      };
   }
 }

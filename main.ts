@@ -32,13 +32,13 @@ import {
 } from './types';
 import {
   BACKEND_DEFAULT_MODEL_LABEL,
+  platformCapabilities,
   DEFAULT_SETTINGS,
   DEFAULT_N8N_WEBHOOK_URL,
   DEFAULT_WEBHOOK_AUTH_HEADER,
   DEFAULT_HISTORY_LIMIT,
   LEGACY_DEFAULT_N8N_WEBHOOK_URL,
   LEGACY_N8N_WEBHOOK_URL,
-  PLATFORM_CAPABILITIES,
   SETUP_GUIDE_URL,
   SETUP_TRIAL_TRANSCRIPT,
   SUPPORTED_PLATFORMS,
@@ -96,6 +96,7 @@ import {
   salvageSettingsJson,
 } from './core/LegacyData';
 import { SETTINGS_SEARCH_TERMS } from './views/settingsSearch';
+import { tr } from './utils/i18n';
 export default class VideoSummaryPlugin extends Plugin {
   settings: VideoSummarySettings;
   api: VideoSummaryAPI;
@@ -241,7 +242,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 主要命令：快速总结当前笔记
     this.addCommand({
       id: 'quick',
-      name: '快速总结当前笔记',
+      name: tr('快速总结当前笔记', 'Quick summary of the current note'),
       editorCallback: (editor: Editor, view: MarkdownView) => {
         void this.quickProcessCurrentNote(editor, view, 'summary');
       },
@@ -250,7 +251,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 新增命令：将全文作为文稿总结
     this.addCommand({
       id: 'full-text',
-      name: '将当前笔记全文作为文稿总结',
+      name: tr('将当前笔记全文作为文稿总结', 'Summarise the whole note as a transcript'),
       editorCallback: (editor: Editor, view: MarkdownView) => {
         void this.processFullTextAsTranscript(editor, view);
       },
@@ -259,7 +260,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 快速提取文稿
     this.addCommand({
       id: 'transcript-quick',
-      name: '快速提取文稿',
+      name: tr('快速提取文稿', 'Quick transcript'),
       editorCallback: (editor: Editor, view: MarkdownView) => {
         void this.quickProcessCurrentNote(editor, view, 'transcript-only');
       },
@@ -268,7 +269,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 只更新视频信息
     this.addCommand({
       id: 'info-update',
-      name: '更新视频信息（不改正文）',
+      name: tr('更新视频信息（不改正文）', 'Update video info (body unchanged)'),
       editorCallback: (editor: Editor, view: MarkdownView) => {
         void this.updateVideoInfoOnly(editor, view, false);
       },
@@ -277,7 +278,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 更新视频信息并重命名
     this.addCommand({
       id: 'info-update-rename',
-      name: '更新视频信息并重命名',
+      name: tr('更新视频信息并重命名', 'Update video info and rename'),
       editorCallback: (editor: Editor, view: MarkdownView) => {
         void this.updateVideoInfoOnly(editor, view, true);
       },
@@ -286,7 +287,10 @@ export default class VideoSummaryPlugin extends Plugin {
     // 把当前笔记里的视频链接收进侧栏添加框，确认后再批量处理
     this.addCommand({
       id: 'collect-note-links',
-      name: '收集当前笔记里的视频链接到侧栏',
+      name: tr(
+        '收集当前笔记里的视频链接到侧栏',
+        'Collect the video links in this note into the side panel',
+      ),
       checkCallback: (checking: boolean) => {
         const file = this.app.workspace.getActiveFile();
         if (!file || file.extension !== 'md') return false;
@@ -298,7 +302,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 打开视频总结管理视图
     this.addCommand({
       id: 'view',
-      name: '打开视频总结侧栏',
+      name: tr('打开视频总结侧栏', 'Open the Video Summary side panel'),
       callback: () => {
         void this.activateView();
       },
@@ -307,7 +311,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 批量处理命令
     this.addCommand({
       id: 'batch',
-      name: '批量处理视频',
+      name: tr('批量处理视频', 'Batch process videos'),
       callback: () => {
         new BatchProcessingModal(this.app, this).open();
       },
@@ -316,7 +320,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 重新处理当前笔记
     this.addCommand({
       id: 'reprocess',
-      name: '重新处理当前笔记',
+      name: tr('重新处理当前笔记', 'Process the current note again'),
       editorCallback: (editor: Editor, view: MarkdownView) => {
         void this.reprocessCurrentNote(editor, view);
       },
@@ -325,7 +329,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 处理所有待处理视频
     this.addCommand({
       id: 'process-all-pending',
-      name: '处理所有待处理视频',
+      name: tr('处理所有待处理视频', 'Process all pending videos'),
       callback: () => {
         void this.processAllPendingVideos();
       },
@@ -334,7 +338,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 测试当前视频处理后端连接
     this.addCommand({
       id: 'test-connection',
-      name: '测试当前视频处理后端',
+      name: tr('测试当前视频处理后端', 'Test the current video backend'),
       callback: () => {
         void this.testProcessingBackendConnection();
       },
@@ -342,7 +346,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-worker-dashboard',
-      name: 'Codex 本地服务控制台',
+      name: tr('Codex 本地服务控制台', 'Codex local service dashboard'),
       callback: () => {
         this.openCodexWorkerDashboard();
       },
@@ -350,7 +354,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'memory-search',
-      name: '搜索跨模态视频记忆',
+      name: tr('搜索跨模态视频记忆', 'Search video memory across media'),
       callback: () => {
         new KnowledgeLabModal(this.app, this, 'memory').open();
       },
@@ -358,7 +362,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'claim-lab',
-      name: '生成多视频论点实验室',
+      name: tr('生成多视频论点实验室', 'Build a multi-video claim lab'),
       callback: () => {
         new KnowledgeLabModal(this.app, this, 'claim-lab').open();
       },
@@ -366,7 +370,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'learning-review',
-      name: '复习当前视频的学习卡',
+      name: tr('复习当前视频的学习卡', "Review this video's learning cards"),
       editorCallback: (_editor: Editor, view: MarkdownView) => {
         if (view.file) void this.openLearningReviewForFile(view.file);
       },
@@ -374,7 +378,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'learning-review-due',
-      name: '复习所有到期的视频学习卡',
+      name: tr('复习所有到期的视频学习卡', 'Review all due video learning cards'),
       callback: () => {
         void this.openGlobalLearningReview();
       },
@@ -382,7 +386,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'reprocess-from-artifact',
-      name: '用本地可复现工件重新处理',
+      name: tr('用本地可复现工件重新处理', 'Process again from the local reproducible artifact'),
       editorCallback: (_editor: Editor, view: MarkdownView) => {
         if (view.file) void this.reprocessFromPersistedArtifact(view.file);
       },
@@ -390,7 +394,10 @@ export default class VideoSummaryPlugin extends Plugin {
 
     this.addCommand({
       id: 'generate-base',
-      name: '生成或安全更新视频库数据视图（.base 文件）',
+      name: tr(
+        '生成或安全更新视频库数据视图（.base 文件）',
+        'Create or safely update the video library view (.base file)',
+      ),
       callback: () => {
         void this.ensureVideoLibraryBase(true);
       },
@@ -399,7 +406,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 标记为非视频笔记
     this.addCommand({
       id: 'mark-excluded',
-      name: '标记为非视频笔记',
+      name: tr('标记为非视频笔记', 'Mark as not a video note'),
       editorCallback: (editor: Editor, view: MarkdownView) => {
         void this.markAsExcluded(editor, view);
       },
@@ -412,7 +419,7 @@ export default class VideoSummaryPlugin extends Plugin {
         if (file instanceof TFile && file.extension === 'md') {
           menu.addItem((item) => {
             item
-              .setTitle('视频总结 - 快速处理')
+              .setTitle(tr('视频总结 - 快速处理', 'Video Summary - quick process'))
               .setIcon('video')
               .onClick(async () => {
                 await this.processFile(file);
@@ -421,7 +428,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
           menu.addItem((item) => {
             item
-              .setTitle('视频总结 - 仅提取文稿')
+              .setTitle(tr('视频总结 - 仅提取文稿', 'Video Summary - transcript only'))
               .setIcon('document')
               .onClick(async () => {
                 await this.processFileWithMode(file, 'transcript-only');
@@ -436,7 +443,7 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new Notice('无法获取当前文件');
+        new Notice(tr('无法获取当前文件', 'Cannot get the current file'));
         return;
       }
 
@@ -448,13 +455,24 @@ export default class VideoSummaryPlugin extends Plugin {
       const localFileName = this.extractLocalFileName(content);
 
       if (!url && !providedTranscript && !localFileName) {
-        new Notice('当前笔记中没有找到视频链接、文稿内容或本地文件名');
+        new Notice(
+          tr(
+            '当前笔记中没有找到视频链接、文稿内容或本地文件名',
+            'No video link, transcript or local file name in this note',
+          ),
+        );
         return;
       }
 
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new Notice(`处理当前笔记失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `处理当前笔记失败: ${this.formatErrorForNotice(error)}`,
+          `Could not process the current note: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -466,7 +484,7 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new Notice('无法获取当前文件');
+        new Notice(tr('无法获取当前文件', 'Cannot get the current file'));
         return;
       }
 
@@ -478,14 +496,25 @@ export default class VideoSummaryPlugin extends Plugin {
       const localFileName = this.extractLocalFileName(content);
 
       if (!url && !providedTranscript && !localFileName) {
-        new Notice('当前笔记中没有找到视频链接、文稿内容或本地文件名');
+        new Notice(
+          tr(
+            '当前笔记中没有找到视频链接、文稿内容或本地文件名',
+            'No video link, transcript or local file name in this note',
+          ),
+        );
         return;
       }
 
       // 直接处理，不打开模态框
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new Notice(`处理当前笔记失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `处理当前笔记失败: ${this.formatErrorForNotice(error)}`,
+          `Could not process the current note: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -493,7 +522,7 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new Notice('无法获取当前文件');
+        new Notice(tr('无法获取当前文件', 'Cannot get the current file'));
         return;
       }
 
@@ -501,7 +530,12 @@ export default class VideoSummaryPlugin extends Plugin {
       const videoInput = this.noteProcessor.buildVideoInput(content);
 
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new Notice('当前笔记中没有找到视频链接、文稿内容或本地文件名');
+        new Notice(
+          tr(
+            '当前笔记中没有找到视频链接、文稿内容或本地文件名',
+            'No video link, transcript or local file name in this note',
+          ),
+        );
         return;
       }
 
@@ -512,7 +546,7 @@ export default class VideoSummaryPlugin extends Plugin {
       await this.noteProcessor.setProcessingStatus(file, 'running');
       await this.jobService.updateCourseProgressForFile(file, 'processing', 10);
 
-      const statusNotice = new Notice('正在获取视频信息...', 0);
+      const statusNotice = new Notice(tr('正在获取视频信息...', 'Getting video info...'), 0);
 
       try {
         const result = await this.api.processVideo(
@@ -548,17 +582,28 @@ export default class VideoSummaryPlugin extends Plugin {
         );
         this.addToHistory(file.basename, 'success', 'info-only');
 
-        statusNotice.setMessage('✅ 视频信息已更新');
+        statusNotice.setMessage(tr('✅ 视频信息已更新', '✅ Video info updated'));
         window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, 'error', 0);
         this.addToHistory(file.basename, 'error', 'info-only');
-        statusNotice.setMessage(`更新失败: ${this.formatErrorForNotice(error)}`);
+        statusNotice.setMessage(
+          tr(
+            `更新失败: ${this.formatErrorForNotice(error)}`,
+            `Update failed: ${this.formatErrorForNotice(error)}`,
+          ),
+        );
         window.setTimeout(() => statusNotice.hide(), 3000);
       }
     } catch (error) {
-      new Notice(`更新视频信息失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `更新视频信息失败: ${this.formatErrorForNotice(error)}`,
+          `Could not update the video info: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -566,14 +611,20 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new Notice('无法获取当前文件');
+        new Notice(tr('无法获取当前文件', 'Cannot get the current file'));
         return;
       }
 
       // 直接重新处理文件
       await this.processFile(file);
     } catch (error) {
-      new Notice(`重新处理失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `重新处理失败: ${this.formatErrorForNotice(error)}`,
+          `Could not process again: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -581,7 +632,7 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new Notice('无法获取当前文件');
+        new Notice(tr('无法获取当前文件', 'Cannot get the current file'));
         return;
       }
 
@@ -594,7 +645,12 @@ export default class VideoSummaryPlugin extends Plugin {
 
       // 检查是否有任何输入数据
       if (!url && !providedTranscript && !localFileName) {
-        new Notice('当前笔记中没有找到视频链接、文稿内容或本地文件名');
+        new Notice(
+          tr(
+            '当前笔记中没有找到视频链接、文稿内容或本地文件名',
+            'No video link, transcript or local file name in this note',
+          ),
+        );
         return;
       }
 
@@ -618,7 +674,13 @@ export default class VideoSummaryPlugin extends Plugin {
             : this.settings.timeoutMinutes;
 
       // 显示处理状态
-      const statusNotice = new Notice(`正在处理: ${this.getModeDisplayText(mode)}`, 0);
+      const statusNotice = new Notice(
+        tr(
+          `正在处理: ${this.getModeDisplayText(mode)}`,
+          `Processing: ${this.getModeDisplayText(mode)}`,
+        ),
+        0,
+      );
       await this.noteProcessor.setProcessingStatus(file, 'running');
       await this.jobService.updateCourseProgressForFile(file, 'processing', 10);
 
@@ -643,15 +705,29 @@ export default class VideoSummaryPlugin extends Plugin {
         // ===== 多文件合并逻辑 =====
         if (isMerge) {
           const langText =
-            requestLanguage === 'zh' ? '中文' : requestLanguage === 'en' ? '英文' : '日文';
-          statusNotice.setMessage(`正在合并处理 ${localFiles.length} 个文件...`);
+            requestLanguage === 'zh'
+              ? tr('中文', 'Chinese')
+              : requestLanguage === 'en'
+                ? tr('英文', 'English')
+                : tr('日文', 'Japanese');
+          statusNotice.setMessage(
+            tr(
+              `正在合并处理 ${localFiles.length} 个文件...`,
+              `Processing ${localFiles.length} files together...`,
+            ),
+          );
 
           let combinedTranscript = '';
 
           // 1. 逐个提取文稿
           for (let i = 0; i < localFiles.length; i++) {
             const localFile = localFiles[i];
-            statusNotice.setMessage(`正在提取第 ${i + 1}/${localFiles.length} 个文件的内容...`);
+            statusNotice.setMessage(
+              tr(
+                `正在提取第 ${i + 1}/${localFiles.length} 个文件的内容...`,
+                `Extracting file ${i + 1}/${localFiles.length}...`,
+              ),
+            );
 
             // 使用 processVideoSimple 仅提取文稿
             const extractResult = await this.api.processVideoSimple(
@@ -672,7 +748,12 @@ export default class VideoSummaryPlugin extends Plugin {
           }
 
           // 2. 使用合并后的文稿进行总结
-          statusNotice.setMessage(`正在以${langText}生成合并总结...`);
+          statusNotice.setMessage(
+            tr(
+              `正在以${langText}生成合并总结...`,
+              `Generating a combined summary in ${langText}...`,
+            ),
+          );
 
           // 构建新的输入，使用合并后的文稿
           const mergedInput: VideoInput = {
@@ -699,7 +780,9 @@ export default class VideoSummaryPlugin extends Plugin {
             1,
             2000,
             (attempt, error) => {
-              statusNotice.setMessage(`重试中: ${errorMessage(error)}`);
+              statusNotice.setMessage(
+                tr(`重试中: ${errorMessage(error)}`, `Retrying: ${errorMessage(error)}`),
+              );
             },
           );
         } else {
@@ -728,7 +811,12 @@ export default class VideoSummaryPlugin extends Plugin {
             1, // 重试1次
             2000, // 2秒延迟
             (attempt, error) => {
-              statusNotice.setMessage(`重试中 (${attempt}/2): ${errorMessage(error)}`);
+              statusNotice.setMessage(
+                tr(
+                  `重试中 (${attempt}/2): ${errorMessage(error)}`,
+                  `Retrying (${attempt}/2): ${errorMessage(error)}`,
+                ),
+              );
             },
           );
         }
@@ -764,7 +852,7 @@ export default class VideoSummaryPlugin extends Plugin {
         // 添加到历史记录
         this.addToHistory(file.basename, 'success', mode);
 
-        statusNotice.setMessage(`✅ 处理完成`);
+        statusNotice.setMessage(tr(`✅ 处理完成`, `✅ Done`));
         window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         // 更新状态为错误
@@ -774,11 +862,22 @@ export default class VideoSummaryPlugin extends Plugin {
         // 添加到历史记录
         this.addToHistory(file.basename, 'error', mode);
 
-        statusNotice.setMessage(`处理失败: ${this.formatErrorForNotice(error)}`);
+        statusNotice.setMessage(
+          tr(
+            `处理失败: ${this.formatErrorForNotice(error)}`,
+            `Processing failed: ${this.formatErrorForNotice(error)}`,
+          ),
+        );
         window.setTimeout(() => statusNotice.hide(), 3000);
       }
     } catch (error) {
-      new Notice(`处理失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `处理失败: ${this.formatErrorForNotice(error)}`,
+          `Processing failed: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -786,14 +885,14 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new Notice('无法获取当前文件');
+        new Notice(tr('无法获取当前文件', 'Cannot get the current file'));
         return;
       }
 
       // 获取全文本
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new Notice('笔记中没有发现任何文本内容');
+        new Notice(tr('笔记中没有发现任何文本内容', 'The note has no text'));
         return;
       }
 
@@ -809,7 +908,10 @@ export default class VideoSummaryPlugin extends Plugin {
       // 设置处理中状态
       await this.noteProcessor.setProcessingStatus(file, 'running');
       await this.jobService.updateCourseProgressForFile(file, 'processing', 10);
-      const statusNotice = new Notice(`正在将全文发送处理...`, 0);
+      const statusNotice = new Notice(
+        tr(`正在将全文发送处理...`, `Sending the whole note for processing...`),
+        0,
+      );
 
       try {
         const input: VideoInput = {
@@ -832,7 +934,12 @@ export default class VideoSummaryPlugin extends Plugin {
           1, // 重试1次
           2000, // 2秒延迟
           (attempt, error) => {
-            statusNotice.setMessage(`重试中 (${attempt}/2): ${errorMessage(error)}`);
+            statusNotice.setMessage(
+              tr(
+                `重试中 (${attempt}/2): ${errorMessage(error)}`,
+                `Retrying (${attempt}/2): ${errorMessage(error)}`,
+              ),
+            );
           },
         );
         const artifactContext = {
@@ -861,17 +968,28 @@ export default class VideoSummaryPlugin extends Plugin {
         );
         this.addToHistory(file.basename, 'success', mode);
 
-        statusNotice.setMessage(`✅ 全文处理完成`);
+        statusNotice.setMessage(tr(`✅ 全文处理完成`, `✅ Whole note processed`));
         window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, 'error', 0);
         this.addToHistory(file.basename, 'error', mode);
-        statusNotice.setMessage(`处理失败: ${this.formatErrorForNotice(error)}`);
+        statusNotice.setMessage(
+          tr(
+            `处理失败: ${this.formatErrorForNotice(error)}`,
+            `Processing failed: ${this.formatErrorForNotice(error)}`,
+          ),
+        );
         window.setTimeout(() => statusNotice.hide(), 5000);
       }
     } catch (error) {
-      new Notice(`处理启动失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `处理启动失败: ${this.formatErrorForNotice(error)}`,
+          `Could not start: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -904,19 +1022,24 @@ export default class VideoSummaryPlugin extends Plugin {
       }
 
       if (pendingFiles.length === 0) {
-        new Notice('没有找到待处理的视频笔记');
+        new Notice(tr('没有找到待处理的视频笔记', 'No pending video notes found'));
         return;
       }
 
       // 显示确认对话框
       const confirmed = await this.showConfirmDialog(
-        `批量处理 ${pendingFiles.length} 个视频`,
-        `是否要批量处理这些视频？\n\n文件列表：\n${pendingFiles
+        tr(`批量处理 ${pendingFiles.length} 个视频`, `Process ${pendingFiles.length} videos`),
+        `${tr('是否要批量处理这些视频？\n\n文件列表：', 'Process these videos?\n\nFiles:')}\n${pendingFiles
           .slice(0, 10)
           .map((f) => `• ${f.basename}`)
-          .join(
-            '\n',
-          )}${pendingFiles.length > 10 ? `\n... 还有 ${pendingFiles.length - 10} 个文件` : ''}`,
+          .join('\n')}${
+          pendingFiles.length > 10
+            ? tr(
+                `\n... 还有 ${pendingFiles.length - 10} 个文件`,
+                `\n... and ${pendingFiles.length - 10} more`,
+              )
+            : ''
+        }`,
       );
 
       if (!confirmed) {
@@ -929,7 +1052,13 @@ export default class VideoSummaryPlugin extends Plugin {
       }
 
       // 创建进度通知
-      const progressNotice = new Notice(`正在处理 ${pendingFiles.length} 个视频...`, 0);
+      const progressNotice = new Notice(
+        tr(
+          `正在处理 ${pendingFiles.length} 个视频...`,
+          `Processing ${pendingFiles.length} videos...`,
+        ),
+        0,
+      );
       let successCount = 0;
       let errorCount = 0;
 
@@ -938,7 +1067,12 @@ export default class VideoSummaryPlugin extends Plugin {
         const file = pendingFiles[i];
         try {
           // 更新进度
-          progressNotice.setMessage(`处理中 (${i + 1}/${pendingFiles.length})`);
+          progressNotice.setMessage(
+            tr(
+              `处理中 (${i + 1}/${pendingFiles.length})`,
+              `Processing (${i + 1}/${pendingFiles.length})`,
+            ),
+          );
 
           // 处理文件（历史记录由 JobService 统一写，这里不再重复追加）
           await this.processFileWithMode(file, this.settings.defaultMode);
@@ -958,10 +1092,21 @@ export default class VideoSummaryPlugin extends Plugin {
       await this.saveSettings();
 
       // 显示最终结果
-      progressNotice.setMessage(`完成！成功: ${successCount}, 失败: ${errorCount}`);
+      progressNotice.setMessage(
+        tr(
+          `完成！成功: ${successCount}, 失败: ${errorCount}`,
+          `Done! Succeeded: ${successCount}, failed: ${errorCount}`,
+        ),
+      );
       window.setTimeout(() => progressNotice.hide(), 3000);
     } catch (error) {
-      new Notice(`批量处理失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `批量处理失败: ${this.formatErrorForNotice(error)}`,
+          `Batch processing failed: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -1004,9 +1149,14 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new Notice('处理历史已清理');
+      new Notice(tr('处理历史已清理', 'Processing history cleared'));
     } catch (error) {
-      new Notice(`清理历史失败: ${errorMessage(error)}`);
+      new Notice(
+        tr(
+          `清理历史失败: ${errorMessage(error)}`,
+          `Could not clear the history: ${errorMessage(error)}`,
+        ),
+      );
     }
   }
 
@@ -1014,16 +1164,35 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const result = await this.api.testConnection();
       const label =
-        this.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : '兼容 n8n 的 webhook';
+        this.settings.activeBackend === 'codex-worker'
+          ? 'Codex Worker'
+          : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
 
       if (result.success) {
-        new Notice(`${label} 连接成功（${result.durationMs ?? 0}ms）`);
+        new Notice(
+          tr(
+            `${label} 连接成功（${result.durationMs ?? 0}ms）`,
+            `${label} connected (${result.durationMs ?? 0} ms)`,
+          ),
+        );
       } else {
         const hint = result.hint ? `\n建议: ${result.hint}` : '';
-        new Notice(`${label} 连接失败: ${result.error || '未知错误'}${hint}`, 8000);
+        new Notice(
+          tr(
+            `${label} 连接失败: ${result.error || '未知错误'}${hint}`,
+            `${label} connection failed: ${result.error || 'unknown error'}${hint}`,
+          ),
+          8000,
+        );
       }
     } catch (error) {
-      new Notice(`连接失败: ${this.api.formatUserFacingError(error)}`, 8000);
+      new Notice(
+        tr(
+          `连接失败: ${this.api.formatUserFacingError(error)}`,
+          `Connection failed: ${this.api.formatUserFacingError(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -1062,10 +1231,16 @@ export default class VideoSummaryPlugin extends Plugin {
       return true;
     }
 
-    const label = backend === 'codex-worker' ? 'Codex Worker' : '兼容 n8n 的 webhook';
+    const label =
+      backend === 'codex-worker'
+        ? 'Codex Worker'
+        : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
 
     const otherBackend: ProcessingBackend = backend === 'n8n' ? 'codex-worker' : 'n8n';
-    const otherLabel = otherBackend === 'codex-worker' ? 'Codex Worker' : '兼容 n8n 的 webhook';
+    const otherLabel =
+      otherBackend === 'codex-worker'
+        ? 'Codex Worker'
+        : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
     const otherUrl =
       otherBackend === 'codex-worker'
         ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl
@@ -1087,20 +1262,26 @@ export default class VideoSummaryPlugin extends Plugin {
 
     if (otherResult.ok) {
       const confirmed = await this.showConfirmDialog(
-        `${label} 不可用`,
-        `当前后端 ${label} 连接失败：\n${result.error || '未知错误'}\n\n检测到 ${otherLabel} 可用。是否切换到 ${otherLabel} 并继续？`,
+        tr(`${label} 不可用`, `${label} is unavailable`),
+        tr(
+          `当前后端 ${label} 连接失败：\n${result.error || '未知错误'}\n\n检测到 ${otherLabel} 可用。是否切换到 ${otherLabel} 并继续？`,
+          `The current backend ${label} failed to connect:\n${result.error || 'unknown error'}\n\n${otherLabel} is available. Switch to ${otherLabel} and continue?`,
+        ),
       );
       if (confirmed) {
         await this.setActiveBackend(otherBackend);
         this.lastPreflight = null;
-        new Notice(`已切换到 ${otherLabel}`);
+        new Notice(tr(`已切换到 ${otherLabel}`, `Switched to ${otherLabel}`));
         return true;
       }
       return false;
     }
 
     new Notice(
-      `⚠️ ${label} 不可达：${result.error || '未知错误'}\n（${otherLabel} 也未检测到）请先启动处理服务，或在设置中检查 URL。`,
+      tr(
+        `⚠️ ${label} 不可达：${result.error || '未知错误'}\n（${otherLabel} 也未检测到）请先启动处理服务，或在设置中检查 URL。`,
+        `⚠️ ${label} unreachable: ${result.error || 'unknown error'}\n(${otherLabel} not found either) Start the backend, or check the URL in settings.`,
+      ),
       8000,
     );
     return false;
@@ -1119,12 +1300,22 @@ export default class VideoSummaryPlugin extends Plugin {
     const content = await this.app.vault.cachedRead(file);
     const urls = VideoUtils.extractVideoUrls(content);
     if (urls.length === 0) {
-      new Notice(`“${file.basename}”里没有找到支持的视频链接`);
+      new Notice(
+        tr(
+          `“${file.basename}”里没有找到支持的视频链接`,
+          `No supported video link in "${file.basename}"`,
+        ),
+      );
       return;
     }
     const view = await this.activateView();
     view?.prefillInput(urls.join('\n'));
-    new Notice(`已把 ${urls.length} 个视频链接放进侧栏，选好模式后点“开始”`);
+    new Notice(
+      tr(
+        `已把 ${urls.length} 个视频链接放进侧栏，选好模式后点“开始”`,
+        `Put ${urls.length} video links into the side panel; pick a mode and press Start`,
+      ),
+    );
   }
 
   private async activateView(): Promise<VideoSummaryView | null> {
@@ -1170,7 +1361,10 @@ export default class VideoSummaryPlugin extends Plugin {
       if (!salvage.corrupt) return { stored: salvage.settings, migrated: false };
       await adapter.write(`${this.pluginDir}/data.corrupt-${Date.now()}.json`, raw);
       new Notice(
-        `Video Summary：设置文件损坏（同步冲突），已救回 ${salvage.history.length} 条处理记录和 ${salvage.webhookHistory.length} 条结果，原文件另存为 data.corrupt-*.json。`,
+        tr(
+          `Video Summary：设置文件损坏（同步冲突），已救回 ${salvage.history.length} 条处理记录和 ${salvage.webhookHistory.length} 条结果，原文件另存为 data.corrupt-*.json。`,
+          `Video Summary: the settings file was damaged by a sync conflict. Recovered ${salvage.history.length} job records and ${salvage.webhookHistory.length} results; the original is saved as data.corrupt-*.json.`,
+        ),
         15000,
       );
       return {
@@ -1224,7 +1418,10 @@ export default class VideoSummaryPlugin extends Plugin {
       }
       await this.copyFolder(`${folder}/data`, `${this.pluginDir}/data`);
       new Notice(
-        `Video Summary：已从旧版插件目录（${folder}）导入设置、${history.length} 条处理记录和 ${webhookHistory.length} 条结果。确认无误后可停用并删除旧版。`,
+        tr(
+          `Video Summary：已从旧版插件目录（${folder}）导入设置、${history.length} 条处理记录和 ${webhookHistory.length} 条结果。确认无误后可停用并删除旧版。`,
+          `Video Summary: imported settings, ${history.length} job records and ${webhookHistory.length} results from the old plugin folder (${folder}). Once everything looks right, disable and delete the old version.`,
+        ),
         15000,
       );
       return { ...salvage.settings, history, webhookHistory };
@@ -1326,7 +1523,13 @@ export default class VideoSummaryPlugin extends Plugin {
     ) {
       this.settings.defaultProcessingDepth = 'evidence';
       shouldSave = true;
-      new Notice('旧设置中的“深度视觉”已按 n8n 实际能力迁移为“证据”模式。', 7000);
+      new Notice(
+        tr(
+          '旧设置中的“深度视觉”已按 n8n 实际能力迁移为“证据”模式。',
+          '"Deep visual" in the old settings was changed to "Evidence", which is what n8n supports.',
+        ),
+        7000,
+      );
     }
     const normalizedConcurrency = Math.max(
       1,
@@ -1360,7 +1563,7 @@ export default class VideoSummaryPlugin extends Plugin {
       this.settings.webhookProfiles = [
         {
           id: 'default-webhook',
-          name: '默认 Webhook',
+          name: tr('默认 Webhook', 'Default webhook'),
           url: this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl,
           headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
           secret: '',
@@ -1562,7 +1765,7 @@ export default class VideoSummaryPlugin extends Plugin {
   ): Promise<WebhookProfile | null> {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new Notice('未找到对应的 webhook 配置');
+      new Notice(tr('未找到对应的 webhook 配置', 'Webhook configuration not found'));
       return null;
     }
 
@@ -1572,14 +1775,22 @@ export default class VideoSummaryPlugin extends Plugin {
     if (this.settings.defaultProcessingDepth === 'deep-visual') {
       this.settings.defaultProcessingDepth = 'evidence';
       if (!options.silent) {
-        new Notice('当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。', 7000);
+        new Notice(
+          tr(
+            '当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。',
+            'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".',
+          ),
+          7000,
+        );
       }
     }
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
 
     if (!options.silent) {
-      new Notice(`已切换到 ${profile.name || profile.url}`);
+      new Notice(
+        tr(`已切换到 ${profile.name || profile.url}`, `Switched to ${profile.name || profile.url}`),
+      );
     }
 
     return profile;
@@ -1617,7 +1828,13 @@ export default class VideoSummaryPlugin extends Plugin {
     this.settings.activeBackend = backend;
     if (backend !== 'codex-worker' && this.settings.defaultProcessingDepth === 'deep-visual') {
       this.settings.defaultProcessingDepth = 'evidence';
-      new Notice('当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。', 7000);
+      new Notice(
+        tr(
+          '当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。',
+          'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".',
+        ),
+        7000,
+      );
     }
     this.initializeApiInstance();
     await this.saveSettings();
@@ -1670,18 +1887,30 @@ export default class VideoSummaryPlugin extends Plugin {
     if (!finished) return;
 
     if (finished.state === 'error') {
-      new Notice(`处理失败: ${finished.error || '未知错误'}`, 8000);
+      new Notice(
+        tr(
+          `处理失败: ${finished.error || '未知错误'}`,
+          `Processing failed: ${finished.error || 'unknown error'}`,
+        ),
+        8000,
+      );
       throw new Error(finished.error || '处理失败');
     }
     if (finished.state === 'cancelled') {
-      new Notice('处理已取消');
+      new Notice(tr('处理已取消', 'Processing cancelled'));
       return;
     }
     if (finished.state === 'review') {
-      new Notice(`${this.getModeDisplayText(mode)}已就绪，去侧栏确认写入`, 6000);
+      new Notice(
+        tr(
+          `${this.getModeDisplayText(mode)}已就绪，去侧栏确认写入`,
+          `${this.getModeDisplayText(mode)} ready; confirm writing it in the side panel`,
+        ),
+        6000,
+      );
       return;
     }
-    new Notice(`${this.getModeDisplayText(mode)}完成`);
+    new Notice(tr(`${this.getModeDisplayText(mode)}完成`, `${this.getModeDisplayText(mode)} done`));
   }
 
   /**
@@ -1690,11 +1919,11 @@ export default class VideoSummaryPlugin extends Plugin {
   private getModeDisplayText(mode: ProcessingMode): string {
     switch (mode) {
       case 'summary':
-        return '视频总结';
+        return tr('视频总结', 'Video summary');
       case 'transcript-only':
-        return '文稿提取';
+        return tr('文稿提取', 'Transcript');
       default:
-        return '视频信息';
+        return tr('视频信息', 'Video info');
     }
   }
 
@@ -1789,15 +2018,20 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new Notice('无法获取当前文件');
+        new Notice(tr('无法获取当前文件', 'Cannot get the current file'));
         return;
       }
 
       // 设置状态为排除
       await this.noteProcessor.setProcessingStatus(file, 'excluded');
-      new Notice('已标记为非视频笔记');
+      new Notice(tr('已标记为非视频笔记', 'Marked as not a video note'));
     } catch (error) {
-      new Notice(`标记为非视频笔记失败: ${errorMessage(error)}`);
+      new Notice(
+        tr(
+          `标记为非视频笔记失败: ${errorMessage(error)}`,
+          `Could not mark it: ${errorMessage(error)}`,
+        ),
+      );
     }
   }
 
@@ -1805,14 +2039,26 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new Notice('当前笔记还没有持久化视频工件，请先处理一次。', 6000);
+        new Notice(
+          tr(
+            '当前笔记还没有持久化视频工件，请先处理一次。',
+            'This note has no saved video artifact yet; process it once first.',
+          ),
+          6000,
+        );
         return;
       }
       const artifact = await this.artifactStore.load(artifactId);
       const learningCount =
         (artifact.learning?.flashcards?.length || 0) + (artifact.learning?.questions?.length || 0);
       if (learningCount === 0) {
-        new Notice('这份工件没有学习卡；重新处理时开启“生成学习练习”。', 6000);
+        new Notice(
+          tr(
+            '这份工件没有学习卡；重新处理时开启“生成学习练习”。',
+            'This artifact has no learning cards; turn on "Generate learning exercises" and process it again.',
+          ),
+          6000,
+        );
         return;
       }
       new LearningReviewModal(this.app, {
@@ -1820,7 +2066,7 @@ export default class VideoSummaryPlugin extends Plugin {
         artifact,
         onOpenEvidence: async (_source, target) => {
           if (target.start === null) {
-            new Notice('这条证据没有可靠时间点');
+            new Notice(tr('这条证据没有可靠时间点', 'This evidence has no reliable timestamp'));
             return;
           }
           const view = await this.activateView();
@@ -1829,7 +2075,13 @@ export default class VideoSummaryPlugin extends Plugin {
         },
       }).open();
     } catch (error) {
-      new Notice(`打开学习复习失败：${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `打开学习复习失败：${this.formatErrorForNotice(error)}`,
+          `Could not open the review: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -1863,16 +2115,22 @@ export default class VideoSummaryPlugin extends Plugin {
           String(left.artifact.title || '').localeCompare(String(right.artifact.title || '')),
       );
       if (candidates.length === 0) {
-        new Notice('当前没有到期的视频学习卡。');
+        new Notice(tr('当前没有到期的视频学习卡。', 'No video learning cards are due.'));
         return;
       }
 
       const total = candidates.reduce((sum, item) => sum + item.dueCount, 0);
-      new Notice(`共有 ${candidates.length} 个视频、${total} 张学习卡到期。`, 5000);
+      new Notice(
+        tr(
+          `共有 ${candidates.length} 个视频、${total} 张学习卡到期。`,
+          `${candidates.length} videos, ${total} cards due.`,
+        ),
+        5000,
+      );
       const openAt = (index: number) => {
         const candidate = candidates[index];
         if (!candidate) {
-          new Notice('本轮到期复习已完成。');
+          new Notice(tr('本轮到期复习已完成。', 'All due reviews done.'));
           return;
         }
         new LearningReviewModal(this.app, {
@@ -1881,7 +2139,7 @@ export default class VideoSummaryPlugin extends Plugin {
           mode: 'due',
           onOpenEvidence: async (artifact, target) => {
             if (target.start === null) {
-              new Notice('这条证据没有可靠时间点');
+              new Notice(tr('这条证据没有可靠时间点', 'This evidence has no reliable timestamp'));
               return;
             }
             const notePath = artifact.source.note_path;
@@ -1896,7 +2154,12 @@ export default class VideoSummaryPlugin extends Plugin {
               window.open(externalUrl, '_blank', 'noopener,noreferrer');
               return;
             }
-            new Notice('工件原笔记已不存在，无法定位播放器。');
+            new Notice(
+              tr(
+                '工件原笔记已不存在，无法定位播放器。',
+                "The artifact's original note is gone; cannot find the player.",
+              ),
+            );
           },
           ...(index + 1 < candidates.length
             ? {
@@ -1908,7 +2171,13 @@ export default class VideoSummaryPlugin extends Plugin {
       };
       openAt(0);
     } catch (error) {
-      new Notice(`打开到期复习失败：${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `打开到期复习失败：${this.formatErrorForNotice(error)}`,
+          `Could not open the due review: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -1916,7 +2185,7 @@ export default class VideoSummaryPlugin extends Plugin {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new Notice('当前笔记没有可复现工件。', 6000);
+        new Notice(tr('当前笔记没有可复现工件。', 'This note has no reproducible artifact.'), 6000);
         return;
       }
       const manifest = await this.reproducibilityStore.load(artifactId);
@@ -1959,7 +2228,10 @@ export default class VideoSummaryPlugin extends Plugin {
       );
       if (!job) return;
       new Notice(
-        '已提交无源重处理：本地文稿会重新总结，校验过的旧证据作为缺失回退；不会下载来源，结果使用当前后端配置。',
+        tr(
+          '已提交无源重处理：本地文稿会重新总结，校验过的旧证据作为缺失回退；不会下载来源，结果使用当前后端配置。',
+          'Sent for source-free reprocessing: the local transcript is summarised again and checked old evidence is kept as a fallback; nothing is downloaded and the current backend settings are used.',
+        ),
         9000,
       );
       const finished = await this.jobs.waitFor(job.id);
@@ -1967,7 +2239,13 @@ export default class VideoSummaryPlugin extends Plugin {
         throw new Error(finished.error || '可复现重处理失败');
       }
     } catch (error) {
-      new Notice(`可复现重处理失败：${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `可复现重处理失败：${this.formatErrorForNotice(error)}`,
+          `Reproducible reprocessing failed: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 
@@ -2194,7 +2472,13 @@ export default class VideoSummaryPlugin extends Plugin {
       const rawUrl = (params.url || params.link || '').trim();
       const localFile = (params.local_file || params.localFile || '').trim();
       if (!rawUrl && !localFile) {
-        new Notice('协议调用 video-summary 缺少 URL 或 local_file 参数', 6000);
+        new Notice(
+          tr(
+            '协议调用 video-summary 缺少 URL 或 local_file 参数',
+            'The video-summary link is missing a URL or local_file',
+          ),
+          6000,
+        );
         return;
       }
       const requestedAction = String(params.action || '')
@@ -2224,25 +2508,39 @@ export default class VideoSummaryPlugin extends Plugin {
       await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
         new Notice(
-          result.status === 'created' ? '已离线加入视频收件箱' : '该来源已存在，已打开原笔记',
+          result.status === 'created'
+            ? tr('已离线加入视频收件箱', 'Added to the video inbox offline')
+            : tr('该来源已存在，已打开原笔记', 'Already captured; opened the existing note'),
         );
         return;
       }
       if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
         new Notice(
-          '已捕获到收件箱；当前自动处理只支持 YouTube、哔哩哔哩、抖音、抖音国际版和小红书链接，通用 URL 未发送到后端。',
+          tr(
+            '已捕获到收件箱；当前自动处理只支持 YouTube、哔哩哔哩、抖音、抖音国际版和小红书链接，通用 URL 未发送到后端。',
+            'Captured to the inbox. Automatic processing supports YouTube, Bilibili, Douyin, TikTok and Xiaohongshu links only, so this URL was not sent.',
+          ),
           8000,
         );
         return;
       }
       if (localFile) {
         if (!isSupportedLocalMediaPath(localFile)) {
-          new Notice('已捕获到收件箱；该本地路径不是受支持的音视频文件，未读取或发送。', 8000);
+          new Notice(
+            tr(
+              '已捕获到收件箱；该本地路径不是受支持的音视频文件，未读取或发送。',
+              'Captured to the inbox. This local path is not a supported media file and was not read or sent.',
+            ),
+            8000,
+          );
           return;
         }
         if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== 'codex-worker') {
           new Notice(
-            '已捕获到收件箱；自带的 n8n 无法读取链接里的主机绝对路径。请先复制到后端文件夹的 uploads 里，再用文件名提交，或切换到能访问该路径的本机服务。',
+            tr(
+              '已捕获到收件箱；自带的 n8n 无法读取链接里的主机绝对路径。请先复制到后端文件夹的 uploads 里，再用文件名提交，或切换到能访问该路径的本机服务。',
+              "Captured to the inbox. The bundled n8n cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name, or use a local service that can reach that path.",
+            ),
             9000,
           );
           return;
@@ -2252,11 +2550,21 @@ export default class VideoSummaryPlugin extends Plugin {
           `外部协议请求读取并发送这个本地文件到当前后端：\n${localFile}\n\n仅在你认识该来源时确认。`,
         );
         if (!confirmed) {
-          new Notice('已保留在视频收件箱；本地文件未读取或发送。', 6000);
+          new Notice(
+            tr(
+              '已保留在视频收件箱；本地文件未读取或发送。',
+              'Kept in the video inbox; the local file was not read or sent.',
+            ),
+            6000,
+          );
           return;
         }
       }
-      new Notice(result.status === 'created' ? '已捕获，开始处理' : '该来源已存在，开始重新处理');
+      new Notice(
+        result.status === 'created'
+          ? tr('已捕获，开始处理', 'Captured; processing')
+          : tr('该来源已存在，开始重新处理', 'Already captured; processing again'),
+      );
       const requestedMode = (params.mode || '').trim() as ProcessingMode;
       const mode: ProcessingMode = ['summary', 'transcript-only', 'info-only'].includes(
         requestedMode,
@@ -2265,7 +2573,10 @@ export default class VideoSummaryPlugin extends Plugin {
         : this.settings.defaultMode;
       const activeProcessing = this.captureProcessingLocks.get(result.entry.source_hash);
       if (activeProcessing) {
-        new Notice('该来源已经在处理，本次没有重复提交。', 5000);
+        new Notice(
+          tr('该来源已经在处理，本次没有重复提交。', 'Already processing; not sent twice.'),
+          5000,
+        );
         return;
       }
       const processing = this.processFileWithMode(file, mode).then(() => undefined);
@@ -2278,7 +2589,13 @@ export default class VideoSummaryPlugin extends Plugin {
         }
       }
     } catch (error) {
-      new Notice(`video-summary 协议处理失败: ${this.formatErrorForNotice(error)}`, 8000);
+      new Notice(
+        tr(
+          `video-summary 协议处理失败: ${this.formatErrorForNotice(error)}`,
+          `video-summary link failed: ${this.formatErrorForNotice(error)}`,
+        ),
+        8000,
+      );
     }
   }
 }
@@ -2326,8 +2643,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
   getSettingDefinitions(): SettingDefinitionItem[] {
     return [
       {
-        name: '视频总结设置',
-        desc: '连接、输出、处理和高级选项',
+        name: tr('视频总结设置', 'Video Summary settings'),
+        desc: tr(
+          '连接、输出、处理和高级选项',
+          'Connection, output, processing and advanced options',
+        ),
         aliases: SETTINGS_SEARCH_TERMS,
         render: (setting) => {
           const host = setting.settingEl;
@@ -2354,20 +2674,46 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.renderSettingsHeader(containerEl);
 
     // 一页三段：先连上后端，再定写到哪，最后是怎么处理；不常动的收进“高级”
-    this.group(containerEl, '连接', '处理服务在哪里，以及第一次使用时的检查。');
+    this.group(
+      containerEl,
+      tr('连接', 'Connection'),
+      tr(
+        '处理服务在哪里，以及第一次使用时的检查。',
+        'Where videos are processed, and the first-run checks.',
+      ),
+    );
     this.createSetupGuideSection(containerEl);
     this.createApiSection(containerEl);
 
-    this.group(containerEl, '输出', '笔记写到哪、叫什么、长什么样。');
+    this.group(
+      containerEl,
+      tr('输出', 'Output'),
+      tr(
+        '笔记写到哪、叫什么、长什么样。',
+        'Where notes go, what they are called and how they look.',
+      ),
+    );
     this.createOutputSection(containerEl);
     this.createFileProcessingSection(containerEl);
 
-    this.group(containerEl, '处理', '默认怎么理解一个视频；侧栏里也可以逐次改。');
+    this.group(
+      containerEl,
+      tr('处理', 'Processing'),
+      tr(
+        '默认怎么理解一个视频；侧栏里也可以逐次改。',
+        'How a video is understood by default; the side panel can change it each time.',
+      ),
+    );
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
 
     const advanced = containerEl.createEl('details', { cls: 'vs-settings-advanced' });
-    advanced.createEl('summary', { text: '高级：cookies、平台说明、请求字段名、缓存、调试日志' });
+    advanced.createEl('summary', {
+      text: tr(
+        '高级：cookies、平台说明、请求字段名、缓存、调试日志',
+        'Advanced: cookies, platforms, request field names, cache, debug log',
+      ),
+    });
     this.createCookiesSection(advanced);
     this.createPlatformMatrixSection(advanced);
     this.createPayloadKeysSection(advanced);
@@ -2385,32 +2731,45 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const header = containerEl.createDiv({ cls: 'vs-settings-header' });
 
     const text = header.createDiv({ cls: 'vs-settings-heading' });
-    text.createDiv({ text: '视频总结', cls: 'vs-settings-title' });
+    text.createDiv({ text: tr('视频总结', 'Video summary'), cls: 'vs-settings-title' });
     const backendLabel =
       this.plugin.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n webhook';
     text.createDiv({
-      text: `v${this.plugin.manifest.version} · 连接 ${backendLabel} 处理视频、文稿与笔记`,
+      text: tr(
+        `v${this.plugin.manifest.version} · 连接 ${backendLabel} 处理视频、文稿与笔记`,
+        `v${this.plugin.manifest.version} · uses ${backendLabel} to process videos, transcripts and notes`,
+      ),
       cls: 'vs-settings-sub',
     });
 
     const pill = header.createEl('button', {
       cls: 'vs-settings-pill',
-      attr: { type: 'button', title: '点击测试后端连接' },
+      attr: {
+        type: 'button',
+        title: tr('点击测试后端连接', 'Click to test the backend connection'),
+      },
     });
     const dot = pill.createSpan({ cls: 'vs-backend-dot' });
-    const label = pill.createSpan({ text: '未检测' });
+    const label = pill.createSpan({ text: tr('未检测', 'Not checked') });
     pill.addEventListener(
       'click',
       fire(async () => {
         dot.className = 'vs-backend-dot is-checking';
-        label.setText('检测中…');
+        label.setText(tr('检测中…', 'Checking…'));
         try {
           const result = await this.plugin.api.testConnection();
           dot.className = `vs-backend-dot ${result.success ? 'is-online' : 'is-offline'}`;
-          label.setText(result.success ? `后端在线 · ${result.durationMs ?? 0}ms` : '后端离线');
+          label.setText(
+            result.success
+              ? tr(
+                  `后端在线 · ${result.durationMs ?? 0}ms`,
+                  `Backend online · ${result.durationMs ?? 0} ms`,
+                )
+              : tr('后端离线', 'Backend offline'),
+          );
         } catch {
           dot.className = 'vs-backend-dot is-offline';
-          label.setText('后端离线');
+          label.setText(tr('后端离线', 'Backend offline'));
         }
       }),
     );
@@ -2436,17 +2795,22 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { section, titleRow } = this.sectionCard(
       containerEl,
       'shield-check',
-      '首次配置',
+      tr('首次配置', 'First-run setup'),
       'setup-guide-section',
     );
     titleRow.addClass('setup-guide-title-row');
 
     if (this.plugin.settings.setupGuideDismissed) {
       new Setting(section)
-        .setName('首次配置已完成')
-        .setDesc('换了后端、连接出错或想重新检查时，再打开它。')
+        .setName(tr('首次配置已完成', 'First-run setup done'))
+        .setDesc(
+          tr(
+            '换了后端、连接出错或想重新检查时，再打开它。',
+            'Open it again after changing the backend, when the connection fails, or to check again.',
+          ),
+        )
         .addButton((button) =>
-          button.setButtonText('重新打开').onClick(async () => {
+          button.setButtonText(tr('重新打开', 'Open again')).onClick(async () => {
             this.plugin.settings.setupGuideDismissed = false;
             await this.plugin.saveSettings();
             this.redraw();
@@ -2457,16 +2821,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     const intro = section.createEl('p', { cls: 'setting-item-description' });
     intro.appendText(
-      '三步：在电脑上启动后端 → 把启动脚本给的连接码粘贴到这里 → 检查。还没有后端？看',
+      tr(
+        '三步：在电脑上启动后端 → 把启动脚本给的连接码粘贴到这里 → 检查。还没有后端？看',
+        'Three steps: start the backend on your computer → paste the connection code from the start script here → check. No backend yet? See the',
+      ),
     );
-    intro.createEl('a', { text: '安装教程', href: SETUP_GUIDE_URL });
+    intro.createEl('a', { text: tr('安装教程', 'install guide'), href: SETUP_GUIDE_URL });
     intro.appendText('。');
 
     const results = section.createDiv({ cls: 'setup-check-list' });
     const runCheck = async (deep: boolean) => {
       results.empty();
       results.createDiv({
-        text: deep ? '完整检查中，会调用一次模型和语音转写，约 10–30 秒…' : '检查中…',
+        text: deep
+          ? tr(
+              '完整检查中，会调用一次模型和语音转写，约 10–30 秒…',
+              'Full check in progress; it calls the model and speech-to-text once, about 10–30 seconds…',
+            )
+          : tr('检查中…', 'Checking…'),
         cls: 'setup-check-progress',
       });
       const outcome = await this.plugin.api.checkBackend(deep);
@@ -2484,36 +2856,54 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const applyCode = async (raw: string) => {
       const code = parseConnectionCode(raw, DEFAULT_N8N_WEBHOOK_URL);
       if (!code) {
-        new Notice('这不是连接码。请粘贴启动脚本最后显示的那一整行。', 8000);
+        new Notice(
+          tr(
+            '这不是连接码。请粘贴启动脚本最后显示的那一整行。',
+            'That is not a connection code. Paste the whole last line the start script printed.',
+          ),
+          8000,
+        );
         return;
       }
       await this.applyConnectionCode(code);
       if (codeInput) codeInput.value = '';
-      new Notice('连接码已保存，正在检查…');
+      new Notice(tr('连接码已保存，正在检查…', 'Connection code saved; checking…'));
       await runCheck(false);
     };
 
     new Setting(section)
-      .setName('① 连接码')
-      .setDesc('启动脚本最后显示的那一行，它也已经复制到剪贴板。连接码相当于口令，不要发给别人。')
+      .setName(tr('① 连接码', '① Connection code'))
+      .setDesc(
+        tr(
+          '启动脚本最后显示的那一行，它也已经复制到剪贴板。连接码相当于口令，不要发给别人。',
+          'The last line the start script printed; it is also on your clipboard. The code works like a password, so keep it to yourself.',
+        ),
+      )
       .addText((text) => {
         codeInput = text.inputEl;
         text.inputEl.type = 'password';
-        text.setPlaceholder('粘贴启动脚本给的连接码');
+        text.setPlaceholder(
+          tr('粘贴启动脚本给的连接码', 'Paste the connection code from the start script'),
+        );
         text.inputEl.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') fire(() => applyCode(text.getValue()))();
         });
       })
       .addButton((button) =>
         button
-          .setButtonText('从剪贴板粘贴')
+          .setButtonText(tr('从剪贴板粘贴', 'Paste from clipboard'))
           .setCta()
           .onClick(async () => {
             let clip = '';
             try {
               clip = await navigator.clipboard.readText();
             } catch {
-              new Notice('读不到剪贴板，请手动粘贴到输入框后按回车。');
+              new Notice(
+                tr(
+                  '读不到剪贴板，请手动粘贴到输入框后按回车。',
+                  'Cannot read the clipboard; paste into the box and press Enter.',
+                ),
+              );
               return;
             }
             await applyCode(clip);
@@ -2521,10 +2911,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
-      .setName('② 检查')
-      .setDesc('快速检查只看后端和连接码；完整检查还会确认模型和语音转写的密钥真的能用。')
+      .setName(tr('② 检查', '② Check'))
+      .setDesc(
+        tr(
+          '快速检查只看后端和连接码；完整检查还会确认模型和语音转写的密钥真的能用。',
+          'The quick check covers the backend and the connection code; the full check also confirms the model and speech-to-text keys work.',
+        ),
+      )
       .addButton((button) =>
-        button.setButtonText('快速检查').onClick(async () => {
+        button.setButtonText(tr('快速检查', 'Quick check')).onClick(async () => {
           button.setDisabled(true);
           await runCheck(false);
           button.setDisabled(false);
@@ -2532,7 +2927,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       )
       .addButton((button) =>
         button
-          .setButtonText('完整检查')
+          .setButtonText(tr('完整检查', 'Full check'))
           .setCta()
           .onClick(async () => {
             button.setDisabled(true);
@@ -2544,21 +2939,29 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     const trialResult = section.createDiv({ cls: 'setup-diagnostic-result' });
     new Setting(section)
-      .setName('③ 试运行')
-      .setDesc('用一段内置的短文稿生成一次总结，确认整条流程能跑通。会消耗极少量模型额度。')
+      .setName(tr('③ 试运行', '③ Trial run'))
+      .setDesc(
+        tr(
+          '用一段内置的短文稿生成一次总结，确认整条流程能跑通。会消耗极少量模型额度。',
+          'Summarises a short built-in text to confirm the whole chain works. Uses a tiny amount of model credit.',
+        ),
+      )
       .addButton((button) =>
-        button.setButtonText('试运行').onClick(async () => {
+        button.setButtonText(tr('试运行', 'Trial run')).onClick(async () => {
           button.setDisabled(true);
           trialResult.empty();
           trialResult.removeClass('is-success', 'is-error');
-          trialResult.createEl('p', { text: '正在生成总结…' });
+          trialResult.createEl('p', { text: tr('正在生成总结…', 'Generating a summary…') });
           const result = await this.plugin.api.trialRun(SETUP_TRIAL_TRANSCRIPT);
           trialResult.empty();
           trialResult.addClass(result.ok ? 'is-success' : 'is-error');
           trialResult.createEl('strong', {
             text: result.ok
-              ? `跑通了，用时 ${(result.durationMs / 1000).toFixed(1)} 秒`
-              : '没有跑通',
+              ? tr(
+                  `跑通了，用时 ${(result.durationMs / 1000).toFixed(1)} 秒`,
+                  `It works, ${(result.durationMs / 1000).toFixed(1)} s`,
+                )
+              : tr('没有跑通', 'It did not work'),
           });
           trialResult.createEl('p', { text: result.message });
           button.setDisabled(false);
@@ -2569,18 +2972,27 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.createBilibiliLoginStep(section);
 
     const cookies = section.createEl('details', { cls: 'setup-cookie-paste' });
-    cookies.createEl('summary', { text: '不方便扫码？粘贴 cookies.txt' });
+    cookies.createEl('summary', {
+      text: tr('不方便扫码？粘贴 cookies.txt', 'Cannot scan? Paste a cookies.txt'),
+    });
     cookies.createEl('p', {
-      text: '也可以用视频总结浏览器扩展的“同步 B 站登录”，或用任意“导出 cookies.txt”扩展在 bilibili.com 导出，把全文粘贴到这里。内容只发给你自己的后端。',
+      text: tr(
+        '也可以用视频总结浏览器扩展的“同步 B 站登录”，或用任意“导出 cookies.txt”扩展在 bilibili.com 导出，把全文粘贴到这里。内容只发给你自己的后端。',
+        'You can also use the Video Summary browser extension\'s "Sync Bilibili login", or export bilibili.com with any "export cookies.txt" extension and paste the whole file here. It goes only to your own backend.',
+      ),
       cls: 'setting-item-description',
     });
     const cookieText = cookies.createEl('textarea', {
       cls: 'setup-cookie-text',
-      attr: { rows: '4', placeholder: '粘贴 cookies.txt 的全文', spellcheck: 'false' },
+      attr: {
+        rows: '4',
+        placeholder: tr('粘贴 cookies.txt 的全文', 'Paste the whole cookies.txt'),
+        spellcheck: 'false',
+      },
     });
     const cookieStatus = cookies.createEl('p', { cls: 'setting-item-description' });
     new Setting(cookies).addButton((button) =>
-      button.setButtonText('保存到后端').onClick(async () => {
+      button.setButtonText(tr('保存到后端', 'Save to backend')).onClick(async () => {
         button.setDisabled(true);
         const result = await this.plugin.api.uploadCookies('bilibili', cookieText.value);
         cookieStatus.setText(result.message);
@@ -2590,7 +3002,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     );
 
     new Setting(section).addButton((button) =>
-      button.setButtonText('完成，收起').onClick(async () => {
+      button.setButtonText(tr('完成，收起', 'Done, collapse')).onClick(async () => {
         this.plugin.settings.setupGuideDismissed = true;
         await this.plugin.saveSettings();
         this.redraw();
@@ -2609,24 +3021,37 @@ class VideoSummarySettingTab extends PluginSettingTab {
     };
 
     new Setting(section)
-      .setName('④ 哔哩哔哩登录（可选）')
+      .setName(tr('④ 哔哩哔哩登录（可选）', '④ Bilibili login (optional)'))
       .setDesc(
-        '用哔哩哔哩手机客户端扫码登录后，能拿到它的字幕和 AI 字幕，不用再转写。登录信息只交给你自己的后端，插件不保存。',
+        tr(
+          '用哔哩哔哩手机客户端扫码登录后，能拿到它的字幕和 AI 字幕，不用再转写。登录信息只交给你自己的后端，插件不保存。',
+          'Scan with the Bilibili phone app to log in; the backend can then use Bilibili subtitles and AI subtitles instead of transcribing. The login goes only to your own backend; the plugin does not keep it.',
+        ),
       )
       .addButton((button) =>
-        button.setButtonText('扫码登录').onClick(async () => {
+        button.setButtonText(tr('扫码登录', 'Scan to log in')).onClick(async () => {
           stop();
           panel.empty();
-          status.setText('正在向哔哩哔哩要二维码…');
+          status.setText(tr('正在向哔哩哔哩要二维码…', 'Asking Bilibili for a QR code…'));
           let ticket: QrLoginTicket;
           try {
             ticket = await startQrLogin();
           } catch (error) {
-            status.setText(`拿不到二维码：${this.plugin.formatErrorForNotice(error)}`);
+            status.setText(
+              tr(
+                `拿不到二维码：${this.plugin.formatErrorForNotice(error)}`,
+                `Could not get a QR code: ${this.plugin.formatErrorForNotice(error)}`,
+              ),
+            );
             return;
           }
           drawQrCode(panel, ticket.url);
-          status.setText('用哔哩哔哩手机客户端扫一扫，并在手机上确认登录。');
+          status.setText(
+            tr(
+              '用哔哩哔哩手机客户端扫一扫，并在手机上确认登录。',
+              'Scan with the Bilibili phone app and confirm the login on your phone.',
+            ),
+          );
           const started = Date.now();
           let busy = false;
           polling = window.setInterval(() => {
@@ -2634,7 +3059,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
             if (Date.now() - started > 180_000) {
               stop();
               panel.empty();
-              status.setText('二维码过期了，再点一次“扫码登录”。');
+              status.setText(
+                tr(
+                  '二维码过期了，再点一次“扫码登录”。',
+                  'The QR code expired; press "Scan to log in" again.',
+                ),
+              );
               return;
             }
             busy = true;
@@ -2648,22 +3078,33 @@ class VideoSummarySettingTab extends PluginSettingTab {
           }, 2000);
           const tick = async () => {
             const result = await pollQrLogin(ticket.key);
-            if (result.state === 'scanned') status.setText('已扫码，请在手机上点确认。');
+            if (result.state === 'scanned')
+              status.setText(tr('已扫码，请在手机上点确认。', 'Scanned; confirm on your phone.'));
             if (result.state === 'expired' || result.state === 'error') {
               stop();
               panel.empty();
               status.setText(
                 result.state === 'expired'
-                  ? '二维码过期了，再点一次“扫码登录”。'
-                  : `登录没有完成：${result.message}`,
+                  ? tr(
+                      '二维码过期了，再点一次“扫码登录”。',
+                      'The QR code expired; press "Scan to log in" again.',
+                    )
+                  : tr(`登录没有完成：${result.message}`, `Login not completed: ${result.message}`),
               );
             }
             if (result.state === 'done') {
               stop();
               panel.empty();
-              status.setText('已登录，正在交给后端…');
+              status.setText(tr('已登录，正在交给后端…', 'Logged in; handing it to the backend…'));
               const saved = await this.plugin.api.uploadCookies('bilibili', result.cookies);
-              status.setText(saved.ok ? `B 站登录已交给后端。${saved.message}` : saved.message);
+              status.setText(
+                saved.ok
+                  ? tr(
+                      `B 站登录已交给后端。${saved.message}`,
+                      `Bilibili login handed to the backend. ${saved.message}`,
+                    )
+                  : saved.message,
+              );
             }
           };
           this.plugin.register(stop);
@@ -2688,7 +3129,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
       body.createEl('strong', { text: item.label });
       body.createSpan({ text: item.detail });
       if (item.fix && item.state !== 'ready') {
-        body.createSpan({ text: `怎么办：${item.fix}`, cls: 'setup-check-fix' });
+        body.createSpan({
+          text: tr(`怎么办：${item.fix}`, `What to do: ${item.fix}`),
+          cls: 'setup-check-fix',
+        });
       }
     }
   }
@@ -2697,7 +3141,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const settings = this.plugin.settings;
     let profile = this.plugin.getActiveWebhookProfile();
     if (!profile) {
-      profile = { id: 'default-webhook', name: '本机后端', url: '', headerName: '', secret: '' };
+      profile = {
+        id: 'default-webhook',
+        name: tr('本机后端', 'This computer'),
+        url: '',
+        headerName: '',
+        secret: '',
+      };
       settings.webhookProfiles.push(profile);
       settings.activeWebhookId = profile.id;
     }
@@ -2715,7 +3165,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
     containerEl.addClass(result.success ? 'is-success' : 'is-error');
 
     containerEl.createEl('strong', {
-      text: result.success ? '连接诊断通过' : '连接诊断失败',
+      text: result.success
+        ? tr('连接诊断通过', 'Connection check passed')
+        : tr('连接诊断失败', 'Connection check failed'),
     });
 
     const details = [
@@ -2731,7 +3183,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     }
 
     if (result.hint) {
-      containerEl.createEl('p', { text: `建议: ${result.hint}` });
+      containerEl.createEl('p', { text: tr(`建议: ${result.hint}`, `Suggestion: ${result.hint}`) });
     }
 
     if (result.workflow) {
@@ -2763,16 +3215,19 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { section } = this.sectionCard(
       containerEl,
       'layout-grid',
-      '各平台说明',
+      tr('各平台说明', 'Platforms'),
       'platform-matrix-section',
     );
     section.createEl('p', {
-      text: '不同平台的可用性不一样。优先用本地文件、公开的 YouTube 或哔哩哔哩视频、已粘贴的文稿；短视频平台通常需要 cookies。',
+      text: tr(
+        '不同平台的可用性不一样。优先用本地文件、公开的 YouTube 或哔哩哔哩视频、已粘贴的文稿；短视频平台通常需要 cookies。',
+        'Platforms differ. Local files, public YouTube or Bilibili videos and pasted transcripts work best; short-video platforms usually need cookies.',
+      ),
       cls: 'setting-item-description',
     });
 
     const grid = section.createDiv({ cls: 'platform-matrix-grid' });
-    PLATFORM_CAPABILITIES.forEach((item) => {
+    platformCapabilities().forEach((item) => {
       const card = grid.createDiv({ cls: `platform-matrix-card is-${item.status}` });
       const header = card.createDiv({ cls: 'platform-matrix-card-header' });
       header.createEl('strong', { text: item.platform });
@@ -2780,8 +3235,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
         text: this.getPlatformStatusLabel(item.status),
         cls: 'platform-status-label',
       });
-      card.createEl('p', { text: `输入: ${item.input}` });
-      card.createEl('p', { text: `要求: ${item.requirements}` });
+      card.createEl('p', { text: tr(`输入: ${item.input}`, `Input: ${item.input}`) });
+      card.createEl('p', { text: tr(`要求: ${item.requirements}`, `Needs: ${item.requirements}`) });
       card.createEl('p', { text: item.notes });
     });
   }
@@ -2789,13 +3244,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
   private getPlatformStatusLabel(status: PlatformCapability['status']) {
     switch (status) {
       case 'recommended':
-        return '推荐';
+        return tr('推荐', 'Recommended');
       case 'supported':
-        return '可用';
+        return tr('可用', 'Works');
       case 'limited':
-        return '受限';
+        return tr('受限', 'Limited');
       default:
-        return '本地';
+        return tr('本地', 'Local');
     }
   }
 
@@ -2804,17 +3259,25 @@ class VideoSummarySettingTab extends PluginSettingTab {
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   private createCookiesSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'cookie', 'Cookies 管理');
+    const { section } = this.sectionCard(containerEl, 'cookie', tr('Cookies 管理', 'Cookies'));
     section.createEl('p', {
-      text: '受限平台（哔哩哔哩、抖音、抖音国际版、小红书）经常需要浏览器导出的 cookies。目录是后端文件夹里的 cookies；文件名如 bilibili_cookies.txt。',
+      text: tr(
+        '受限平台（哔哩哔哩、抖音、抖音国际版、小红书）经常需要浏览器导出的 cookies。目录是后端文件夹里的 cookies；文件名如 bilibili_cookies.txt。',
+        'Restricted platforms (Bilibili, Douyin, TikTok, Xiaohongshu) often need cookies exported from your browser. They go in the cookies folder inside the backend folder, named like bilibili_cookies.txt.',
+      ),
       cls: 'setting-item-description',
     });
 
     const resultBox = section.createDiv({ cls: 'setup-diagnostic-result' });
 
     new Setting(section)
-      .setName('Cookies 目录')
-      .setDesc('Cookies 目录的绝对路径，例如 ~/video-summary-backend/cookies')
+      .setName(tr('Cookies 目录', 'Cookies folder'))
+      .setDesc(
+        tr(
+          'Cookies 目录的绝对路径，例如 ~/video-summary-backend/cookies',
+          'Absolute path of the cookies folder, for example ~/video-summary-backend/cookies',
+        ),
+      )
       .addText((text) =>
         text
           .setPlaceholder('/path/to/video-summary-backend/cookies')
@@ -2825,24 +3288,34 @@ class VideoSummarySettingTab extends PluginSettingTab {
           }),
       )
       .addButton((button) =>
-        button.setButtonText('打开目录').onClick(() => {
+        button.setButtonText(tr('打开目录', 'Open folder')).onClick(() => {
           const dir = (this.plugin.settings.cookiesDirPath || '').trim();
           if (!dir) {
-            new Notice('请先填写 cookies 目录路径');
+            new Notice(tr('请先填写 cookies 目录路径', 'Fill in the cookies folder first'));
             return;
           }
           try {
             if (!openPathInSystem(dir)) {
-              new Notice('当前环境不支持打开系统目录（仅桌面端可用）');
+              new Notice(
+                tr(
+                  '当前环境不支持打开系统目录（仅桌面端可用）',
+                  'Opening system folders is not available here (desktop only)',
+                ),
+              );
             }
           } catch (error) {
-            new Notice(`打开目录失败: ${(error as Error).message}`);
+            new Notice(
+              tr(
+                `打开目录失败: ${(error as Error).message}`,
+                `Could not open the folder: ${(error as Error).message}`,
+              ),
+            );
           }
         }),
       )
       .addButton((button) =>
         button
-          .setButtonText('检测 cookies')
+          .setButtonText(tr('检测 cookies', 'Check cookies'))
           .setCta()
           .onClick(() => {
             this.renderCookiesCheckResult(resultBox);
@@ -2859,7 +3332,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const dir = (this.plugin.settings.cookiesDirPath || '').trim();
     if (!dir) {
       containerEl.addClass('is-error');
-      containerEl.createEl('p', { text: '请先填写 cookies 目录路径。' });
+      containerEl.createEl('p', {
+        text: tr('请先填写 cookies 目录路径。', 'Fill in the cookies folder first.'),
+      });
       return;
     }
 
@@ -2873,15 +3348,20 @@ class VideoSummarySettingTab extends PluginSettingTab {
     }
     if (!fs || !pathModule) {
       containerEl.addClass('is-error');
-      containerEl.createEl('p', { text: '当前环境不支持文件系统访问（仅桌面端可用）。' });
+      containerEl.createEl('p', {
+        text: tr(
+          '当前环境不支持文件系统访问（仅桌面端可用）。',
+          'File system access is not available here (desktop only).',
+        ),
+      });
       return;
     }
 
     try {
       if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
         containerEl.addClass('is-error');
-        containerEl.createEl('strong', { text: '目录不存在' });
-        containerEl.createEl('p', { text: `找不到目录: ${dir}` });
+        containerEl.createEl('strong', { text: tr('目录不存在', 'Folder not found') });
+        containerEl.createEl('p', { text: tr(`找不到目录: ${dir}`, `Folder not found: ${dir}`) });
         return;
       }
 
@@ -2892,15 +3372,22 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       if (files.length === 0) {
         containerEl.addClass('is-error');
-        containerEl.createEl('strong', { text: '没有找到任何 cookies 文件' });
+        containerEl.createEl('strong', {
+          text: tr('没有找到任何 cookies 文件', 'No cookies files found'),
+        });
         containerEl.createEl('p', {
-          text: `目录里没有 *_cookies.txt。Bilibili 需要 bilibili_cookies.txt；用浏览器扩展（如 Get cookies.txt LOCALLY）导出后放进来即可。`,
+          text: tr(
+            `目录里没有 *_cookies.txt。Bilibili 需要 bilibili_cookies.txt；用浏览器扩展（如 Get cookies.txt LOCALLY）导出后放进来即可。`,
+            `No *_cookies.txt in the folder. Bilibili needs bilibili_cookies.txt; export it with a browser extension (such as Get cookies.txt LOCALLY) and put it here.`,
+          ),
         });
         return;
       }
 
       containerEl.addClass('is-success');
-      containerEl.createEl('strong', { text: `找到 ${files.length} 个 cookies 文件` });
+      containerEl.createEl('strong', {
+        text: tr(`找到 ${files.length} 个 cookies 文件`, `Found ${files.length} cookies files`),
+      });
 
       const now = Date.now();
       const list = containerEl.createEl('ul', { cls: 'setup-warning-list' });
@@ -2913,56 +3400,80 @@ class VideoSummarySettingTab extends PluginSettingTab {
           const stale = ageDays > STALE_DAYS;
           if (stale) hasStale = true;
           list.createEl('li', {
-            text: `${stale ? '⚠️ ' : ''}${name} — ${sizeKb}KB，更新于 ${ageDays} 天前${stale ? `（超过 ${STALE_DAYS} 天，可能已失效）` : ''}`,
+            text: tr(
+              `${stale ? '⚠️ ' : ''}${name} — ${sizeKb}KB，更新于 ${ageDays} 天前${stale ? `（超过 ${STALE_DAYS} 天，可能已失效）` : ''}`,
+              `${stale ? '⚠️ ' : ''}${name} — ${sizeKb} KB, updated ${ageDays} days ago${stale ? ` (over ${STALE_DAYS} days, may have expired)` : ''}`,
+            ),
           });
         } catch {
-          list.createEl('li', { text: `${name} — 无法读取文件信息` });
+          list.createEl('li', {
+            text: tr(`${name} — 无法读取文件信息`, `${name} — cannot read file info`),
+          });
         }
       });
 
       if (!files.some((name: string) => /^bilibili_/i.test(name))) {
         containerEl.createEl('p', {
-          text: '提示：未发现 bilibili_cookies.txt，哔哩哔哩返回 HTTP 412 时需要它。',
+          text: tr(
+            '提示：未发现 bilibili_cookies.txt，哔哩哔哩返回 HTTP 412 时需要它。',
+            'Tip: no bilibili_cookies.txt; Bilibili needs it when it returns HTTP 412.',
+          ),
         });
       }
       if (hasStale) {
         containerEl.createEl('p', {
-          text: '有文件较旧。平台 cookies 通常几周内失效，下载失败时优先重新导出。',
+          text: tr(
+            '有文件较旧。平台 cookies 通常几周内失效，下载失败时优先重新导出。',
+            'Some files are old. Platform cookies usually expire within weeks; export again if downloads fail.',
+          ),
         });
       }
     } catch (error) {
       containerEl.addClass('is-error');
-      containerEl.createEl('p', { text: `检测失败: ${(error as Error).message}` });
+      containerEl.createEl('p', {
+        text: tr(
+          `检测失败: ${(error as Error).message}`,
+          `Check failed: ${(error as Error).message}`,
+        ),
+      });
     }
   }
 
   private createApiSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'link', '处理服务');
+    const { section } = this.sectionCard(containerEl, 'link', tr('处理服务', 'Backend'));
 
     new Setting(section)
-      .setName('主处理后端')
+      .setName(tr('主处理后端', 'Main backend'))
       .setDesc(
-        'Obsidian 插件是主入口：选择一键总结、批量处理、重新处理时调用 n8n，还是本机视频处理服务。',
+        tr(
+          'Obsidian 插件是主入口：选择一键总结、批量处理、重新处理时调用 n8n，还是本机视频处理服务。',
+          'The Obsidian plugin is the entry point: choose whether quick summary, batch and reprocessing call n8n or the local video service.',
+        ),
       )
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('n8n', '兼容 n8n 的 webhook')
-          .addOption('codex-worker', 'Codex 本地视频服务')
+          .addOption('n8n', tr('兼容 n8n 的 webhook', 'n8n-compatible webhook'))
+          .addOption('codex-worker', tr('Codex 本地视频服务', 'Codex local video service'))
           .setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend)
           .onChange(async (value) => {
             await this.plugin.setActiveBackend(value as ProcessingBackend);
             new Notice(
               value === 'codex-worker'
-                ? '已切换到 Codex Video Worker'
-                : '已切换到 n8n / 兼容 Webhook',
+                ? tr('已切换到 Codex Video Worker', 'Switched to the Codex Video Worker')
+                : tr('已切换到 n8n / 兼容 Webhook', 'Switched to n8n / compatible webhook'),
             );
             this.redraw();
           }),
       );
 
     new Setting(section)
-      .setName('Codex 本地服务地址')
-      .setDesc('本机视频处理服务的同步入口。控制台默认在同一主机的 /dashboard。')
+      .setName(tr('Codex 本地服务地址', 'Codex local service address'))
+      .setDesc(
+        tr(
+          '本机视频处理服务的同步入口。控制台默认在同一主机的 /dashboard。',
+          'Sync entry point of the local video service. Its dashboard is at /dashboard on the same host.',
+        ),
+      )
       .addText((text) =>
         text
           .setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl)
@@ -2976,14 +3487,19 @@ class VideoSummarySettingTab extends PluginSettingTab {
           }),
       )
       .addButton((button) =>
-        button.setButtonText('打开控制台').onClick(() => {
+        button.setButtonText(tr('打开控制台', 'Open dashboard')).onClick(() => {
           this.plugin.openCodexWorkerDashboard();
         }),
       );
 
     const webhookSetting = new Setting(section)
-      .setName('默认 webhook（n8n 或兼容服务）')
-      .setDesc('为不同工作流保存多个 webhook。选择这里的默认项会把主处理后端切回 n8n 或兼容服务。');
+      .setName(tr('默认 webhook（n8n 或兼容服务）', 'Default webhook (n8n or compatible)'))
+      .setDesc(
+        tr(
+          '为不同工作流保存多个 webhook。选择这里的默认项会把主处理后端切回 n8n 或兼容服务。',
+          'Keep several webhooks for different workflows. Choosing the default here switches the main backend back to n8n or a compatible service.',
+        ),
+      );
 
     let webhookDropdown: DropdownComponent | null = null;
 
@@ -3001,7 +3517,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       this.plugin.settings.webhookProfiles.forEach((profile) => {
         const option = createEl('option');
         option.value = profile.id;
-        option.textContent = profile.name || profile.url || '未命名 Webhook';
+        option.textContent = profile.name || profile.url || tr('未命名 Webhook', 'Unnamed webhook');
         webhookDropdown!.selectEl.appendChild(option);
       });
       if (this.plugin.settings.activeWebhookId) {
@@ -3018,20 +3534,32 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const workflowDiagnosticResult = section.createDiv({ cls: 'setup-diagnostic-result' });
 
     webhookSetting.addButton((button) =>
-      button.setButtonText('测试当前后端').onClick(async () => {
+      button.setButtonText(tr('测试当前后端', 'Test the current backend')).onClick(async () => {
         button.setDisabled(true);
-        button.setButtonText('测试中...');
+        button.setButtonText(tr('测试中...', 'Testing...'));
         try {
           const res = await this.plugin.api.testConnection();
           const label =
             this.plugin.settings.activeBackend === 'codex-worker'
               ? 'Codex Worker'
-              : '兼容 n8n 的 webhook';
+              : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
           if (res.success) {
-            new Notice(`${label} 连接成功（${res.durationMs}ms）`, 3000);
+            new Notice(
+              tr(
+                `${label} 连接成功（${res.durationMs}ms）`,
+                `${label} connected (${res.durationMs} ms)`,
+              ),
+              3000,
+            );
           } else {
             const hint = res.hint ? `\n建议: ${res.hint}` : '';
-            new Notice(`${label} 连接失败: ${res.error || '未知错误'}${hint}`, 8000);
+            new Notice(
+              tr(
+                `${label} 连接失败: ${res.error || '未知错误'}${hint}`,
+                `${label} connection failed: ${res.error || 'unknown error'}${hint}`,
+              ),
+              8000,
+            );
           }
           this.renderConnectionResult(workflowDiagnosticResult, res);
         } catch (error) {
@@ -3041,7 +3569,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           });
         } finally {
           button.setDisabled(false);
-          button.setButtonText('测试当前后端');
+          button.setButtonText(tr('测试当前后端', 'Test the current backend'));
         }
       }),
     );
@@ -3053,7 +3581,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       if (this.plugin.settings.webhookProfiles.length === 0) {
         profilesContainer.createEl('p', {
-          text: '尚未配置任何 webhook。',
+          text: tr('尚未配置任何 webhook。', 'No webhook configured yet.'),
           cls: 'setting-item-description',
         });
         return;
@@ -3066,7 +3594,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           type: 'text',
           value: profile.name || '',
           cls: 'webhook-name-input',
-          attr: { placeholder: 'Webhook 名称' },
+          attr: { placeholder: tr('Webhook 名称', 'Webhook name') },
         });
         nameInput.oninput = async () => {
           profile.name = nameInput.value;
@@ -3078,7 +3606,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           type: 'text',
           value: profile.url || '',
           cls: 'webhook-url-input',
-          attr: { placeholder: 'Webhook 地址' },
+          attr: { placeholder: tr('Webhook 地址', 'Webhook address') },
         });
         urlInput.oninput = async () => {
           profile.url = urlInput.value.trim();
@@ -3095,8 +3623,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
           cls: 'webhook-auth-header-input',
           attr: {
             placeholder: DEFAULT_WEBHOOK_AUTH_HEADER,
-            'aria-label': 'Webhook 鉴权请求头名称',
-            title: '附带工作流 2.1.5 必填：须与 n8n Header Auth 的 Header 名称一致',
+            'aria-label': tr('Webhook 鉴权请求头名称', 'Webhook auth header name'),
+            title: tr(
+              '附带工作流 2.1.5 必填：须与 n8n Header Auth 的 Header 名称一致',
+              'Required by the bundled workflow: must match the n8n Header Auth header name',
+            ),
           },
         });
         headerInput.oninput = async () => {
@@ -3115,10 +3646,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
           value: profile.secret || '',
           cls: 'webhook-auth-secret-input',
           attr: {
-            placeholder: '鉴权 Secret（工作流 2.1.5 必填）',
-            'aria-label': 'Webhook 鉴权密钥',
-            title:
+            placeholder: tr(
+              '鉴权 Secret（工作流 2.1.5 必填）',
+              'Auth secret (required by the bundled workflow)',
+            ),
+            'aria-label': tr('Webhook 鉴权密钥', 'Webhook auth secret'),
+            title: tr(
               '附带工作流 2.1.5 必填；只有另行部署的兼容旧端点才可留空（留空时不发送鉴权 Header）',
+              'Required by the bundled workflow; only an older compatible endpoint you deployed yourself may leave it empty (then no auth header is sent)',
+            ),
             autocomplete: 'off',
             spellcheck: 'false',
           },
@@ -3138,7 +3674,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
         const isActive = profile.id === this.plugin.settings.activeWebhookId;
         const defaultBtn = actions.createEl('button', {
-          text: isActive ? '默认' : '设为默认',
+          text: isActive ? tr('默认', 'Default') : tr('设为默认', 'Make default'),
           cls: 'action-btn secondary webhook-default-btn',
         });
         defaultBtn.onclick = async () => {
@@ -3148,12 +3684,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
         };
 
         const deleteBtn = actions.createEl('button', {
-          text: '删除',
+          text: tr('删除', 'Delete'),
           cls: 'btn-text-only webhook-delete-btn',
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new Notice('至少需要保留一个 webhook');
+            new Notice(tr('至少需要保留一个 webhook', 'Keep at least one webhook'));
             return;
           }
 
@@ -3178,7 +3714,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(section).addButton((button) =>
       button
-        .setButtonText('添加 webhook')
+        .setButtonText(tr('添加 webhook', 'Add webhook'))
         .setCta()
         .onClick(async () => {
           const newProfile: WebhookProfile = {
@@ -3197,27 +3733,40 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createBasicSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'sliders-horizontal', '默认处理方式');
+    const { section } = this.sectionCard(
+      containerEl,
+      'sliders-horizontal',
+      tr('默认处理方式', 'Default processing'),
+    );
 
     new Setting(section)
-      .setName('默认理解深度')
+      .setName(tr('默认理解深度', 'Default depth'))
       .setDesc(
         this.plugin.settings.activeBackend === 'codex-worker'
-          ? '极速只读字幕；证据模式保留时间轴；深度视觉会分析关键画面。'
-          : '极速只读字幕；证据模式保留时间轴。深度视觉需要先切换到 Codex Worker。',
+          ? tr(
+              '极速只读字幕；证据模式保留时间轴；深度视觉会分析关键画面。',
+              'Quick reads subtitles only; evidence keeps the timeline; deep visual analyses key frames.',
+            )
+          : tr(
+              '极速只读字幕；证据模式保留时间轴。深度视觉需要先切换到 Codex Worker。',
+              'Quick reads subtitles only; evidence keeps the timeline. Deep visual needs the Codex Worker.',
+            ),
       )
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('quick', '极速')
-          .addOption('evidence', '证据')
-          .addOption('deep-visual', '深度视觉')
+          .addOption('quick', tr('极速', 'Quick'))
+          .addOption('evidence', tr('证据', 'Evidence'))
+          .addOption('deep-visual', tr('深度视觉', 'Deep visual'))
           .setValue(this.plugin.settings.defaultProcessingDepth)
           .onChange(async (value) => {
             const depth = value as ProcessingDepth;
             if (depth === 'deep-visual' && this.plugin.settings.activeBackend !== 'codex-worker') {
               dropdown.setValue('evidence');
               new Notice(
-                '深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。',
+                tr(
+                  '深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。',
+                  'Deep visual runs only on the local video service; the n8n backend goes up to evidence.',
+                ),
                 7000,
               );
               return;
@@ -3229,18 +3778,23 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
-      .setName('默认内容类型')
-      .setDesc('自动识别会根据内容选择课程、访谈、教程、新闻、会议或评测结构。')
+      .setName(tr('默认内容类型', 'Default content type'))
+      .setDesc(
+        tr(
+          '自动识别会根据内容选择课程、访谈、教程、新闻、会议或评测结构。',
+          'Automatic picks a course, interview, tutorial, news, meeting or review structure from the content.',
+        ),
+      )
       .addDropdown((dropdown) =>
         dropdown
-          .addOption('auto', '自动识别')
-          .addOption('course', '课程')
-          .addOption('interview', '访谈')
-          .addOption('tutorial', '教程')
-          .addOption('news', '新闻')
-          .addOption('meeting', '会议')
-          .addOption('review', '评测')
-          .addOption('general', '通用')
+          .addOption('auto', tr('自动识别', 'Automatic'))
+          .addOption('course', tr('课程', 'Course'))
+          .addOption('interview', tr('访谈', 'Interview'))
+          .addOption('tutorial', tr('教程', 'Tutorial'))
+          .addOption('news', tr('新闻', 'News'))
+          .addOption('meeting', tr('会议', 'Meeting'))
+          .addOption('review', tr('评测', 'Review'))
+          .addOption('general', tr('通用', 'General'))
           .setValue(this.plugin.settings.defaultContentType)
           .onChange(async (value) => {
             const contentType = value as RequestedContentType;
@@ -3255,8 +3809,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
-      .setName('观看价值判断')
-      .setDesc('输出值得观看、建议略读或可以跳过，并给出高价值片段。')
+      .setName(tr('观看价值判断', 'Worth watching?'))
+      .setDesc(
+        tr(
+          '输出值得观看、建议略读或可以跳过，并给出高价值片段。',
+          'Say whether a video is worth watching, worth skimming or skippable, with its best segments.',
+        ),
+      )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.attentionAssessmentEnabled).onChange(async (value) => {
           this.plugin.settings.attentionAssessmentEnabled = value;
@@ -3266,8 +3825,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
-      .setName('生成学习练习')
-      .setDesc('随结果生成闪卡、自测题和费曼解释题；默认关闭以节省处理成本。')
+      .setName(tr('生成学习练习', 'Generate learning exercises'))
+      .setDesc(
+        tr(
+          '随结果生成闪卡、自测题和费曼解释题；默认关闭以节省处理成本。',
+          'Add flashcards, quiz questions and Feynman prompts to the result; off by default to save cost.',
+        ),
+      )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.generateLearningArtifacts).onChange(async (value) => {
           this.plugin.settings.generateLearningArtifacts = value;
@@ -3277,15 +3841,18 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
-      .setName('处理模型')
+      .setName(tr('处理模型', 'Model'))
       .setDesc(
-        `由后端 .env 里的 VS_CHAT_MODEL 决定，所有总结步骤共用一个模型。上次检查：${this.plugin.settings.aiModel || '还没检查'}。换模型时改 .env，再运行一次启动脚本。`,
+        tr(
+          `由后端 .env 里的 VS_CHAT_MODEL 决定，所有总结步骤共用一个模型。上次检查：${this.plugin.settings.aiModel || '还没检查'}。换模型时改 .env，再运行一次启动脚本。`,
+          `Set by VS_CHAT_MODEL in the backend's .env; every summary step uses this one model. Last check: ${this.plugin.settings.aiModel || 'not checked yet'}. To change it, edit .env and run the start script again.`,
+        ),
       );
 
     // 超时时间设置
     new Setting(section)
-      .setName('请求超时时间')
-      .setDesc('API请求的超时时间（分钟）')
+      .setName(tr('请求超时时间', 'Request timeout'))
+      .setDesc(tr('API请求的超时时间（分钟）', 'Timeout for API requests (minutes)'))
       .addSlider((slider) =>
         slider
           .setLimits(1, 30, 1)
@@ -3300,17 +3867,17 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createOutputSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'folder', '笔记');
+    const { section } = this.sectionCard(containerEl, 'folder', tr('笔记', 'Notes'));
 
     // 默认语言设置
     new Setting(section)
-      .setName('默认语言')
-      .setDesc('生成总结的默认语言')
+      .setName(tr('默认语言', 'Default language'))
+      .setDesc(tr('生成总结的默认语言', 'Default language of summaries'))
       .addDropdown((dropdown) =>
         dropdown
           .addOption('zh', '中文')
-          .addOption('en', '英文')
-          .addOption('ja', '日文')
+          .addOption('en', tr('英文', 'English'))
+          .addOption('ja', tr('日文', 'Japanese'))
           .setValue(this.plugin.settings.defaultLanguage)
           .onChange(async (value) => {
             this.plugin.settings.defaultLanguage = value as 'zh' | 'en' | 'ja';
@@ -3320,8 +3887,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 自动保存设置
     new Setting(section)
-      .setName('自动保存')
-      .setDesc('处理完成后自动保存文件')
+      .setName(tr('自动保存', 'Save automatically'))
+      .setDesc(tr('处理完成后自动保存文件', 'Save the file when processing finishes'))
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
           this.plugin.settings.autoSave = value;
@@ -3331,11 +3898,16 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 输出文件夹设置
     new Setting(section)
-      .setName('输出文件夹')
-      .setDesc('新建视频笔记在库内的相对路径；不允许 .、.. 或绝对路径。')
+      .setName(tr('输出文件夹', 'Output folder'))
+      .setDesc(
+        tr(
+          '新建视频笔记在库内的相对路径；不允许 .、.. 或绝对路径。',
+          'Folder for new video notes, relative to the vault; ., .. and absolute paths are not allowed.',
+        ),
+      )
       .addText((text) =>
         text
-          .setPlaceholder('例如: Videos/2024')
+          .setPlaceholder(tr('例如: Videos/2024', 'For example Videos/2024'))
           .setValue(this.plugin.settings.outputFolder)
           .onChange(async (value) => {
             try {
@@ -3344,15 +3916,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
               await this.plugin.saveSettings();
             } catch {
               text.setValue(this.plugin.settings.outputFolder);
-              new Notice('输出文件夹必须是库内的安全相对路径，不能包含 . 或 ..。', 6000);
+              new Notice(
+                tr(
+                  '输出文件夹必须是库内的安全相对路径，不能包含 . 或 ..。',
+                  'The output folder must be a safe path inside the vault, without . or ..',
+                ),
+                6000,
+              );
             }
           }),
       );
 
     new Setting(section)
-      .setName('文稿引用格式')
+      .setName(tr('文稿引用格式', 'Transcript quote format'))
       .setDesc(
-        '在阅读器里右键一段文稿“复制引用”“插入到笔记”或把它拖进笔记时使用。可用 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}，\\n 表示换行。',
+        tr(
+          '在阅读器里右键一段文稿“复制引用”“插入到笔记”或把它拖进笔记时使用。可用 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}，\\n 表示换行。',
+          'Used when you right-click a transcript line in Reader to copy a quote or insert it into a note, or drag it into a note. Available: {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}; \\n is a line break.',
+        ),
       )
       .addText((text) =>
         text
@@ -3366,20 +3947,27 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createQuickProcessingSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'zap', '命令面板里的一键处理');
+    const { section } = this.sectionCard(
+      containerEl,
+      'zap',
+      tr('命令面板里的一键处理', 'One-step commands'),
+    );
 
     // 一键总结配置
     const summarySubsection = section.createDiv({ cls: 'vs-subsection' });
-    summarySubsection.createDiv({ text: '一键总结配置', cls: 'vs-subsection-title' });
+    summarySubsection.createDiv({
+      text: tr('一键总结配置', 'Quick summary settings'),
+      cls: 'vs-subsection-title',
+    });
 
     new Setting(summarySubsection)
-      .setName('总结语言')
-      .setDesc('一键总结时使用的语言')
+      .setName(tr('总结语言', 'Summary language'))
+      .setDesc(tr('一键总结时使用的语言', 'Language of quick summaries'))
       .addDropdown((dropdown) =>
         dropdown
           .addOption('zh', '中文')
-          .addOption('en', '英文')
-          .addOption('ja', '日文')
+          .addOption('en', tr('英文', 'English'))
+          .addOption('ja', tr('日文', 'Japanese'))
           .setValue(this.plugin.settings.quickSummaryOptions.language)
           .onChange(async (value) => {
             this.plugin.settings.quickSummaryOptions.language = value as 'zh' | 'en' | 'ja';
@@ -3388,8 +3976,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(summarySubsection)
-      .setName('总结超时时间')
-      .setDesc('一键总结的超时时间（分钟）')
+      .setName(tr('总结超时时间', 'Summary timeout'))
+      .setDesc(tr('一键总结的超时时间（分钟）', 'Timeout of quick summaries (minutes)'))
       .addSlider((slider) =>
         slider
           .setLimits(1, 30, 1)
@@ -3403,16 +3991,19 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 一键提取文稿配置
     const transcriptSubsection = section.createDiv({ cls: 'vs-subsection' });
-    transcriptSubsection.createDiv({ text: '一键提取文稿配置', cls: 'vs-subsection-title' });
+    transcriptSubsection.createDiv({
+      text: tr('一键提取文稿配置', 'Quick transcript settings'),
+      cls: 'vs-subsection-title',
+    });
 
     new Setting(transcriptSubsection)
-      .setName('文稿语言')
-      .setDesc('一键提取文稿时使用的语言')
+      .setName(tr('文稿语言', 'Transcript language'))
+      .setDesc(tr('一键提取文稿时使用的语言', 'Language of quick transcripts'))
       .addDropdown((dropdown) =>
         dropdown
           .addOption('zh', '中文')
-          .addOption('en', '英文')
-          .addOption('ja', '日文')
+          .addOption('en', tr('英文', 'English'))
+          .addOption('ja', tr('日文', 'Japanese'))
           .setValue(this.plugin.settings.quickTranscriptOptions.language)
           .onChange(async (value) => {
             this.plugin.settings.quickTranscriptOptions.language = value as 'zh' | 'en' | 'ja';
@@ -3421,8 +4012,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(transcriptSubsection)
-      .setName('文稿超时时间')
-      .setDesc('一键提取文稿的超时时间（分钟）')
+      .setName(tr('文稿超时时间', 'Transcript timeout'))
+      .setDesc(tr('一键提取文稿的超时时间（分钟）', 'Timeout of quick transcripts (minutes)'))
       .addSlider((slider) =>
         slider
           .setLimits(1, 30, 1)
@@ -3436,12 +4027,17 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createFileProcessingSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'files', '文件与命名');
+    const { section } = this.sectionCard(containerEl, 'files', tr('文件与命名', 'Files and names'));
 
     // 自动重命名开关
     new Setting(section)
-      .setName('处理后自动重命名')
-      .setDesc('根据视频标题/正文标题自动重命名笔记，避免重复名将追加编号')
+      .setName(tr('处理后自动重命名', 'Rename after processing'))
+      .setDesc(
+        tr(
+          '根据视频标题/正文标题自动重命名笔记，避免重复名将追加编号',
+          'Rename the note from the video or body title; a number is added to avoid duplicates',
+        ),
+      )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
           this.plugin.settings.autoRenameEnabled = value;
@@ -3451,13 +4047,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 重命名冲突策略
     new Setting(section)
-      .setName('重命名冲突策略')
-      .setDesc('当目标文件名已存在时的处理方式')
+      .setName(tr('重命名冲突策略', 'Name clash'))
+      .setDesc(tr('当目标文件名已存在时的处理方式', 'What to do when the file name already exists'))
       .addDropdown((drop) =>
         drop
-          .addOption('append-number', '追加编号')
-          .addOption('append-date', '追加日期')
-          .addOption('skip', '跳过')
+          .addOption('append-number', tr('追加编号', 'Add a number'))
+          .addOption('append-date', tr('追加日期', 'Add the date'))
+          .addOption('skip', tr('跳过', 'Skip'))
           .setValue(this.plugin.settings.renameConflictStrategy)
           .onChange(async (v) => {
             this.plugin.settings.renameConflictStrategy =
@@ -3468,8 +4064,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 批量处理设置
     new Setting(section)
-      .setName('批量处理并发数')
-      .setDesc('同时处理的最大文件数量')
+      .setName(tr('批量处理并发数', 'Batch parallelism'))
+      .setDesc(tr('同时处理的最大文件数量', 'Most files processed at the same time'))
       .addSlider((slider) =>
         slider
           .setLimits(1, 10, 1)
@@ -3483,16 +4079,26 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 成功状态值
     new Setting(section)
-      .setName('成功状态值')
-      .setDesc('处理成功后写入 frontmatter 的 status 文本，例如 success/已处理/✅ 等')
+      .setName(tr('成功状态值', 'Success status'))
+      .setDesc(
+        tr(
+          '处理成功后写入 frontmatter 的 status 文本，例如 success/已处理/✅ 等',
+          'The status text written to frontmatter after success, such as success, done or ✅',
+        ),
+      )
       .addText((text) =>
         text
-          .setPlaceholder('例如 success')
+          .setPlaceholder(tr('例如 success', 'For example success'))
           .setValue(this.plugin.settings.successStatusValue ?? 'success')
           .onChange(async (value) => {
             const normalized = normalizeSuccessStatusValue(value);
             if (normalized !== value.trim()) {
-              new Notice('成功状态不能使用待处理、处理中或失败标记，已恢复为 success');
+              new Notice(
+                tr(
+                  '成功状态不能使用待处理、处理中或失败标记，已恢复为 success',
+                  'The success status cannot be a pending, processing or failure value; reset to success',
+                ),
+              );
             }
             this.plugin.settings.successStatusValue = normalized;
             await this.plugin.saveSettings();
@@ -3501,9 +4107,16 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createPayloadKeysSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'radio', '请求字段名');
+    const { section } = this.sectionCard(
+      containerEl,
+      'radio',
+      tr('请求字段名', 'Request field names'),
+    );
     section.createEl('p', {
-      text: '自定义发送到 n8n webhook 的 JSON 对象中的键名。这允许您适应不同的 n8n 工作流配置。',
+      text: tr(
+        '自定义发送到 n8n webhook 的 JSON 对象中的键名。这允许您适应不同的 n8n 工作流配置。',
+        'Customise the key names in the JSON sent to the n8n webhook, to fit a different n8n workflow.',
+      ),
       cls: 'setting-item-description',
     });
 
@@ -3535,12 +4148,16 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private createAdvancedSection(containerEl: HTMLElement) {
-    const { section } = this.sectionCard(containerEl, 'wrench', '缓存与调试');
+    const { section } = this.sectionCard(
+      containerEl,
+      'wrench',
+      tr('缓存与调试', 'Cache and debugging'),
+    );
 
     // 调试模式
     new Setting(section)
-      .setName('调试模式')
-      .setDesc('输出更多调试日志（控制台）')
+      .setName(tr('调试模式', 'Debug mode'))
+      .setDesc(tr('输出更多调试日志（控制台）', 'Write more debug logs to the console'))
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
           this.plugin.settings.enableDebugMode = value;
@@ -3551,9 +4168,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 处理前后端自检
     new Setting(section)
-      .setName('处理前后端自检')
+      .setName(tr('处理前后端自检', 'Check the backend before processing'))
       .setDesc(
-        '发起处理前先 ping 当前后端（结果缓存 60 秒）。不可达时会提示，并在另一个后端可用时建议切换。',
+        tr(
+          '发起处理前先 ping 当前后端（结果缓存 60 秒）。不可达时会提示，并在另一个后端可用时建议切换。',
+          'Ping the current backend before processing (cached for 60 seconds). If it is unreachable you are told, with a suggestion to switch when the other backend works.',
+        ),
       )
       .addToggle((toggle) =>
         toggle
@@ -3566,9 +4186,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 短链自动展开
     new Setting(section)
-      .setName('短链自动展开')
+      .setName(tr('短链自动展开', 'Expand short links'))
       .setDesc(
-        '发送前把 b23.tv / v.douyin.com / xhslink.com 等短链展开成最终链接，减少后端下载失败（仅桌面端生效，失败时自动回退原链接）。',
+        tr(
+          '发送前把 b23.tv / v.douyin.com / xhslink.com 等短链展开成最终链接，减少后端下载失败（仅桌面端生效，失败时自动回退原链接）。',
+          'Expand b23.tv, v.douyin.com, xhslink.com and other short links before sending, which avoids download failures (desktop only; falls back to the original link on failure).',
+        ),
       )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
@@ -3580,9 +4203,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 历史记录上限
     const historyLimitSetting = new Setting(section)
-      .setName('处理历史上限')
+      .setName(tr('处理历史上限', 'History limit'))
       .setDesc(
-        `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${this.plugin.settings.historyLimit ?? 300} 条。`,
+        tr(
+          `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${this.plugin.settings.historyLimit ?? 300} 条。`,
+          `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${this.plugin.settings.historyLimit ?? 300}.`,
+        ),
       )
       .addSlider((slider) =>
         slider
@@ -3593,22 +4219,25 @@ class VideoSummarySettingTab extends PluginSettingTab {
             this.plugin.settings.historyLimit = value;
             await this.plugin.saveSettings();
             historyLimitSetting.setDesc(
-              `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${value} 条。`,
+              tr(
+                `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${value} 条。`,
+                `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${value}.`,
+              ),
             );
           }),
       );
 
     // 缓存配置
     const cacheSubsection = section.createDiv({ cls: 'vs-subsection' });
-    cacheSubsection.createDiv({ text: '缓存配置', cls: 'vs-subsection-title' });
+    cacheSubsection.createDiv({ text: tr('缓存配置', 'Cache'), cls: 'vs-subsection-title' });
 
     // 缓存状态概览
     const cacheStatusSetting = new Setting(cacheSubsection)
-      .setName('缓存状态')
-      .setDesc('点击查看当前缓存状态和统计信息')
+      .setName(tr('缓存状态', 'Cache status'))
+      .setDesc(tr('点击查看当前缓存状态和统计信息', 'Show the current cache status and statistics'))
       .addButton((button) =>
         button
-          .setButtonText('📊 查看状态')
+          .setButtonText(tr('📊 查看状态', '📊 Show status'))
           .setClass('cache-status-btn')
           .onClick(async () => {
             try {
@@ -3616,7 +4245,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
               await this.showCachePreviewModal(stats);
             } catch (error) {
               console.error('获取缓存统计失败:', error);
-              new Notice(`❌ 获取缓存统计失败: ${errorMessage(error)}`, 5000);
+              new Notice(
+                tr(
+                  `❌ 获取缓存统计失败: ${errorMessage(error)}`,
+                  `❌ Could not read cache statistics: ${errorMessage(error)}`,
+                ),
+                5000,
+              );
             }
           }),
       );
@@ -3624,22 +4259,35 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     // 启用缓存
     const enableCacheSetting = new Setting(cacheSubsection)
-      .setName('启用缓存')
-      .setDesc('缓存已处理的视频结果，避免重复调用API（节省费用）')
+      .setName(tr('启用缓存', 'Use the cache'))
+      .setDesc(
+        tr(
+          '缓存已处理的视频结果，避免重复调用API（节省费用）',
+          'Keep processed results to avoid calling the API again (saves money)',
+        ),
+      )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
           this.plugin.settings.enableCache = value;
           this.plugin.api.setCacheEnabled(value);
           await this.plugin.saveSettings();
-          new Notice(value ? '✅ 缓存已启用' : '❌ 缓存已禁用', 2000);
+          new Notice(
+            value ? tr('✅ 缓存已启用', '✅ Cache on') : tr('❌ 缓存已禁用', '❌ Cache off'),
+            2000,
+          );
         }),
       );
     enableCacheSetting.controlEl.addClass('cache-setting-item');
 
     // 缓存过期时间
     const expirySetting = new Setting(cacheSubsection)
-      .setName('缓存过期时间')
-      .setDesc(`缓存结果的有效期（当前：${this.plugin.settings.cacheExpiryDays ?? 30} 天）`)
+      .setName(tr('缓存过期时间', 'Cache expiry'))
+      .setDesc(
+        tr(
+          `缓存结果的有效期（当前：${this.plugin.settings.cacheExpiryDays ?? 30} 天）`,
+          `How long cached results stay valid (now ${this.plugin.settings.cacheExpiryDays ?? 30} days)`,
+        ),
+      )
       .addSlider((slider) =>
         slider
           .setLimits(1, 365, 1)
@@ -3650,7 +4298,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
             this.plugin.api.setCacheConfig(1000, value);
             await this.plugin.saveSettings();
             // 更新描述
-            expirySetting.setDesc(`缓存结果的有效期（当前：${value} 天）`);
+            expirySetting.setDesc(
+              tr(
+                `缓存结果的有效期（当前：${value} 天）`,
+                `How long cached results stay valid (now ${value} days)`,
+              ),
+            );
           }),
       );
     expirySetting.controlEl.addClass('cache-setting-item');
@@ -3660,43 +4313,64 @@ class VideoSummarySettingTab extends PluginSettingTab {
     cacheSubsection.createEl('hr', { cls: 'cache-divider' });
 
     // 缓存管理操作
-    cacheSubsection.createDiv({ text: '缓存管理', cls: 'vs-subsection-title' });
+    cacheSubsection.createDiv({
+      text: tr('缓存管理', 'Cache management'),
+      cls: 'vs-subsection-title',
+    });
 
     // 快速操作按钮组
     const quickActionsContainer = cacheSubsection.createDiv({ cls: 'cache-quick-actions' });
 
     // 测试缓存
     const testBtn = quickActionsContainer.createEl('button', {
-      text: '🧪 添加测试',
+      text: tr('🧪 添加测试', '🧪 Add test entry'),
       cls: 'cache-quick-btn',
     });
     testBtn.onclick = async () => {
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new Notice(`❌ 添加测试数据失败: ${errorMessage(error)}`, 5000);
+        new Notice(
+          tr(
+            `❌ 添加测试数据失败: ${errorMessage(error)}`,
+            `❌ Could not add test data: ${errorMessage(error)}`,
+          ),
+          5000,
+        );
       }
     };
 
     // 清理过期
     const cleanupBtn = quickActionsContainer.createEl('button', {
-      text: '清理过期',
+      text: tr('清理过期', 'Remove expired'),
       cls: 'cache-quick-btn',
     });
     cleanupBtn.onclick = async () => {
       try {
         this.plugin.api.cleanupCache();
         const stats = this.plugin.api.getCacheStats();
-        new Notice(`🧹 已清理过期缓存，当前缓存 ${stats.size} 项`, 3000);
+        new Notice(
+          tr(
+            `🧹 已清理过期缓存，当前缓存 ${stats.size} 项`,
+            `🧹 Removed expired entries; ${stats.size} left`,
+          ),
+          3000,
+        );
       } catch (error) {
         console.error('清理过期缓存失败:', error);
-        new Notice(`❌ 清理过期缓存失败: ${errorMessage(error)}`, 5000);
+        new Notice(
+          tr(
+            `❌ 清理过期缓存失败: ${errorMessage(error)}`,
+            `❌ Could not remove expired entries: ${errorMessage(error)}`,
+          ),
+          5000,
+        );
       }
     };
 
     // 清空所有
     const clearBtn = quickActionsContainer.createEl('button', {
-      text: '清空所有',
+      text: tr('清空所有', 'Clear all'),
       cls: 'cache-quick-btn cache-danger-btn',
     });
     clearBtn.onclick = async () => {
@@ -3714,10 +4388,16 @@ class VideoSummarySettingTab extends PluginSettingTab {
       if (confirmed) {
         try {
           this.plugin.api.clearCache();
-          new Notice('🗑️ 已清空所有缓存', 3000);
+          new Notice(tr('🗑️ 已清空所有缓存', '🗑️ Cache cleared'), 3000);
         } catch (error) {
           console.error('清空缓存失败:', error);
-          new Notice(`❌ 清空缓存失败: ${errorMessage(error)}`, 5000);
+          new Notice(
+            tr(
+              `❌ 清空缓存失败: ${errorMessage(error)}`,
+              `❌ Could not clear the cache: ${errorMessage(error)}`,
+            ),
+            5000,
+          );
         }
       }
     };
@@ -3725,14 +4405,28 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 缓存信息提示
     const cacheInfoContainer = cacheSubsection.createDiv({ cls: 'cache-info-container' });
     const cacheInfoTip = cacheInfoContainer.createDiv({ cls: 'cache-info-tip' });
-    cacheInfoTip.createEl('strong', { text: '💡 缓存提示：' });
+    cacheInfoTip.createEl('strong', { text: tr('💡 缓存提示：', '💡 About the cache:') });
     const cacheInfoList = cacheInfoTip.createEl('ul');
     const cachePathItem = cacheInfoList.createEl('li');
-    cachePathItem.appendText('缓存文件存储在：');
-    cachePathItem.createEl('code', { text: '<插件目录>/data/cache/' });
-    cacheInfoList.createEl('li', { text: '缓存会自动清理过期项' });
-    cacheInfoList.createEl('li', { text: '禁用缓存后，所有缓存操作将被忽略' });
-    cacheInfoList.createEl('li', { text: '建议定期清理过期缓存以节省空间' });
+    cachePathItem.appendText(tr('缓存文件存储在：', 'Cache files are stored in:'));
+    cachePathItem.createEl('code', {
+      text: tr('<插件目录>/data/cache/', '<plugin folder>/data/cache/'),
+    });
+    cacheInfoList.createEl('li', {
+      text: tr('缓存会自动清理过期项', 'Expired entries are removed automatically'),
+    });
+    cacheInfoList.createEl('li', {
+      text: tr(
+        '禁用缓存后，所有缓存操作将被忽略',
+        'With the cache off, all cache actions are ignored',
+      ),
+    });
+    cacheInfoList.createEl('li', {
+      text: tr(
+        '建议定期清理过期缓存以节省空间',
+        'Remove expired entries now and then to save space',
+      ),
+    });
   }
 
   /**
@@ -3747,7 +4441,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 创建模态框
     const modal = new Modal(this.app);
     modal.modalEl.addClass('ap', 'ap-modal');
-    modal.titleEl.setText('📊 缓存预览');
+    modal.titleEl.setText(tr('📊 缓存预览', '📊 Cache preview'));
 
     const { contentEl } = modal;
 
@@ -3759,7 +4453,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error('❌ 刷新模态框内容失败:', error);
-        new Notice(`❌ 刷新失败: ${errorMessage(error)}`, 5000);
+        new Notice(
+          tr(`❌ 刷新失败: ${errorMessage(error)}`, `❌ Could not refresh: ${errorMessage(error)}`),
+          5000,
+        );
       }
     };
 
@@ -3786,17 +4483,20 @@ class VideoSummarySettingTab extends PluginSettingTab {
       // 缓存内容预览
       if (currentStats.size > 0) {
         const previewSection = container.createDiv({ cls: 'cache-preview-content' });
-        new Setting(previewSection).setName('缓存内容预览').setHeading();
+        new Setting(previewSection).setName(tr('缓存内容预览', 'Cache contents')).setHeading();
 
         // 获取缓存内容
         await this.showCacheContentPreview(previewSection);
       } else {
         const emptySection = container.createDiv({ cls: 'cache-empty-section' });
         const emptyMessage = emptySection.createDiv({ cls: 'cache-empty-message' });
-        emptyMessage.createEl('p', { text: '📭 暂无缓存内容' });
+        emptyMessage.createEl('p', { text: tr('📭 暂无缓存内容', '📭 The cache is empty') });
         emptyMessage.createEl('p', {
           cls: 'cache-empty-tip',
-          text: '提示：处理视频后会自动添加到缓存，或者点击“添加测试”按钮添加测试数据',
+          text: tr(
+            '提示：处理视频后会自动添加到缓存，或者点击“添加测试”按钮添加测试数据',
+            'Processed videos are added automatically, or press "Add test entry" for sample data',
+          ),
         });
       }
 
@@ -3805,13 +4505,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       // 刷新按钮
       actionsSection.createEl('button', {
-        text: '刷新',
+        text: tr('刷新', 'Refresh'),
         cls: 'cache-action-btn',
       }).onclick = refreshModalContent;
 
       // 关闭按钮
       actionsSection.createEl('button', {
-        text: '关闭',
+        text: tr('关闭', 'Close'),
         cls: 'cache-action-btn',
       }).onclick = () => {
         modal.close();
@@ -3834,7 +4534,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
       if (items.length === 0) {
         container.createEl('p', {
-          text: '暂无缓存内容',
+          text: tr('暂无缓存内容', 'The cache is empty'),
           cls: 'cache-empty-message',
         });
         return;
@@ -3887,7 +4587,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
         });
         metaEl.createSpan({
           cls: `cache-item-status ${item.isExpired ? 'expired' : 'valid'}`,
-          text: item.isExpired ? '已过期' : '有效',
+          text: item.isExpired ? tr('已过期', 'Expired') : tr('有效', 'Valid'),
         });
 
         // 删除按钮
@@ -3899,9 +4599,18 @@ class VideoSummarySettingTab extends PluginSettingTab {
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new Notice(`✅ 已删除缓存项: ${item.url}`, 3000);
+            new Notice(
+              tr(`✅ 已删除缓存项: ${item.url}`, `✅ Removed cache entry: ${item.url}`),
+              3000,
+            );
           } catch (error) {
-            new Notice(`❌ 删除失败: ${errorMessage(error)}`, 5000);
+            new Notice(
+              tr(
+                `❌ 删除失败: ${errorMessage(error)}`,
+                `❌ Could not delete: ${errorMessage(error)}`,
+              ),
+              5000,
+            );
           }
         };
       }
@@ -3909,13 +4618,16 @@ class VideoSummarySettingTab extends PluginSettingTab {
       // 如果还有更多项，显示提示
       if (items.length > 20) {
         container.createEl('p', {
-          text: `还有 ${items.length - 20} 项未显示`,
+          text: tr(`还有 ${items.length - 20} 项未显示`, `${items.length - 20} more not shown`),
           cls: 'cache-more-items',
         });
       }
     } catch (error) {
       container.createEl('p', {
-        text: `获取缓存内容失败: ${errorMessage(error)}`,
+        text: tr(
+          `获取缓存内容失败: ${errorMessage(error)}`,
+          `Could not read the cache: ${errorMessage(error)}`,
+        ),
         cls: 'cache-error-message',
       });
     }
@@ -3970,13 +4682,19 @@ class VideoSummarySettingTab extends PluginSettingTab {
         testResult,
       );
 
-      new Notice('✅ 已添加测试缓存项', 3000);
+      new Notice(tr('✅ 已添加测试缓存项', '✅ Test cache entry added'), 3000);
 
       // 读取一次统计，确保写入后的缓存索引仍可解析。
       this.plugin.api.getCacheStats();
     } catch (error) {
       console.error('添加测试缓存数据失败:', error);
-      new Notice(`❌ 添加测试缓存数据失败: ${errorMessage(error)}`, 5000);
+      new Notice(
+        tr(
+          `❌ 添加测试缓存数据失败: ${errorMessage(error)}`,
+          `❌ Could not add test cache data: ${errorMessage(error)}`,
+        ),
+        5000,
+      );
     }
   }
 
@@ -4022,11 +4740,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) {
-      return '今天';
+      return tr('今天', 'Today');
     } else if (diffDays === 1) {
-      return '昨天';
+      return tr('昨天', 'Yesterday');
     } else if (diffDays < 7) {
-      return `${diffDays}天前`;
+      return tr(`${diffDays}天前`, `${diffDays} days ago`);
     } else {
       return date.toLocaleDateString();
     }

@@ -14,6 +14,7 @@ import {
 } from '../ui';
 
 import { fire } from '../../utils/fire';
+import { tr } from '../../utils/i18n';
 const PAGE_SIZE = 80;
 
 /** 搜索框失焦问题：面板重建后按这个标记把焦点还回去 */
@@ -41,17 +42,21 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
   setIcon(searchIcon, 'search');
   const search = searchWrap.createEl('input', {
     cls: 'vs-search-input',
-    attr: { type: 'text', placeholder: '搜索笔记名…', value: state.librarySearch },
+    attr: {
+      type: 'text',
+      placeholder: tr('搜索笔记名…', 'Search note names…'),
+      value: state.librarySearch,
+    },
   });
 
   iconButton(header, 'arrow-up-down', '排序方式', (event) => {
     showMenu(
       event,
       [
-        { value: 'mtime-desc', title: '最近修改' },
-        { value: 'ctime-desc', title: '最近创建' },
-        { value: 'name-asc', title: '名称 A→Z' },
-        { value: 'status', title: '按状态' },
+        { value: 'mtime-desc', title: tr('最近修改', 'Recently modified') },
+        { value: 'ctime-desc', title: tr('最近创建', 'Recently created') },
+        { value: 'name-asc', title: tr('名称 A→Z', 'Name A→Z') },
+        { value: 'status', title: tr('按状态', 'By status') },
       ].map((option) => ({
         title: option.title + (state.librarySort === option.value ? ' ✓' : ''),
         onClick: async () => {
@@ -92,7 +97,13 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
       cls: `vs-filter-chip ${tone}${state.libraryFilter === value ? ' is-active' : ''}`,
       attr: {
         type: 'button',
-        title: value === 'running' ? '查看本次会话中进行的任务和上次中断的笔记' : label,
+        title:
+          value === 'running'
+            ? tr(
+                '查看本次会话中进行的任务和上次中断的笔记',
+                'Jobs from this session and notes that were interrupted last time',
+              )
+            : label,
       },
     });
     chip.addEventListener(
@@ -138,9 +149,22 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
     listEl.empty();
     if (filtered.length === 0) {
       if (plugin.noteIndex.isScanning()) {
-        emptyState(listEl, 'loader', '正在建立索引…', '第一次打开会扫一遍库，稍等几秒');
+        emptyState(
+          listEl,
+          'loader',
+          tr('正在建立索引…', 'Building the index…'),
+          tr(
+            '第一次打开会扫一遍库，稍等几秒',
+            'The first time scans the vault; wait a few seconds',
+          ),
+        );
       } else {
-        emptyState(listEl, 'file-search', '没有匹配的视频笔记', '换个关键词，或清掉状态筛选');
+        emptyState(
+          listEl,
+          'file-search',
+          tr('没有匹配的视频笔记', 'No matching video notes'),
+          tr('换个关键词，或清掉状态筛选', 'Try another word, or clear the status filter'),
+        );
       }
       return;
     }
@@ -149,7 +173,10 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
       .forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
     if (filtered.length > visibleCount) {
       const more = listEl.createEl('button', {
-        text: `显示更多 · 还有 ${filtered.length - visibleCount} 条`,
+        text: tr(
+          `显示更多 · 还有 ${filtered.length - visibleCount} 条`,
+          `Show more · ${filtered.length - visibleCount} more`,
+        ),
         cls: 'vs-more-btn',
         attr: { type: 'button' },
       });
@@ -188,7 +215,10 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
   }
 
   if (plugin.noteIndex.isScanning() && filtered.length > 0) {
-    container.createDiv({ text: '仍在后台扫描历史笔记…', cls: 'vs-scan-hint' });
+    container.createDiv({
+      text: tr('仍在后台扫描历史笔记…', 'Still scanning older notes in the background…'),
+      cls: 'vs-scan-hint',
+    });
   }
 }
 
@@ -225,7 +255,10 @@ function renderRow(
   );
   body.tabIndex = 0;
   body.setAttribute('role', 'button');
-  body.setAttribute('aria-label', `打开笔记：${entry.basename}`);
+  body.setAttribute(
+    'aria-label',
+    tr(`打开笔记：${entry.basename}`, `Open note: ${entry.basename}`),
+  );
   body.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -243,8 +276,11 @@ function renderRow(
     },
     title:
       entry.status === 'running'
-        ? '只看进行中或已中断'
-        : `只看${displayStatus === 'success' ? '已完成' : displayStatus === 'error' ? '失败' : '待处理'}`,
+        ? tr('只看进行中或已中断', 'Only running or interrupted')
+        : tr(
+            `只看${displayStatus === 'success' ? '已完成' : displayStatus === 'error' ? '失败' : '待处理'}`,
+            `Only ${displayStatus === 'success' ? 'done' : displayStatus === 'error' ? 'failed' : 'pending'}`,
+          ),
   });
   statePill.addClass('vs-row-status');
 
@@ -302,11 +338,15 @@ function renderRow(
 
   iconButton(actions, 'more-horizontal', '更多操作', (event) => {
     const menuItems = [
-      { title: '打开笔记', icon: 'file-text', onClick: () => ctx.openNote(entry.path) },
+      {
+        title: tr('打开笔记', 'Open note'),
+        icon: 'file-text',
+        onClick: () => ctx.openNote(entry.path),
+      },
       ...(entry.artifactId
         ? [
             {
-              title: '同步陪读',
+              title: tr('同步陪读', 'Reader'),
               icon: 'book-open',
               onClick: () =>
                 ctx.openDetail({
@@ -318,7 +358,7 @@ function renderRow(
           ]
         : []),
       {
-        title: '重跑（跳过缓存）',
+        title: tr('重跑（跳过缓存）', 'Run again (skip cache)'),
         icon: 'refresh-cw',
         onClick: async () => {
           const file = fileOf(ctx, entry);
@@ -329,16 +369,16 @@ function renderRow(
         },
       },
       {
-        title: '复制链接',
+        title: tr('复制链接', 'Copy link'),
         icon: 'clipboard',
         disabled: !entry.link,
         onClick: () => {
           void navigator.clipboard.writeText(entry.link || '');
-          new Notice('已复制链接');
+          new Notice(tr('已复制链接', 'Link copied'));
         },
       },
       {
-        title: '标记为待处理',
+        title: tr('标记为待处理', 'Mark as pending'),
         icon: 'rotate-ccw',
         onClick: async () => {
           const file = fileOf(ctx, entry);
@@ -346,7 +386,11 @@ function renderRow(
           ctx.renderPanels();
         },
       },
-      { title: '删除笔记', icon: 'trash-2', onClick: () => confirmDelete(ctx, entry) },
+      {
+        title: tr('删除笔记', 'Delete note'),
+        icon: 'trash-2',
+        onClick: () => confirmDelete(ctx, entry),
+      },
     ];
     showMenu(event, menuItems);
   });
@@ -362,7 +406,7 @@ function confirmDelete(ctx: ViewContext, entry: VideoNoteEntry) {
       const file = fileOf(ctx, entry);
       if (!file) return;
       await ctx.plugin.app.fileManager.trashFile(file);
-      new Notice(`已删除 ${entry.basename}`);
+      new Notice(tr(`已删除 ${entry.basename}`, `Deleted ${entry.basename}`));
       ctx.renderPanels();
     }),
   ).open();

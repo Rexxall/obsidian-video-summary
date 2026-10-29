@@ -1873,55 +1873,94 @@ var RECOMMENDED_WORKFLOW = {
   requiredTools: ["yt-dlp", "ffmpeg"],
   uploadsPath: "/home/node/uploads"
 };
-var PLATFORM_CAPABILITIES = [
+var platformCapabilities = () => [
   {
-    platform: "\u672C\u5730\u97F3\u9891/\u89C6\u9891",
+    platform: tr("\u672C\u5730\u97F3\u9891/\u89C6\u9891", "Local audio/video"),
     status: "recommended",
     input: "local_file",
-    requirements: "\u628A\u6587\u4EF6\u653E\u8FDB\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads\uFF0C\u53EA\u586B\u5199\u6587\u4EF6\u540D\u3002",
-    notes: "\u6700\u7A33\u5B9A\uFF0C\u9002\u5408\u957F\u5F55\u97F3\u3001\u4F1A\u8BAE\u3001\u8BFE\u7A0B\u548C\u4E2A\u4EBA\u7D20\u6750\u3002"
+    requirements: tr(
+      "\u628A\u6587\u4EF6\u653E\u8FDB\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads\uFF0C\u53EA\u586B\u5199\u6587\u4EF6\u540D\u3002",
+      "Put the file in the backend's uploads folder and give only its name."
+    ),
+    notes: tr(
+      "\u6700\u7A33\u5B9A\uFF0C\u9002\u5408\u957F\u5F55\u97F3\u3001\u4F1A\u8BAE\u3001\u8BFE\u7A0B\u548C\u4E2A\u4EBA\u7D20\u6750\u3002",
+      "The most reliable; good for long recordings, meetings, lectures and your own material."
+    )
   },
   {
     platform: "YouTube",
     status: "supported",
     input: "link",
-    requirements: "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1B\u53D7\u9650\u89C6\u9891\u53EF\u80FD\u9700\u8981 cookies\u3002",
-    notes: "workflow \u4F1A\u5148\u8BD5\u539F\u751F\u5B57\u5E55\uFF0C\u518D\u56DE\u9000\u5230\u97F3\u9891\u63D0\u53D6\u3002"
+    requirements: tr(
+      "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1B\u53D7\u9650\u89C6\u9891\u53EF\u80FD\u9700\u8981 cookies\u3002\u5728\u4E2D\u56FD\u5927\u9646\u9700\u8981\u4EE3\u7406\u3002",
+      "Public videos usually work; restricted ones may need cookies. Needs a proxy in mainland China."
+    ),
+    notes: tr(
+      "\u5148\u7528\u89C6\u9891\u81EA\u5E26\u7684\u5B57\u5E55\uFF0C\u6CA1\u6709\u5B57\u5E55\u65F6\u518D\u4E0B\u8F7D\u97F3\u9891\u8F6C\u5199\u3002",
+      "Uses the video subtitles first and transcribes the audio when there are none."
+    )
   },
   {
     platform: "Bilibili",
-    status: "supported",
+    status: "recommended",
     input: "link",
-    requirements: "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1B\u53D7\u9650\u89C6\u9891\u6216\u90E8\u5206\u5206 P \u4ECD\u53EF\u80FD\u9700\u8981 cookies\u3002",
-    notes: "yt-dlp \u9047\u5230 HTTP 412 \u65F6\u4F1A\u56DE\u9000\u5230\u516C\u5F00 API \u8BFB\u53D6\u5143\u6570\u636E\u4E0E\u97F3\u8F68\u3002"
+    requirements: tr(
+      "\u767B\u5F55\u540E\uFF08\u9996\u6B21\u914D\u7F6E\u7B2C \u2463 \u6B65\u626B\u7801\uFF09\u80FD\u7528 UP \u4E3B\u5B57\u5E55\u548C B \u7AD9 AI \u5B57\u5E55\uFF1B\u4E0D\u767B\u5F55\u4F1A\u6539\u8D70\u8BED\u97F3\u8F6C\u5199\u3002",
+      "After logging in (step \u2463 of first-run setup) it uses uploader subtitles and Bilibili AI subtitles; without login it falls back to speech-to-text."
+    ),
+    notes: tr(
+      "\u987A\u5E8F\u662F UP \u4E3B\u5B57\u5E55 \u2192 AI \u5B57\u5E55 \u2192 \u8BED\u97F3\u8F6C\u5199\uFF0C\u5F39\u5E55\u4E0D\u4F1A\u5F53\u6210\u6587\u7A3F\u3002",
+      "Order: uploader subtitles \u2192 AI subtitles \u2192 speech-to-text; danmaku is never used as a transcript."
+    )
   },
   {
-    platform: "\u6296\u97F3",
+    platform: tr("\u6296\u97F3", "Douyin"),
     status: "limited",
     input: "link",
-    requirements: "\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002",
-    notes: "\u77ED\u94FE\u53EF\u80FD\u8FC7\u671F\u6216\u8DF3\u8F6C\u5931\u8D25\uFF1B\u5FC5\u8981\u65F6\u6539\u7528\u6700\u7EC8\u94FE\u63A5\u6216\u7C98\u8D34\u6587\u7A3F\u3002"
+    requirements: tr(
+      "\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002",
+      "Often needs cookies exported from your browser."
+    ),
+    notes: tr(
+      "\u5C3D\u529B\u800C\u4E3A\u3002\u77ED\u94FE\u53EF\u80FD\u8FC7\u671F\u6216\u8DF3\u8F6C\u5931\u8D25\uFF1B\u5FC5\u8981\u65F6\u6539\u7528\u6700\u7EC8\u94FE\u63A5\u6216\u7C98\u8D34\u6587\u7A3F\u3002",
+      "Best effort. Short links can expire or fail to redirect; use the final link or paste the transcript."
+    )
   },
   {
     platform: "TikTok",
     status: "limited",
     input: "link",
-    requirements: "\u7ECF\u5E38\u9700\u8981 cookies\uFF0C\u4E5F\u53EF\u80FD\u53D7\u5730\u533A\u9650\u5236\u3002",
-    notes: "\u4E0B\u8F7D\u5931\u8D25\u901A\u5E38\u662F\u5E73\u53F0\u8BBF\u95EE\u95EE\u9898\uFF0C\u4E0D\u4E00\u5B9A\u662F Obsidian \u7B14\u8BB0\u95EE\u9898\u3002"
+    requirements: tr(
+      "\u7ECF\u5E38\u9700\u8981 cookies\uFF0C\u4E5F\u53EF\u80FD\u53D7\u5730\u533A\u9650\u5236\u3002",
+      "Often needs cookies and may be region-restricted."
+    ),
+    notes: tr(
+      "\u5C3D\u529B\u800C\u4E3A\u3002\u4E0B\u8F7D\u5931\u8D25\u901A\u5E38\u662F\u5E73\u53F0\u8BBF\u95EE\u95EE\u9898\uFF0C\u4E0D\u662F\u7B14\u8BB0\u7684\u95EE\u9898\u3002",
+      "Best effort. Download failures are usually platform access problems, not note problems."
+    )
   },
   {
-    platform: "\u5C0F\u7EA2\u4E66 / Rednote",
+    platform: tr("\u5C0F\u7EA2\u4E66 / Rednote", "Xiaohongshu / Rednote"),
     status: "limited",
     input: "link",
-    requirements: "\u901A\u5E38\u9700\u8981 cookies\uFF0C\u90E8\u5206\u5206\u4EAB\u94FE\u63A5\u4E0D\u7A33\u5B9A\u3002",
-    notes: "\u5EFA\u8BAE\u4F5C\u4E3A best-effort \u5904\u7406\uFF1B\u5148\u4FDD\u5B58\u6765\u6E90\u4FE1\u606F\u518D\u5904\u7406\u3002"
+    requirements: tr(
+      "\u901A\u5E38\u9700\u8981 cookies\uFF0C\u90E8\u5206\u5206\u4EAB\u94FE\u63A5\u4E0D\u7A33\u5B9A\u3002",
+      "Usually needs cookies; some share links are unreliable."
+    ),
+    notes: tr(
+      "\u5C3D\u529B\u800C\u4E3A\uFF1B\u5148\u4FDD\u5B58\u6765\u6E90\u4FE1\u606F\u518D\u5904\u7406\u3002",
+      "Best effort; save the source first, then process it."
+    )
   },
   {
-    platform: "\u624B\u52A8\u7C98\u8D34\u6587\u7A3F",
+    platform: tr("\u624B\u52A8\u7C98\u8D34\u6587\u7A3F", "Pasted transcript"),
     status: "local",
     input: "provided_transcript",
-    requirements: "\u4E0D\u4F9D\u8D56\u4E0B\u8F7D\u5668\u3002",
-    notes: "\u5E73\u53F0\u4E0B\u8F7D\u53D7\u963B\u4F46\u4F60\u5DF2\u6709\u6587\u5B57\u65F6\uFF0C\u4F18\u5148\u7528\u8FD9\u4E2A\u65B9\u5F0F\u3002"
+    requirements: tr("\u4E0D\u4F9D\u8D56\u4E0B\u8F7D\u5668\u3002", "No downloader needed."),
+    notes: tr(
+      "\u5E73\u53F0\u4E0B\u8F7D\u53D7\u963B\u4F46\u4F60\u5DF2\u6709\u6587\u5B57\u65F6\uFF0C\u4F18\u5148\u7528\u8FD9\u4E2A\u65B9\u5F0F\u3002",
+      "When a platform blocks downloads but you already have the text, use this."
+    )
   }
 ];
 var DEFAULT_SETTINGS = {
@@ -2007,20 +2046,21 @@ var LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
   { value: "ja", label: "\u65E5\u672C\u8A9E" }
 ];
-var PROCESSING_MODES = [
-  { value: "summary", label: "\u5B8C\u6574\u603B\u7ED3" },
-  { value: "transcript-only", label: "\u4EC5\u63D0\u53D6\u6587\u7A3F" },
-  { value: "info-only", label: "\u4EC5\u83B7\u53D6\u89C6\u9891\u4FE1\u606F" }
+var processingModes = () => [
+  { value: "summary", label: tr("\u5B8C\u6574\u603B\u7ED3", "Full summary") },
+  { value: "transcript-only", label: tr("\u4EC5\u63D0\u53D6\u6587\u7A3F", "Transcript only") },
+  { value: "info-only", label: tr("\u4EC5\u83B7\u53D6\u89C6\u9891\u4FE1\u606F", "Video info only") }
 ];
 var ERROR_MESSAGES = {
-  NO_FILE: "\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0",
-  NO_LINK: "\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5",
-  NO_TRANSCRIPT: "\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u6587\u7A3F\u5185\u5BB9",
-  NO_INPUT: "\u8BF7\u63D0\u4F9B\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u4E2D\u7684\u81F3\u5C11\u4E00\u4E2A",
-  API_ERROR: "API\u8C03\u7528\u5931\u8D25",
-  TIMEOUT: "\u8BF7\u6C42\u8D85\u65F6",
-  INVALID_RESPONSE: "\u65E0\u6548\u7684API\u54CD\u5E94",
-  NETWORK_ERROR: "\u7F51\u7EDC\u8FDE\u63A5\u9519\u8BEF"
+  get NO_FILE() {
+    return tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first");
+  },
+  get NO_INPUT() {
+    return tr(
+      "\u8BF7\u63D0\u4F9B\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u4E2D\u7684\u81F3\u5C11\u4E00\u4E2A",
+      "Give a video link, a transcript or a local file name"
+    );
+  }
 };
 
 // utils/NoteProcessor.ts
@@ -2932,9 +2972,9 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
     this.modalEl.addClass("ap", "ap-modal");
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "\u{1F4FA} \u89C6\u9891\u603B\u7ED3\u5904\u7406" });
-    new import_obsidian2.Setting(contentEl).setName("\u5904\u7406\u6A21\u5F0F").setDesc("\u9009\u62E9\u5904\u7406\u65B9\u5F0F").addDropdown((dropdown) => {
-      PROCESSING_MODES.forEach((mode) => {
+    contentEl.createEl("h2", { text: tr("\u{1F4FA} \u89C6\u9891\u603B\u7ED3\u5904\u7406", "\u{1F4FA} Video Summary") });
+    new import_obsidian2.Setting(contentEl).setName(tr("\u5904\u7406\u6A21\u5F0F", "Mode")).setDesc(tr("\u9009\u62E9\u5904\u7406\u65B9\u5F0F", "How to process it")).addDropdown((dropdown) => {
+      processingModes().forEach((mode) => {
         dropdown.addOption(mode.value, mode.label);
       });
       dropdown.setValue(this.mode);
@@ -2942,7 +2982,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         this.mode = value;
       });
     });
-    const languageSetting = new import_obsidian2.Setting(contentEl).setName("\u8F93\u51FA\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u8BED\u8A00").addDropdown((dropdown) => {
+    const languageSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u8F93\u51FA\u8BED\u8A00", "Output language")).setDesc(tr("\u751F\u6210\u603B\u7ED3\u7684\u8BED\u8A00", "Language of the summary")).addDropdown((dropdown) => {
       LANGUAGE_OPTIONS.forEach((lang) => {
         dropdown.addOption(lang.value, lang.label);
       });
@@ -2960,46 +3000,65 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         updateLanguageVisibility();
       }
     });
-    const videoUrlSetting = new import_obsidian2.Setting(contentEl).setName("\u89C6\u9891\u94FE\u63A5").setDesc("\u8F93\u5165\u89C6\u9891\u94FE\u63A5\uFF08YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\uFF09");
+    const videoUrlSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u89C6\u9891\u94FE\u63A5", "Video link")).setDesc(
+      tr(
+        "\u8F93\u5165\u89C6\u9891\u94FE\u63A5\uFF08YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\uFF09",
+        "A video link (YouTube, Bilibili, Douyin, TikTok)"
+      )
+    );
     this.videoUrlInput = videoUrlSetting.controlEl.createEl("input");
     this.videoUrlInput.type = "text";
-    this.videoUrlInput.placeholder = "\u89C6\u9891\u94FE\u63A5\uFF0C\u4F8B\u5982 YouTube \u6216\u54D4\u54E9\u54D4\u54E9";
-    const transcriptSetting = new import_obsidian2.Setting(contentEl).setName("\u63D0\u4F9B\u7684\u6587\u7A3F").setDesc("\u8F93\u5165\u6587\u7A3F\u5185\u5BB9\uFF08\u53EF\u9009\uFF09");
+    this.videoUrlInput.placeholder = tr(
+      "\u89C6\u9891\u94FE\u63A5\uFF0C\u4F8B\u5982 YouTube \u6216\u54D4\u54E9\u54D4\u54E9",
+      "Video link, for example YouTube or Bilibili"
+    );
+    const transcriptSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u63D0\u4F9B\u7684\u6587\u7A3F", "Transcript you provide")).setDesc(tr("\u8F93\u5165\u6587\u7A3F\u5185\u5BB9\uFF08\u53EF\u9009\uFF09", "Transcript text (optional)"));
     this.providedTranscriptInput = transcriptSetting.controlEl.createEl("textarea");
-    this.providedTranscriptInput.placeholder = "\u5728\u8FD9\u91CC\u8F93\u5165\u6587\u7A3F\u5185\u5BB9...";
+    this.providedTranscriptInput.placeholder = tr(
+      "\u5728\u8FD9\u91CC\u8F93\u5165\u6587\u7A3F\u5185\u5BB9...",
+      "Type the transcript here..."
+    );
     this.providedTranscriptInput.rows = 4;
-    const localFileSetting = new import_obsidian2.Setting(contentEl).setName("\u672C\u5730\u6587\u4EF6").setDesc("\u81EA\u5E26\u7684 n8n\uFF08docker \u7248\uFF09\u53EA\u63A5\u53D7 uploads \u6839\u76EE\u5F55\u91CC\u7684\u6587\u4EF6\u540D\u3002");
+    const localFileSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u672C\u5730\u6587\u4EF6", "Local file")).setDesc(
+      tr(
+        "\u81EA\u5E26\u7684 n8n\uFF08docker \u7248\uFF09\u53EA\u63A5\u53D7 uploads \u6839\u76EE\u5F55\u91CC\u7684\u6587\u4EF6\u540D\u3002",
+        "The bundled n8n (Docker) accepts only file names directly inside its uploads folder."
+      )
+    );
     this.localFileInput = localFileSetting.controlEl.createEl("input");
     this.localFileInput.type = "text";
     this.localFileInput.placeholder = "lecture-01.mp4";
     const file = this.view.file;
     if (file) {
       const infoEl = contentEl.createDiv({ cls: "video-summary-info" });
-      infoEl.createEl("h3", { text: "\u5F53\u524D\u6587\u4EF6\u4FE1\u606F" });
-      infoEl.createEl("p", { text: `\u6587\u4EF6\u540D: ${file.basename}` });
+      infoEl.createEl("h3", { text: tr("\u5F53\u524D\u6587\u4EF6\u4FE1\u606F", "Current file") });
+      infoEl.createEl("p", { text: tr(`\u6587\u4EF6\u540D: ${file.basename}`, `File name: ${file.basename}`) });
       void this.app.vault.read(file).then((content) => {
         const hasVideo = this.noteProcessor.hasVideoContent(content);
         const status = this.noteProcessor.getProcessingStatus(content);
         infoEl.createEl("p", {
-          text: `\u89C6\u9891\u5185\u5BB9: ${hasVideo ? "\u2705 \u5DF2\u68C0\u6D4B\u5230" : "\u274C \u672A\u68C0\u6D4B\u5230"}`
+          text: tr(
+            `\u89C6\u9891\u5185\u5BB9: ${hasVideo ? "\u2705 \u5DF2\u68C0\u6D4B\u5230" : "\u274C \u672A\u68C0\u6D4B\u5230"}`,
+            `Video content: ${hasVideo ? "\u2705 found" : "\u274C not found"}`
+          )
         });
         if (status) {
           infoEl.createEl("p", {
-            text: `\u5904\u7406\u72B6\u6001: ${status}`
+            text: tr(`\u5904\u7406\u72B6\u6001: ${status}`, `Status: ${status}`)
           });
         }
       });
     }
     const buttonContainer = contentEl.createDiv({ cls: "video-summary-buttons" });
     const processButton = buttonContainer.createEl("button", {
-      text: "\u5F00\u59CB\u5904\u7406",
+      text: tr("\u5F00\u59CB\u5904\u7406", "Start"),
       cls: "mod-cta"
     });
     processButton.addEventListener("click", () => {
       void this.processVideo();
     });
     const cancelButton = buttonContainer.createEl("button", {
-      text: "\u53D6\u6D88",
+      text: tr("\u53D6\u6D88", "Cancel"),
       cls: "mod-warning"
     });
     cancelButton.addEventListener("click", () => {
@@ -3032,15 +3091,18 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
       if (!await this.plugin.ensureBackendReady()) return;
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.plugin.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const langText = this.language === "zh" ? "\u4E2D\u6587" : this.language === "en" ? "\u82F1\u6587" : "\u65E5\u6587";
+      const langText = this.language === "zh" ? tr("\u4E2D\u6587", "Chinese") : this.language === "en" ? tr("\u82F1\u6587", "English") : tr("\u65E5\u6587", "Japanese");
       const noticeText = (() => {
         switch (this.mode) {
           case "summary":
-            return `\u6B63\u5728\u4EE5${langText}\u751F\u6210\u603B\u7ED3\uFF0C\u8BF7\u7A0D\u5019...`;
+            return tr(
+              `\u6B63\u5728\u4EE5${langText}\u751F\u6210\u603B\u7ED3\uFF0C\u8BF7\u7A0D\u5019...`,
+              `Summarising in ${langText}, please wait...`
+            );
           case "transcript-only":
-            return "\u6B63\u5728\u63D0\u53D6\u6587\u7A3F\uFF0C\u8BF7\u7A0D\u5019...";
+            return tr("\u6B63\u5728\u63D0\u53D6\u6587\u7A3F\uFF0C\u8BF7\u7A0D\u5019...", "Extracting the transcript, please wait...");
           default:
-            return "\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019...";
+            return tr("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019...", "Getting video info, please wait...");
         }
       })();
       this.progressNotice = new import_obsidian2.Notice(noticeText, 0);
@@ -3062,7 +3124,10 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         (attempt, error) => {
           if (this.progressNotice) {
             this.progressNotice.setMessage(
-              `\u{1F504} \u5904\u7406\u5931\u8D25\uFF0C\u7B2C${attempt}\u6B21\u91CD\u8BD5: ${errorMessage(error)}`
+              tr(
+                `\u{1F504} \u5904\u7406\u5931\u8D25\uFF0C\u7B2C${attempt}\u6B21\u91CD\u8BD5: ${errorMessage(error)}`,
+                `\u{1F504} Failed, retry ${attempt}: ${errorMessage(error)}`
+              )
             );
           }
         }
@@ -3095,11 +3160,11 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
       const successText = (() => {
         switch (this.mode) {
           case "summary":
-            return `\u2705 \u89C6\u9891\u5DF2${langText}\u603B\u7ED3\uFF01`;
+            return tr(`\u2705 \u89C6\u9891\u5DF2${langText}\u603B\u7ED3\uFF01`, `\u2705 Summarised in ${langText}!`);
           case "transcript-only":
-            return "\u2705 \u6587\u7A3F\u63D0\u53D6\u5B8C\u6210\uFF01";
+            return tr("\u2705 \u6587\u7A3F\u63D0\u53D6\u5B8C\u6210\uFF01", "\u2705 Transcript extracted!");
           default:
-            return "\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u83B7\u53D6\uFF01";
+            return tr("\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u83B7\u53D6\uFF01", "\u2705 Video info received!");
         }
       })();
       new import_obsidian2.Notice(successText, 5e3);
@@ -3114,7 +3179,13 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         await this.noteProcessor.setProcessingError(file, error);
         await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
       }
-      new import_obsidian2.Notice(`\u274C \u5904\u7406\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5\uFF09: ${errorMessage(error)}`, 0);
+      new import_obsidian2.Notice(
+        tr(
+          `\u274C \u5904\u7406\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5\uFF09: ${errorMessage(error)}`,
+          `\u274C Failed (after retries): ${errorMessage(error)}`
+        ),
+        0
+      );
       this.recordHistory(file?.basename || "unknown", "error");
     }
   }
@@ -3165,7 +3236,7 @@ var ConfirmModal = class extends import_obsidian3.Modal {
     });
     const buttonContainer = contentEl.createDiv({ cls: "confirm-buttons" });
     const confirmBtn = buttonContainer.createEl("button", {
-      text: "\u786E\u8BA4",
+      text: tr("\u786E\u8BA4", "Confirm"),
       cls: "mod-cta"
     });
     confirmBtn.onclick = () => {
@@ -3173,7 +3244,7 @@ var ConfirmModal = class extends import_obsidian3.Modal {
       this.close();
     };
     const cancelBtn = buttonContainer.createEl("button", {
-      text: "\u53D6\u6D88",
+      text: tr("\u53D6\u6D88", "Cancel"),
       cls: "mod-warning"
     });
     cancelBtn.onclick = () => {
@@ -3846,21 +3917,21 @@ function showMenu(event, items) {
 function statusMeta(status) {
   switch (status) {
     case "success":
-      return { label: "\u5DF2\u5B8C\u6210", cls: "is-success" };
+      return { label: tr("\u5DF2\u5B8C\u6210", "Done"), cls: "is-success" };
     case "running":
-      return { label: "\u5904\u7406\u4E2D", cls: "is-running" };
+      return { label: tr("\u5904\u7406\u4E2D", "Processing"), cls: "is-running" };
     case "interrupted":
-      return { label: "\u5DF2\u4E2D\u65AD", cls: "is-interrupted" };
+      return { label: tr("\u5DF2\u4E2D\u65AD", "Interrupted"), cls: "is-interrupted" };
     case "error":
-      return { label: "\u5931\u8D25", cls: "is-error" };
+      return { label: tr("\u5931\u8D25", "Failed"), cls: "is-error" };
     case "review":
-      return { label: "\u5F85\u786E\u8BA4", cls: "is-review" };
+      return { label: tr("\u5F85\u786E\u8BA4", "To confirm"), cls: "is-review" };
     case "cancelled":
-      return { label: "\u5DF2\u53D6\u6D88", cls: "is-muted" };
+      return { label: tr("\u5DF2\u53D6\u6D88", "Cancelled"), cls: "is-muted" };
     case "queued":
-      return { label: "\u6392\u961F\u4E2D", cls: "is-queued" };
+      return { label: tr("\u6392\u961F\u4E2D", "Queued"), cls: "is-queued" };
     default:
-      return { label: "\u5F85\u5904\u7406", cls: "is-pending" };
+      return { label: tr("\u5F85\u5904\u7406", "Pending"), cls: "is-pending" };
   }
 }
 function statusPill(parent, status, options = {}) {
@@ -3984,11 +4055,11 @@ function platformIcon(platform) {
 function modeLabel(mode) {
   switch (mode) {
     case "transcript-only":
-      return "\u4EC5\u6587\u7A3F";
+      return tr("\u4EC5\u6587\u7A3F", "Transcript only");
     case "info-only":
-      return "\u4EC5\u4FE1\u606F";
+      return tr("\u4EC5\u4FE1\u606F", "Info only");
     default:
-      return "\u5B8C\u6574\u603B\u7ED3";
+      return tr("\u5B8C\u6574\u603B\u7ED3", "Full summary");
   }
 }
 function languageLabel(language) {
@@ -4011,11 +4082,13 @@ function formatElapsed(ms) {
 }
 function formatRelative(timestamp) {
   const diff = Date.now() - timestamp;
-  if (diff < 6e4) return "\u521A\u521A";
-  if (diff < 36e5) return `${Math.floor(diff / 6e4)} \u5206\u949F\u524D`;
-  if (diff < 864e5) return `${Math.floor(diff / 36e5)} \u5C0F\u65F6\u524D`;
+  if (diff < 6e4) return tr("\u521A\u521A", "Just now");
+  if (diff < 36e5)
+    return tr(`${Math.floor(diff / 6e4)} \u5206\u949F\u524D`, `${Math.floor(diff / 6e4)} min ago`);
+  if (diff < 864e5)
+    return tr(`${Math.floor(diff / 36e5)} \u5C0F\u65F6\u524D`, `${Math.floor(diff / 36e5)} h ago`);
   const days = Math.floor(diff / 864e5);
-  if (days < 30) return `${days} \u5929\u524D`;
+  if (days < 30) return tr(`${days} \u5929\u524D`, `${days} days ago`);
   return new Date(timestamp).toLocaleDateString("zh-CN");
 }
 function parseLocaleTime(value) {
@@ -6053,10 +6126,10 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     contentEl.addClass("vs-modal");
     const header = contentEl.createDiv({ cls: "vs-modal-header is-centered" });
     header.createSpan({ cls: "vs-modal-header-spacer" });
-    header.createSpan({ text: "\u6279\u91CF\u5904\u7406", cls: "vs-modal-title" });
+    header.createSpan({ text: tr("\u6279\u91CF\u5904\u7406", "Batch processing"), cls: "vs-modal-title" });
     const closeBtn = header.createEl("button", {
       cls: "vs-icon-btn",
-      attr: { type: "button", "aria-label": "\u5173\u95ED" }
+      attr: { type: "button", "aria-label": tr("\u5173\u95ED", "Close") }
     });
     (0, import_obsidian7.setIcon)(closeBtn, "x");
     closeBtn.onclick = () => this.close();
@@ -6064,8 +6137,16 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     segmented(
       bodyEl,
       [
-        { value: "files", label: "\u672C\u5730\u7B14\u8BB0\u6587\u4EF6", icon: "files" },
-        { value: "playlist", label: "\u5BFC\u5165\u89C6\u9891\u8BFE\u7A0B", icon: "list-video" }
+        {
+          value: "files",
+          label: tr("\u672C\u5730\u7B14\u8BB0\u6587\u4EF6", "Notes in this vault"),
+          icon: "files"
+        },
+        {
+          value: "playlist",
+          label: tr("\u5BFC\u5165\u89C6\u9891\u8BFE\u7A0B", "Import a video course"),
+          icon: "list-video"
+        }
       ],
       this.processingMode,
       (value) => {
@@ -6077,8 +6158,8 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     configChip(
       chipRow,
       "\u5904\u7406\u6A21\u5F0F",
-      PROCESSING_MODES.find((item) => item.value === this.mode)?.label || "\u5B8C\u6574\u603B\u7ED3",
-      PROCESSING_MODES.map((item) => ({
+      processingModes().find((item) => item.value === this.mode)?.label || tr("\u5B8C\u6574\u603B\u7ED3", "Full summary"),
+      processingModes().map((item) => ({
         title: item.label,
         onClick: () => {
           this.mode = item.value;
@@ -6105,7 +6186,11 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     (0, import_obsidian7.setIcon)(searchIcon, "search");
     const searchInput = search.createEl("input", {
       cls: "vs-search-input",
-      attr: { type: "text", placeholder: "\u641C\u7D22\u6587\u4EF6\u540D\u2026", value: this.searchFilter }
+      attr: {
+        type: "text",
+        placeholder: tr("\u641C\u7D22\u6587\u4EF6\u540D\u2026", "Search file names\u2026"),
+        value: this.searchFilter
+      }
     });
     searchInput.addEventListener(
       "input",
@@ -6146,7 +6231,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
           onClick: pick(() => this.statusFilter = value)
         })),
         ...["all", ...this.collectFolders()].map((folder, index) => ({
-          title: folder === "all" ? "\u5168\u90E8\u6587\u4EF6\u5939" : folder,
+          title: folder === "all" ? tr("\u5168\u90E8\u6587\u4EF6\u5939", "All folders") : folder,
           checked: this.folderFilter === folder,
           separatorBefore: index === 0,
           onClick: pick(() => this.folderFilter = folder)
@@ -6168,21 +6253,25 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       "more-horizontal",
       "\u9009\u62E9",
       (event) => showMenu(event, [
-        { title: "\u5168\u9009", icon: "check-check", onClick: () => void this.selectAllVisible() },
-        { title: "\u6E05\u7A7A", icon: "x", onClick: () => void this.selectNone() },
         {
-          title: "\u9009\u62E9\u5F85\u5904\u7406",
+          title: tr("\u5168\u9009", "Select all"),
+          icon: "check-check",
+          onClick: () => void this.selectAllVisible()
+        },
+        { title: tr("\u6E05\u7A7A", "Clear"), icon: "x", onClick: () => void this.selectNone() },
+        {
+          title: tr("\u9009\u62E9\u5F85\u5904\u7406", "Select pending"),
           icon: "circle-dashed",
           separatorBefore: true,
           onClick: () => void this.selectByStatus("pending")
         },
         {
-          title: "\u9009\u62E9\u5931\u8D25",
+          title: tr("\u9009\u62E9\u5931\u8D25", "Select failed"),
           icon: "circle-alert",
           onClick: () => void this.selectByStatus("error")
         },
         {
-          title: "\u53EA\u770B\u7F3A\u5C11\u89C6\u9891\u4FE1\u606F\u7684",
+          title: tr("\u53EA\u770B\u7F3A\u5C11\u89C6\u9891\u4FE1\u606F\u7684", "Only notes missing video info"),
           checked: this.infoFilter === "no-info",
           separatorBefore: true,
           onClick: async () => {
@@ -6196,13 +6285,23 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     this.fileListEl = fileSelectionEl.createDiv({ cls: "vs-modal-list" });
     this.renderLastBatch(fileSelectionEl);
     const playlistSelectionEl = bodyEl.createDiv({ cls: "batch-playlist-selection" });
-    new import_obsidian7.Setting(playlistSelectionEl).setName("\u8BFE\u7A0B\u6765\u6E90\u94FE\u63A5").setDesc("\u652F\u6301 YouTube \u64AD\u653E\u5217\u8868\u4E0E\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\uFF1B\u89E3\u6790\u548C\u5BFC\u5165\u4E0D\u4F1A\u8C03\u7528 AI").addText(
-      (text2) => text2.setPlaceholder("YouTube \u64AD\u653E\u5217\u8868\u6216\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5").setValue(this.playlistUrl).onChange((value) => {
+    new import_obsidian7.Setting(playlistSelectionEl).setName(tr("\u8BFE\u7A0B\u6765\u6E90\u94FE\u63A5", "Course source link")).setDesc(
+      tr(
+        "\u652F\u6301 YouTube \u64AD\u653E\u5217\u8868\u4E0E\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\uFF1B\u89E3\u6790\u548C\u5BFC\u5165\u4E0D\u4F1A\u8C03\u7528 AI",
+        "YouTube playlists and Bilibili collections or favourites; reading and importing them does not call the AI"
+      )
+    ).addText(
+      (text2) => text2.setPlaceholder(
+        tr(
+          "YouTube \u64AD\u653E\u5217\u8868\u6216\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5",
+          "YouTube playlist or Bilibili collection/favourites link"
+        )
+      ).setValue(this.playlistUrl).onChange((value) => {
         this.playlistUrl = value;
       })
     );
     const parseButton = playlistSelectionEl.createEl("button", {
-      text: "\u9884\u89C8\u589E\u91CF",
+      text: tr("\u9884\u89C8\u589E\u91CF", "Preview changes"),
       cls: "vs-text-btn is-primary",
       attr: { type: "button" }
     });
@@ -6215,9 +6314,17 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     const footer = contentEl.createDiv({ cls: "vs-modal-footer" });
     const concurrency = footer.createEl("button", {
       cls: "vs-quick-chip",
-      attr: { type: "button", title: "\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6570\u91CF" }
+      attr: {
+        type: "button",
+        title: tr("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6570\u91CF", "Most items processed at the same time")
+      }
     });
-    concurrency.setText(`\u5E76\u53D1 ${this.plugin.settings.batchConcurrency}`);
+    concurrency.setText(
+      tr(
+        `\u5E76\u53D1 ${this.plugin.settings.batchConcurrency}`,
+        `Parallel ${this.plugin.settings.batchConcurrency}`
+      )
+    );
     concurrency.addEventListener("click", (event) => {
       event.preventDefault();
       showMenu(
@@ -6228,14 +6335,14 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
             this.plugin.settings.batchConcurrency = value;
             this.plugin.jobs.setConcurrency(value);
             await this.plugin.saveSettings();
-            concurrency.setText(`\u5E76\u53D1 ${value}`);
+            concurrency.setText(tr(`\u5E76\u53D1 ${value}`, `Parallel ${value}`));
           }
         }))
       );
     });
     footer.createSpan({ cls: "vs-quick-spacer" });
     const cancelButton = footer.createEl("button", {
-      text: "\u53D6\u6D88",
+      text: tr("\u53D6\u6D88", "Cancel"),
       cls: "vs-text-btn",
       attr: { type: "button" }
     });
@@ -6246,7 +6353,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     });
     const startIcon = this.startButtonEl.createSpan({ cls: "vs-btn-icon" });
     (0, import_obsidian7.setIcon)(startIcon, "play");
-    this.startLabelEl = this.startButtonEl.createSpan({ text: "\u5F00\u59CB\u5904\u7406" });
+    this.startLabelEl = this.startButtonEl.createSpan({ text: tr("\u5F00\u59CB\u5904\u7406", "Start") });
     this.startButtonEl.addEventListener("click", () => {
       void this.startBatchProcessing();
     });
@@ -6297,9 +6404,19 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     const failed = batch.length - success;
     const card = container.createDiv({ cls: "vs-last-batch" });
     const row = card.createDiv({ cls: "vs-last-batch-row" });
-    row.createSpan({ text: `\u4E0A\u6B21\u6279\u91CF \xB7 ${batch.length} \u4E2A\u6587\u4EF6`, cls: "vs-last-batch-title" });
-    row.createSpan({ text: `${success} \u6210\u529F`, cls: "vs-mono vs-last-ok" });
-    if (failed > 0) row.createSpan({ text: `${failed} \u5931\u8D25`, cls: "vs-mono vs-last-fail" });
+    row.createSpan({
+      text: tr(`\u4E0A\u6B21\u6279\u91CF \xB7 ${batch.length} \u4E2A\u6587\u4EF6`, `Last batch \xB7 ${batch.length} files`),
+      cls: "vs-last-batch-title"
+    });
+    row.createSpan({
+      text: tr(`${success} \u6210\u529F`, `${success} succeeded`),
+      cls: "vs-mono vs-last-ok"
+    });
+    if (failed > 0)
+      row.createSpan({
+        text: tr(`${failed} \u5931\u8D25`, `${failed} failed`),
+        cls: "vs-mono vs-last-fail"
+      });
     const bar = card.createDiv({ cls: "vs-last-batch-bar" });
     bar.createSpan({ cls: "is-ok" }).style.width = `${Math.round(success / batch.length * 100)}%`;
     if (failed > 0) {
@@ -6328,30 +6445,45 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       if (this.processingMode === "playlist") {
         const count = this.selectedPlaylistKeys.size;
         this.startLabelEl.setText(
-          this.courseImport ? count > 0 ? `\u5BFC\u5165\u8BFE\u7A0B \xB7 \u65B0\u5EFA ${count} \u6761\u5F85\u5904\u7406\u7B14\u8BB0` : "\u66F4\u65B0\u8BFE\u7A0B\u7D22\u5F15" : "\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF"
+          this.courseImport ? count > 0 ? tr(
+            `\u5BFC\u5165\u8BFE\u7A0B \xB7 \u65B0\u5EFA ${count} \u6761\u5F85\u5904\u7406\u7B14\u8BB0`,
+            `Import course \xB7 create ${count} pending notes`
+          ) : tr("\u66F4\u65B0\u8BFE\u7A0B\u7D22\u5F15", "Update course index") : tr("\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF", "Preview the course changes first")
         );
       } else {
         const count = this.selectedFiles.length;
-        this.startLabelEl.setText(count > 0 ? `\u5F00\u59CB\u5904\u7406 ${count} \u4E2A` : "\u5F00\u59CB\u5904\u7406");
+        this.startLabelEl.setText(
+          count > 0 ? tr(`\u5F00\u59CB\u5904\u7406 ${count} \u4E2A`, `Process ${count}`) : tr("\u5F00\u59CB\u5904\u7406", "Start")
+        );
       }
     }
     if (this.countEl) {
-      this.countEl.setText(`\u5DF2\u9009 ${this.selectedFiles.length} / ${this.allVideoFiles.length}`);
+      this.countEl.setText(
+        tr(
+          `\u5DF2\u9009 ${this.selectedFiles.length} / ${this.allVideoFiles.length}`,
+          `Selected ${this.selectedFiles.length} / ${this.allVideoFiles.length}`
+        )
+      );
     }
   }
   async parsePlaylist() {
     if (!this.playlistUrl.trim()) {
-      new import_obsidian7.Notice("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5");
+      new import_obsidian7.Notice(tr("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5", "Enter a playlist link"));
       return;
     }
     if (!PlaylistProcessor.isPlaylistUrl(this.playlistUrl)) {
-      new import_obsidian7.Notice("\u8BF7\u8F93\u5165\u6709\u6548\u7684 YouTube \u64AD\u653E\u5217\u8868\u6216\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5");
+      new import_obsidian7.Notice(
+        tr(
+          "\u8BF7\u8F93\u5165\u6709\u6548\u7684 YouTube \u64AD\u653E\u5217\u8868\u6216\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5",
+          "Enter a valid YouTube playlist or Bilibili collection/favourites link"
+        )
+      );
       return;
     }
     if (!this.playlistEl) return;
     this.playlistEl.empty();
     this.playlistEl.createEl("p", {
-      text: "\u6B63\u5728\u89E3\u6790\u64AD\u653E\u5217\u8868...",
+      text: tr("\u6B63\u5728\u89E3\u6790\u64AD\u653E\u5217\u8868...", "Reading the playlist..."),
       cls: "mod-muted"
     });
     try {
@@ -6373,13 +6505,21 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       );
       this.selectedPlaylistKeys = new Set(selectableKeys);
       this.playlistEl.empty();
-      this.playlistEl.createEl("h4", { text: `\u8BFE\u7A0B: ${playlistInfo.title}` });
+      this.playlistEl.createEl("h4", {
+        text: tr(`\u8BFE\u7A0B: ${playlistInfo.title}`, `Course: ${playlistInfo.title}`)
+      });
       this.playlistEl.createEl("p", {
-        text: `\u5171 ${playlistInfo.itemCount} \u4E2A \xB7 \u65B0\u589E ${courseImport.diff.new.length} \xB7 \u5DF2\u5B58\u5728 ${courseImport.diff.existing.length} \xB7 \u6765\u6E90\u79FB\u9664 ${courseImport.diff.removed.length}`
+        text: tr(
+          `\u5171 ${playlistInfo.itemCount} \u4E2A \xB7 \u65B0\u589E ${courseImport.diff.new.length} \xB7 \u5DF2\u5B58\u5728 ${courseImport.diff.existing.length} \xB7 \u6765\u6E90\u79FB\u9664 ${courseImport.diff.removed.length}`,
+          `${playlistInfo.itemCount} videos \xB7 ${courseImport.diff.new.length} new \xB7 ${courseImport.diff.existing.length} existing \xB7 ${courseImport.diff.removed.length} removed at the source`
+        )
       });
       if (playlistInfo.truncated) {
         this.playlistEl.createEl("p", {
-          text: `\u5DF2\u89E6\u8FBE\u5B89\u5168\u4E0A\u9650\uFF08${playlistInfo.fetchedPages} \u9875\uFF09\uFF0C\u5F53\u524D\u9884\u89C8\u53EF\u80FD\u4E0D\u662F\u5B8C\u6574\u5217\u8868`,
+          text: tr(
+            `\u5DF2\u89E6\u8FBE\u5B89\u5168\u4E0A\u9650\uFF08${playlistInfo.fetchedPages} \u9875\uFF09\uFF0C\u5F53\u524D\u9884\u89C8\u53EF\u80FD\u4E0D\u662F\u5B8C\u6574\u5217\u8868`,
+            `Reached the safety limit (${playlistInfo.fetchedPages} pages); this preview may be incomplete`
+          ),
           cls: "mod-warning"
         });
       }
@@ -6403,31 +6543,44 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
           cls: "playlist-item-title"
         });
         infoEl.createDiv({
-          text: `${item.platform === "youtube" ? "\u9891\u9053" : "UP\u4E3B"}: ${item.author || "\u672A\u77E5"}`,
+          text: tr(
+            `${item.platform === "youtube" ? "\u9891\u9053" : "UP\u4E3B"}: ${item.author || "\u672A\u77E5"}`,
+            `${item.platform === "youtube" ? "Channel" : "Uploader"}: ${item.author || "unknown"}`
+          ),
           cls: "playlist-item-author"
         });
         if (item.duration) {
           infoEl.createDiv({
-            text: `\u65F6\u957F: ${item.duration}`,
+            text: tr(`\u65F6\u957F: ${item.duration}`, `Length: ${item.duration}`),
             cls: "playlist-item-duration"
           });
         }
         infoEl.createDiv({
-          text: `${isNew ? "\u65B0\u589E \xB7 \u5C06\u8FDB\u5165\u5F85\u5904\u7406" : canCreatePendingNote ? "\u5DF2\u5728\u8BFE\u7A0B\u4E2D \xB7 \u53EF\u8865\u5EFA\u5F85\u5904\u7406\u7B14\u8BB0" : "\u5DF2\u5BFC\u5165 \xB7 \u4E0D\u91CD\u590D\u521B\u5EFA"} \xB7 ${item.videoId}`,
+          text: tr(
+            `${isNew ? "\u65B0\u589E \xB7 \u5C06\u8FDB\u5165\u5F85\u5904\u7406" : canCreatePendingNote ? "\u5DF2\u5728\u8BFE\u7A0B\u4E2D \xB7 \u53EF\u8865\u5EFA\u5F85\u5904\u7406\u7B14\u8BB0" : "\u5DF2\u5BFC\u5165 \xB7 \u4E0D\u91CD\u590D\u521B\u5EFA"} \xB7 ${item.videoId}`,
+            `${isNew ? "New \xB7 will be pending" : canCreatePendingNote ? "Already in the course \xB7 can add a pending note" : "Already imported \xB7 not created again"} \xB7 ${item.videoId}`
+          ),
           cls: "playlist-item-bvid"
         });
       }
       this.updateStartButton();
-      new import_obsidian7.Notice(`\u8BFE\u7A0B\u589E\u91CF\u5DF2\u5C31\u7EEA\uFF1A${courseImport.diff.new.length} \u4E2A\u65B0\u589E\u89C6\u9891\uFF08\u5C1A\u672A\u8C03\u7528 AI\uFF09`);
+      new import_obsidian7.Notice(
+        tr(
+          `\u8BFE\u7A0B\u589E\u91CF\u5DF2\u5C31\u7EEA\uFF1A${courseImport.diff.new.length} \u4E2A\u65B0\u589E\u89C6\u9891\uFF08\u5C1A\u672A\u8C03\u7528 AI\uFF09`,
+          `Course changes ready: ${courseImport.diff.new.length} new videos (no AI used yet)`
+        )
+      );
     } catch (error) {
       console.error("\u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25:", error);
       const message = messageOf(error);
       this.playlistEl.empty();
       this.playlistEl.createEl("p", {
-        text: `\u274C \u89E3\u6790\u5931\u8D25: ${message}`,
+        text: tr(`\u274C \u89E3\u6790\u5931\u8D25: ${message}`, `\u274C Could not read it: ${message}`),
         cls: "mod-warning"
       });
-      new import_obsidian7.Notice(`\u274C \u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${message}`);
+      new import_obsidian7.Notice(
+        tr(`\u274C \u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${message}`, `\u274C Could not read the playlist: ${message}`)
+      );
     }
   }
   /** 扫描视频笔记：直接用插件已有的索引，不再全库读正文 */
@@ -6451,7 +6604,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     const filteredFiles = await this.getFilteredFiles();
     if (filteredFiles.length === 0) {
       this.fileListEl.createDiv({
-        text: this.allVideoFiles.length === 0 ? "\u5E93\u91CC\u8FD8\u6CA1\u6709\u89C6\u9891\u7B14\u8BB0" : "\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u7B14\u8BB0",
+        text: this.allVideoFiles.length === 0 ? tr("\u5E93\u91CC\u8FD8\u6CA1\u6709\u89C6\u9891\u7B14\u8BB0", "No video notes in this vault yet") : tr("\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u7B14\u8BB0", "No notes match the filters"),
         cls: "vs-modal-empty"
       });
       this.updateStartButton();
@@ -6476,7 +6629,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
         });
       }
       sub.createSpan({
-        text: file.parent?.path && file.parent.path !== "/" ? file.parent.path : "\u6839\u76EE\u5F55"
+        text: file.parent?.path && file.parent.path !== "/" ? file.parent.path : tr("\u6839\u76EE\u5F55", "Vault root")
       });
       sub.createSpan({ text: new Date(file.stat.mtime).toLocaleDateString("zh-CN") });
       statusPill(row, entry?.status || "pending");
@@ -6547,7 +6700,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
   }
   async processFiles() {
     if (this.selectedFiles.length === 0) {
-      new import_obsidian7.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6");
+      new import_obsidian7.Notice(tr("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6", "Select files to process first"));
       return;
     }
     if (!await this.plugin.ensureBackendReady()) return;
@@ -6596,7 +6749,13 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
           this.progress.failed++;
           this.progress.current = file.basename;
           this.updateProgressDisplay();
-          new import_obsidian7.Notice(`\u274C ${file.basename} \u65E0\u6CD5\u52A0\u5165\u6279\u91CF\u4EFB\u52A1: ${normalizedError.message}`, 5e3);
+          new import_obsidian7.Notice(
+            tr(
+              `\u274C ${file.basename} \u65E0\u6CD5\u52A0\u5165\u6279\u91CF\u4EFB\u52A1: ${normalizedError.message}`,
+              `\u274C ${file.basename} could not join the batch: ${normalizedError.message}`
+            ),
+            5e3
+          );
         }
       }
       const onProgress = async (result) => {
@@ -6629,13 +6788,19 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
               result.result.artifact?.artifact_id
             );
             this.progress.completed++;
-            new import_obsidian7.Notice(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, 3e3);
+            new import_obsidian7.Notice(tr(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, `\u2705 ${file.basename} done`), 3e3);
           } catch (updateError) {
             console.error(`\u66F4\u65B0\u7B14\u8BB0\u5931\u8D25: ${file.basename}`, updateError);
             await this.noteProcessor.setProcessingError(file, updateError);
             await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
             this.progress.failed++;
-            new import_obsidian7.Notice(`\u274C ${file.basename} \u66F4\u65B0\u5931\u8D25: ${errorMessage(updateError)}`, 5e3);
+            new import_obsidian7.Notice(
+              tr(
+                `\u274C ${file.basename} \u66F4\u65B0\u5931\u8D25: ${errorMessage(updateError)}`,
+                `\u274C ${file.basename} could not be updated: ${errorMessage(updateError)}`
+              ),
+              5e3
+            );
           }
         } else {
           try {
@@ -6645,7 +6810,13 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
             );
             await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
             this.progress.failed++;
-            new import_obsidian7.Notice(`\u274C ${file.basename} \u5904\u7406\u5931\u8D25: ${result.error}`, 5e3);
+            new import_obsidian7.Notice(
+              tr(
+                `\u274C ${file.basename} \u5904\u7406\u5931\u8D25: ${result.error}`,
+                `\u274C ${file.basename} failed: ${result.error}`
+              ),
+              5e3
+            );
           } catch (statusError) {
             console.error(`\u8BBE\u7F6E\u72B6\u6001\u5931\u8D25: ${file.basename}`, statusError);
           }
@@ -6667,12 +6838,18 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       console.error("\u6279\u91CF\u5904\u7406\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian7.Notice(`\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${errorMessage(error)}`, 0);
+      new import_obsidian7.Notice(
+        tr(
+          `\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${errorMessage(error)}`,
+          `\u274C Batch processing failed: ${errorMessage(error)}`
+        ),
+        0
+      );
     }
   }
   async processPlaylist() {
     if (!this.courseImport || !this.playlistInfo) {
-      new import_obsidian7.Notice("\u8BF7\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF");
+      new import_obsidian7.Notice(tr("\u8BF7\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF", "Preview the course changes first"));
       return;
     }
     const selectedKeys = new Set(this.selectedPlaylistKeys);
@@ -6796,14 +6973,20 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       this.courseImport = compileCourseImport(this.playlistInfo, manifest);
       this.updateStartButton();
       new import_obsidian7.Notice(
-        `\u8BFE\u7A0B\u5DF2\u5BFC\u5165\uFF1A${this.progress.completed} \u6761\u5F85\u5904\u7406\u7B14\u8BB0\uFF0C\u672A\u8C03\u7528 AI${this.progress.failed > 0 ? `\uFF0C${this.progress.failed} \u6761\u521B\u5EFA\u5931\u8D25` : ""}`,
+        tr(
+          `\u8BFE\u7A0B\u5DF2\u5BFC\u5165\uFF1A${this.progress.completed} \u6761\u5F85\u5904\u7406\u7B14\u8BB0\uFF0C\u672A\u8C03\u7528 AI${this.progress.failed > 0 ? `\uFF0C${this.progress.failed} \u6761\u521B\u5EFA\u5931\u8D25` : ""}`,
+          `Course imported: ${this.progress.completed} pending notes, no AI used${this.progress.failed > 0 ? `, ${this.progress.failed} could not be created` : ""}`
+        ),
         5e3
       );
     } catch (error) {
       console.error("\u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian7.Notice(`\u274C \u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25: ${messageOf(error)}`, 0);
+      new import_obsidian7.Notice(
+        tr(`\u274C \u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25: ${messageOf(error)}`, `\u274C Course import failed: ${messageOf(error)}`),
+        0
+      );
     }
   }
   /**
@@ -6865,41 +7048,58 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     if (!this.progressEl) return;
     this.progressEl.empty();
     const statusText = this.progress.status === "running" ? "\u23F3 \u5904\u7406\u4E2D" : this.progress.status === "complete" ? "\u2705 \u5B8C\u6210" : this.progress.status === "error" ? "\u274C \u9519\u8BEF" : "\u{1F4FA} \u5C31\u7EEA";
-    this.progressEl.createEl("h3", { text: `\u6279\u91CF\u5904\u7406\u72B6\u6001: ${statusText}` });
+    this.progressEl.createEl("h3", {
+      text: tr(`\u6279\u91CF\u5904\u7406\u72B6\u6001: ${statusText}`, `Batch status: ${statusText}`)
+    });
     if (this.progress.total > 0) {
       const progressBar = this.progressEl.createDiv({ cls: "progress-bar" });
       const progressFill = progressBar.createDiv({ cls: "progress-fill" });
       const progress = (this.progress.completed + this.progress.failed) / this.progress.total;
       progressFill.style.width = `${progress * 100}%`;
       this.progressEl.createEl("p", {
-        text: `\u8FDB\u5EA6: ${this.progress.completed + this.progress.failed}/${this.progress.total}`
+        text: tr(
+          `\u8FDB\u5EA6: ${this.progress.completed + this.progress.failed}/${this.progress.total}`,
+          `Progress: ${this.progress.completed + this.progress.failed}/${this.progress.total}`
+        )
       });
       this.progressEl.createEl("p", {
-        text: `\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`
+        text: tr(
+          `\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`,
+          `Succeeded: ${this.progress.completed}, failed: ${this.progress.failed}`
+        )
       });
       if (this.progress.current) {
         this.progressEl.createEl("p", {
-          text: `\u5F53\u524D\u5904\u7406: ${this.progress.current}`,
+          text: tr(
+            `\u5F53\u524D\u5904\u7406: ${this.progress.current}`,
+            `Now processing: ${this.progress.current}`
+          ),
           cls: "current-file"
         });
       }
       if (this.progress.status === "running" || this.progress.status === "complete") {
         const statusListEl = this.progressEl.createDiv({ cls: "status-list" });
-        statusListEl.createEl("h4", { text: "\u5904\u7406\u72B6\u6001\u8BE6\u60C5:" });
+        statusListEl.createEl("h4", { text: tr("\u5904\u7406\u72B6\u6001\u8BE6\u60C5:", "Details:") });
         const processedCount = this.progress.completed + this.progress.failed;
         if (processedCount > 0) {
           const statusSummary = statusListEl.createDiv({ cls: "status-summary" });
           statusSummary.createDiv({
             cls: "status-item success",
-            text: `\u2705 \u5DF2\u5B8C\u6210: ${this.progress.completed} \u4E2A`
+            text: tr(
+              `\u2705 \u5DF2\u5B8C\u6210: ${this.progress.completed} \u4E2A`,
+              `\u2705 Done: ${this.progress.completed}`
+            )
           });
           statusSummary.createDiv({
             cls: "status-item error",
-            text: `\u274C \u5931\u8D25: ${this.progress.failed} \u4E2A`
+            text: tr(`\u274C \u5931\u8D25: ${this.progress.failed} \u4E2A`, `\u274C Failed: ${this.progress.failed}`)
           });
           statusSummary.createDiv({
             cls: "status-item pending",
-            text: `\u23F3 \u5F85\u5904\u7406: ${this.progress.total - processedCount} \u4E2A`
+            text: tr(
+              `\u23F3 \u5F85\u5904\u7406: ${this.progress.total - processedCount} \u4E2A`,
+              `\u23F3 Waiting: ${this.progress.total - processedCount}`
+            )
           });
         }
       }
@@ -6972,7 +7172,13 @@ async function pollQrLogin(key) {
   const body = response.json;
   const data = isRecord(body) && isRecord(body.data) ? body.data : null;
   if (response.status !== 200 || !data) {
-    return { state: "error", message: `B \u7AD9\u767B\u5F55\u63A5\u53E3\u8FD4\u56DE HTTP ${response.status}` };
+    return {
+      state: "error",
+      message: tr(
+        `B \u7AD9\u767B\u5F55\u63A5\u53E3\u8FD4\u56DE HTTP ${response.status}`,
+        `Bilibili login answered HTTP ${response.status}`
+      )
+    };
   }
   switch (Number(data.code)) {
     case 86101:
@@ -6983,10 +7189,19 @@ async function pollQrLogin(key) {
       return { state: "expired" };
     case 0: {
       const cookies = cookiesFromLoginUrl(scalarText(data.url), Date.now() / 1e3);
-      return cookies ? { state: "done", cookies } : { state: "error", message: "B \u7AD9\u786E\u8BA4\u4E86\u767B\u5F55\uFF0C\u4F46\u6CA1\u6709\u7ED9\u51FA\u767B\u5F55 cookie\u3002" };
+      return cookies ? { state: "done", cookies } : {
+        state: "error",
+        message: tr(
+          "B \u7AD9\u786E\u8BA4\u4E86\u767B\u5F55\uFF0C\u4F46\u6CA1\u6709\u7ED9\u51FA\u767B\u5F55 cookie\u3002",
+          "Bilibili confirmed the login but gave no login cookie."
+        )
+      };
     }
     default:
-      return { state: "error", message: scalarText(data.message) || "\u672A\u77E5\u72B6\u6001" };
+      return {
+        state: "error",
+        message: scalarText(data.message) || tr("\u672A\u77E5\u72B6\u6001", "Unknown state")
+      };
   }
 }
 
@@ -8635,7 +8850,11 @@ function drawQrCode(container, text2, size = 180) {
   const side = cell * (modules + quiet * 2);
   const canvas = container.createEl("canvas", {
     cls: "setup-qr-canvas",
-    attr: { width: String(side), height: String(side), "aria-label": "\u767B\u5F55\u4E8C\u7EF4\u7801" }
+    attr: {
+      width: String(side),
+      height: String(side),
+      "aria-label": tr("\u767B\u5F55\u4E8C\u7EF4\u7801", "Login QR code")
+    }
   });
   const context = canvas.getContext("2d");
   if (!context) return canvas;
@@ -8674,65 +8893,104 @@ function parseConnectionCode(raw, fallbackUrl) {
   parsed.hash = "";
   return { url: parsed.toString(), headerName, secret };
 }
-var START_SCRIPT = "\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u91CC\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF08macOS \u53CC\u51FB start-mac.command\uFF0CWindows \u53CC\u51FB start-windows.cmd\uFF09";
-var CODE_COMMAND = "\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C ./vs-backend.sh code\uFF08Windows\uFF1A.\\vs-backend.ps1 code\uFF09\uFF0C\u628A\u8FDE\u63A5\u7801\u91CD\u65B0\u7C98\u8D34\u5230\u4E0A\u9762";
-var RESTART = "\u6539\u5B8C .env \u540E\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C";
-var LABELS = {
-  connect: "\u540E\u7AEF\u5728\u8FD0\u884C",
-  token: "\u8FDE\u63A5\u7801\u6B63\u786E",
-  version: "\u540E\u7AEF\u7248\u672C",
-  tools: "\u4E0B\u8F7D\u548C\u8F6C\u7801\u5DE5\u5177",
-  chat: "\u603B\u7ED3\u6A21\u578B",
-  speech: "\u8BED\u97F3\u8F6C\u5199",
-  vision: "\u8BC6\u56FE\uFF08\u53EF\u9009\uFF09",
-  bilibili: "B \u7AD9\u767B\u5F55\uFF08\u53EF\u9009\uFF09"
-};
+var START_SCRIPT = () => tr(
+  "\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u91CC\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF08macOS \u53CC\u51FB start-mac.command\uFF0CWindows \u53CC\u51FB start-windows.cmd\uFF09",
+  "run the start script in the backend folder (macOS: double-click start-mac.command; Windows: double-click start-windows.cmd)"
+);
+var CODE_COMMAND = () => tr(
+  "\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C ./vs-backend.sh code\uFF08Windows\uFF1A.\\vs-backend.ps1 code\uFF09\uFF0C\u628A\u8FDE\u63A5\u7801\u91CD\u65B0\u7C98\u8D34\u5230\u4E0A\u9762",
+  "Run ./vs-backend.sh code in the backend folder (Windows: .\\vs-backend.ps1 code) and paste the connection code above again"
+);
+var RESTART = () => tr("\u6539\u5B8C .env \u540E\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C", "then run the start script again");
+var LABELS = () => ({
+  connect: tr("\u540E\u7AEF\u5728\u8FD0\u884C", "Backend running"),
+  token: tr("\u8FDE\u63A5\u7801\u6B63\u786E", "Connection code"),
+  version: tr("\u540E\u7AEF\u7248\u672C", "Backend version"),
+  tools: tr("\u4E0B\u8F7D\u548C\u8F6C\u7801\u5DE5\u5177", "Download and media tools"),
+  chat: tr("\u603B\u7ED3\u6A21\u578B", "Summary model"),
+  speech: tr("\u8BED\u97F3\u8F6C\u5199", "Speech-to-text"),
+  vision: tr("\u8BC6\u56FE\uFF08\u53EF\u9009\uFF09", "Image reading (optional)"),
+  bilibili: tr("B \u7AD9\u767B\u5F55\uFF08\u53EF\u9009\uFF09", "Bilibili login (optional)")
+});
 function step(id, state, detail, fix) {
-  return { id, label: LABELS[id], state, detail, fix };
+  return { id, label: LABELS()[id], state, detail, fix };
 }
 function pendingAfter(ids) {
-  return ids.map((id) => step(id, "pending", "\u7B49\u4E0A\u4E00\u6B65\u901A\u8FC7\u540E\u518D\u68C0\u67E5\u3002"));
+  return ids.map(
+    (id) => step(id, "pending", tr("\u7B49\u4E0A\u4E00\u6B65\u901A\u8FC7\u540E\u518D\u68C0\u67E5\u3002", "Checked once the step above passes."))
+  );
 }
 function text(value) {
   return typeof value === "string" ? value : "";
 }
 function serviceFailure(error, host, keyName, modelName) {
   if (/\b40[13]\b|Authorization failed|unauthori[sz]ed|invalid[^.]{0,30}key/i.test(error)) {
-    return `\u670D\u52A1\u5546\u4E0D\u8BA4\u8FD9\u4E2A\u5BC6\u94A5\u3002\u68C0\u67E5 .env \u91CC\u7684 ${keyName} \u662F\u5426\u5B8C\u6574\uFF08\u4E5F\u53EF\u4EE5\u8FD0\u884C vs-backend keys \u91CD\u65B0\u8F93\u5165\uFF09\uFF0C${RESTART}\u3002`;
+    return tr(
+      `\u670D\u52A1\u5546\u4E0D\u8BA4\u8FD9\u4E2A\u5BC6\u94A5\u3002\u68C0\u67E5 .env \u91CC\u7684 ${keyName} \u662F\u5426\u5B8C\u6574\uFF08\u4E5F\u53EF\u4EE5\u8FD0\u884C vs-backend keys \u91CD\u65B0\u8F93\u5165\uFF09\uFF0C${RESTART()}\u3002`,
+      `The provider rejected the key. Check that ${keyName} in .env is complete (or run vs-backend keys to enter it again), ${RESTART()}.`
+    );
   }
   if (/\b402\b|payment required|balance|quota|余额/i.test(error)) {
-    return "\u670D\u52A1\u5546\u8D26\u6237\u4F59\u989D\u4E0D\u8DB3\u3002\u7845\u57FA\u6D41\u52A8\u5728\u4F59\u989D\u4E3A 0 \u65F6\u8FDE\u514D\u8D39\u6A21\u578B\u4E5F\u4F1A\u62D2\u7EDD\uFF0C\u5145\u503C\u4E00\u4E24\u5143\u5373\u53EF\uFF1B\u6216\u6362\u4E00\u4E2A\u5BC6\u94A5\u3002";
+    return tr(
+      "\u670D\u52A1\u5546\u8D26\u6237\u4F59\u989D\u4E0D\u8DB3\u3002\u7845\u57FA\u6D41\u52A8\u5728\u4F59\u989D\u4E3A 0 \u65F6\u8FDE\u514D\u8D39\u6A21\u578B\u4E5F\u4F1A\u62D2\u7EDD\uFF0C\u5145\u503C\u4E00\u4E24\u5143\u5373\u53EF\uFF1B\u6216\u6362\u4E00\u4E2A\u5BC6\u94A5\u3002",
+      "The provider account has no balance. SiliconFlow refuses even its free models at zero balance; top up a little, or use another key."
+    );
   }
   if (/\b404\b|not found|could not be found/i.test(error)) {
-    return `\u670D\u52A1\u5546\u627E\u4E0D\u5230\u8FD9\u4E2A\u5730\u5740\u6216\u6A21\u578B\u540D\u3002\u68C0\u67E5 .env \u91CC\u7684\u63A5\u53E3\u5730\u5740\u548C ${modelName}\uFF0C${RESTART}\u3002`;
+    return tr(
+      `\u670D\u52A1\u5546\u627E\u4E0D\u5230\u8FD9\u4E2A\u5730\u5740\u6216\u6A21\u578B\u540D\u3002\u68C0\u67E5 .env \u91CC\u7684\u63A5\u53E3\u5730\u5740\u548C ${modelName}\uFF0C${RESTART()}\u3002`,
+      `The provider does not know this address or model. Check the endpoint and ${modelName} in .env, ${RESTART()}.`
+    );
   }
   if (/timed? ?out|timeout|ETIMEDOUT|aborted/i.test(error)) {
-    return `\u7B49\u4E86\u5F88\u4E45 ${host} \u6CA1\u6709\u56DE\u5E94\u3002\u670D\u52A1\u5546\u53EF\u80FD\u7E41\u5FD9\uFF0C\u7A0D\u540E\u518D\u70B9\u201C\u5B8C\u6574\u68C0\u67E5\u201D\uFF1B\u4E00\u76F4\u8FD9\u6837\u5C31\u68C0\u67E5\u7F51\u7EDC\u6216\u5728 .env \u586B VS_HTTP_PROXY\u3002`;
+    return tr(
+      `\u7B49\u4E86\u5F88\u4E45 ${host} \u6CA1\u6709\u56DE\u5E94\u3002\u670D\u52A1\u5546\u53EF\u80FD\u7E41\u5FD9\uFF0C\u7A0D\u540E\u518D\u70B9\u201C\u5B8C\u6574\u68C0\u67E5\u201D\uFF1B\u4E00\u76F4\u8FD9\u6837\u5C31\u68C0\u67E5\u7F51\u7EDC\u6216\u5728 .env \u586B VS_HTTP_PROXY\u3002`,
+      `${host} did not answer in time. The provider may be busy: run the full check again later; if it keeps happening, check your network or set VS_HTTP_PROXY in .env.`
+    );
   }
   if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|socket|network/i.test(error)) {
-    return `\u540E\u7AEF\u8FDE\u4E0D\u4E0A ${host}\u3002\u68C0\u67E5\u7535\u8111\u7F51\u7EDC\uFF1B\u5982\u679C\u9700\u8981\u4EE3\u7406\uFF0C\u5728 .env \u586B VS_HTTP_PROXY\uFF0C${RESTART}\u3002`;
+    return tr(
+      `\u540E\u7AEF\u8FDE\u4E0D\u4E0A ${host}\u3002\u68C0\u67E5\u7535\u8111\u7F51\u7EDC\uFF1B\u5982\u679C\u9700\u8981\u4EE3\u7406\uFF0C\u5728 .env \u586B VS_HTTP_PROXY\uFF0C${RESTART()}\u3002`,
+      `The backend cannot reach ${host}. Check your network; if you need a proxy, set VS_HTTP_PROXY in .env, ${RESTART()}.`
+    );
   }
-  return `${error || "\u672A\u77E5\u9519\u8BEF"}\u3002\u8FD0\u884C vs-backend logs \u67E5\u770B\u540E\u7AEF\u65E5\u5FD7\u3002`;
+  return tr(
+    `${error || "\u672A\u77E5\u9519\u8BEF"}\u3002\u8FD0\u884C vs-backend logs \u67E5\u770B\u540E\u7AEF\u65E5\u5FD7\u3002`,
+    `${error || "Unknown error"}. Run vs-backend logs to read the backend log.`
+  );
 }
 function serviceStep(id, part, deep, keyName, modelName, missingState, missingWhy) {
-  const model = text(part.model) || "\u672A\u77E5\u6A21\u578B";
-  const host = text(part.host) || "\u670D\u52A1\u5546";
+  const model = text(part.model) || tr("\u672A\u77E5\u6A21\u578B", "unknown model");
+  const host = text(part.host) || tr("\u670D\u52A1\u5546", "the provider");
   if (part.configured !== true) {
     return step(
       id,
       missingState,
-      `${model} @ ${host}\uFF1A\u8FD8\u6CA1\u6709\u586B\u5BC6\u94A5\u3002${missingWhy}`,
-      `\u5728\u540E\u7AEF .env \u91CC\u586B ${keyName}\uFF08\u6216\u8FD0\u884C vs-backend keys\uFF09\uFF0C${RESTART}\u3002`
+      tr(
+        `${model} @ ${host}\uFF1A\u8FD8\u6CA1\u6709\u586B\u5BC6\u94A5\u3002${missingWhy}`,
+        `${model} @ ${host}: no key yet. ${missingWhy}`
+      ),
+      tr(
+        `\u5728\u540E\u7AEF .env \u91CC\u586B ${keyName}\uFF08\u6216\u8FD0\u884C vs-backend keys\uFF09\uFF0C${RESTART()}\u3002`,
+        `Set ${keyName} in the backend's .env (or run vs-backend keys), ${RESTART()}.`
+      )
     );
   }
   if (!deep || part.checked !== true) {
-    return step(id, "pending", `${model} @ ${host}\uFF1A\u5DF2\u586B\u5BC6\u94A5\uFF0C\u70B9\u201C\u5B8C\u6574\u68C0\u67E5\u201D\u786E\u8BA4\u80FD\u7528\u3002`);
+    return step(
+      id,
+      "pending",
+      tr(
+        `${model} @ ${host}\uFF1A\u5DF2\u586B\u5BC6\u94A5\uFF0C\u70B9\u201C\u5B8C\u6574\u68C0\u67E5\u201D\u786E\u8BA4\u80FD\u7528\u3002`,
+        `${model} @ ${host}: key set; run the full check to confirm it works.`
+      )
+    );
   }
   if (part.ok === false) {
     return step(
       id,
       "missing",
-      `${model} @ ${host}\uFF1A\u8C03\u7528\u5931\u8D25\u3002`,
+      tr(`${model} @ ${host}\uFF1A\u8C03\u7528\u5931\u8D25\u3002`, `${model} @ ${host}: the call failed.`),
       serviceFailure(text(part.error), host, keyName, modelName)
     );
   }
@@ -8740,8 +8998,14 @@ function serviceStep(id, part, deep, keyName, modelName, missingState, missingWh
     return step(
       id,
       "warning",
-      `${model} @ ${host}\uFF1A\u5BC6\u94A5\u53EF\u7528\uFF0C\u4F46\u670D\u52A1\u5546\u7684\u6A21\u578B\u5217\u8868\u91CC\u6CA1\u6709\u8FD9\u4E2A\u540D\u5B57\u3002`,
-      `\u6838\u5BF9 .env \u91CC\u7684 ${modelName}\uFF0C\u540D\u79F0\u4EE5\u670D\u52A1\u5546\u6587\u6863\u4E3A\u51C6\uFF0C${RESTART}\u3002`
+      tr(
+        `${model} @ ${host}\uFF1A\u5BC6\u94A5\u53EF\u7528\uFF0C\u4F46\u670D\u52A1\u5546\u7684\u6A21\u578B\u5217\u8868\u91CC\u6CA1\u6709\u8FD9\u4E2A\u540D\u5B57\u3002`,
+        `${model} @ ${host}: the key works, but the provider does not list this model.`
+      ),
+      tr(
+        `\u6838\u5BF9 .env \u91CC\u7684 ${modelName}\uFF0C\u540D\u79F0\u4EE5\u670D\u52A1\u5546\u6587\u6863\u4E3A\u51C6\uFF0C${RESTART()}\u3002`,
+        `Check ${modelName} in .env against the provider's documentation, ${RESTART()}.`
+      )
     );
   }
   return step(id, "ready", `${model} @ ${host}`);
@@ -8753,8 +9017,14 @@ function interpretSetupCheck(input) {
       step(
         "connect",
         "missing",
-        `\u8FDE\u4E0D\u4E0A\u540E\u7AEF\uFF1A${input.error || "\u6CA1\u6709\u54CD\u5E94"}`,
-        `\u5148\u6253\u5F00 Docker Desktop \u6216 OrbStack\uFF0C\u518D${START_SCRIPT}\u3002\u770B\u5230\u201C\u597D\u4E86\u201D\u548C\u8FDE\u63A5\u7801\u540E\u518D\u68C0\u67E5\u3002`
+        tr(
+          `\u8FDE\u4E0D\u4E0A\u540E\u7AEF\uFF1A${input.error || "\u6CA1\u6709\u54CD\u5E94"}`,
+          `Cannot reach the backend: ${input.error || "no response"}`
+        ),
+        tr(
+          `\u5148\u6253\u5F00 Docker Desktop \u6216 OrbStack\uFF0C\u518D${START_SCRIPT()}\u3002\u770B\u5230\u201C\u597D\u4E86\u201D\u548C\u8FDE\u63A5\u7801\u540E\u518D\u68C0\u67E5\u3002`,
+          `Open Docker Desktop or OrbStack, then ${START_SCRIPT()}. Check again once it prints the connection code.`
+        )
       ),
       ...pendingAfter(["token", ...later])
     ];
@@ -8764,27 +9034,41 @@ function interpretSetupCheck(input) {
       step(
         "connect",
         "warning",
-        "\u540E\u7AEF\u5728\u8FD0\u884C\uFF0C\u4F46\u8FD8\u6CA1\u6709\u51C6\u5907\u597D\u5904\u7406\u8BF7\u6C42\u3002",
-        "\u7B2C\u4E00\u6B21\u542F\u52A8\u8981\u7B49\u4E00\u5206\u949F\u5DE6\u53F3\u3002\u5982\u679C\u4E00\u76F4\u8FD9\u6837\uFF0C\u786E\u8BA4\u8FDE\u63A5\u7801\u91CC\u7684\u7AEF\u53E3\u548C\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u4E00\u81F4\u3002"
+        tr(
+          "\u540E\u7AEF\u5728\u8FD0\u884C\uFF0C\u4F46\u8FD8\u6CA1\u6709\u51C6\u5907\u597D\u5904\u7406\u8BF7\u6C42\u3002",
+          "The backend is running but not ready for requests yet."
+        ),
+        tr(
+          "\u7B2C\u4E00\u6B21\u542F\u52A8\u8981\u7B49\u4E00\u5206\u949F\u5DE6\u53F3\u3002\u5982\u679C\u4E00\u76F4\u8FD9\u6837\uFF0C\u786E\u8BA4\u8FDE\u63A5\u7801\u91CC\u7684\u7AEF\u53E3\u548C\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u4E00\u81F4\u3002",
+          "The first start takes about a minute. If it stays like this, check that the port in the connection code matches the start script."
+        )
       ),
       ...pendingAfter(["token", ...later])
     ];
   }
   if (input.status === 401 || input.status === 403) {
     return [
-      step("connect", "ready", "\u540E\u7AEF\u5728\u8FD0\u884C\u3002"),
-      step("token", "missing", "\u540E\u7AEF\u62D2\u7EDD\u4E86\u8FD9\u4E2A\u8FDE\u63A5\u7801\u3002", `${CODE_COMMAND}\u3002`),
+      step("connect", "ready", tr("\u540E\u7AEF\u5728\u8FD0\u884C\u3002", "The backend is running.")),
+      step(
+        "token",
+        "missing",
+        tr("\u540E\u7AEF\u62D2\u7EDD\u4E86\u8FD9\u4E2A\u8FDE\u63A5\u7801\u3002", "The backend rejected this connection code."),
+        `${CODE_COMMAND()}${tr("\u3002", ".")}`
+      ),
       ...pendingAfter(later)
     ];
   }
   if (input.status < 200 || input.status >= 300 || !isRecord(input.report)) {
     return [
-      step("connect", "ready", "\u540E\u7AEF\u5728\u8FD0\u884C\u3002"),
+      step("connect", "ready", tr("\u540E\u7AEF\u5728\u8FD0\u884C\u3002", "The backend is running.")),
       step(
         "token",
         "warning",
-        `\u540E\u7AEF\u8FD4\u56DE\u4E86 HTTP ${input.status}\uFF0C\u4E0D\u662F\u68C0\u67E5\u7ED3\u679C\u3002`,
-        "\u8FD0\u884C vs-backend logs \u67E5\u770B\u540E\u7AEF\u65E5\u5FD7\u3002"
+        tr(
+          `\u540E\u7AEF\u8FD4\u56DE\u4E86 HTTP ${input.status}\uFF0C\u4E0D\u662F\u68C0\u67E5\u7ED3\u679C\u3002`,
+          `The backend answered HTTP ${input.status} instead of a check result.`
+        ),
+        tr("\u8FD0\u884C vs-backend logs \u67E5\u770B\u540E\u7AEF\u65E5\u5FD7\u3002", "Run vs-backend logs to read the backend log.")
       ),
       ...pendingAfter(later)
     ];
@@ -8793,8 +9077,8 @@ function interpretSetupCheck(input) {
   const workflow = isRecord(report.workflow) ? report.workflow : {};
   const backend = isRecord(report.backend) ? report.backend : null;
   const steps = [
-    step("connect", "ready", "\u540E\u7AEF\u5728\u8FD0\u884C\u3002"),
-    step("token", "ready", "\u8FDE\u63A5\u7801\u6B63\u786E\u3002")
+    step("connect", "ready", tr("\u540E\u7AEF\u5728\u8FD0\u884C\u3002", "The backend is running.")),
+    step("token", "ready", tr("\u8FDE\u63A5\u7801\u6B63\u786E\u3002", "The connection code is right."))
   ];
   const version = text(workflow.version);
   if (!backend) {
@@ -8802,19 +9086,31 @@ function interpretSetupCheck(input) {
       step(
         "version",
         "missing",
-        `\u8FD9\u662F\u65E7\u7248\u624B\u52A8\u5BFC\u5165\u7684\u5DE5\u4F5C\u6D41${version ? `\uFF08${version}\uFF09` : ""}\u3002`,
-        "\u8BF7\u6539\u7528\u540E\u7AEF\u5B89\u88C5\u5305\uFF1A\u4E0B\u8F7D video-summary-backend \u538B\u7F29\u5305\uFF0C\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF0C\u518D\u7C98\u8D34\u65B0\u7684\u8FDE\u63A5\u7801\u3002"
+        tr(
+          `\u8FD9\u662F\u65E7\u7248\u624B\u52A8\u5BFC\u5165\u7684\u5DE5\u4F5C\u6D41${version ? `\uFF08${version}\uFF09` : ""}\u3002`,
+          `This is an older, manually imported workflow${version ? ` (${version})` : ""}.`
+        ),
+        tr(
+          "\u8BF7\u6539\u7528\u540E\u7AEF\u5B89\u88C5\u5305\uFF1A\u4E0B\u8F7D video-summary-backend \u538B\u7F29\u5305\uFF0C\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF0C\u518D\u7C98\u8D34\u65B0\u7684\u8FDE\u63A5\u7801\u3002",
+          "Switch to the backend package: download video-summary-backend, run its start script and paste the new connection code."
+        )
       ),
       ...pendingAfter(["tools", "chat", "speech", "vision", "bilibili"])
     );
     return steps;
   }
   steps.push(
-    version === RECOMMENDED_WORKFLOW.version ? step("version", "ready", `\u5DE5\u4F5C\u6D41 ${version}`) : step(
+    version === RECOMMENDED_WORKFLOW.version ? step("version", "ready", tr(`\u5DE5\u4F5C\u6D41 ${version}`, `Workflow ${version}`)) : step(
       "version",
       "warning",
-      `\u540E\u7AEF\u5DE5\u4F5C\u6D41\u662F ${version || "\u672A\u77E5\u7248\u672C"}\uFF0C\u8FD9\u4E2A\u63D2\u4EF6\u914D\u5957\u7684\u662F ${RECOMMENDED_WORKFLOW.version}\u3002`,
-      "\u4E0B\u8F7D\u540C\u7248\u672C\u7684\u540E\u7AEF\u5B89\u88C5\u5305\uFF0C\u8986\u76D6\u65E7\u6587\u4EF6\u5939\uFF08.env \u4F1A\u4FDD\u7559\uFF09\uFF0C\u518D\u8FD0\u884C vs-backend update\u3002"
+      tr(
+        `\u540E\u7AEF\u5DE5\u4F5C\u6D41\u662F ${version || "\u672A\u77E5\u7248\u672C"}\uFF0C\u8FD9\u4E2A\u63D2\u4EF6\u914D\u5957\u7684\u662F ${RECOMMENDED_WORKFLOW.version}\u3002`,
+        `The backend workflow is ${version || "unknown"}; this plugin goes with ${RECOMMENDED_WORKFLOW.version}.`
+      ),
+      tr(
+        "\u4E0B\u8F7D\u540C\u7248\u672C\u7684\u540E\u7AEF\u5B89\u88C5\u5305\uFF0C\u8986\u76D6\u65E7\u6587\u4EF6\u5939\uFF08.env \u4F1A\u4FDD\u7559\uFF09\uFF0C\u518D\u8FD0\u884C vs-backend update\u3002",
+        "Download the matching backend package over the old folder (.env is kept), then run vs-backend update."
+      )
     )
   );
   const tools = isRecord(backend.tools) ? backend.tools : {};
@@ -8824,8 +9120,14 @@ function interpretSetupCheck(input) {
     ytDlp && ffmpeg ? step("tools", "ready", `yt-dlp ${ytDlp}\uFF0Cffmpeg ${ffmpeg}`) : step(
       "tools",
       "missing",
-      `\u7F3A\u5C11${ytDlp ? "" : " yt-dlp"}${ffmpeg ? "" : " ffmpeg"}\u3002`,
-      "\u8FD9\u4E2A\u540E\u7AEF\u4E0D\u662F\u7528\u5B89\u88C5\u5305\u542F\u52A8\u7684\u3002\u8BF7\u7528\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u91CD\u65B0\u542F\u52A8\u3002"
+      tr(
+        `\u7F3A\u5C11${ytDlp ? "" : " yt-dlp"}${ffmpeg ? "" : " ffmpeg"}\u3002`,
+        `Missing${ytDlp ? "" : " yt-dlp"}${ffmpeg ? "" : " ffmpeg"}.`
+      ),
+      tr(
+        "\u8FD9\u4E2A\u540E\u7AEF\u4E0D\u662F\u7528\u5B89\u88C5\u5305\u542F\u52A8\u7684\u3002\u8BF7\u7528\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u91CD\u65B0\u542F\u52A8\u3002",
+        "This backend was not started from the package. Start it again with the package start script."
+      )
     )
   );
   steps.push(
@@ -8836,7 +9138,7 @@ function interpretSetupCheck(input) {
       "VS_CHAT_API_KEY",
       "VS_CHAT_MODEL",
       "missing",
-      "\u6CA1\u6709\u5B83\u5C31\u4E0D\u80FD\u751F\u6210\u603B\u7ED3\u3002"
+      tr("\u6CA1\u6709\u5B83\u5C31\u4E0D\u80FD\u751F\u6210\u603B\u7ED3\u3002", "Summaries need it.")
     ),
     serviceStep(
       "speech",
@@ -8845,7 +9147,10 @@ function interpretSetupCheck(input) {
       "VS_SPEECH_API_KEY",
       "VS_SPEECH_MODEL",
       "warning",
-      "\u6CA1\u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u672C\u5730\u97F3\u89C6\u9891\u8981\u7528\u5B83\uFF1B\u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u7C98\u8D34\u6587\u7A3F\u4E0D\u53D7\u5F71\u54CD\u3002"
+      tr(
+        "\u6CA1\u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u672C\u5730\u97F3\u89C6\u9891\u8981\u7528\u5B83\uFF1B\u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u7C98\u8D34\u6587\u7A3F\u4E0D\u53D7\u5F71\u54CD\u3002",
+        "Videos without subtitles and local audio/video need it; subtitled videos and pasted transcripts do not."
+      )
     )
   );
   const vision = isRecord(backend.vision) ? backend.vision : {};
@@ -8853,18 +9158,40 @@ function interpretSetupCheck(input) {
     vision.configured === true ? step("vision", "ready", `${text(vision.model)} @ ${text(vision.host)}`) : step(
       "vision",
       "warning",
-      "\u6CA1\u6709\u53EF\u7528\u7684\u8BC6\u56FE\u5BC6\u94A5\uFF0C\u672C\u5730\u56FE\u7247\u6682\u65F6\u8BFB\u4E0D\u4E86\uFF1BPDF \u4E0D\u53D7\u5F71\u54CD\u3002",
-      "\u9ED8\u8BA4\u6CBF\u7528\u8BED\u97F3\u8F6C\u5199\u7684\u7845\u57FA\u6D41\u52A8\u5BC6\u94A5\uFF0C\u586B\u597D VS_SPEECH_API_KEY \u5373\u53EF\u3002"
+      tr(
+        "\u6CA1\u6709\u53EF\u7528\u7684\u8BC6\u56FE\u5BC6\u94A5\uFF0C\u672C\u5730\u56FE\u7247\u6682\u65F6\u8BFB\u4E0D\u4E86\uFF1BPDF \u4E0D\u53D7\u5F71\u54CD\u3002",
+        "No image-reading key, so local images cannot be read yet; PDFs still work."
+      ),
+      tr(
+        "\u9ED8\u8BA4\u6CBF\u7528\u8BED\u97F3\u8F6C\u5199\u7684\u7845\u57FA\u6D41\u52A8\u5BC6\u94A5\uFF0C\u586B\u597D VS_SPEECH_API_KEY \u5373\u53EF\u3002",
+        "It reuses the SiliconFlow speech key by default; set VS_SPEECH_API_KEY."
+      )
     )
   );
   const cookies = isRecord(backend.cookies) ? backend.cookies : {};
   const bilibili = isRecord(cookies.bilibili) ? cookies.bilibili : {};
   steps.push(
-    bilibili.loggedIn === true ? step("bilibili", "ready", "\u5DF2\u5BFC\u5165 B \u7AD9\u767B\u5F55 cookie\uFF0C\u53EF\u4EE5\u7528 B \u7AD9 AI \u5B57\u5E55\u3002") : step(
+    bilibili.loggedIn === true ? step(
+      "bilibili",
+      "ready",
+      tr(
+        "\u5DF2\u5BFC\u5165 B \u7AD9\u767B\u5F55 cookie\uFF0C\u53EF\u4EE5\u7528 B \u7AD9 AI \u5B57\u5E55\u3002",
+        "Bilibili login imported; Bilibili AI subtitles are available."
+      )
+    ) : step(
       "bilibili",
       "warning",
-      bilibili.present === true ? "cookie \u6587\u4EF6\u91CC\u6CA1\u6709\u767B\u5F55\u4FE1\u606F\uFF08SESSDATA\uFF09\u3002" : "\u8FD8\u6CA1\u6709\u5BFC\u5165\u3002\u4E0D\u5BFC\u5165\u4E5F\u80FD\u7528\uFF0C\u53EA\u662F B \u7AD9 AI \u5B57\u5E55\u62FF\u4E0D\u5230\uFF0C\u4F1A\u6539\u7528\u8BED\u97F3\u8F6C\u5199\u3002",
-      "\u70B9\u4E0B\u9762\u7684\u201C\u2463 \u626B\u7801\u767B\u5F55\u201D\uFF0C\u7528 B \u7AD9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u4E00\u4E0B\u5373\u53EF\uFF1B\u4E5F\u53EF\u4EE5\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\uFF0C\u6216\u7C98\u8D34 cookies.txt\u3002"
+      bilibili.present === true ? tr(
+        "cookie \u6587\u4EF6\u91CC\u6CA1\u6709\u767B\u5F55\u4FE1\u606F\uFF08SESSDATA\uFF09\u3002",
+        "The cookie file has no login (SESSDATA)."
+      ) : tr(
+        "\u8FD8\u6CA1\u6709\u5BFC\u5165\u3002\u4E0D\u5BFC\u5165\u4E5F\u80FD\u7528\uFF0C\u53EA\u662F B \u7AD9 AI \u5B57\u5E55\u62FF\u4E0D\u5230\uFF0C\u4F1A\u6539\u7528\u8BED\u97F3\u8F6C\u5199\u3002",
+        "Not imported. Everything works without it, but Bilibili AI subtitles are unavailable and speech-to-text is used instead."
+      ),
+      tr(
+        "\u70B9\u4E0B\u9762\u7684\u201C\u2463 \u626B\u7801\u767B\u5F55\u201D\uFF0C\u7528 B \u7AD9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u4E00\u4E0B\u5373\u53EF\uFF1B\u4E5F\u53EF\u4EE5\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\uFF0C\u6216\u7C98\u8D34 cookies.txt\u3002",
+        `Press "\u2463 Scan to log in" below and scan with the Bilibili phone app, or use the browser extension's "Sync Bilibili login", or paste a cookies.txt.`
+      )
     )
   );
   return steps;
@@ -9854,7 +10181,11 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         if (this.debugMode) {
           console.debug(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
-        onProgress?.({ stageLabel: "\u547D\u4E2D\u7F13\u5B58", progress: 1, message: "\u547D\u4E2D\u7F13\u5B58\uFF0C\u672A\u8BF7\u6C42\u540E\u7AEF" });
+        onProgress?.({
+          stageLabel: "\u547D\u4E2D\u7F13\u5B58",
+          progress: 1,
+          message: tr("\u547D\u4E2D\u7F13\u5B58\uFF0C\u672A\u8BF7\u6C42\u540E\u7AEF", "From cache; the backend was not called")
+        });
         return cachedResult;
       }
     }
@@ -10528,8 +10859,12 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     const diagnosticText = lastDiagnostic ? `
 \u6700\u540E\u9636\u6BB5: ${asText(lastDiagnostic.stage) ?? ""}
 \u8BCA\u65AD: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}` : "";
-    return `${errorMessage2}${diagnosticText}
-\u63A7\u5236\u53F0: ${this.getCodexWorkerDashboardUrl()}`;
+    return tr(
+      `${errorMessage2}${diagnosticText}
+\u63A7\u5236\u53F0: ${this.getCodexWorkerDashboardUrl()}`,
+      `${errorMessage2}${diagnosticText}
+Dashboard: ${this.getCodexWorkerDashboardUrl()}`
+    );
   }
   truncateError(value, max) {
     if (!value || value.length <= max) return value || "";
@@ -11083,11 +11418,20 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       );
       const parsed = this.tryParseJson(await response.text());
       if (response.ok && isRecord(parsed) && parsed.ok === true) {
-        return { ok: true, message: `\u5DF2\u4FDD\u5B58 ${String(parsed.cookies)} \u6761 cookie\u3002` };
+        return {
+          ok: true,
+          message: tr(
+            `\u5DF2\u4FDD\u5B58 ${String(parsed.cookies)} \u6761 cookie\u3002`,
+            `Saved ${String(parsed.cookies)} cookies.`
+          )
+        };
       }
       return {
         ok: false,
-        message: response.status === 500 ? "\u540E\u7AEF\u6CA1\u63A5\u53D7\u8FD9\u6BB5\u5185\u5BB9\uFF1A\u9700\u8981\u6D4F\u89C8\u5668\u6269\u5C55\u5BFC\u51FA\u7684 cookies.txt\uFF08\u6BCF\u884C\u7528 Tab \u5206\u9694\u7684 7 \u5217\uFF09\uFF0C\u5E76\u4E14\u5305\u542B\u8FD9\u4E2A\u7F51\u7AD9\u7684 cookie\u3002" : this.formatUserFacingError(new Error(`HTTP ${response.status}`))
+        message: response.status === 500 ? tr(
+          "\u540E\u7AEF\u6CA1\u63A5\u53D7\u8FD9\u6BB5\u5185\u5BB9\uFF1A\u9700\u8981\u6D4F\u89C8\u5668\u6269\u5C55\u5BFC\u51FA\u7684 cookies.txt\uFF08\u6BCF\u884C\u7528 Tab \u5206\u9694\u7684 7 \u5217\uFF09\uFF0C\u5E76\u4E14\u5305\u542B\u8FD9\u4E2A\u7F51\u7AD9\u7684 cookie\u3002",
+          "The backend did not accept this: it needs a cookies.txt exported by a browser extension (7 tab-separated columns per line) that contains this site's cookies."
+        ) : this.formatUserFacingError(new Error(`HTTP ${response.status}`))
       };
     } catch (error) {
       return { ok: false, message: this.formatUserFacingError(error) };
@@ -11120,7 +11464,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         return {
           ok: false,
           durationMs,
-          message: summary.replace(/^Error:\s*/, "") || "\u540E\u7AEF\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3\u3002"
+          message: summary.replace(/^Error:\s*/, "") || tr("\u540E\u7AEF\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3\u3002", "The backend returned no summary.")
         };
       }
       return { ok: true, durationMs, message: summary.slice(0, 160) };
@@ -11243,78 +11587,150 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     const message = this.redactWebhookSecret(this.errorToString(error));
     const lower = message.toLowerCase();
     if (message.includes("\u8BF7\u6C42\u88AB\u53D6\u6D88")) {
-      return "\u8BF7\u6C42\u5DF2\u53D6\u6D88\u3002";
+      return tr("\u8BF7\u6C42\u5DF2\u53D6\u6D88\u3002", "Request cancelled.");
     }
     if (message.includes("HTTP 404")) {
       if (this.backend === "codex-worker") {
-        return `Codex Worker \u7AEF\u70B9\u4E0D\u5B58\u5728\u3002\u8BF7\u786E\u8BA4\u540E\u7AEF App \u5DF2\u542F\u52A8\u4E14 URL \u6307\u5411\u6B63\u786E\u7AEF\u53E3\u3002\u5F53\u524D URL: ${this.webhookUrl}`;
+        return tr(
+          `Codex Worker \u7AEF\u70B9\u4E0D\u5B58\u5728\u3002\u8BF7\u786E\u8BA4\u540E\u7AEF App \u5DF2\u542F\u52A8\u4E14 URL \u6307\u5411\u6B63\u786E\u7AEF\u53E3\u3002\u5F53\u524D URL: ${this.webhookUrl}`,
+          `Codex Worker endpoint not found. Check that the backend app is running and the URL points at the right port. Current URL: ${this.webhookUrl}`
+        );
       }
-      return `\u540E\u7AEF\u8FD8\u6CA1\u51C6\u5907\u597D\uFF0C\u6216\u8005\u5730\u5740\u4E0D\u5BF9\u3002\u7B2C\u4E00\u6B21\u542F\u52A8\u8981\u7B49\u4E00\u5206\u949F\u5DE6\u53F3\uFF1B\u5982\u679C\u4E00\u76F4\u8FD9\u6837\uFF0C\u786E\u8BA4\u8FDE\u63A5\u7801\u91CC\u7684\u7AEF\u53E3\u548C\u542F\u52A8\u811A\u672C\u663E\u793A\u7684\u4E00\u81F4\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`;
+      return tr(
+        `\u540E\u7AEF\u8FD8\u6CA1\u51C6\u5907\u597D\uFF0C\u6216\u8005\u5730\u5740\u4E0D\u5BF9\u3002\u7B2C\u4E00\u6B21\u542F\u52A8\u8981\u7B49\u4E00\u5206\u949F\u5DE6\u53F3\uFF1B\u5982\u679C\u4E00\u76F4\u8FD9\u6837\uFF0C\u786E\u8BA4\u8FDE\u63A5\u7801\u91CC\u7684\u7AEF\u53E3\u548C\u542F\u52A8\u811A\u672C\u663E\u793A\u7684\u4E00\u81F4\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`,
+        `The backend is not ready yet, or the address is wrong. The first start takes about a minute; if it stays like this, check that the port in the connection code matches the start script. Current address: ${this.webhookUrl}`
+      );
     }
     if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
       if (this.backend === "codex-worker") {
-        return "Codex Worker \u62D2\u7EDD\u8BBF\u95EE\u3002\u8BF7\u68C0\u67E5 Worker \u9274\u6743 token \u4E0E\u672C\u5730\u670D\u52A1\u5B89\u5168\u914D\u7F6E\u3002";
+        return tr(
+          "Codex Worker \u62D2\u7EDD\u8BBF\u95EE\u3002\u8BF7\u68C0\u67E5 Worker \u9274\u6743 token \u4E0E\u672C\u5730\u670D\u52A1\u5B89\u5168\u914D\u7F6E\u3002",
+          "Codex Worker refused access. Check the Worker token and local security settings."
+        );
       }
-      return "\u540E\u7AEF\u62D2\u7EDD\u4E86\u8FD9\u4E2A\u8FDE\u63A5\u7801\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend code\uFF0C\u628A\u8FDE\u63A5\u7801\u91CD\u65B0\u7C98\u8D34\u5230\u8BBE\u7F6E\u7684\u201C\u9996\u6B21\u914D\u7F6E\u201D\u3002";
+      return tr(
+        "\u540E\u7AEF\u62D2\u7EDD\u4E86\u8FD9\u4E2A\u8FDE\u63A5\u7801\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend code\uFF0C\u628A\u8FDE\u63A5\u7801\u91CD\u65B0\u7C98\u8D34\u5230\u8BBE\u7F6E\u7684\u201C\u9996\u6B21\u914D\u7F6E\u201D\u3002",
+        "The backend rejected this connection code. Run vs-backend code in the backend folder and paste the code again into first-run setup."
+      );
     }
     if (lower.includes("bilibili") && (lower.includes("http error 412") || lower.includes("precondition failed"))) {
-      return "B \u7AD9\u62D2\u7EDD\u4E86\u4E0B\u8F7D\u8BF7\u6C42\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\u3002";
+      return tr(
+        "B \u7AD9\u62D2\u7EDD\u4E86\u4E0B\u8F7D\u8BF7\u6C42\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\u3002",
+        `Bilibili refused the download. Run vs-backend update in the backend folder to update yt-dlp; if it still fails, use the browser extension's "Sync Bilibili login".`
+      );
     }
     if (lower.includes("yt-dlp") && lower.includes("not found")) {
-      return "\u540E\u7AEF\u7F3A\u5C11 yt-dlp\u3002\u8BF7\u7528\u540E\u7AEF\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u542F\u52A8\uFF0C\u4E0D\u8981\u7528\u5B98\u65B9 n8n \u955C\u50CF\u3002";
+      return tr(
+        "\u540E\u7AEF\u7F3A\u5C11 yt-dlp\u3002\u8BF7\u7528\u540E\u7AEF\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u542F\u52A8\uFF0C\u4E0D\u8981\u7528\u5B98\u65B9 n8n \u955C\u50CF\u3002",
+        "The backend has no yt-dlp. Start it with the start script from the backend package, not the official n8n image."
+      );
     }
     if (lower.includes("ffmpeg") && lower.includes("not found")) {
-      return "\u540E\u7AEF\u7F3A\u5C11 ffmpeg\u3002\u8BF7\u7528\u540E\u7AEF\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u542F\u52A8\uFF0C\u4E0D\u8981\u7528\u5B98\u65B9 n8n \u955C\u50CF\u3002";
+      return tr(
+        "\u540E\u7AEF\u7F3A\u5C11 ffmpeg\u3002\u8BF7\u7528\u540E\u7AEF\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u542F\u52A8\uFF0C\u4E0D\u8981\u7528\u5B98\u65B9 n8n \u955C\u50CF\u3002",
+        "The backend has no ffmpeg. Start it with the start script from the backend package, not the official n8n image."
+      );
     }
     if (message.includes("HTTP 500") || message.includes("HTTP 502") || message.includes("HTTP 503")) {
       if (this.backend === "codex-worker") {
-        return `Codex Worker \u5185\u90E8\u62A5\u9519\u3002\u8BF7\u6253\u5F00 Worker \u63A7\u5236\u53F0\u67E5\u770B\u4EFB\u52A1\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`;
+        return tr(
+          `Codex Worker \u5185\u90E8\u62A5\u9519\u3002\u8BF7\u6253\u5F00 Worker \u63A7\u5236\u53F0\u67E5\u770B\u4EFB\u52A1\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`,
+          `Codex Worker error. Open the Worker dashboard for the job log. Original error: ${message}`
+        );
       }
-      return `\u540E\u7AEF\u5904\u7406\u65F6\u51FA\u9519\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend logs \u67E5\u770B\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`;
+      return tr(
+        `\u540E\u7AEF\u5904\u7406\u65F6\u51FA\u9519\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend logs \u67E5\u770B\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`,
+        `The backend failed while processing. Run vs-backend logs in the backend folder. Original error: ${message}`
+      );
     }
     if (lower.includes("failed to fetch") || lower.includes("load failed") || lower.includes("networkerror") || lower.includes("connection refused")) {
       if (this.backend === "codex-worker") {
-        return `\u65E0\u6CD5\u8FDE\u63A5 Codex Worker\u3002\u8BF7\u786E\u8BA4\u672C\u5730\u540E\u7AEF App \u5DF2\u542F\u52A8\u3001\u7AEF\u53E3\u53EF\u8BBF\u95EE\u4E14 Worker URL \u6B63\u786E\u3002\u5F53\u524D URL: ${this.webhookUrl}`;
+        return tr(
+          `\u65E0\u6CD5\u8FDE\u63A5 Codex Worker\u3002\u8BF7\u786E\u8BA4\u672C\u5730\u540E\u7AEF App \u5DF2\u542F\u52A8\u3001\u7AEF\u53E3\u53EF\u8BBF\u95EE\u4E14 Worker URL \u6B63\u786E\u3002\u5F53\u524D URL: ${this.webhookUrl}`,
+          `Cannot reach the Codex Worker. Check that the backend app is running, the port is reachable and the Worker URL is right. Current URL: ${this.webhookUrl}`
+        );
       }
-      return `\u65E0\u6CD5\u8FDE\u63A5\u540E\u7AEF\u3002\u5148\u6253\u5F00 Docker\uFF0C\u518D\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C\u542F\u52A8\u811A\u672C\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`;
+      return tr(
+        `\u65E0\u6CD5\u8FDE\u63A5\u540E\u7AEF\u3002\u5148\u6253\u5F00 Docker\uFF0C\u518D\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C\u542F\u52A8\u811A\u672C\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`,
+        `Cannot reach the backend. Open Docker, then run the start script in the backend folder. Current address: ${this.webhookUrl}`
+      );
     }
     if (message.includes("\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94")) {
-      return "\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94\u3002\u8BF7\u786E\u8BA4 n8n workflow \u5DF2\u6FC0\u6D3B\uFF0C\u5E76\u4E14 Respond to Webhook \u8282\u70B9\u5DF2\u8FDE\u5230\u6D4B\u8BD5/\u5904\u7406\u5206\u652F\u3002";
+      return tr(
+        "\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94\u3002\u8BF7\u786E\u8BA4 n8n workflow \u5DF2\u6FC0\u6D3B\uFF0C\u5E76\u4E14 Respond to Webhook \u8282\u70B9\u5DF2\u8FDE\u5230\u6D4B\u8BD5/\u5904\u7406\u5206\u652F\u3002",
+        "The server returned an empty response. Check that the n8n workflow is active and the Respond to Webhook node is connected."
+      );
     }
     if (message.includes("\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u4E0D\u662F JSON")) {
-      return `${message}\u3002\u8BF7\u786E\u8BA4 URL \u6307\u5411 n8n Webhook\uFF0C\u800C\u4E0D\u662F n8n \u767B\u5F55\u9875\u3001\u53CD\u5411\u4EE3\u7406\u9519\u8BEF\u9875\u6216\u666E\u901A\u7F51\u9875\u3002`;
+      return tr(
+        `${message}\u3002\u8BF7\u786E\u8BA4 URL \u6307\u5411 n8n Webhook\uFF0C\u800C\u4E0D\u662F n8n \u767B\u5F55\u9875\u3001\u53CD\u5411\u4EE3\u7406\u9519\u8BEF\u9875\u6216\u666E\u901A\u7F51\u9875\u3002`,
+        `${message}. Make sure the URL points at the n8n webhook, not the n8n login page, a proxy error page or a normal web page.`
+      );
     }
     if (message.includes("\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u6570\u636E\u4E2D\u6CA1\u6709\u6709\u6548\u5185\u5BB9")) {
-      return "\u5904\u7406\u670D\u52A1\u5DF2\u54CD\u5E94\uFF0C\u4F46\u6CA1\u6709\u8FD4\u56DE summary\u3001note\u3001video_transcript \u6216\u89C6\u9891\u4FE1\u606F\u5B57\u6BB5\u3002\u8BF7\u68C0\u67E5 n8n \u6700\u540E\u7684 Respond to Webhook \u8F93\u51FA\u3002";
+      return tr(
+        "\u5904\u7406\u670D\u52A1\u5DF2\u54CD\u5E94\uFF0C\u4F46\u6CA1\u6709\u8FD4\u56DE summary\u3001note\u3001video_transcript \u6216\u89C6\u9891\u4FE1\u606F\u5B57\u6BB5\u3002\u8BF7\u68C0\u67E5 n8n \u6700\u540E\u7684 Respond to Webhook \u8F93\u51FA\u3002",
+        "The backend answered without summary, note, video_transcript or video info fields. Check the last Respond to Webhook node in n8n."
+      );
     }
-    return message || "\u672A\u77E5\u9519\u8BEF\u3002\u8BF7\u6253\u5F00\u8C03\u8BD5\u6A21\u5F0F\u540E\u91CD\u8BD5\uFF0C\u5E76\u67E5\u770B Obsidian \u5F00\u53D1\u8005\u63A7\u5236\u53F0\u3002";
+    return message || tr(
+      "\u672A\u77E5\u9519\u8BEF\u3002\u8BF7\u6253\u5F00\u8C03\u8BD5\u6A21\u5F0F\u540E\u91CD\u8BD5\uFF0C\u5E76\u67E5\u770B Obsidian \u5F00\u53D1\u8005\u63A7\u5236\u53F0\u3002",
+      "Unknown error. Turn on debug mode, try again and check Obsidian's developer console."
+    );
   }
   getConnectionHint(message) {
-    if (message.includes("Webhook \u4E0D\u5B58\u5728") || message.includes("HTTP 404")) {
-      return "\u7B49\u4E00\u5206\u949F\u518D\u8BD5\uFF1B\u4ECD\u4E0D\u884C\u5C31\u91CD\u65B0\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF0C\u5E76\u91CD\u65B0\u7C98\u8D34\u5B83\u663E\u793A\u7684\u8FDE\u63A5\u7801\u3002";
+    if (/Webhook 不存在|HTTP 404|后端还没准备好|not ready yet/.test(message)) {
+      return tr(
+        "\u7B49\u4E00\u5206\u949F\u518D\u8BD5\uFF1B\u4ECD\u4E0D\u884C\u5C31\u91CD\u65B0\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF0C\u5E76\u91CD\u65B0\u7C98\u8D34\u5B83\u663E\u793A\u7684\u8FDE\u63A5\u7801\u3002",
+        "Wait a minute and try again; if it still fails, run the start script again and paste the connection code it shows."
+      );
     }
-    if (message.includes("\u65E0\u6CD5\u8FDE\u63A5\u5904\u7406\u670D\u52A1")) {
-      return "\u5148\u6253\u5F00 Docker\uFF0C\u518D\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF08macOS \u53CC\u51FB start-mac.command\uFF0CWindows \u53CC\u51FB start-windows.cmd\uFF09\u3002";
+    if (/无法连接处理服务|无法连接后端|Cannot reach the backend/.test(message)) {
+      return tr(
+        "\u5148\u6253\u5F00 Docker\uFF0C\u518D\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF08macOS \u53CC\u51FB start-mac.command\uFF0CWindows \u53CC\u51FB start-windows.cmd\uFF09\u3002",
+        "Open Docker, then run the start script in the backend folder (macOS: double-click start-mac.command; Windows: double-click start-windows.cmd)."
+      );
     }
-    if (message.includes("\u65E0\u6CD5\u8FDE\u63A5 Codex Worker")) {
-      return "\u5148\u542F\u52A8\u672C\u5730\u540E\u7AEF App\uFF0C\u518D\u786E\u8BA4 Worker URL \u4E0E\u7AEF\u53E3\u914D\u7F6E\u3002";
+    if (/无法连接 Codex Worker|Cannot reach the Codex Worker/.test(message)) {
+      return tr(
+        "\u5148\u542F\u52A8\u672C\u5730\u540E\u7AEF App\uFF0C\u518D\u786E\u8BA4 Worker URL \u4E0E\u7AEF\u53E3\u914D\u7F6E\u3002",
+        "Start the local backend app first, then check the Worker URL and port."
+      );
     }
-    if (message.includes("Bilibili \u62D2\u7EDD")) {
-      return "\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u540C\u6B65 B \u7AD9\u767B\u5F55\u3002";
+    if (/Bilibili 拒绝|B 站拒绝|Bilibili refused/.test(message)) {
+      return tr(
+        "\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u540C\u6B65 B \u7AD9\u767B\u5F55\u3002",
+        "Run vs-backend update to update yt-dlp; if it still fails, sync your Bilibili login with the browser extension."
+      );
     }
-    if (message.includes("\u7A7A\u54CD\u5E94")) {
-      return "\u68C0\u67E5 Respond to Webhook: Test \u8282\u70B9\u662F\u5426\u4ECD\u8FDE\u63A5\u5728\u6D4B\u8BD5\u5206\u652F\u4E0A\u3002";
+    if (/空响应|empty response/.test(message)) {
+      return tr(
+        "\u68C0\u67E5 Respond to Webhook: Test \u8282\u70B9\u662F\u5426\u4ECD\u8FDE\u63A5\u5728\u6D4B\u8BD5\u5206\u652F\u4E0A\u3002",
+        "Check that the Respond to Webhook: Test node is still connected to the test branch."
+      );
     }
-    if (message.includes("\u4E0D\u662F JSON") || message.includes("\u6CA1\u6709\u6709\u6548\u5185\u5BB9")) {
-      return "\u68C0\u67E5\u6700\u540E\u4E00\u4E2A Respond to Webhook \u8282\u70B9\uFF0C\u786E\u4FDD\u8FD4\u56DE JSON\uFF0C\u4E14\u5305\u542B note\u3001summary\u3001video_transcript \u6216 video_title\u3002";
+    if (/不是 JSON|没有有效内容|not JSON|without summary/.test(message)) {
+      return tr(
+        "\u68C0\u67E5\u6700\u540E\u4E00\u4E2A Respond to Webhook \u8282\u70B9\uFF0C\u786E\u4FDD\u8FD4\u56DE JSON\uFF0C\u4E14\u5305\u542B note\u3001summary\u3001video_transcript \u6216 video_title\u3002",
+        "Check the last Respond to Webhook node: it must return JSON with note, summary, video_transcript or video_title."
+      );
     }
-    if (message.includes("\u62D2\u7EDD\u8BBF\u95EE")) {
+    if (/拒绝访问|refused access|rejected this connection code/.test(message)) {
       if (this.backend === "codex-worker") {
-        return "\u68C0\u67E5 Worker \u7684\u5171\u4EAB token\uFF1B/health \u5E94\u4FDD\u6301\u53EF\u8BFB\uFF0C\u4EFB\u52A1\u63A5\u53E3\u9700\u4F7F\u7528\u5339\u914D\u7684\u9274\u6743\u914D\u7F6E\u3002";
+        return tr(
+          "\u68C0\u67E5 Worker \u7684\u5171\u4EAB token\uFF1B/health \u5E94\u4FDD\u6301\u53EF\u8BFB\uFF0C\u4EFB\u52A1\u63A5\u53E3\u9700\u4F7F\u7528\u5339\u914D\u7684\u9274\u6743\u914D\u7F6E\u3002",
+          "Check the Worker's shared token; /health should stay readable and job endpoints need matching auth."
+        );
       }
-      return "\u5982\u679C\u4F60\u4F7F\u7528\u8FDC\u7A0B n8n\uFF0C\u8BF7\u68C0\u67E5\u767B\u5F55\u3001\u53CD\u5411\u4EE3\u7406\u548C CORS/\u9274\u6743\u914D\u7F6E\u3002";
+      return tr(
+        "\u5982\u679C\u4F60\u4F7F\u7528\u8FDC\u7A0B n8n\uFF0C\u8BF7\u68C0\u67E5\u767B\u5F55\u3001\u53CD\u5411\u4EE3\u7406\u548C CORS/\u9274\u6743\u914D\u7F6E\u3002",
+        "If you use a remote n8n, check login, reverse proxy and CORS/auth settings."
+      );
     }
-    return "\u6253\u5F00 Obsidian \u8BBE\u7F6E\u91CC\u7684\u8C03\u8BD5\u6A21\u5F0F\uFF0C\u7136\u540E\u67E5\u770B n8n Execution \u65E5\u5FD7\u5B9A\u4F4D\u5931\u8D25\u8282\u70B9\u3002";
+    return tr(
+      "\u6253\u5F00 Obsidian \u8BBE\u7F6E\u91CC\u7684\u8C03\u8BD5\u6A21\u5F0F\uFF0C\u7136\u540E\u67E5\u770B n8n Execution \u65E5\u5FD7\u5B9A\u4F4D\u5931\u8D25\u8282\u70B9\u3002",
+      "Turn on debug mode in Obsidian settings, then read the n8n execution log to find the failing node."
+    );
   }
   errorToString(error) {
     if (error instanceof Error) {
@@ -11388,10 +11804,10 @@ var FolderSelectModal = class extends import_obsidian9.Modal {
     this.modalEl.addClass("ap", "ap-modal");
     const { contentEl } = this;
     contentEl.addClass("vs-modal", "vs-folder-modal");
-    contentEl.createEl("h3", { text: "\u9009\u62E9\u8F93\u51FA\u6587\u4EF6\u5939" });
+    contentEl.createEl("h3", { text: tr("\u9009\u62E9\u8F93\u51FA\u6587\u4EF6\u5939", "Choose an output folder") });
     const searchInput = contentEl.createEl("input", {
       cls: "vs-folder-search",
-      attr: { type: "text", placeholder: "\u641C\u7D22\u6587\u4EF6\u5939\u2026" }
+      attr: { type: "text", placeholder: tr("\u641C\u7D22\u6587\u4EF6\u5939\u2026", "Search folders\u2026") }
     });
     this.folderContainer = contentEl.createDiv({ cls: "vs-folder-list" });
     this.renderOptions("");
@@ -11404,7 +11820,7 @@ var FolderSelectModal = class extends import_obsidian9.Modal {
     if (!this.folderContainer) return;
     this.folderContainer.empty();
     const current = this.folderContainer.createDiv({ cls: "vs-folder-option" });
-    current.setText("\u5F53\u524D\u6587\u4EF6\u5939\uFF08\u7559\u7A7A\uFF09");
+    current.setText(tr("\u5F53\u524D\u6587\u4EF6\u5939\uFF08\u7559\u7A7A\uFF09", "Current folder (leave empty)"));
     current.onclick = () => {
       this.onSelect("");
       this.close();
@@ -11463,8 +11879,11 @@ function renderActionBar(container, ctx) {
     cls: "vs-input",
     attr: {
       rows: "2",
-      placeholder: "\u7C98\u8D34\u94FE\u63A5\u3001\u62D6\u5165\u97F3\u89C6\u9891\uFF0C\u6216\u76F4\u63A5\u7C98\u8D34\u6587\u7A3F",
-      "aria-label": "\u6DFB\u52A0\u89C6\u9891"
+      placeholder: tr(
+        "\u7C98\u8D34\u94FE\u63A5\u3001\u62D6\u5165\u97F3\u89C6\u9891\uFF0C\u6216\u76F4\u63A5\u7C98\u8D34\u6587\u7A3F",
+        "Paste links, drop audio or video, or paste a transcript"
+      ),
+      "aria-label": tr("\u6DFB\u52A0\u89C6\u9891", "Add video")
     }
   });
   input.value = state.inputDraft;
@@ -11473,7 +11892,10 @@ function renderActionBar(container, ctx) {
   });
   autoGrow(input);
   const boxBar = box.createDiv({ cls: "vs-add-bar" });
-  boxBar.createSpan({ cls: "vs-add-hint", text: "\u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB" });
+  boxBar.createSpan({
+    cls: "vs-add-hint",
+    text: tr("\u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB", "One per line for a batch \xB7 \u2318 Enter to start")
+  });
   iconButton(
     boxBar,
     "folder-open",
@@ -11482,7 +11904,7 @@ function renderActionBar(container, ctx) {
     "vs-add-file"
   );
   const submitBtn = boxBar.createEl("button", {
-    text: "\u5F00\u59CB",
+    text: tr("\u5F00\u59CB", "Start"),
     cls: "vs-primary-btn",
     attr: { type: "button" }
   });
@@ -11498,7 +11920,7 @@ function renderActionBar(container, ctx) {
     cls: "vs-fold-toggle",
     attr: { type: "button", "aria-expanded": state.advancedOpen ? "true" : "false" }
   });
-  foldToggle.createSpan({ text: "\u9009\u9879", cls: "vs-fold-title" });
+  foldToggle.createSpan({ text: tr("\u9009\u9879", "Options"), cls: "vs-fold-title" });
   foldToggle.createSpan({
     cls: "vs-fold-value",
     text: [
@@ -11516,7 +11938,7 @@ function renderActionBar(container, ctx) {
   const learn = controls.createEl("label", { cls: "vs-check" });
   const learnBox = learn.createEl("input", { attr: { type: "checkbox" } });
   learnBox.checked = ctx.plugin.settings.generateLearningArtifacts;
-  learn.createSpan({ text: "\u5B66\u4E60\u5361" });
+  learn.createSpan({ text: tr("\u5B66\u4E60\u5361", "Learning cards") });
   learnBox.addEventListener(
     "change",
     fire(async () => {
@@ -11564,7 +11986,7 @@ function bindFileDrop(box, ctx, input) {
 }
 function renderHeader(root, ctx) {
   const header = root.createDiv({ cls: "vs-header" });
-  header.createSpan({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-header-title" });
+  header.createSpan({ text: tr("\u89C6\u9891\u603B\u7ED3", "Video summary"), cls: "vs-header-title" });
   iconButton(
     header,
     "more-horizontal",
@@ -11594,7 +12016,13 @@ function renderHeader(root, ctx) {
       const result = await probeBackend(ctx, backend, true);
       updateBackendPill(statusLine, dot, label, backend, result.state, result);
       new import_obsidian10.Notice(
-        result.state === "is-online" ? `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09` : `${backend.label} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.reason || "\u672A\u77E5\u539F\u56E0"}`,
+        result.state === "is-online" ? tr(
+          `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09`,
+          `${backend.label} connected (${result.durationMs ?? 0} ms)`
+        ) : tr(
+          `${backend.label} \u8FDE\u63A5\u5931\u8D25\uFF1A${result.reason || "\u672A\u77E5\u539F\u56E0"}`,
+          `${backend.label} connection failed: ${result.reason || "unknown reason"}`
+        ),
         result.state === "is-online" ? 3e3 : 6e3
       );
       ctx.renderAll();
@@ -11615,20 +12043,52 @@ function showMoreMenu(ctx, event) {
     commands?.executeCommandById(`${ctx.plugin.manifest.id}:${id}`);
   };
   showMenu(event, [
-    { title: "\u6279\u91CF\u5904\u7406\u89C6\u9891", icon: "list-plus", onClick: () => run("batch") },
-    { title: "\u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891", icon: "zap", onClick: () => run("process-all-pending") },
-    { title: "\u590D\u4E60\u5230\u671F\u7684\u5B66\u4E60\u5361", icon: "brain", onClick: () => run("learning-review-due") },
-    { title: "\u641C\u7D22\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6", icon: "search", onClick: () => run("memory-search") },
-    { title: "\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4", icon: "flask-conical", onClick: () => run("claim-lab") },
-    { title: "\u751F\u6210\u6216\u66F4\u65B0\u89C6\u9891\u5E93 Base", icon: "table", onClick: () => run("generate-base") },
-    { title: "\u6D4B\u8BD5\u5904\u7406\u540E\u7AEF", icon: "plug", onClick: () => run("test-connection") },
     {
-      title: "Codex \u672C\u5730\u670D\u52A1\u63A7\u5236\u53F0",
+      title: tr("\u6279\u91CF\u5904\u7406\u89C6\u9891", "Batch process videos"),
+      icon: "list-plus",
+      onClick: () => run("batch")
+    },
+    {
+      title: tr("\u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891", "Process all pending videos"),
+      icon: "zap",
+      onClick: () => run("process-all-pending")
+    },
+    {
+      title: tr("\u590D\u4E60\u5230\u671F\u7684\u5B66\u4E60\u5361", "Review due learning cards"),
+      icon: "brain",
+      onClick: () => run("learning-review-due")
+    },
+    {
+      title: tr("\u641C\u7D22\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6", "Search video memory across media"),
+      icon: "search",
+      onClick: () => run("memory-search")
+    },
+    {
+      title: tr("\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4", "Multi-video claim lab"),
+      icon: "flask-conical",
+      onClick: () => run("claim-lab")
+    },
+    {
+      title: tr("\u751F\u6210\u6216\u66F4\u65B0\u89C6\u9891\u5E93 Base", "Create or update the video library Base"),
+      icon: "table",
+      onClick: () => run("generate-base")
+    },
+    {
+      title: tr("\u6D4B\u8BD5\u5904\u7406\u540E\u7AEF", "Test the backend"),
+      icon: "plug",
+      onClick: () => run("test-connection")
+    },
+    {
+      title: tr("Codex \u672C\u5730\u670D\u52A1\u63A7\u5236\u53F0", "Codex local service dashboard"),
       icon: "gauge",
       disabled: ctx.plugin.settings.activeBackend !== "codex-worker",
       onClick: () => run("open-worker-dashboard")
     },
-    { title: "\u63D2\u4EF6\u8BBE\u7F6E", icon: "settings", onClick: () => openSettings(ctx) }
+    {
+      title: tr("\u63D2\u4EF6\u8BBE\u7F6E", "Plugin settings"),
+      icon: "settings",
+      onClick: () => openSettings(ctx)
+    }
   ]);
 }
 function openSettings(ctx) {
@@ -11725,13 +12185,13 @@ async function withTimeout2(promise, timeoutMs) {
 function updateBackendPill(pill, dot, label, backend, state, result) {
   dot.className = `vs-backend-dot ${state}`;
   if (state === "is-checking") {
-    label.setText(`\u6B63\u5728\u68C0\u6D4B ${backend.label}\u2026`);
+    label.setText(tr(`\u6B63\u5728\u68C0\u6D4B ${backend.label}\u2026`, `Checking ${backend.label}\u2026`));
     pill.setAttr("title", `${backend.label}\uFF1A\u6B63\u5728\u68C0\u6D4B\u8FDE\u63A5`);
     return;
   }
   if (state === "is-online") {
     const reachabilityOnly = result?.verified === false;
-    label.setText(`${backend.label} \u5DF2\u8FDE\u63A5`);
+    label.setText(tr(`${backend.label} \u5DF2\u8FDE\u63A5`, `${backend.label} connected`));
     pill.setAttr(
       "title",
       `${backend.label} ${reachabilityOnly ? "\u7AEF\u70B9\u53EF\u8FBE\uFF0C\u5C1A\u672A\u9A8C\u8BC1\u5B8C\u6574\u54CD\u5E94" : "\u5728\u7EBF"}${result?.durationMs !== void 0 ? ` \xB7 ${result.durationMs}ms` : ""}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u8FD0\u884C\u5B8C\u6574\u68C0\u6D4B`
@@ -11740,14 +12200,18 @@ function updateBackendPill(pill, dot, label, backend, state, result) {
   }
   if (state === "is-offline") {
     const reason = result?.reason || "\u65E0\u6CD5\u8FDE\u63A5";
-    label.setText(`${backend.label} \u672A\u8FDE\u63A5 \xB7 ${reason}`);
+    label.setText(
+      tr(`${backend.label} \u672A\u8FDE\u63A5 \xB7 ${reason}`, `${backend.label} not connected \xB7 ${reason}`)
+    );
     pill.setAttr(
       "title",
       `${backend.label} \u79BB\u7EBF\uFF1A${reason}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u91CD\u65B0\u68C0\u6D4B`
     );
     return;
   }
-  label.setText(`${backend.label} \u672A\u68C0\u6D4B \xB7 \u70B9\u6B64\u6D4B\u8BD5`);
+  label.setText(
+    tr(`${backend.label} \u672A\u68C0\u6D4B \xB7 \u70B9\u6B64\u6D4B\u8BD5`, `${backend.label} not checked \xB7 click to test`)
+  );
   pill.setAttr("title", `${backend.label}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5`);
 }
 function formatProbeTime(timestamp) {
@@ -11758,23 +12222,24 @@ function formatProbeTime(timestamp) {
 }
 function summarizeBackendFailure(raw, endpoint = "") {
   const error = raw.toLowerCase();
-  if (!error) return "\u672A\u77E5\u539F\u56E0";
-  if (/空响应|empty response|no response body/.test(error)) return "\u7A7A\u54CD\u5E94";
+  if (!error) return tr("\u672A\u77E5\u539F\u56E0", "unknown reason");
+  if (/空响应|empty response|no response body/.test(error)) return tr("\u7A7A\u54CD\u5E94", "empty response");
   if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
-    return "\u6D41\u7A0B\u672A\u542F\u7528";
+    return tr("\u6D41\u7A0B\u672A\u542F\u7528", "workflow not active");
   }
-  if (/401|unauthorized|api.?key|鉴权|授权失败/.test(error)) return "\u6388\u6743\u5931\u8D25";
-  if (/403|forbidden|拒绝访问/.test(error)) return "\u8BBF\u95EE\u88AB\u62D2\u7EDD";
-  if (/429|rate.?limit|too many requests|限流/.test(error)) return "\u8BF7\u6C42\u8FC7\u9891";
-  if (/json|返回格式|unexpected token/.test(error)) return "\u683C\u5F0F\u5F02\u5E38";
-  if (/timeout|timed out|etimedout|超时|abort/.test(error)) return "\u8FDE\u63A5\u8D85\u65F6";
+  if (/401|unauthorized|api.?key|鉴权|授权失败/.test(error)) return tr("\u6388\u6743\u5931\u8D25", "auth failed");
+  if (/403|forbidden|拒绝访问/.test(error)) return tr("\u8BBF\u95EE\u88AB\u62D2\u7EDD", "access denied");
+  if (/429|rate.?limit|too many requests|限流/.test(error))
+    return tr("\u8BF7\u6C42\u8FC7\u9891", "too many requests");
+  if (/json|返回格式|unexpected token/.test(error)) return tr("\u683C\u5F0F\u5F02\u5E38", "bad format");
+  if (/timeout|timed out|etimedout|超时|abort/.test(error)) return tr("\u8FDE\u63A5\u8D85\u65F6", "timed out");
   if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
     if (/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(endpoint)) {
-      return "\u672C\u673A\u670D\u52A1\u672A\u542F\u52A8";
+      return tr("\u672C\u673A\u670D\u52A1\u672A\u542F\u52A8", "local service not running");
     }
-    return "\u65E0\u6CD5\u8FDE\u63A5";
+    return tr("\u65E0\u6CD5\u8FDE\u63A5", "cannot connect");
   }
-  return "\u68C0\u6D4B\u5931\u8D25";
+  return tr("\u68C0\u6D4B\u5931\u8D25", "check failed");
 }
 function renderContextStrip(root, ctx) {
   const activeFile = ctx.plugin.app.workspace.getActiveFile();
@@ -11791,7 +12256,7 @@ function renderContextStrip(root, ctx) {
   const body = strip.createDiv({ cls: "vs-context-body" });
   body.createDiv({ text: activeFile.basename, cls: "vs-context-title" });
   const sub = body.createDiv({ cls: "vs-context-sub" });
-  sub.createSpan({ text: "\u5F53\u524D\u7B14\u8BB0 \xB7 " });
+  sub.createSpan({ text: tr("\u5F53\u524D\u7B14\u8BB0 \xB7 ", "Current note \xB7 ") });
   sub.createSpan({ text: meta.label, cls: `vs-state-text ${meta.cls}` });
   if (entry?.platform) {
     sub.createSpan({ text: " \xB7 " });
@@ -11863,7 +12328,13 @@ function renderOptions(container, ctx) {
     settings.defaultProcessingDepth,
     fire(async (depth) => {
       if (depth === "deep-visual" && settings.activeBackend !== "codex-worker") {
-        new import_obsidian10.Notice("\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002", 7e3);
+        new import_obsidian10.Notice(
+          tr(
+            "\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002",
+            "Deep visual runs only on the local video service; the n8n backend goes up to evidence."
+          ),
+          7e3
+        );
         return;
       }
       settings.defaultProcessingDepth = depth;
@@ -11913,7 +12384,7 @@ function renderOptions(container, ctx) {
   const folderBtn = row("\u4FDD\u5B58\u4F4D\u7F6E").createEl("button", {
     text: shortenPath(settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"),
     cls: "vs-link-btn",
-    attr: { type: "button", title: settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939" }
+    attr: { type: "button", title: settings.outputFolder || tr("\u5F53\u524D\u6587\u4EF6\u5939", "Current folder") }
   });
   folderBtn.addEventListener("click", (event) => {
     event.preventDefault();
@@ -11969,7 +12440,7 @@ function renderAdvanced(container, ctx, mainInput) {
   const profiles = plugin.settings.webhookProfiles || [];
   if (profiles.length > 1) {
     const backendRow = container.createDiv({ cls: "vs-field" });
-    backendRow.createEl("label", { text: "\u5904\u7406\u540E\u7AEF", cls: "vs-field-label" });
+    backendRow.createEl("label", { text: tr("\u5904\u7406\u540E\u7AEF", "Backend"), cls: "vs-field-label" });
     const backendSelect = backendRow.createEl("select", { cls: "vs-field-input" });
     profiles.forEach((profile) => {
       backendSelect.createEl("option", {
@@ -11987,32 +12458,55 @@ function renderAdvanced(container, ctx, mainInput) {
     );
   }
   const transcriptRow = container.createDiv({ cls: "vs-field" });
-  transcriptRow.createEl("label", { text: "\u624B\u52A8\u6587\u7A3F", cls: "vs-field-label" });
+  transcriptRow.createEl("label", {
+    text: tr("\u624B\u52A8\u6587\u7A3F", "Manual transcript"),
+    cls: "vs-field-label"
+  });
   const transcript = transcriptRow.createEl("textarea", {
     cls: "vs-field-input vs-transcript-input",
-    attr: { rows: "3", placeholder: "\u89C6\u9891\u6CA1\u6709\u5B57\u5E55\u65F6\uFF0C\u5728\u8FD9\u91CC\u8D34\u6587\u7A3F" }
+    attr: {
+      rows: "3",
+      placeholder: tr(
+        "\u89C6\u9891\u6CA1\u6709\u5B57\u5E55\u65F6\uFF0C\u5728\u8FD9\u91CC\u8D34\u6587\u7A3F",
+        "Paste a transcript here when the video has no subtitles"
+      )
+    }
   });
   transcript.value = ctx.state.transcriptDraft;
   transcript.addEventListener("input", () => {
     ctx.state.transcriptDraft = transcript.value;
   });
   const localRow = container.createDiv({ cls: "vs-field" });
-  localRow.createEl("label", { text: "\u672C\u5730\u6587\u4EF6", cls: "vs-field-label" });
+  localRow.createEl("label", { text: tr("\u672C\u5730\u6587\u4EF6", "Local file"), cls: "vs-field-label" });
   const localFile = localRow.createEl("input", {
     cls: "vs-field-input",
-    attr: { type: "text", placeholder: "\u4F8B\u5982 lecture-01.mp4\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694" }
+    attr: {
+      type: "text",
+      placeholder: tr(
+        "\u4F8B\u5982 lecture-01.mp4\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694",
+        "For example lecture-01.mp4; separate several with commas"
+      )
+    }
   });
   localFile.value = ctx.state.localFileDraft;
   localFile.addEventListener("input", () => {
     ctx.state.localFileDraft = localFile.value;
   });
   localRow.createDiv({
-    text: "\u5148\u628A\u6587\u4EF6\u653E\u8FDB\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u8FD9\u91CC\u53EA\u586B\u6587\u4EF6\u540D\u3002",
+    text: tr(
+      "\u5148\u628A\u6587\u4EF6\u653E\u8FDB\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u8FD9\u91CC\u53EA\u586B\u6587\u4EF6\u540D\u3002",
+      "Put the file in the backend's uploads folder first; type only its name here."
+    ),
     cls: "vs-field-hint"
   });
   localFile.addEventListener("blur", () => {
     if (isAbsoluteLocalPath(localFile.value)) {
-      new import_obsidian10.Notice("\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002\u7528 docker \u65F6\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002");
+      new import_obsidian10.Notice(
+        tr(
+          "\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002\u7528 docker \u65F6\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002",
+          "This looks like an absolute path. With Docker, use the file name inside uploads or a relative path."
+        )
+      );
     }
   });
   const partsRow = container.createDiv({ cls: "vs-field vs-field-inline" });
@@ -12021,7 +12515,7 @@ function renderAdvanced(container, ctx, mainInput) {
   });
   partsToggle.checked = ctx.state.partsEnabled;
   partsRow.createEl("label", {
-    text: "\u6309\u5206\u96C6\u8303\u56F4\u5C55\u5F00",
+    text: tr("\u6309\u5206\u96C6\u8303\u56F4\u5C55\u5F00", "Expand by episode range"),
     attr: { for: "vs-parts-toggle" },
     cls: "vs-field-label"
   });
@@ -12029,7 +12523,7 @@ function renderAdvanced(container, ctx, mainInput) {
     cls: "vs-num-input",
     attr: { type: "number", min: "1", max: "1000", value: String(ctx.state.partsStart) }
   });
-  partsRow.createSpan({ text: "\u5230", cls: "vs-field-hint" });
+  partsRow.createSpan({ text: tr("\u5230", "to"), cls: "vs-field-hint" });
   const partsEnd = partsRow.createEl("input", {
     cls: "vs-num-input",
     attr: { type: "number", min: "1", max: "1000", value: String(ctx.state.partsEnd) }
@@ -12051,7 +12545,12 @@ async function submit(ctx, input, fields) {
   const transcript = fields.transcript.value.trim();
   const localFiles = fields.localFile.value.trim();
   if (!raw && !transcript && !localFiles) {
-    new import_obsidian10.Notice("\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F");
+    new import_obsidian10.Notice(
+      tr(
+        "\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F",
+        "Paste a link, a local file name or a transcript first"
+      )
+    );
     return;
   }
   let drafts = parseInput(raw, {
@@ -12062,18 +12561,23 @@ async function submit(ctx, input, fields) {
   if (fields.partsToggle.checked) {
     const url = drafts.find((draft) => draft.source === "url")?.input.url;
     if (!url) {
-      new import_obsidian10.Notice("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5");
+      new import_obsidian10.Notice(tr("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5", "Expanding by episode needs a video link"));
       return;
     }
     const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
     const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
     if (end - start + 1 > 100) {
-      new import_obsidian10.Notice("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6");
+      new import_obsidian10.Notice(tr("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6", "At most 100 episodes at a time"));
       return;
     }
     const expanded = expandParts(url, start, end, { transcript, localFiles });
     if (expanded.length === 0) {
-      new import_obsidian10.Notice("\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427");
+      new import_obsidian10.Notice(
+        tr(
+          "\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427",
+          "Cannot find a video ID in the link; use one link per episode instead"
+        )
+      );
       return;
     }
     drafts = expanded;
@@ -12081,19 +12585,22 @@ async function submit(ctx, input, fields) {
     ctx.state.partsEnd = end;
   }
   if (drafts.length === 0) {
-    new import_obsidian10.Notice("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9");
+    new import_obsidian10.Notice(tr("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9", "Nothing to process was found"));
     return;
   }
   const looksAccidental = drafts.length === 1 && drafts[0].source === "transcript" && !transcript && raw.length > 0 && raw.length < 40 && !raw.includes("\n");
   if (looksAccidental) {
     new import_obsidian10.Notice(
-      `"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`,
+      tr(
+        `"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`,
+        `"${raw}" does not look like a link or file name. To process it as a transcript, paste it into "Manual transcript" under the advanced options.`
+      ),
       8e3
     );
     return;
   }
   if (drafts.length > 50) {
-    new import_obsidian10.Notice("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761");
+    new import_obsidian10.Notice(tr("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761", "At most 50 at a time"));
     return;
   }
   const queued = await ctx.plugin.jobService.submit(drafts, ctx.submitOptions());
@@ -12105,7 +12612,7 @@ async function submit(ctx, input, fields) {
     ctx.state.transcriptDraft = "";
     ctx.state.localFileDraft = "";
     input.dispatchEvent(new Event("input"));
-    new import_obsidian10.Notice(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`);
+    new import_obsidian10.Notice(tr(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`, `Sent ${queued} jobs`));
     ctx.state.tab = "jobs";
     ctx.renderPanels();
   }
@@ -12126,7 +12633,12 @@ function appendFileNames(ctx, input, names) {
 ${names.join("\n")}` : names.join("\n");
   ctx.state.inputDraft = input.value;
   input.dispatchEvent(new Event("input"));
-  new import_obsidian10.Notice(`\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`);
+  new import_obsidian10.Notice(
+    tr(
+      `\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`,
+      `Filled in ${names.length} file names; make sure they are in a folder the backend can read`
+    )
+  );
 }
 function autoGrow(input) {
   const resize = () => {
@@ -12170,7 +12682,7 @@ function renderJobsPanel(container, ctx) {
     iconButton(header, "more-horizontal", "\u5217\u8868\u64CD\u4F5C", (event) => {
       showMenu(event, [
         {
-          title: "\u6E05\u6389\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u5361",
+          title: tr("\u6E05\u6389\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u5361", "Clear finished job cards"),
           icon: "eraser",
           onClick: () => {
             ctx.plugin.jobs.clearFinished();
@@ -12178,7 +12690,7 @@ function renderJobsPanel(container, ctx) {
           }
         },
         {
-          title: "\u6E05\u7A7A\u5904\u7406\u5386\u53F2",
+          title: tr("\u6E05\u7A7A\u5904\u7406\u5386\u53F2", "Clear processing history"),
           icon: "trash",
           onClick: async () => {
             await ctx.plugin.clearProcessingHistory();
@@ -12186,14 +12698,19 @@ function renderJobsPanel(container, ctx) {
           }
         },
         {
-          title: "\u6E05\u7A7A\u7ED3\u679C\u7F13\u5B58",
+          title: tr("\u6E05\u7A7A\u7ED3\u679C\u7F13\u5B58", "Clear result cache"),
           icon: "database",
           onClick: async () => {
             try {
               ctx.plugin.api.clearCache();
-              new import_obsidian11.Notice("\u7F13\u5B58\u5DF2\u6E05\u7A7A");
+              new import_obsidian11.Notice(tr("\u7F13\u5B58\u5DF2\u6E05\u7A7A", "Cache cleared"));
             } catch (error) {
-              new import_obsidian11.Notice(`\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? errorMessage(error) : error}`);
+              new import_obsidian11.Notice(
+                tr(
+                  `\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? errorMessage(error) : error}`,
+                  `Could not clear the cache: ${error instanceof Error ? errorMessage(error) : error}`
+                )
+              );
             }
           }
         }
@@ -12204,7 +12721,10 @@ function renderJobsPanel(container, ctx) {
     visibleHistory.forEach((row) => renderHistoryRow(group, ctx, row));
     if (historyRows.length > RECENT_HISTORY_LIMIT) {
       const more = container.createEl("button", {
-        text: historyExpanded ? "\u6536\u8D77\u6700\u8FD1\u5B8C\u6210" : `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${historyRows.length - RECENT_HISTORY_LIMIT} \u6761`,
+        text: historyExpanded ? tr("\u6536\u8D77\u6700\u8FD1\u5B8C\u6210", "Hide recent jobs") : tr(
+          `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${historyRows.length - RECENT_HISTORY_LIMIT} \u6761`,
+          `Show more \xB7 ${historyRows.length - RECENT_HISTORY_LIMIT} more`
+        ),
         cls: "vs-more-btn vs-history-more",
         attr: { type: "button" }
       });
@@ -12267,13 +12787,22 @@ function renderActiveJob(container, ctx, job) {
   const sub = info.createDiv({ cls: "vs-job-sub" });
   platformText(sub, job.platform, platformLabel(job.platform));
   if (job.startedAt) {
-    sub.createSpan({ text: `\u5DF2\u7528 ${formatClock(Date.now() - job.startedAt)}`, cls: "vs-mono" });
+    sub.createSpan({
+      text: tr(
+        `\u5DF2\u7528 ${formatClock(Date.now() - job.startedAt)}`,
+        `${formatClock(Date.now() - job.startedAt)} so far`
+      ),
+      cls: "vs-mono"
+    });
   }
-  if (!job.useCache) sub.createSpan({ text: "\u8DF3\u8FC7\u7F13\u5B58" });
+  if (!job.useCache) sub.createSpan({ text: tr("\u8DF3\u8FC7\u7F13\u5B58", "Skip cache") });
   const side = body.createDiv({ cls: "vs-job-side" });
   statusPill(side, job.state === "queued" ? "queued" : "running", {
-    label: job.state === "queued" ? "\u6392\u961F\u4E2D" : job.stageLabel || "\u5904\u7406\u4E2D",
-    title: job.stageLabel ? void 0 : "\u8BE5\u540E\u7AEF\u4E0D\u4E0A\u62A5\u5904\u7406\u9636\u6BB5\uFF0C\u4EC5\u663E\u793A\u8BA1\u65F6"
+    label: job.state === "queued" ? tr("\u6392\u961F\u4E2D", "Queued") : job.stageLabel || tr("\u5904\u7406\u4E2D", "Processing"),
+    title: job.stageLabel ? void 0 : tr(
+      "\u8BE5\u540E\u7AEF\u4E0D\u4E0A\u62A5\u5904\u7406\u9636\u6BB5\uFF0C\u4EC5\u663E\u793A\u8BA1\u65F6",
+      "This backend does not report stages; only the timer is shown"
+    )
   });
   iconButton(
     side,
@@ -12315,7 +12844,7 @@ function renderReviewJob(container, ctx, job) {
     "\u76F4\u63A5\u5199\u5165",
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
-        new import_obsidian11.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+        new import_obsidian11.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
         ctx.renderPanels();
       }
     }),
@@ -12404,7 +12933,7 @@ function renderHistoryRow(container, ctx, row) {
     body.createDiv({
       text: summarizeError(row.error),
       cls: "vs-row-sub is-error",
-      attr: { title: "\u70B9\u51FB\u4EFB\u52A1\u67E5\u770B\u5B8C\u6574\u5931\u8D25\u8BE6\u60C5" }
+      attr: { title: tr("\u70B9\u51FB\u4EFB\u52A1\u67E5\u770B\u5B8C\u6574\u5931\u8D25\u8BE6\u60C5", "Click the job for the full failure details") }
     });
   } else {
     const sub = body.createDiv({ cls: "vs-row-sub" });
@@ -12421,18 +12950,21 @@ function renderHistoryRow(container, ctx, row) {
   });
   body.tabIndex = 0;
   body.setAttribute("role", "button");
-  body.setAttribute("aria-label", `\u67E5\u770B\u4EFB\u52A1\u8BE6\u60C5\uFF1A${displayTitle}`);
+  body.setAttribute(
+    "aria-label",
+    tr(`\u67E5\u770B\u4EFB\u52A1\u8BE6\u60C5\uFF1A${displayTitle}`, `Job details: ${displayTitle}`)
+  );
   body.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     body.click();
   });
   const statePill = row.state === "error" ? statusPill(item, "error", {
-    label: "\u91CD\u8BD5",
-    title: "\u8DF3\u8FC7\u7F13\u5B58\u91CD\u65B0\u5904\u7406",
+    label: tr("\u91CD\u8BD5", "Retry"),
+    title: tr("\u8DF3\u8FC7\u7F13\u5B58\u91CD\u65B0\u5904\u7406", "Process again, skipping the cache"),
     onClick: () => void rerun(ctx, row)
   }) : statusPill(item, row.state, {
-    label: row.state === "success" ? "\u5B8C\u6210" : "\u5DF2\u53D6\u6D88"
+    label: row.state === "success" ? tr("\u5B8C\u6210", "Done") : tr("\u5DF2\u53D6\u6D88", "Cancelled")
   });
   statePill.addClass("vs-row-status");
   if (row.state === "error" && row.error) renderNextStep(container, ctx, row);
@@ -12440,22 +12972,22 @@ function renderHistoryRow(container, ctx, row) {
   iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
     showMenu(event, [
       {
-        title: "\u6253\u5F00\u7B14\u8BB0",
+        title: tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
         icon: "file-text",
         onClick: () => openNoteByName(ctx, row.title)
       },
       {
-        title: "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+        title: tr("\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", "Run again (skip cache)"),
         icon: "refresh-cw",
         onClick: () => rerun(ctx, row)
       },
       {
-        title: "\u590D\u5236\u5931\u8D25\u539F\u56E0",
+        title: tr("\u590D\u5236\u5931\u8D25\u539F\u56E0", "Copy the failure reason"),
         icon: "clipboard",
         disabled: !row.error,
         onClick: () => {
           void navigator.clipboard.writeText(row.error || "");
-          new import_obsidian11.Notice("\u5DF2\u590D\u5236");
+          new import_obsidian11.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
         }
       }
     ]);
@@ -12466,7 +12998,7 @@ function renderNextStep(container, ctx, row) {
   if (!kind) return;
   const strip = container.createDiv({ cls: "vs-next-step" });
   if (kind === "no-transcript") {
-    strip.createSpan({ text: "\u53EF\u4EE5\u8865\u4E00\u4EFD\u6587\u7A3F\u518D\u603B\u7ED3" });
+    strip.createSpan({ text: tr("\u53EF\u4EE5\u8865\u4E00\u4EFD\u6587\u7A3F\u518D\u603B\u7ED3", "Add a transcript and summarise again") });
     textButton(strip, "\u7C98\u8D34\u6587\u7A3F \u2192", () => {
       const url = row.job?.input.url || row.record?.url || "";
       ctx.state.inputDraft = url;
@@ -12477,10 +13009,12 @@ function renderNextStep(container, ctx, row) {
       }, 0);
     });
   } else if (kind === "login") {
-    strip.createSpan({ text: "\u767B\u5F55\u72B6\u6001\u5931\u6548\uFF0C\u66F4\u65B0 Cookies \u540E\u91CD\u8BD5" });
+    strip.createSpan({
+      text: tr("\u767B\u5F55\u72B6\u6001\u5931\u6548\uFF0C\u66F4\u65B0 Cookies \u540E\u91CD\u8BD5", "Login expired; update the cookies and retry")
+    });
     textButton(strip, "\u6253\u5F00\u8BBE\u7F6E \u2192", () => openSettings(ctx));
   } else {
-    strip.createSpan({ text: "\u5904\u7406\u670D\u52A1\u6CA1\u6709\u8FDE\u4E0A" });
+    strip.createSpan({ text: tr("\u5904\u7406\u670D\u52A1\u6CA1\u6709\u8FDE\u4E0A", "The backend is not connected") });
     textButton(strip, "\u91CD\u65B0\u68C0\u6D4B \u2192", () => {
       document.querySelector(".vs-backend-line")?.click();
     });
@@ -12524,45 +13058,54 @@ function safeCoverUrl(value) {
 function summarizeError(raw) {
   const error = raw.toLowerCase();
   if (NO_TRANSCRIPT.test(error)) {
-    return "\u6CA1\u6709\u5B57\u5E55";
+    return tr("\u6CA1\u6709\u5B57\u5E55", "No subtitles");
   }
   if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) {
-    return "\u767B\u5F55\u72B6\u6001\u5DF2\u5931\u6548 \xB7 \u66F4\u65B0\u51ED\u8BC1\u540E\u91CD\u8BD5";
+    return tr(
+      "\u767B\u5F55\u72B6\u6001\u5DF2\u5931\u6548 \xB7 \u66F4\u65B0\u51ED\u8BC1\u540E\u91CD\u8BD5",
+      "Login expired \xB7 update the credentials and retry"
+    );
   }
   if (/429|rate.?limit|too many requests|请求过于频繁|限流|quota/.test(error)) {
-    return "\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41 \xB7 \u7A0D\u540E\u91CD\u8BD5";
+    return tr("\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41 \xB7 \u7A0D\u540E\u91CD\u8BD5", "Too many requests \xB7 try again later");
   }
   if (/401|unauthorized|api.?key|鉴权|授权失败|invalid.?key/.test(error)) {
-    return "\u670D\u52A1\u6388\u6743\u5931\u8D25 \xB7 \u68C0\u67E5\u5BC6\u94A5\u914D\u7F6E";
+    return tr("\u670D\u52A1\u6388\u6743\u5931\u8D25 \xB7 \u68C0\u67E5\u5BC6\u94A5\u914D\u7F6E", "Auth failed \xB7 check the key");
   }
   if (/403|forbidden|拒绝访问|access denied/.test(error)) {
-    return "\u8BBF\u95EE\u88AB\u62D2\u7EDD \xB7 \u68C0\u67E5\u8D26\u53F7\u6743\u9650";
+    return tr("\u8BBF\u95EE\u88AB\u62D2\u7EDD \xB7 \u68C0\u67E5\u8D26\u53F7\u6743\u9650", "Access denied \xB7 check the account's permissions");
   }
   if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
-    return "\u5904\u7406\u6D41\u7A0B\u672A\u542F\u7528 \xB7 \u68C0\u67E5 Webhook";
+    return tr("\u5904\u7406\u6D41\u7A0B\u672A\u542F\u7528 \xB7 \u68C0\u67E5 Webhook", "Workflow not active \xB7 check the webhook");
   }
   if (/空响应|empty response|no response body/.test(error)) {
-    return "\u670D\u52A1\u7AEF\u672A\u8FD4\u56DE\u5185\u5BB9 \xB7 \u68C0\u67E5\u5904\u7406\u6D41\u7A0B";
+    return tr(
+      "\u670D\u52A1\u7AEF\u672A\u8FD4\u56DE\u5185\u5BB9 \xB7 \u68C0\u67E5\u5904\u7406\u6D41\u7A0B",
+      "The backend returned nothing \xB7 check the workflow"
+    );
   }
   if (/json|返回格式|unexpected token|parse response/.test(error)) {
-    return "\u670D\u52A1\u8FD4\u56DE\u683C\u5F0F\u5F02\u5E38 \xB7 \u67E5\u770B\u8BE6\u60C5";
+    return tr("\u670D\u52A1\u8FD4\u56DE\u683C\u5F0F\u5F02\u5E38 \xB7 \u67E5\u770B\u8BE6\u60C5", "The backend returned a bad format \xB7 see details");
   }
   if (/timeout|timed out|etimedout|超时|aborterror/.test(error)) {
-    return "\u8FDE\u63A5\u8D85\u65F6 \xB7 \u68C0\u67E5\u670D\u52A1\u6216\u7F51\u7EDC";
+    return tr("\u8FDE\u63A5\u8D85\u65F6 \xB7 \u68C0\u67E5\u670D\u52A1\u6216\u7F51\u7EDC", "Timed out \xB7 check the backend or network");
   }
   if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
-    return "\u65E0\u6CD5\u8FDE\u63A5\u5904\u7406\u670D\u52A1 \xB7 \u68C0\u67E5\u540E\u7AEF";
+    return tr("\u65E0\u6CD5\u8FDE\u63A5\u5904\u7406\u670D\u52A1 \xB7 \u68C0\u67E5\u540E\u7AEF", "Cannot reach the backend \xB7 check it");
   }
   if (/cookie|download|下载|video unavailable|视频不可用|解析视频|提取视频/.test(error)) {
-    return "\u89C6\u9891\u8BFB\u53D6\u5931\u8D25 \xB7 \u67E5\u770B\u8BE6\u60C5";
+    return tr("\u89C6\u9891\u8BFB\u53D6\u5931\u8D25 \xB7 \u67E5\u770B\u8BE6\u60C5", "Could not read the video \xB7 see details");
   }
   if (/enoent|eacces|permission denied|本地文件|local file|文件不存在/.test(error)) {
-    return "\u672C\u673A\u6587\u4EF6\u65E0\u6CD5\u8BFB\u53D6 \xB7 \u68C0\u67E5\u8DEF\u5F84\u6743\u9650";
+    return tr(
+      "\u672C\u673A\u6587\u4EF6\u65E0\u6CD5\u8BFB\u53D6 \xB7 \u68C0\u67E5\u8DEF\u5F84\u6743\u9650",
+      "Cannot read the local file \xB7 check its path and permissions"
+    );
   }
   if (/model|模型|gemini|openai|anthropic/.test(error)) {
-    return "\u6A21\u578B\u5904\u7406\u5931\u8D25 \xB7 \u67E5\u770B\u8BE6\u60C5";
+    return tr("\u6A21\u578B\u5904\u7406\u5931\u8D25 \xB7 \u67E5\u770B\u8BE6\u60C5", "The model failed \xB7 see details");
   }
-  return "\u5904\u7406\u5931\u8D25 \xB7 \u70B9\u51FB\u67E5\u770B\u8BE6\u60C5";
+  return tr("\u5904\u7406\u5931\u8D25 \xB7 \u70B9\u51FB\u67E5\u770B\u8BE6\u60C5", "Failed \xB7 click for details");
 }
 async function rerun(ctx, row) {
   if (row.job) {
@@ -12572,7 +13115,7 @@ async function rerun(ctx, row) {
   }
   const file = findNote(ctx, row.title);
   if (!file) {
-    new import_obsidian11.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`);
+    new import_obsidian11.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`, `Note not found: ${row.title}`));
     return;
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
@@ -12581,7 +13124,7 @@ async function rerun(ctx, row) {
 function openNoteByName(ctx, name) {
   const file = findNote(ctx, name);
   if (!file) {
-    new import_obsidian11.Notice(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`);
+    new import_obsidian11.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`, `Note not found: ${name}`));
     return;
   }
   void ctx.openNote(file.path);
@@ -12594,24 +13137,27 @@ function findNote(ctx, name) {
 }
 function summarize(job) {
   const result = job.result;
-  if (!result) return "\u7B49\u5F85\u786E\u8BA4";
+  if (!result) return tr("\u7B49\u5F85\u786E\u8BA4", "Waiting for confirmation");
   const bits = [];
   if (result.video_title) bits.push(result.video_title);
   if (result.video_duration) bits.push(result.video_duration);
   if (result.summary) bits.push(`\u603B\u7ED3 ${result.summary.length} \u5B57`);
   if (result.video_transcript) bits.push(`\u6587\u7A3F ${result.video_transcript.length} \u5B57`);
-  return bits.join(" \xB7 ") || "\u7ED3\u679C\u5DF2\u5C31\u7EEA\uFF0C\u7B49\u5F85\u5199\u5165";
+  return bits.join(" \xB7 ") || tr("\u7ED3\u679C\u5DF2\u5C31\u7EEA\uFF0C\u7B49\u5F85\u5199\u5165", "Result ready; waiting to be written");
 }
 function showWebhookHistoryMenu(ctx, event) {
   const history = ctx.plugin.api.getWebhookHistory();
   if (!history || history.length === 0) {
-    new import_obsidian11.Notice("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C");
+    new import_obsidian11.Notice(tr("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C", "No reusable webhook result yet"));
     return;
   }
   showMenu(
     event,
     history.slice(0, 12).map((entry, index) => ({
-      title: `${index + 1}. ${entry.result.video_title || entry.input.url || "\u672A\u547D\u540D"}`,
+      title: tr(
+        `${index + 1}. ${entry.result.video_title || entry.input.url || "\u672A\u547D\u540D"}`,
+        `${index + 1}. ${entry.result.video_title || entry.input.url || "untitled"}`
+      ),
       icon: "file-plus",
       onClick: () => showWebhookEntryActions(ctx, entry, event)
     }))
@@ -12620,7 +13166,7 @@ function showWebhookHistoryMenu(ctx, event) {
 function showWebhookEntryActions(ctx, entry, event) {
   showMenu(event, [
     {
-      title: "\u65B0\u5EFA\u7B14\u8BB0",
+      title: tr("\u65B0\u5EFA\u7B14\u8BB0", "New note"),
       icon: "file-plus",
       onClick: async () => {
         await ctx.plugin.jobService.createNoteFromJson(
@@ -12631,7 +13177,7 @@ function showWebhookEntryActions(ctx, entry, event) {
       }
     },
     {
-      title: "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0",
+      title: tr("\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", "Apply to the current note"),
       icon: "save",
       onClick: async () => {
         await ctx.plugin.jobService.applyToActiveNote(entry.result, entry.mode);
@@ -12639,16 +13185,16 @@ function showWebhookEntryActions(ctx, entry, event) {
       }
     },
     {
-      title: "\u63D2\u5230\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E",
+      title: tr("\u63D2\u5230\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E", "Insert at the end of the current note"),
       icon: "text-cursor-input",
       onClick: () => ctx.plugin.jobService.insertIntoActiveNote(entry.result)
     },
     {
-      title: "\u590D\u5236 JSON",
+      title: tr("\u590D\u5236 JSON", "Copy JSON"),
       icon: "clipboard",
       onClick: () => {
         void navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
-        new import_obsidian11.Notice("\u5DF2\u590D\u5236");
+        new import_obsidian11.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
       }
     }
   ]);
@@ -12676,16 +13222,20 @@ function renderLibraryPanel(container, ctx) {
   (0, import_obsidian12.setIcon)(searchIcon, "search");
   const search = searchWrap.createEl("input", {
     cls: "vs-search-input",
-    attr: { type: "text", placeholder: "\u641C\u7D22\u7B14\u8BB0\u540D\u2026", value: state.librarySearch }
+    attr: {
+      type: "text",
+      placeholder: tr("\u641C\u7D22\u7B14\u8BB0\u540D\u2026", "Search note names\u2026"),
+      value: state.librarySearch
+    }
   });
   iconButton(header, "arrow-up-down", "\u6392\u5E8F\u65B9\u5F0F", (event) => {
     showMenu(
       event,
       [
-        { value: "mtime-desc", title: "\u6700\u8FD1\u4FEE\u6539" },
-        { value: "ctime-desc", title: "\u6700\u8FD1\u521B\u5EFA" },
-        { value: "name-asc", title: "\u540D\u79F0 A\u2192Z" },
-        { value: "status", title: "\u6309\u72B6\u6001" }
+        { value: "mtime-desc", title: tr("\u6700\u8FD1\u4FEE\u6539", "Recently modified") },
+        { value: "ctime-desc", title: tr("\u6700\u8FD1\u521B\u5EFA", "Recently created") },
+        { value: "name-asc", title: tr("\u540D\u79F0 A\u2192Z", "Name A\u2192Z") },
+        { value: "status", title: tr("\u6309\u72B6\u6001", "By status") }
       ].map((option) => ({
         title: option.title + (state.librarySort === option.value ? " \u2713" : ""),
         onClick: async () => {
@@ -12716,7 +13266,10 @@ function renderLibraryPanel(container, ctx) {
       cls: `vs-filter-chip ${tone}${state.libraryFilter === value ? " is-active" : ""}`,
       attr: {
         type: "button",
-        title: value === "running" ? "\u67E5\u770B\u672C\u6B21\u4F1A\u8BDD\u4E2D\u8FDB\u884C\u7684\u4EFB\u52A1\u548C\u4E0A\u6B21\u4E2D\u65AD\u7684\u7B14\u8BB0" : label
+        title: value === "running" ? tr(
+          "\u67E5\u770B\u672C\u6B21\u4F1A\u8BDD\u4E2D\u8FDB\u884C\u7684\u4EFB\u52A1\u548C\u4E0A\u6B21\u4E2D\u65AD\u7684\u7B14\u8BB0",
+          "Jobs from this session and notes that were interrupted last time"
+        ) : label
       }
     });
     chip.addEventListener(
@@ -12759,16 +13312,32 @@ function renderLibraryPanel(container, ctx) {
     listEl.empty();
     if (filtered.length === 0) {
       if (plugin.noteIndex.isScanning()) {
-        emptyState(listEl, "loader", "\u6B63\u5728\u5EFA\u7ACB\u7D22\u5F15\u2026", "\u7B2C\u4E00\u6B21\u6253\u5F00\u4F1A\u626B\u4E00\u904D\u5E93\uFF0C\u7A0D\u7B49\u51E0\u79D2");
+        emptyState(
+          listEl,
+          "loader",
+          tr("\u6B63\u5728\u5EFA\u7ACB\u7D22\u5F15\u2026", "Building the index\u2026"),
+          tr(
+            "\u7B2C\u4E00\u6B21\u6253\u5F00\u4F1A\u626B\u4E00\u904D\u5E93\uFF0C\u7A0D\u7B49\u51E0\u79D2",
+            "The first time scans the vault; wait a few seconds"
+          )
+        );
       } else {
-        emptyState(listEl, "file-search", "\u6CA1\u6709\u5339\u914D\u7684\u89C6\u9891\u7B14\u8BB0", "\u6362\u4E2A\u5173\u952E\u8BCD\uFF0C\u6216\u6E05\u6389\u72B6\u6001\u7B5B\u9009");
+        emptyState(
+          listEl,
+          "file-search",
+          tr("\u6CA1\u6709\u5339\u914D\u7684\u89C6\u9891\u7B14\u8BB0", "No matching video notes"),
+          tr("\u6362\u4E2A\u5173\u952E\u8BCD\uFF0C\u6216\u6E05\u6389\u72B6\u6001\u7B5B\u9009", "Try another word, or clear the status filter")
+        );
       }
       return;
     }
     filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
     if (filtered.length > visibleCount) {
       const more = listEl.createEl("button", {
-        text: `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${filtered.length - visibleCount} \u6761`,
+        text: tr(
+          `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${filtered.length - visibleCount} \u6761`,
+          `Show more \xB7 ${filtered.length - visibleCount} more`
+        ),
         cls: "vs-more-btn",
         attr: { type: "button" }
       });
@@ -12804,7 +13373,10 @@ function renderLibraryPanel(container, ctx) {
     search.setSelectionRange(search.value.length, search.value.length);
   }
   if (plugin.noteIndex.isScanning() && filtered.length > 0) {
-    container.createDiv({ text: "\u4ECD\u5728\u540E\u53F0\u626B\u63CF\u5386\u53F2\u7B14\u8BB0\u2026", cls: "vs-scan-hint" });
+    container.createDiv({
+      text: tr("\u4ECD\u5728\u540E\u53F0\u626B\u63CF\u5386\u53F2\u7B14\u8BB0\u2026", "Still scanning older notes in the background\u2026"),
+      cls: "vs-scan-hint"
+    });
   }
 }
 function renderRow(listEl, ctx, entry, observer) {
@@ -12833,7 +13405,10 @@ function renderRow(listEl, ctx, entry, observer) {
   );
   body.tabIndex = 0;
   body.setAttribute("role", "button");
-  body.setAttribute("aria-label", `\u6253\u5F00\u7B14\u8BB0\uFF1A${entry.basename}`);
+  body.setAttribute(
+    "aria-label",
+    tr(`\u6253\u5F00\u7B14\u8BB0\uFF1A${entry.basename}`, `Open note: ${entry.basename}`)
+  );
   body.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
@@ -12847,7 +13422,10 @@ function renderRow(listEl, ctx, entry, observer) {
       resetLibraryPaging();
       ctx.renderPanels();
     },
-    title: entry.status === "running" ? "\u53EA\u770B\u8FDB\u884C\u4E2D\u6216\u5DF2\u4E2D\u65AD" : `\u53EA\u770B${displayStatus === "success" ? "\u5DF2\u5B8C\u6210" : displayStatus === "error" ? "\u5931\u8D25" : "\u5F85\u5904\u7406"}`
+    title: entry.status === "running" ? tr("\u53EA\u770B\u8FDB\u884C\u4E2D\u6216\u5DF2\u4E2D\u65AD", "Only running or interrupted") : tr(
+      `\u53EA\u770B${displayStatus === "success" ? "\u5DF2\u5B8C\u6210" : displayStatus === "error" ? "\u5931\u8D25" : "\u5F85\u5904\u7406"}`,
+      `Only ${displayStatus === "success" ? "done" : displayStatus === "error" ? "failed" : "pending"}`
+    )
   });
   statePill.addClass("vs-row-status");
   const actions = row.createDiv({ cls: "vs-row-actions" });
@@ -12901,10 +13479,14 @@ function renderRow(listEl, ctx, entry, observer) {
   }
   iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
     const menuItems = [
-      { title: "\u6253\u5F00\u7B14\u8BB0", icon: "file-text", onClick: () => ctx.openNote(entry.path) },
+      {
+        title: tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
+        icon: "file-text",
+        onClick: () => ctx.openNote(entry.path)
+      },
       ...entry.artifactId ? [
         {
-          title: "\u540C\u6B65\u966A\u8BFB",
+          title: tr("\u540C\u6B65\u966A\u8BFB", "Reader"),
           icon: "book-open",
           onClick: () => ctx.openDetail({
             kind: "note",
@@ -12914,7 +13496,7 @@ function renderRow(listEl, ctx, entry, observer) {
         }
       ] : [],
       {
-        title: "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+        title: tr("\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", "Run again (skip cache)"),
         icon: "refresh-cw",
         onClick: async () => {
           const file = fileOf(ctx, entry);
@@ -12925,16 +13507,16 @@ function renderRow(listEl, ctx, entry, observer) {
         }
       },
       {
-        title: "\u590D\u5236\u94FE\u63A5",
+        title: tr("\u590D\u5236\u94FE\u63A5", "Copy link"),
         icon: "clipboard",
         disabled: !entry.link,
         onClick: () => {
           void navigator.clipboard.writeText(entry.link || "");
-          new import_obsidian12.Notice("\u5DF2\u590D\u5236\u94FE\u63A5");
+          new import_obsidian12.Notice(tr("\u5DF2\u590D\u5236\u94FE\u63A5", "Link copied"));
         }
       },
       {
-        title: "\u6807\u8BB0\u4E3A\u5F85\u5904\u7406",
+        title: tr("\u6807\u8BB0\u4E3A\u5F85\u5904\u7406", "Mark as pending"),
         icon: "rotate-ccw",
         onClick: async () => {
           const file = fileOf(ctx, entry);
@@ -12942,7 +13524,11 @@ function renderRow(listEl, ctx, entry, observer) {
           ctx.renderPanels();
         }
       },
-      { title: "\u5220\u9664\u7B14\u8BB0", icon: "trash-2", onClick: () => confirmDelete(ctx, entry) }
+      {
+        title: tr("\u5220\u9664\u7B14\u8BB0", "Delete note"),
+        icon: "trash-2",
+        onClick: () => confirmDelete(ctx, entry)
+      }
     ];
     showMenu(event, menuItems);
   });
@@ -12957,7 +13543,7 @@ function confirmDelete(ctx, entry) {
       const file = fileOf(ctx, entry);
       if (!file) return;
       await ctx.plugin.app.fileManager.trashFile(file);
-      new import_obsidian12.Notice(`\u5DF2\u5220\u9664 ${entry.basename}`);
+      new import_obsidian12.Notice(tr(`\u5DF2\u5220\u9664 ${entry.basename}`, `Deleted ${entry.basename}`));
       ctx.renderPanels();
     })
   ).open();
@@ -13041,16 +13627,26 @@ function renderReaderPanel(container, ctx, job) {
   const toolbar = reader.createDiv({ cls: "vs-reader-toolbar" });
   const search = toolbar.createEl("input", {
     cls: "vs-reader-search",
-    attr: { type: "search", placeholder: "\u641C\u7D22\u6587\u7A3F\u2026", "aria-label": "\u641C\u7D22\u6587\u7A3F" }
+    attr: {
+      type: "search",
+      placeholder: tr("\u641C\u7D22\u6587\u7A3F\u2026", "Search the transcript\u2026"),
+      "aria-label": tr("\u641C\u7D22\u6587\u7A3F", "Search the transcript")
+    }
   });
   const count = toolbar.createSpan({
-    text: `${segments.length.toLocaleString()} \u6BB5`,
+    text: tr(
+      `${segments.length.toLocaleString()} \u6BB5`,
+      `${segments.length.toLocaleString()} segments`
+    ),
     cls: "vs-reader-count"
   });
   void count;
   if (segments.length === 0) {
     reader.createDiv({
-      text: "\u5F53\u524D\u7ED3\u679C\u6CA1\u6709\u7ED3\u6784\u5316\u65F6\u95F4\u8F74\u3002\u91CD\u65B0\u5904\u7406\u65F6\u9009\u62E9\u201C\u8BC1\u636E\u6A21\u5F0F\u201D\u5373\u53EF\u751F\u6210\u3002",
+      text: tr(
+        "\u5F53\u524D\u7ED3\u679C\u6CA1\u6709\u7ED3\u6784\u5316\u65F6\u95F4\u8F74\u3002\u91CD\u65B0\u5904\u7406\u65F6\u9009\u62E9\u201C\u8BC1\u636E\u6A21\u5F0F\u201D\u5373\u53EF\u751F\u6210\u3002",
+        'This result has no structured timeline. Process it again in "Evidence" mode to get one.'
+      ),
       cls: "vs-hint"
     });
     return;
@@ -13075,7 +13671,10 @@ function renderReaderPanel(container, ctx, job) {
           type: "button",
           "data-segment-id": segment.id,
           draggable: "true",
-          title: "\u70B9\u51FB\u8DF3\u5230\u8FD9\u91CC \xB7 \u53F3\u952E\u590D\u5236\u5F15\u7528 \xB7 \u62D6\u8FDB\u7B14\u8BB0\u63D2\u5165\u5F15\u7528"
+          title: tr(
+            "\u70B9\u51FB\u8DF3\u5230\u8FD9\u91CC \xB7 \u53F3\u952E\u590D\u5236\u5F15\u7528 \xB7 \u62D6\u8FDB\u7B14\u8BB0\u63D2\u5165\u5F15\u7528",
+            "Click to jump here \xB7 right-click to copy a quote \xB7 drag into a note to insert a quote"
+          )
         }
       });
       const time = row.createSpan({
@@ -13092,7 +13691,7 @@ function renderReaderPanel(container, ctx, job) {
       content.createSpan({ text: segment.text, cls: "vs-reader-text" });
       if (segment.visual_text) {
         content.createSpan({
-          text: `\u5C4F\u5E55\uFF1A${segment.visual_text}`,
+          text: tr(`\u5C4F\u5E55\uFF1A${segment.visual_text}`, `On screen: ${segment.visual_text}`),
           cls: "vs-reader-visual-text"
         });
       }
@@ -13126,14 +13725,14 @@ function renderReaderPanel(container, ctx, job) {
         const quote = quoteFor(ctx, job, sourceUrl, segment);
         showMenu(event, [
           {
-            title: "\u590D\u5236\u5F15\u7528",
+            title: tr("\u590D\u5236\u5F15\u7528", "Copy quote"),
             icon: "quote",
             onClick: () => {
-              void navigator.clipboard.writeText(quote).then(() => new import_obsidian13.Notice("\u5DF2\u590D\u5236\u5F15\u7528"));
+              void navigator.clipboard.writeText(quote).then(() => new import_obsidian13.Notice(tr("\u5DF2\u590D\u5236\u5F15\u7528", "Quote copied")));
             }
           },
           {
-            title: "\u63D2\u5165\u5230\u7B14\u8BB0",
+            title: tr("\u63D2\u5165\u5230\u7B14\u8BB0", "Insert into note"),
             icon: "text-cursor-input",
             onClick: () => insertIntoRecentNote(ctx, quote)
           },
@@ -13146,7 +13745,9 @@ function renderReaderPanel(container, ctx, job) {
       });
       row.addEventListener("click", () => {
         if (segment.start === null || segment.timing_quality === "none") {
-          new import_obsidian13.Notice("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+          new import_obsidian13.Notice(
+            tr("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This transcript line has no reliable timestamp")
+          );
           return;
         }
         activeId = segment.id;
@@ -13156,7 +13757,10 @@ function renderReaderPanel(container, ctx, job) {
     });
     if (!query && visibleCount2 < matching.length) {
       const more = footer.createEl("button", {
-        text: `\u7EE7\u7EED\u52A0\u8F7D ${Math.min(PAGE_SIZE2, matching.length - visibleCount2)} \u6BB5`,
+        text: tr(
+          `\u7EE7\u7EED\u52A0\u8F7D ${Math.min(PAGE_SIZE2, matching.length - visibleCount2)} \u6BB5`,
+          `Load ${Math.min(PAGE_SIZE2, matching.length - visibleCount2)} more`
+        ),
         cls: "vs-text-btn",
         attr: { type: "button" }
       });
@@ -13167,7 +13771,10 @@ function renderReaderPanel(container, ctx, job) {
     }
     if (query && matching.length > visible.length) {
       footer.createSpan({
-        text: `\u663E\u793A\u524D ${visible.length} \u6761\uFF0C\u5171 ${matching.length} \u6761\u5339\u914D`,
+        text: tr(
+          `\u663E\u793A\u524D ${visible.length} \u6761\uFF0C\u5171 ${matching.length} \u6761\u5339\u914D`,
+          `Showing ${visible.length} of ${matching.length} matches`
+        ),
         cls: "vs-hint"
       });
     }
@@ -13196,7 +13803,10 @@ function renderReaderPanel(container, ctx, job) {
     ).length;
     if (needsReview > 0) {
       toolbar.createSpan({
-        text: `${needsReview} \u4E2A\u65E7\u91CD\u70B9\u5F85\u91CD\u65B0\u5B9A\u4F4D`,
+        text: tr(
+          `${needsReview} \u4E2A\u65E7\u91CD\u70B9\u5F85\u91CD\u65B0\u5B9A\u4F4D`,
+          `${needsReview} older highlights need relocating`
+        ),
         cls: "vs-hint is-warning"
       });
     }
@@ -13219,12 +13829,22 @@ function insertIntoRecentNote(ctx, text2) {
   const { workspace } = ctx.plugin.app;
   const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
   if (!(view instanceof import_obsidian13.MarkdownView)) {
-    new import_obsidian13.Notice("\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528");
+    new import_obsidian13.Notice(
+      tr(
+        "\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528",
+        "Open a note in the main editor first, then insert the quote"
+      )
+    );
     return;
   }
   view.editor.replaceSelection(`${text2}
 `);
-  new import_obsidian13.Notice(`\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`);
+  new import_obsidian13.Notice(
+    tr(
+      `\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`,
+      `Inserted into ${view.file?.basename ?? "the note"}`
+    )
+  );
 }
 function createPlayer(container, ctx, job, sourceUrl) {
   const localSource = resolveLocalSource(ctx, job.input.localFile);
@@ -13236,9 +13856,15 @@ function createPlayer(container, ctx, job, sourceUrl) {
   const fallback = container.createDiv({ cls: "vs-reader-player-fallback" });
   const icon = fallback.createDiv({ cls: "vs-reader-player-icon" });
   (0, import_obsidian13.setIcon)(icon, "external-link");
-  fallback.createDiv({ text: "\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", cls: "vs-reader-player-title" });
   fallback.createDiv({
-    text: "\u70B9\u51FB\u6587\u7A3F\u65F6\u95F4\u70B9\u65F6\u4F1A\u6253\u5F00\u5BF9\u5E94\u7684\u89C6\u9891\u4F4D\u7F6E\u3002",
+    text: tr("\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", "This platform uses an external player"),
+    cls: "vs-reader-player-title"
+  });
+  fallback.createDiv({
+    text: tr(
+      "\u70B9\u51FB\u6587\u7A3F\u65F6\u95F4\u70B9\u65F6\u4F1A\u6253\u5F00\u5BF9\u5E94\u7684\u89C6\u9891\u4F4D\u7F6E\u3002",
+      "Clicking a transcript time opens the video at that point."
+    ),
     cls: "vs-hint"
   });
   let listener = null;
@@ -13294,7 +13920,7 @@ function createYouTubePlayer(container, videoId) {
       src: `https://www.youtube.com/embed/${encodeURIComponent(
         videoId
       )}?enablejsapi=1&playsinline=1&rel=0`,
-      title: "YouTube \u89C6\u9891",
+      title: tr("YouTube \u89C6\u9891", "YouTube video"),
       allow: "accelerometer; autoplay; encrypted-media; picture-in-picture",
       allowfullscreen: "true"
     }
@@ -13347,13 +13973,16 @@ function createBilibiliPlayer(container, bvid) {
   const iframe = container.createEl("iframe", {
     cls: "vs-reader-iframe",
     attr: {
-      title: "Bilibili \u89C6\u9891",
+      title: tr("Bilibili \u89C6\u9891", "Bilibili video"),
       allow: "autoplay; fullscreen",
       allowfullscreen: "true"
     }
   });
   container.createDiv({
-    text: "B\u7AD9\u5D4C\u5165\u64AD\u653E\u5668\u4E0D\u63D0\u4F9B\u7A33\u5B9A\u7684\u64AD\u653E\u65F6\u95F4\u4E8B\u4EF6\uFF1A\u70B9\u51FB\u6587\u7A3F\u53EF\u8DF3\u8F6C\uFF0C\u64AD\u653E\u65F6\u6682\u4E0D\u81EA\u52A8\u8DDF\u968F\u3002",
+    text: tr(
+      "B\u7AD9\u5D4C\u5165\u64AD\u653E\u5668\u4E0D\u63D0\u4F9B\u7A33\u5B9A\u7684\u64AD\u653E\u65F6\u95F4\u4E8B\u4EF6\uFF1A\u70B9\u51FB\u6587\u7A3F\u53EF\u8DF3\u8F6C\uFF0C\u64AD\u653E\u65F6\u6682\u4E0D\u81EA\u52A8\u8DDF\u968F\u3002",
+      "The Bilibili embedded player has no reliable playback time: clicking the transcript jumps, but it does not follow along while playing."
+    ),
     cls: "vs-hint is-warning"
   });
   const listeners = /* @__PURE__ */ new Set();
@@ -13467,7 +14096,12 @@ async function toggleHighlight(ctx, job, segment, highlights) {
   } catch (error) {
     if (removing) highlights.add(segment.id);
     else highlights.delete(segment.id);
-    new import_obsidian13.Notice(`\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
+    new import_obsidian13.Notice(
+      tr(
+        `\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`,
+        `Could not save the highlight: ${error instanceof Error ? errorMessage(error) : String(error)}`
+      )
+    );
   }
 }
 function cssEscape(value) {
@@ -13577,7 +14211,10 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   });
   if (job.startedAt) {
     meta.createSpan({
-      text: `\u8017\u65F6 ${formatElapsed((job.endedAt || Date.now()) - job.startedAt)}`,
+      text: tr(
+        `\u8017\u65F6 ${formatElapsed((job.endedAt || Date.now()) - job.startedAt)}`,
+        `Took ${formatElapsed((job.endedAt || Date.now()) - job.startedAt)}`
+      ),
       cls: "vs-meta-pill"
     });
   }
@@ -13600,7 +14237,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     );
     textButton(actions2, "\u590D\u5236\u9519\u8BEF", () => {
       void navigator.clipboard.writeText(job.error || "");
-      new import_obsidian14.Notice("\u5DF2\u590D\u5236");
+      new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
     });
     if (isCookieError(job.error)) {
       textButton(actions2, "\u6253\u5F00 cookies \u76EE\u5F55", () => openCookiesFolder(ctx));
@@ -13615,12 +14252,12 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   segmented(
     body,
     [
-      { value: "reader", label: "\u966A\u8BFB" },
-      { value: "evidence", label: "\u8BC1\u636E" },
-      { value: "preview", label: "\u9884\u89C8" },
-      { value: "transcript", label: "\u6587\u7A3F" },
-      { value: "meta", label: "\u5143\u6570\u636E" },
-      { value: "logs", label: "\u65E5\u5FD7" }
+      { value: "reader", label: tr("\u966A\u8BFB", "Reader") },
+      { value: "evidence", label: tr("\u8BC1\u636E", "Evidence") },
+      { value: "preview", label: tr("\u9884\u89C8", "Preview") },
+      { value: "transcript", label: tr("\u6587\u7A3F", "Transcript") },
+      { value: "meta", label: tr("\u5143\u6570\u636E", "Metadata") },
+      { value: "logs", label: tr("\u65E5\u5FD7", "Log") }
     ],
     ctx.state.detailTab,
     (value) => {
@@ -13655,7 +14292,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
       "\u5199\u5165\u7B14\u8BB0",
       fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
-          new import_obsidian14.Notice("\u5DF2\u5199\u5165\u7B14\u8BB0");
+          new import_obsidian14.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
           ctx.closeDetail();
         }
       }),
@@ -13674,7 +14311,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (persistedArtifact) {
     const copy = textButton(actions, "\u590D\u5236\u5DE5\u4EF6 JSON", () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-      new import_obsidian14.Notice("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON");
+      new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON", "Artifact JSON copied"));
     });
     prependIcon(copy, "clipboard");
   } else {
@@ -13682,7 +14319,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     more.addEventListener("click", (event) => {
       showMenu(event, [
         {
-          title: "\u65B0\u5EFA\u7B14\u8BB0",
+          title: tr("\u65B0\u5EFA\u7B14\u8BB0", "New note"),
           icon: "file-plus",
           onClick: async () => {
             await ctx.plugin.jobService.createNoteFromResult(job);
@@ -13690,25 +14327,25 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
           }
         },
         {
-          title: "\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0",
+          title: tr("\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", "Apply to the current note"),
           icon: "save",
           onClick: async () => {
             if (job.result) await ctx.plugin.jobService.applyToActiveNote(job.result, job.mode);
           }
         },
         {
-          title: "\u63D2\u5165\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E",
+          title: tr("\u63D2\u5165\u5F53\u524D\u7B14\u8BB0\u672B\u5C3E", "Insert at the end of the current note"),
           icon: "text-cursor-input",
           onClick: async () => {
             if (job.result) await ctx.plugin.jobService.insertIntoActiveNote(job.result);
           }
         },
         {
-          title: "\u590D\u5236 JSON",
+          title: tr("\u590D\u5236 JSON", "Copy JSON"),
           icon: "clipboard",
           onClick: () => {
             void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-            new import_obsidian14.Notice("\u5DF2\u590D\u5236 JSON");
+            new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236 JSON", "JSON copied"));
           }
         }
       ]);
@@ -13729,7 +14366,15 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   }
 }
 function renderStoredArtifactDetail(container, ctx, notePath, artifactId) {
-  emptyState(container, "loader", "\u6B63\u5728\u52A0\u8F7D\u540C\u6B65\u966A\u8BFB\u2026", "\u4ECE\u672C\u5730 sidecar \u6062\u590D\u65F6\u95F4\u8F74\u548C\u91CD\u70B9");
+  emptyState(
+    container,
+    "loader",
+    tr("\u6B63\u5728\u52A0\u8F7D\u540C\u6B65\u966A\u8BFB\u2026", "Loading the reader\u2026"),
+    tr(
+      "\u4ECE\u672C\u5730 sidecar \u6062\u590D\u65F6\u95F4\u8F74\u548C\u91CD\u70B9",
+      "Restoring the timeline and highlights from the local sidecar"
+    )
+  );
   let active = true;
   ctx.registerPanelCleanup(() => {
     active = false;
@@ -13747,7 +14392,7 @@ function renderStoredArtifactDetail(container, ctx, notePath, artifactId) {
     emptyState(
       container,
       "alert-triangle",
-      "\u65E0\u6CD5\u6253\u5F00\u540C\u6B65\u966A\u8BFB",
+      tr("\u65E0\u6CD5\u6253\u5F00\u540C\u6B65\u966A\u8BFB", "Cannot open the reader"),
       error instanceof Error ? errorMessage(error) : String(error)
     );
     const actions = container.createDiv({ cls: "vs-detail-actions" });
@@ -13764,7 +14409,7 @@ function artifactToJob(artifact, notePath) {
   const endedAt = Date.parse(artifact.updated_at) || createdAt;
   return {
     id: `artifact-${artifact.artifact_id}`,
-    title: artifact.title || notePath.split("/").pop()?.replace(/\.md$/i, "") || "\u89C6\u9891\u5DE5\u4EF6",
+    title: artifact.title || notePath.split("/").pop()?.replace(/\.md$/i, "") || tr("\u89C6\u9891\u5DE5\u4EF6", "Video artifact"),
     notePath,
     input: {
       url: artifact.source.url,
@@ -13815,7 +14460,12 @@ function renderKnowledgeSignals(body, ctx, job) {
     const route = signals.createDiv({ cls: "vs-signal" });
     const icon = route.createSpan({ cls: "vs-signal-icon" });
     (0, import_obsidian14.setIcon)(icon, "route");
-    route.createSpan({ text: `\u7ED3\u6784 \xB7 ${contentTypeLabel(result.content_type)}` });
+    route.createSpan({
+      text: tr(
+        `\u7ED3\u6784 \xB7 ${contentTypeLabel(result.content_type)}`,
+        `Structure \xB7 ${contentTypeLabel(result.content_type)}`
+      )
+    });
   }
   if (result.attention) {
     const decision2 = signals.createDiv({
@@ -13833,14 +14483,21 @@ function renderKnowledgeSignals(body, ctx, job) {
     const visual = signals.createDiv({ cls: "vs-signal is-visual" });
     const icon = visual.createSpan({ cls: "vs-signal-icon" });
     (0, import_obsidian14.setIcon)(icon, "scan-eye");
-    visual.createSpan({ text: `\u771F\u5B9E\u753B\u9762\u8BC1\u636E \xB7 ${result.visual_evidence.length}` });
+    visual.createSpan({
+      text: tr(
+        `\u771F\u5B9E\u753B\u9762\u8BC1\u636E \xB7 ${result.visual_evidence.length}`,
+        `Real visual evidence \xB7 ${result.visual_evidence.length}`
+      )
+    });
   }
   const learningCount = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
   if (learningCount > 0) {
     const learning = signals.createDiv({ cls: "vs-signal is-learning" });
     const icon = learning.createSpan({ cls: "vs-signal-icon" });
     (0, import_obsidian14.setIcon)(icon, "graduation-cap");
-    learning.createSpan({ text: `\u5B66\u4E60\u7EC3\u4E60 \xB7 ${learningCount}` });
+    learning.createSpan({
+      text: tr(`\u5B66\u4E60\u7EC3\u4E60 \xB7 ${learningCount}`, `Learning exercises \xB7 ${learningCount}`)
+    });
   }
   if (result.attention) {
     const card = body.createDiv({
@@ -13850,7 +14507,10 @@ function renderKnowledgeSignals(body, ctx, job) {
     heading.createSpan({ text: attentionLabel(result.attention.action) });
     if (typeof result.attention.confidence === "number") {
       heading.createSpan({
-        text: `\u7F6E\u4FE1 ${Math.round(result.attention.confidence * 100)}%`,
+        text: tr(
+          `\u7F6E\u4FE1 ${Math.round(result.attention.confidence * 100)}%`,
+          `Confidence ${Math.round(result.attention.confidence * 100)}%`
+        ),
         cls: "vs-attention-confidence"
       });
     }
@@ -13858,13 +14518,19 @@ function renderKnowledgeSignals(body, ctx, job) {
     const ranges = result.attention.must_watch || [];
     if (ranges.length > 0) {
       card.createDiv({
-        text: `\u4F18\u5148\u770B ${ranges.slice(0, 3).map((range) => `${formatShortTime(range.start)}\u2013${formatShortTime(range.end)}`).join("\u3001")}`,
+        text: tr(
+          `\u4F18\u5148\u770B ${ranges.slice(0, 3).map((range) => `${formatShortTime(range.start)}\u2013${formatShortTime(range.end)}`).join("\u3001")}`,
+          `Watch first ${ranges.slice(0, 3).map((range) => `${formatShortTime(range.start)}\u2013${formatShortTime(range.end)}`).join(", ")}`
+        ),
         cls: "vs-attention-ranges"
       });
     }
     if (result.attention.limitations?.length) {
       card.createDiv({
-        text: `\u9650\u5236\uFF1A${result.attention.limitations.slice(0, 2).join("\uFF1B")}`,
+        text: tr(
+          `\u9650\u5236\uFF1A${result.attention.limitations.slice(0, 2).join("\uFF1B")}`,
+          `Limits: ${result.attention.limitations.slice(0, 2).join("; ")}`
+        ),
         cls: "vs-hint"
       });
     }
@@ -13896,7 +14562,7 @@ function renderKnowledgeSignals(body, ctx, job) {
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || "");
         if (!(file instanceof import_obsidian14.TFile)) {
-          new import_obsidian14.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+          new import_obsidian14.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
           return;
         }
         void ctx.plugin.openLearningReviewForFile(file);
@@ -13917,16 +14583,24 @@ function renderKnowledgeSignals(body, ctx, job) {
 }
 async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (depth === "deep-visual" && ctx.plugin.settings.activeBackend !== "codex-worker") {
-    new import_obsidian14.Notice("\u5185\u7F6E n8n \u5DE5\u4F5C\u6D41\u5C1A\u672A\u63A5\u901A\u5B89\u5168\u7684\u753B\u9762\u51ED\u636E\u3002\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5207\u6362\u5230\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002", 7e3);
+    new import_obsidian14.Notice(
+      tr(
+        "\u5185\u7F6E n8n \u5DE5\u4F5C\u6D41\u5C1A\u672A\u63A5\u901A\u5B89\u5168\u7684\u753B\u9762\u51ED\u636E\u3002\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5207\u6362\u5230\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002",
+        "The bundled n8n workflow has no safe frame credential yet. Switch to the local video service in settings first."
+      ),
+      7e3
+    );
     return;
   }
   if (!job.notePath) {
-    new import_obsidian14.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406");
+    new import_obsidian14.Notice(
+      tr("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406", "Save the result as a note before adding processing")
+    );
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
   if (!(file instanceof import_obsidian14.TFile)) {
-    new import_obsidian14.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+    new import_obsidian14.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -13940,16 +14614,23 @@ async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian14.Notice(depth === "deep-visual" ? "\u5DF2\u63D0\u4EA4\u6DF1\u5EA6\u753B\u9762\u5206\u6790" : "\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD");
+  new import_obsidian14.Notice(
+    depth === "deep-visual" ? tr("\u5DF2\u63D0\u4EA4\u6DF1\u5EA6\u753B\u9762\u5206\u6790", "Sent for deep visual analysis") : tr("\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD", "Sent for a quick worth-watching check")
+  );
 }
 async function queueLearningUpgrade(ctx, job) {
   if (!job.notePath) {
-    new import_obsidian14.Notice("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361");
+    new import_obsidian14.Notice(
+      tr(
+        "\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361",
+        "Save the result as a note before generating learning cards"
+      )
+    );
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
   if (!(file instanceof import_obsidian14.TFile)) {
-    new import_obsidian14.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+    new import_obsidian14.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -13963,7 +14644,7 @@ async function queueLearningUpgrade(ctx, job) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian14.Notice("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1");
+  new import_obsidian14.Notice(tr("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1", "Sent to generate learning cards"));
 }
 function contentTypeLabel(type) {
   return {
@@ -14027,9 +14708,17 @@ function renderPreview(body, ctx, job) {
   const diffIcon = diff.createDiv({ cls: "vs-write-icon" });
   (0, import_obsidian14.setIcon)(diffIcon, "file-diff");
   const diffText = diff.createDiv({ cls: "vs-write-text" });
-  diffText.createDiv({ text: `\u5C06\u5199\u5165 frontmatter\uFF1A${fields.join(" \xB7 ") || "\u65E0"}` });
   diffText.createDiv({
-    text: `\u6B63\u6587 ${(result.note || result.summary || "").length.toLocaleString()} \u5B57${result.video_transcript ? ` \xB7 \u6587\u7A3F ${result.video_transcript.length.toLocaleString()} \u5B57` : ""}`
+    text: tr(
+      `\u5C06\u5199\u5165 frontmatter\uFF1A${fields.join(" \xB7 ") || "\u65E0"}`,
+      `Will write to frontmatter: ${fields.join(" \xB7 ") || "nothing"}`
+    )
+  });
+  diffText.createDiv({
+    text: tr(
+      `\u6B63\u6587 ${(result.note || result.summary || "").length.toLocaleString()} \u5B57${result.video_transcript ? ` \xB7 \u6587\u7A3F ${result.video_transcript.length.toLocaleString()} \u5B57` : ""}`,
+      `Body ${(result.note || result.summary || "").length.toLocaleString()} characters${result.video_transcript ? ` \xB7 transcript ${result.video_transcript.length.toLocaleString()} characters` : ""}`
+    )
   });
   const markdown = sanitizeGeneratedMarkdownActiveResources(
     [
@@ -14043,7 +14732,7 @@ ${result.note}` : ""
   );
   const markdownEl = body.createDiv({ cls: "vs-markdown" });
   if (!markdown) {
-    markdownEl.setText("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587");
+    markdownEl.setText(tr("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587", "Nothing writable came back this time"));
     return;
   }
   void import_obsidian14.MarkdownRenderer.render(
@@ -14081,7 +14770,13 @@ function renderRecordDetail(container, ctx, record) {
   const time = parseLocaleTime(record.time);
   meta.createSpan({ text: time ? formatRelative(time) : record.time, cls: "vs-meta-pill" });
   if (record.durationMs) {
-    meta.createSpan({ text: `\u8017\u65F6 ${formatElapsed(record.durationMs)}`, cls: "vs-meta-pill" });
+    meta.createSpan({
+      text: tr(
+        `\u8017\u65F6 ${formatElapsed(record.durationMs)}`,
+        `Took ${formatElapsed(record.durationMs)}`
+      ),
+      cls: "vs-meta-pill"
+    });
   }
   if (record.url) body.createDiv({ text: record.url, cls: "vs-meta-link" });
   if (record.error) {
@@ -14091,7 +14786,10 @@ function renderRecordDetail(container, ctx, record) {
     errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
   } else if (record.result === "error") {
     body.createDiv({
-      text: "\u8FD9\u6761\u8BB0\u5F55\u662F\u65E7\u7248\u672C\u5199\u7684\uFF0C\u6CA1\u6709\u4FDD\u5B58\u5931\u8D25\u539F\u56E0\u3002\u91CD\u8DD1\u4E00\u6B21\u5C31\u80FD\u770B\u5230\u5177\u4F53\u9519\u8BEF\u3002",
+      text: tr(
+        "\u8FD9\u6761\u8BB0\u5F55\u662F\u65E7\u7248\u672C\u5199\u7684\uFF0C\u6CA1\u6709\u4FDD\u5B58\u5931\u8D25\u539F\u56E0\u3002\u91CD\u8DD1\u4E00\u6B21\u5C31\u80FD\u770B\u5230\u5177\u4F53\u9519\u8BEF\u3002",
+        "This record was written by an older version without the failure reason. Run it again to see the error."
+      ),
       cls: "vs-hint"
     });
   }
@@ -14113,7 +14811,10 @@ function renderRecordDetail(container, ctx, record) {
       })
     );
   } else {
-    body.createDiv({ text: `\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, cls: "vs-hint" });
+    body.createDiv({
+      text: tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, `Note not found: ${record.file}`),
+      cls: "vs-hint"
+    });
   }
 }
 function safeCoverUrl2(value) {
@@ -14125,7 +14826,12 @@ function safeCoverUrl2(value) {
 function renderLogs(container, job) {
   const box = container.createDiv({ cls: "vs-log-box" });
   if (job.logs.length === 0) {
-    emptyState(box, "file-clock", "\u6CA1\u6709\u65E5\u5FD7", "\u53EA\u6709\u4F1A\u4E0A\u62A5\u8FDB\u5EA6\u7684\u540E\u7AEF\u624D\u4F1A\u5199\u65E5\u5FD7");
+    emptyState(
+      box,
+      "file-clock",
+      tr("\u6CA1\u6709\u65E5\u5FD7", "No log"),
+      tr("\u53EA\u6709\u4F1A\u4E0A\u62A5\u8FDB\u5EA6\u7684\u540E\u7AEF\u624D\u4F1A\u5199\u65E5\u5FD7", "Only backends that report progress write a log")
+    );
     return;
   }
   job.logs.slice().reverse().forEach((entry) => {
@@ -14150,11 +14856,16 @@ function isCookieError(error) {
 function openCookiesFolder(ctx) {
   const path = ctx.plugin.settings.cookiesDirPath;
   if (!path) {
-    new import_obsidian14.Notice("\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B");
+    new import_obsidian14.Notice(
+      tr(
+        "\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B",
+        "No cookies folder yet; set it in the plugin settings first"
+      )
+    );
     return;
   }
   if (!openPathInSystem(path)) {
-    new import_obsidian14.Notice(`cookies \u76EE\u5F55\uFF1A${path}`);
+    new import_obsidian14.Notice(tr(`cookies \u76EE\u5F55\uFF1A${path}`, `Cookies folder: ${path}`));
   }
 }
 function findNote2(ctx, name) {
@@ -14205,7 +14916,7 @@ var VideoSummaryView = class extends import_obsidian15.ItemView {
     return VIDEO_SUMMARY_VIEW_TYPE;
   }
   getDisplayText() {
-    return "\u89C6\u9891\u603B\u7ED3";
+    return tr("\u89C6\u9891\u603B\u7ED3", "Video summary");
   }
   getIcon() {
     return "video";
@@ -14384,7 +15095,12 @@ var VideoSummaryView = class extends import_obsidian15.ItemView {
       }
     }
     if (!(file instanceof import_obsidian15.TFile)) {
-      new import_obsidian15.Notice("\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002");
+      new import_obsidian15.Notice(
+        tr(
+          "\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002",
+          "The note was moved or renamed; open it from the library."
+        )
+      );
       return;
     }
     try {
@@ -14392,7 +15108,12 @@ var VideoSummaryView = class extends import_obsidian15.ItemView {
       await leaf.openFile(file, { active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch (error) {
-      new import_obsidian15.Notice(`\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`);
+      new import_obsidian15.Notice(
+        tr(
+          `\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`,
+          `Could not open the note: ${error instanceof Error ? errorMessage(error) : String(error)}`
+        )
+      );
     }
   }
   cleanupPanelResources() {
@@ -14427,7 +15148,12 @@ var FileProcessor = class {
         }
       }, 100);
     } catch (error) {
-      new import_obsidian16.Notice(`\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
+      new import_obsidian16.Notice(
+        tr(
+          `\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`,
+          `Could not process the file: ${errorMessage(error)}`
+        )
+      );
     }
   }
   /**
@@ -16965,7 +17691,7 @@ var JobService = class {
     }
     if (runnableDrafts.length === 0) return jsonCreated;
     if (!await this.plugin.ensureBackendReady()) {
-      new import_obsidian17.Notice("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4");
+      new import_obsidian17.Notice(tr("\u540E\u7AEF\u4E0D\u53EF\u7528\uFF0C\u4EFB\u52A1\u672A\u63D0\u4EA4", "Backend unavailable; the job was not sent"));
       return jsonCreated;
     }
     let queued = 0;
@@ -16975,7 +17701,7 @@ var JobService = class {
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       });
       if (!file) {
-        new import_obsidian17.Notice(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`);
+        new import_obsidian17.Notice(tr(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`, `Could not create the note: ${draft.title}`));
         continue;
       }
       this.store.enqueue({
@@ -17004,7 +17730,9 @@ var JobService = class {
    */
   async submitPreparedFile(file, input, options) {
     if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
-      new import_obsidian17.Notice("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6");
+      new import_obsidian17.Notice(
+        tr("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6", "The note has no link, transcript or local file")
+      );
       return null;
     }
     if (!await this.plugin.ensureBackendReady()) return null;
@@ -17040,7 +17768,7 @@ var JobService = class {
     if (!job.result) return false;
     const file = this.fileFor(job);
     if (!file) {
-      new import_obsidian17.Notice("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728");
+      new import_obsidian17.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
       return false;
     }
     try {
@@ -17060,7 +17788,7 @@ var JobService = class {
       });
       return true;
     } catch (error) {
-      new import_obsidian17.Notice(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian17.Notice(tr(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`, `Could not write: ${messageOf3(error)}`));
       return false;
     }
   }
@@ -17077,7 +17805,7 @@ var JobService = class {
   async applyToActiveNote(result, mode) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian17.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian17.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
       return;
     }
     try {
@@ -17099,16 +17827,16 @@ var JobService = class {
       const saved = await this.persistArtifact(context, result);
       await this.applyResult(activeFile, result, mode, context);
       await this.updateCourseProgressForFile(activeFile, "complete", 100, saved.artifact_id);
-      new import_obsidian17.Notice("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0");
+      new import_obsidian17.Notice(tr("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", "Applied to the current note"));
     } catch (error) {
-      new import_obsidian17.Notice(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian17.Notice(tr(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`, `Could not apply: ${messageOf3(error)}`));
     }
   }
   /** 把结果插到当前打开的笔记末尾 */
   async insertIntoActiveNote(result) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian17.Notice("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0");
+      new import_obsidian17.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
       return;
     }
     const content = await this.plugin.app.vault.read(activeFile);
@@ -17118,7 +17846,7 @@ var JobService = class {
 
 ${buildInsertionContent(result)}`
     );
-    new import_obsidian17.Notice("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0");
+    new import_obsidian17.Notice(tr("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0", "Inserted into the current note"));
   }
   /** 用结果新建一篇笔记 */
   async createNoteFromResult(job) {
@@ -17136,7 +17864,7 @@ ${buildInsertionContent(result)}`
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       }
     );
-    if (file) new import_obsidian17.Notice(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`);
+    if (file) new import_obsidian17.Notice(tr(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`, `Created note: ${file.basename}`));
   }
   async createNoteFromJson(jsonText, language) {
     let parsed;
@@ -17147,7 +17875,9 @@ ${buildInsertionContent(result)}`
       result = this.plugin.api.normalizeWebhookPayload(parsed);
       input = extractVideoInputFromPayload(parsed);
     } catch (error) {
-      new import_obsidian17.Notice(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`);
+      new import_obsidian17.Notice(
+        tr(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`, `Could not parse the JSON: ${messageOf3(error)}`)
+      );
       return null;
     }
     try {
@@ -17191,7 +17921,12 @@ ${buildInsertionContent(result)}`
             file,
             this.plugin.settings.successStatusValue ?? "success"
           );
-          new import_obsidian17.Notice(`${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`);
+          new import_obsidian17.Notice(
+            tr(
+              `${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`,
+              `${existingFile ? "Updated" : "Created from JSON"}: ${file.basename}`
+            )
+          );
           return file;
         } catch (error) {
           try {
@@ -17199,13 +17934,25 @@ ${buildInsertionContent(result)}`
           } catch (statusError) {
             console.error("[Video Summary] JSON \u5931\u8D25\u72B6\u6001\u5199\u56DE\u5931\u8D25", statusError);
           }
-          new import_obsidian17.Notice(`JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`, 8e3);
+          new import_obsidian17.Notice(
+            tr(
+              `JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`,
+              `Could not write the JSON note; kept as an error: ${messageOf3(error)}`
+            ),
+            8e3
+          );
           return null;
         }
       }
       return null;
     } catch (error) {
-      new import_obsidian17.Notice(`JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`, 8e3);
+      new import_obsidian17.Notice(
+        tr(
+          `JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`,
+          `Could not create the JSON artifact or note: ${messageOf3(error)}`
+        ),
+        8e3
+      );
       return null;
     }
   }
@@ -18638,14 +19385,20 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
     this.contentEl.empty();
     this.contentEl.addClass("vs-modal", "vs-knowledge-lab");
     this.contentEl.createEl("h2", {
-      text: this.mode === "memory" ? "\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6\u641C\u7D22" : "\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4"
+      text: this.mode === "memory" ? tr("\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6\u641C\u7D22", "Search video memory across media") : tr("\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4", "Multi-video claim lab")
     });
     this.contentEl.createEl("p", {
       cls: "vs-knowledge-lab-intro",
-      text: this.mode === "memory" ? "\u4ECE\u6301\u4E45\u5316\u5DE5\u4EF6\u91CD\u5EFA\u672C\u5730\u7D22\u5F15\uFF1A\u6807\u9898\u3001\u65F6\u95F4\u6BB5\u6587\u7A3F\u3001\u753B\u9762\u6587\u5B57\u3001OCR\u3001\u89C6\u89C9\u8BC1\u636E\u4E0E\u4E3B\u5F20\u3002" : "\u9009\u62E9\u81F3\u5C11\u4E24\u4E2A\u5DF2\u6301\u4E45\u5316\u5DE5\u4EF6\uFF0C\u751F\u6210\u4FDD\u7559\u771F\u5B9E\u8BC1\u636E\u4E0E\u590D\u6838\u72B6\u6001\u7684\u53EF\u7F16\u8F91 Markdown\u3002"
+      text: this.mode === "memory" ? tr(
+        "\u4ECE\u6301\u4E45\u5316\u5DE5\u4EF6\u91CD\u5EFA\u672C\u5730\u7D22\u5F15\uFF1A\u6807\u9898\u3001\u65F6\u95F4\u6BB5\u6587\u7A3F\u3001\u753B\u9762\u6587\u5B57\u3001OCR\u3001\u89C6\u89C9\u8BC1\u636E\u4E0E\u4E3B\u5F20\u3002",
+        "Rebuilds a local index from saved artifacts: titles, timed transcript, on-screen text, OCR, visual evidence and claims."
+      ) : tr(
+        "\u9009\u62E9\u81F3\u5C11\u4E24\u4E2A\u5DF2\u6301\u4E45\u5316\u5DE5\u4EF6\uFF0C\u751F\u6210\u4FDD\u7559\u771F\u5B9E\u8BC1\u636E\u4E0E\u590D\u6838\u72B6\u6001\u7684\u53EF\u7F16\u8F91 Markdown\u3002",
+        "Pick at least two saved artifacts to build editable Markdown that keeps real evidence and review status."
+      )
     });
     const loading = this.contentEl.createDiv({ cls: "vs-knowledge-lab-loading" });
-    loading.setText("\u6B63\u5728\u8BFB\u53D6\u672C\u5730\u77E5\u8BC6\u5DE5\u4EF6\u2026");
+    loading.setText(tr("\u6B63\u5728\u8BFB\u53D6\u672C\u5730\u77E5\u8BC6\u5DE5\u4EF6\u2026", "Reading local knowledge artifacts\u2026"));
     void this.loadAndRender(loading);
   }
   onClose() {
@@ -18660,7 +19413,10 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       if (this.artifacts.length === 0) {
         this.contentEl.createEl("p", {
           cls: "vs-knowledge-lab-empty",
-          text: "\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u7684\u89C6\u9891\u77E5\u8BC6\u5DE5\u4EF6\u3002\u8BF7\u5148\u5904\u7406\u81F3\u5C11\u4E00\u4E2A\u89C6\u9891\u3002"
+          text: tr(
+            "\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u7684\u89C6\u9891\u77E5\u8BC6\u5DE5\u4EF6\u3002\u8BF7\u5148\u5904\u7406\u81F3\u5C11\u4E00\u4E2A\u89C6\u9891\u3002",
+            "No saved video knowledge artifacts yet. Process at least one video first."
+          )
         });
         return;
       }
@@ -18671,7 +19427,7 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       }
     } catch (error) {
       if (this.disposed) return;
-      loading.setText(`\u8BFB\u53D6\u5931\u8D25\uFF1A${messageOf4(error)}`);
+      loading.setText(tr(`\u8BFB\u53D6\u5931\u8D25\uFF1A${messageOf4(error)}`, `Could not read: ${messageOf4(error)}`));
     }
   }
   renderMemorySearch() {
@@ -18682,12 +19438,15 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       cls: "vs-memory-query",
       attr: {
         type: "search",
-        placeholder: "\u641C\u7D22\u6982\u5FF5\u3001\u539F\u8BDD\u3001\u753B\u9762\u6587\u5B57\u6216\u4E3B\u5F20\u2026",
-        "aria-label": "\u641C\u7D22\u89C6\u9891\u8BB0\u5FC6"
+        placeholder: tr(
+          "\u641C\u7D22\u6982\u5FF5\u3001\u539F\u8BDD\u3001\u753B\u9762\u6587\u5B57\u6216\u4E3B\u5F20\u2026",
+          "Search concepts, quotes, on-screen text or claims\u2026"
+        ),
+        "aria-label": tr("\u641C\u7D22\u89C6\u9891\u8BB0\u5FC6", "Search video memory")
       }
     });
     const searchButton = controls.createEl("button", {
-      text: "\u641C\u7D22",
+      text: tr("\u641C\u7D22", "Search"),
       cls: "mod-cta"
     });
     const filtersEl = this.contentEl.createDiv({ cls: "vs-memory-filters" });
@@ -18711,11 +19470,16 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
     const dateFrom = labeledInput(filtersEl, "\u8D77\u59CB\u65E5\u671F", "", "date");
     const dateTo = labeledInput(filtersEl, "\u7ED3\u675F\u65E5\u671F", "", "date");
     const relationRow = this.contentEl.createDiv({ cls: "vs-memory-relation-source" });
-    relationRow.createEl("label", { text: "\u5173\u7CFB\u5EFA\u8BAE\u6765\u6E90\uFF08\u53EF\u9009\uFF09" });
-    const sourceArtifact = relationRow.createEl("select", {
-      attr: { "aria-label": "\u5173\u7CFB\u5EFA\u8BAE\u6765\u6E90\u5DE5\u4EF6" }
+    relationRow.createEl("label", {
+      text: tr("\u5173\u7CFB\u5EFA\u8BAE\u6765\u6E90\uFF08\u53EF\u9009\uFF09", "Relation suggestions from (optional)")
     });
-    sourceArtifact.createEl("option", { text: "\u4E0D\u751F\u6210\u5173\u7CFB\u5EFA\u8BAE", value: "" });
+    const sourceArtifact = relationRow.createEl("select", {
+      attr: { "aria-label": tr("\u5173\u7CFB\u5EFA\u8BAE\u6765\u6E90\u5DE5\u4EF6", "Artifact to suggest relations from") }
+    });
+    sourceArtifact.createEl("option", {
+      text: tr("\u4E0D\u751F\u6210\u5173\u7CFB\u5EFA\u8BAE", "No relation suggestions"),
+      value: ""
+    });
     this.artifacts.forEach((artifact) => {
       sourceArtifact.createEl("option", {
         text: artifact.title || artifact.artifact_id,
@@ -18723,10 +19487,18 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       });
     });
     relationRow.createSpan({
-      text: "\u5EFA\u8BAE\u4E0D\u4F1A\u81EA\u52A8\u5199\u5165\uFF1B\u6BCF\u6761\u5173\u7CFB\u90FD\u9700\u8981\u518D\u6B21\u660E\u786E\u786E\u8BA4\u3002"
+      text: tr(
+        "\u5EFA\u8BAE\u4E0D\u4F1A\u81EA\u52A8\u5199\u5165\uFF1B\u6BCF\u6761\u5173\u7CFB\u90FD\u9700\u8981\u518D\u6B21\u660E\u786E\u786E\u8BA4\u3002",
+        "Suggestions are never written automatically; every relation needs your confirmation."
+      )
     });
     const status = this.contentEl.createDiv({ cls: "vs-memory-status" });
-    status.setText(`\u5DF2\u7D22\u5F15 ${index.getRecordCount()} \u6761\u672C\u5730\u8BC1\u636E\u8BB0\u5F55`);
+    status.setText(
+      tr(
+        `\u5DF2\u7D22\u5F15 ${index.getRecordCount()} \u6761\u672C\u5730\u8BC1\u636E\u8BB0\u5F55`,
+        `Indexed ${index.getRecordCount()} local evidence records`
+      )
+    );
     const resultsEl = this.contentEl.createDiv({ cls: "vs-memory-results" });
     const execute = () => {
       const filters = {
@@ -18740,7 +19512,10 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       };
       const results = index.search(query.value, { filters, limit: 50 });
       status.setText(
-        query.value.trim() ? `\u627E\u5230 ${results.length} \u6761\u8BC1\u636E\uFF1B\u6392\u540D\u53EF\u5C55\u5F00\u67E5\u770B\u672C\u5730\u8BC4\u5206\u7EC4\u6210` : "\u8BF7\u8F93\u5165\u641C\u7D22\u8BCD"
+        query.value.trim() ? tr(
+          `\u627E\u5230 ${results.length} \u6761\u8BC1\u636E\uFF1B\u6392\u540D\u53EF\u5C55\u5F00\u67E5\u770B\u672C\u5730\u8BC4\u5206\u7EC4\u6210`,
+          `Found ${results.length} pieces of evidence; expand a rank to see its local score`
+        ) : tr("\u8BF7\u8F93\u5165\u641C\u7D22\u8BCD", "Enter a search term")
       );
       this.renderMemoryResults(resultsEl, results, index, sourceArtifact.value || void 0);
     };
@@ -18755,7 +19530,10 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
     if (results.length === 0) {
       container.createEl("p", {
         cls: "vs-knowledge-lab-empty",
-        text: "\u6CA1\u6709\u5339\u914D\u7684\u6301\u4E45\u5316\u8BC1\u636E\u3002\u53EF\u4EE5\u51CF\u5C11\u8FC7\u6EE4\u6761\u4EF6\u6216\u6362\u4E00\u4E2A\u641C\u7D22\u8BCD\u3002"
+        text: tr(
+          "\u6CA1\u6709\u5339\u914D\u7684\u6301\u4E45\u5316\u8BC1\u636E\u3002\u53EF\u4EE5\u51CF\u5C11\u8FC7\u6EE4\u6761\u4EF6\u6216\u6362\u4E00\u4E2A\u641C\u7D22\u8BCD\u3002",
+          "No saved evidence matches. Remove filters or try another term."
+        )
       });
       return;
     }
@@ -18781,7 +19559,7 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       heading.createSpan({
         cls: "vs-memory-score",
         text: result.score.toFixed(2),
-        attr: { title: "\u786E\u5B9A\u6027\u672C\u5730\u8BC4\u5206" }
+        attr: { title: tr("\u786E\u5B9A\u6027\u672C\u5730\u8BC4\u5206", "Deterministic local score") }
       });
       const snippet = card.createEl("p", { cls: "vs-memory-snippet" });
       renderHighlightedText(snippet, result.snippet, result.highlights);
@@ -18796,7 +19574,7 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
         ].filter(Boolean).join(" \xB7 ")
       );
       const details = card.createEl("details", { cls: "vs-memory-score-details" });
-      details.createEl("summary", { text: "\u4E3A\u4EC0\u4E48\u6392\u5728\u8FD9\u91CC" });
+      details.createEl("summary", { text: tr("\u4E3A\u4EC0\u4E48\u6392\u5728\u8FD9\u91CC", "Why it ranks here") });
       const list = details.createEl("ul");
       result.score_explanation.forEach((component) => {
         list.createEl("li", { text: component.explanation });
@@ -18830,31 +19608,44 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
   renderRelationReview(card, suggestion) {
     const review = card.createDiv({ cls: "vs-relation-review" });
     review.createEl("strong", {
-      text: `\u5173\u7CFB\u5EFA\u8BAE\uFF1A${relationLabel2(suggestion.relation)} \xB7 ${Math.round(
-        suggestion.confidence * 100
-      )}%`
+      text: tr(
+        `\u5173\u7CFB\u5EFA\u8BAE\uFF1A${relationLabel2(suggestion.relation)} \xB7 ${Math.round(
+          suggestion.confidence * 100
+        )}%`,
+        `Relation suggestion: ${relationLabel2(suggestion.relation)} \xB7 ${Math.round(
+          suggestion.confidence * 100
+        )}%`
+      )
     });
     review.createEl("p", { text: suggestion.reason });
     review.createEl("p", {
       cls: "vs-relation-pending",
-      text: "\u72B6\u6001\uFF1A\u4EC5\u5EFA\u8BAE\uFF0C\u5C1A\u672A\u5199\u5165\u5DE5\u4EF6"
+      text: tr(
+        "\u72B6\u6001\uFF1A\u4EC5\u5EFA\u8BAE\uFF0C\u5C1A\u672A\u5199\u5165\u5DE5\u4EF6",
+        "Status: suggestion only, not written to the artifact"
+      )
     });
     const reviewButton = review.createEl("button", {
-      text: "\u5BA1\u9605\u8FD9\u6761\u5EFA\u8BAE"
+      text: tr("\u5BA1\u9605\u8FD9\u6761\u5EFA\u8BAE", "Review this suggestion")
     });
     reviewButton.onclick = () => {
       reviewButton.disabled = true;
       const gate = review.createDiv({ cls: "vs-relation-confirm-gate" });
       gate.createEl("p", {
-        text: `\u786E\u8BA4\u540E\u624D\u4F1A\u628A\u201C${relationLabel2(
-          suggestion.relation
-        )}\u201D\u5199\u5165\u6765\u6E90\u5DE5\u4EF6\u7684 related_notes\u3002\u662F\u5426\u786E\u8BA4\uFF1F`
+        text: tr(
+          `\u786E\u8BA4\u540E\u624D\u4F1A\u628A\u201C${relationLabel2(
+            suggestion.relation
+          )}\u201D\u5199\u5165\u6765\u6E90\u5DE5\u4EF6\u7684 related_notes\u3002\u662F\u5426\u786E\u8BA4\uFF1F`,
+          `"${relationLabel2(
+            suggestion.relation
+          )}" will be written to the source artifact's related_notes only after you confirm. Confirm?`
+        )
       });
       const confirm = gate.createEl("button", {
-        text: "\u786E\u8BA4\u5199\u5165\u5173\u7CFB",
+        text: tr("\u786E\u8BA4\u5199\u5165\u5173\u7CFB", "Confirm and write"),
         cls: "mod-cta"
       });
-      const cancel = gate.createEl("button", { text: "\u53D6\u6D88" });
+      const cancel = gate.createEl("button", { text: tr("\u53D6\u6D88", "Cancel") });
       cancel.onclick = () => {
         gate.remove();
         reviewButton.disabled = false;
@@ -18864,11 +19655,17 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
         cancel.disabled = true;
         try {
           await applyReviewedRelationSuggestion(this.plugin.artifactStore, suggestion, true);
-          gate.setText("\u5DF2\u786E\u8BA4\u5E76\u539F\u5B50\u5199\u5165 related_notes\u3002");
+          gate.setText(
+            tr("\u5DF2\u786E\u8BA4\u5E76\u539F\u5B50\u5199\u5165 related_notes\u3002", "Confirmed and written to related_notes.")
+          );
           const pending = review.querySelector(".vs-relation-pending");
-          if (pending) pending.textContent = "\u72B6\u6001\uFF1A\u5DF2\u7531\u7528\u6237\u786E\u8BA4\u5E76\u5199\u5165";
+          if (pending)
+            pending.textContent = tr(
+              "\u72B6\u6001\uFF1A\u5DF2\u7531\u7528\u6237\u786E\u8BA4\u5E76\u5199\u5165",
+              "Status: confirmed by you and written"
+            );
         } catch (error) {
-          gate.setText(`\u5199\u5165\u5931\u8D25\uFF1A${messageOf4(error)}`);
+          gate.setText(tr(`\u5199\u5165\u5931\u8D25\uFF1A${messageOf4(error)}`, `Could not write: ${messageOf4(error)}`));
           reviewButton.disabled = false;
         }
       };
@@ -18878,7 +19675,10 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
     if (this.artifacts.length < 2) {
       this.contentEl.createEl("p", {
         cls: "vs-knowledge-lab-empty",
-        text: "\u81F3\u5C11\u9700\u8981\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6\u3002\u8BF7\u5148\u5904\u7406\u66F4\u591A\u89C6\u9891\u3002"
+        text: tr(
+          "\u81F3\u5C11\u9700\u8981\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6\u3002\u8BF7\u5148\u5904\u7406\u66F4\u591A\u89C6\u9891\u3002",
+          "At least two saved artifacts are needed. Process more videos first."
+        )
       });
       return;
     }
@@ -18912,37 +19712,41 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
         checkbox.onchange = () => {
           if (checkbox.checked) selected.add(artifact.artifact_id);
           else selected.delete(artifact.artifact_id);
-          count.setText(`\u5DF2\u9009\u62E9 ${selected.size} \u4E2A\u5DE5\u4EF6`);
+          count.setText(
+            tr(`\u5DF2\u9009\u62E9 ${selected.size} \u4E2A\u5DE5\u4EF6`, `${selected.size} artifacts selected`)
+          );
         };
       });
     };
     renderList();
-    count.setText("\u5DF2\u9009\u62E9 0 \u4E2A\u5DE5\u4EF6");
+    count.setText(tr("\u5DF2\u9009\u62E9 0 \u4E2A\u5DE5\u4EF6", "0 artifacts selected"));
     artifactSearch.addEventListener("input", renderList);
     const actions = this.contentEl.createDiv({ cls: "vs-claim-lab-actions" });
     const generate = actions.createEl("button", {
-      text: "\u751F\u6210 / \u66F4\u65B0\u8BBA\u70B9\u5B9E\u9A8C\u5BA4",
+      text: tr("\u751F\u6210 / \u66F4\u65B0\u8BBA\u70B9\u5B9E\u9A8C\u5BA4", "Build / update the claim lab"),
       cls: "mod-cta"
     });
     const status = actions.createSpan();
     generate.onclick = async () => {
       if (selected.size < 2) {
-        new import_obsidian18.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6");
+        new import_obsidian18.Notice(tr("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6", "Pick at least two saved artifacts"));
         return;
       }
       generate.disabled = true;
-      status.setText("\u6B63\u5728\u751F\u6210\u672C\u5730\u8BC1\u636E\u77E9\u9635\u2026");
+      status.setText(tr("\u6B63\u5728\u751F\u6210\u672C\u5730\u8BC1\u636E\u77E9\u9635\u2026", "Building the local evidence matrix\u2026"));
       try {
         const artifacts = this.artifacts.filter((artifact) => selected.has(artifact.artifact_id));
         const report = buildClaimLabReport(artifacts, {
           title: title.value.trim() || void 0
         });
         const file = await this.saveClaimLab(report.lab_id, report);
-        status.setText(`\u5DF2\u4FDD\u5B58\uFF1A${file.path}`);
+        status.setText(tr(`\u5DF2\u4FDD\u5B58\uFF1A${file.path}`, `Saved: ${file.path}`));
         await this.app.workspace.getLeaf("tab").openFile(file);
         this.close();
       } catch (error) {
-        status.setText(`\u751F\u6210\u5931\u8D25\uFF1A${messageOf4(error)}`);
+        status.setText(
+          tr(`\u751F\u6210\u5931\u8D25\uFF1A${messageOf4(error)}`, `Could not build it: ${messageOf4(error)}`)
+        );
         generate.disabled = false;
       }
     };
@@ -18995,7 +19799,7 @@ function labeledSelect(container, label, values) {
   values.forEach((value) => {
     select.createEl("option", {
       value,
-      text: value || "\u5168\u90E8"
+      text: value || tr("\u5168\u90E8", "All")
     });
   });
   return select;
@@ -19558,7 +20362,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
   }
   onOpen() {
     this.modalEl.addClass("ap", "ap-modal");
-    this.setTitle("\u89C6\u9891\u5B66\u4E60\u590D\u4E60");
+    this.setTitle(tr("\u89C6\u9891\u5B66\u4E60\u590D\u4E60", "Video learning review"));
     this.contentEl.addClass("vs-modal", "vs-learning-review-modal");
     this.renderLoading();
     void this.refreshQueue();
@@ -19568,7 +20372,10 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
   }
   renderLoading() {
     this.contentEl.empty();
-    this.contentEl.createDiv({ text: "\u6B63\u5728\u8BFB\u53D6\u672C\u5730\u590D\u4E60\u8FDB\u5EA6\u2026", cls: "vs-hint" });
+    this.contentEl.createDiv({
+      text: tr("\u6B63\u5728\u8BFB\u53D6\u672C\u5730\u590D\u4E60\u8FDB\u5EA6\u2026", "Reading local review progress\u2026"),
+      cls: "vs-hint"
+    });
   }
   async refreshQueue() {
     const sequence = this.refreshSequence += 1;
@@ -19592,7 +20399,9 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     } catch (error) {
       if (sequence !== this.refreshSequence) return;
       this.contentEl.empty();
-      this.contentEl.createEl("h3", { text: "\u65E0\u6CD5\u8BFB\u53D6\u590D\u4E60\u8FDB\u5EA6" });
+      this.contentEl.createEl("h3", {
+        text: tr("\u65E0\u6CD5\u8BFB\u53D6\u590D\u4E60\u8FDB\u5EA6", "Cannot read the review progress")
+      });
       this.contentEl.createDiv({
         text: error instanceof Error ? errorMessage(error) : String(error),
         cls: "vs-hint is-error"
@@ -19604,9 +20413,14 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     this.renderToolbar();
     const allItems = learningItemsFromArtifact(this.options.artifact);
     if (allItems.length === 0) {
-      this.contentEl.createEl("h3", { text: "\u8FD9\u4EFD\u89C6\u9891\u8FD8\u6CA1\u6709\u5B66\u4E60\u5361\u7247" });
+      this.contentEl.createEl("h3", {
+        text: tr("\u8FD9\u4EFD\u89C6\u9891\u8FD8\u6CA1\u6709\u5B66\u4E60\u5361\u7247", "This video has no learning cards yet")
+      });
       this.contentEl.createDiv({
-        text: "\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u5B66\u4E60\u7EC3\u4E60\u201D\u540E\uFF0C\u518D\u56DE\u5230\u8FD9\u91CC\u590D\u4E60\u3002",
+        text: tr(
+          "\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u5B66\u4E60\u7EC3\u4E60\u201D\u540E\uFF0C\u518D\u56DE\u5230\u8FD9\u91CC\u590D\u4E60\u3002",
+          'Turn on "Learning exercises" when processing again, then come back here.'
+        ),
         cls: "vs-hint"
       });
       return;
@@ -19614,15 +20428,21 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     const item = this.queue[this.currentIndex];
     if (!item) {
       this.contentEl.createEl("h3", {
-        text: this.mode === "due" ? "\u5F53\u524D\u6CA1\u6709\u5230\u671F\u590D\u4E60" : "\u8FD9\u4E2A\u5217\u8868\u5DF2\u7ECF\u590D\u4E60\u5B8C\u4E86"
+        text: this.mode === "due" ? tr("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u590D\u4E60", "Nothing due right now") : tr("\u8FD9\u4E2A\u5217\u8868\u5DF2\u7ECF\u590D\u4E60\u5B8C\u4E86", "This list is done")
       });
       this.contentEl.createDiv({
-        text: this.mode === "mistakes" ? "\u9519\u9898\u4F1A\u4FDD\u7559\u5728\u672C\u5730\u8FDB\u5EA6\u4E2D\uFF1B\u5230\u671F\u540E\u53EF\u5728\u201C\u5230\u671F\u201D\u5217\u8868\u518D\u6B21\u7EC3\u4E60\u3002" : "\u7B54\u9519\u6216\u4F4E\u628A\u63E1\u7684\u9898\u4F1A\u66F4\u65E9\u56DE\u6765\uFF0C\u8FDE\u7EED\u7B54\u5BF9\u4F1A\u9010\u6B65\u62C9\u957F\u95F4\u9694\u3002",
+        text: this.mode === "mistakes" ? tr(
+          "\u9519\u9898\u4F1A\u4FDD\u7559\u5728\u672C\u5730\u8FDB\u5EA6\u4E2D\uFF1B\u5230\u671F\u540E\u53EF\u5728\u201C\u5230\u671F\u201D\u5217\u8868\u518D\u6B21\u7EC3\u4E60\u3002",
+          "Wrong answers stay in your local progress; practise them again from the due list."
+        ) : tr(
+          "\u7B54\u9519\u6216\u4F4E\u628A\u63E1\u7684\u9898\u4F1A\u66F4\u65E9\u56DE\u6765\uFF0C\u8FDE\u7EED\u7B54\u5BF9\u4F1A\u9010\u6B65\u62C9\u957F\u95F4\u9694\u3002",
+          "Wrong or unsure answers come back sooner; consecutive right answers stretch the interval."
+        ),
         cls: "vs-hint"
       });
       if (this.options.onContinue) {
         const next = this.contentEl.createEl("button", {
-          text: this.options.continueLabel || "\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891",
+          text: this.options.continueLabel || tr("\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891", "Next video"),
           cls: "mod-cta",
           attr: { type: "button" }
         });
@@ -19639,7 +20459,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     });
     const card = this.contentEl.createDiv({ cls: "vs-learning-review-card" });
     card.createDiv({
-      text: item.item_kind === "flashcard" ? "\u95EA\u5361" : "\u81EA\u6D4B\u9898",
+      text: item.item_kind === "flashcard" ? tr("\u95EA\u5361", "Flashcards") : tr("\u81EA\u6D4B\u9898", "Quiz"),
       cls: "vs-learning-review-kind"
     });
     card.createEl("h3", { text: item.prompt });
@@ -19675,14 +20495,17 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
       });
     });
     toolbar.createSpan({
-      text: "\u53EA\u5199\u672C\u5730\u590D\u4E60 sidecar\uFF0C\u4E0D\u4FEE\u6539\u7B14\u8BB0\u6B63\u6587",
+      text: tr(
+        "\u53EA\u5199\u672C\u5730\u590D\u4E60 sidecar\uFF0C\u4E0D\u4FEE\u6539\u7B14\u8BB0\u6B63\u6587",
+        "Writes only the local review sidecar, never the note body"
+      ),
       cls: "vs-hint"
     });
   }
   renderFlashcard(container, item) {
     if (!this.revealed) {
       const reveal = container.createEl("button", {
-        text: "\u663E\u793A\u7B54\u6848",
+        text: tr("\u663E\u793A\u7B54\u6848", "Show answer"),
         cls: "mod-cta",
         attr: { type: "button" }
       });
@@ -19696,11 +20519,11 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     this.renderConfidence(container);
     const actions = container.createDiv({ cls: "vs-learning-review-actions" });
     const wrong = actions.createEl("button", {
-      text: "\u8BB0\u9519\u4E86",
+      text: tr("\u8BB0\u9519\u4E86", "Got it wrong"),
       attr: { type: "button" }
     });
     const correct = actions.createEl("button", {
-      text: "\u8BB0\u5BF9\u4E86",
+      text: tr("\u8BB0\u5BF9\u4E86", "Got it right"),
       cls: "mod-cta",
       attr: { type: "button" }
     });
@@ -19728,7 +20551,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     } else {
       const input = container.createEl("textarea", {
         cls: "vs-learning-review-textarea",
-        attr: { placeholder: "\u5199\u4E0B\u4F60\u7684\u7B54\u6848\u2026", rows: "4" }
+        attr: { placeholder: tr("\u5199\u4E0B\u4F60\u7684\u7B54\u6848\u2026", "Write your answer\u2026"), rows: "4" }
       });
       input.value = this.selectedAnswer;
       input.addEventListener("input", () => {
@@ -19737,14 +20560,14 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     }
     this.renderConfidence(container);
     const submit2 = container.createEl("button", {
-      text: "\u63D0\u4EA4\u7B54\u6848",
+      text: tr("\u63D0\u4EA4\u7B54\u6848", "Submit answer"),
       cls: "mod-cta",
       attr: { type: "button" }
     });
     submit2.addEventListener("click", () => {
       const answer = this.selectedAnswer.trim();
       if (!answer) {
-        new import_obsidian19.Notice("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848");
+        new import_obsidian19.Notice(tr("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848", "Pick or write an answer first"));
         return;
       }
       void this.record(item, answer, answersMatch(answer, item.answer));
@@ -19752,7 +20575,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
   }
   renderConfidence(container) {
     const row = container.createEl("label", { cls: "vs-learning-review-confidence" });
-    row.createSpan({ text: "\u628A\u63E1\u7A0B\u5EA6" });
+    row.createSpan({ text: tr("\u628A\u63E1\u7A0B\u5EA6", "Confidence") });
     const select = row.createEl("select");
     const labels = ["1 \xB7 \u5B8C\u5168\u6CA1\u628A\u63E1", "2 \xB7 \u6BD4\u8F83\u72B9\u8C6B", "3 \xB7 \u4E00\u822C", "4 \xB7 \u6709\u628A\u63E1", "5 \xB7 \u975E\u5E38\u786E\u5B9A"];
     labels.forEach((label, index) => {
@@ -19788,16 +20611,16 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
   }
   renderResult(container, result) {
     container.createEl("h4", {
-      text: result.correct ? "\u56DE\u7B54\u6B63\u786E" : "\u56DE\u7B54\u9519\u8BEF",
+      text: result.correct ? tr("\u56DE\u7B54\u6B63\u786E", "Correct") : tr("\u56DE\u7B54\u9519\u8BEF", "Incorrect"),
       cls: result.correct ? "is-success" : "is-error"
     });
     container.createDiv({
-      text: `\u6807\u51C6\u7B54\u6848\uFF1A${result.item.answer}`,
+      text: tr(`\u6807\u51C6\u7B54\u6848\uFF1A${result.item.answer}`, `Answer: ${result.item.answer}`),
       cls: "vs-learning-review-answer"
     });
     if (result.item.explanation) {
       container.createDiv({
-        text: `\u89E3\u91CA\uFF1A${result.item.explanation}`,
+        text: tr(`\u89E3\u91CA\uFF1A${result.item.explanation}`, `Explanation: ${result.item.explanation}`),
         cls: "vs-learning-review-explanation"
       });
     }
@@ -19809,7 +20632,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     this.renderEvidence(container, result.item);
     const actions = container.createDiv({ cls: "vs-learning-review-actions" });
     const suspend = actions.createEl("button", {
-      text: "\u6682\u505C\u8FD9\u9053\u9898",
+      text: tr("\u6682\u505C\u8FD9\u9053\u9898", "Pause this question"),
       attr: { type: "button" }
     });
     suspend.addEventListener(
@@ -19826,7 +20649,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
       })
     );
     const next = actions.createEl("button", {
-      text: "\u4E0B\u4E00\u9898",
+      text: tr("\u4E0B\u4E00\u9898", "Next question"),
       cls: "mod-cta",
       attr: { type: "button" }
     });
@@ -19856,7 +20679,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
   renderEvidence(container, item) {
     const evidence = resolveLearningEvidence(this.options.artifact, item);
     const section3 = container.createDiv({ cls: "vs-learning-review-evidence" });
-    section3.createEl("h4", { text: "\u56DE\u5230\u8BC1\u636E" });
+    section3.createEl("h4", { text: tr("\u56DE\u5230\u8BC1\u636E", "Back to the evidence") });
     if (evidence.message) section3.createDiv({ text: evidence.message, cls: "vs-hint is-warning" });
     evidence.targets.forEach((target) => {
       const row = section3.createDiv({
@@ -19870,7 +20693,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
       });
       if (target.status === "available") {
         const open = row.createEl("button", {
-          text: "\u5B9A\u4F4D",
+          text: tr("\u5B9A\u4F4D", "Locate"),
           attr: { type: "button" }
         });
         open.addEventListener("click", () => void this.openEvidence(target));
@@ -19880,7 +20703,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     });
     if (evidence.targets.length === 0) {
       section3.createDiv({
-        text: evidence.message || "\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u8BC1\u636E\u5F15\u7528\u3002",
+        text: evidence.message || tr("\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u8BC1\u636E\u5F15\u7528\u3002", "No verifiable evidence reference."),
         cls: "vs-hint is-warning"
       });
     }
@@ -19895,7 +20718,12 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
       window.open(externalUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    new import_obsidian19.Notice("\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03");
+    new import_obsidian19.Notice(
+      tr(
+        "\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03",
+        "The evidence has a timestamp, but this view cannot move the player"
+      )
+    );
   }
 };
 function selectReviewItems(items, sidecar, mode, at) {
@@ -19925,9 +20753,12 @@ function normalizeAnswer(value) {
 }
 function progressMessage(progress, state) {
   const due = new Date(progress.due_at).toLocaleString();
-  if (state === "suspended") return "\u8FD9\u9053\u9898\u5DF2\u6682\u505C\u3002";
+  if (state === "suspended") return tr("\u8FD9\u9053\u9898\u5DF2\u6682\u505C\u3002", "This question is paused.");
   const mastery = progress.mastery === "mastered" ? "\u5DF2\u638C\u63E1" : "\u5B66\u4E60\u4E2D";
-  return `${mastery} \xB7 \u8FDE\u7EED\u7B54\u5BF9 ${progress.consecutive_correct} \u6B21 \xB7 \u4E0B\u6B21 ${due}`;
+  return tr(
+    `${mastery} \xB7 \u8FDE\u7EED\u7B54\u5BF9 ${progress.consecutive_correct} \u6B21 \xB7 \u4E0B\u6B21 ${due}`,
+    `${mastery} \xB7 right ${progress.consecutive_correct} times in a row \xB7 next ${due}`
+  );
 }
 
 // core/CaptureInbox.ts
@@ -20709,57 +21540,102 @@ function matchingBrace(text2, start) {
 
 // views/settingsSearch.ts
 var SETTINGS_SEARCH_TERMS = [
-  "\u8FDE\u63A5",
-  "\u8F93\u51FA",
-  "\u5904\u7406",
-  "\u9996\u6B21\u914D\u7F6E",
-  "\u5404\u5E73\u53F0\u8BF4\u660E",
-  "Cookies \u7BA1\u7406",
-  "\u5904\u7406\u670D\u52A1",
-  "\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F",
-  "\u7B14\u8BB0",
-  "\u547D\u4EE4\u9762\u677F\u91CC\u7684\u4E00\u952E\u5904\u7406",
-  "\u6587\u4EF6\u4E0E\u547D\u540D",
-  "\u8BF7\u6C42\u5B57\u6BB5\u540D",
-  "\u7F13\u5B58\u4E0E\u8C03\u8BD5",
   "\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210",
+  "First-run setup done",
   "\u2460 \u8FDE\u63A5\u7801",
+  "\u2460 Connection code",
   "\u2461 \u68C0\u67E5",
+  "\u2461 Check",
   "\u2462 \u8BD5\u8FD0\u884C",
+  "\u2462 Trial run",
   "\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09",
-  "\u626B\u7801\u767B\u5F55",
-  "\u8FDE\u63A5\u7801",
-  "B \u7AD9\u767B\u5F55",
+  "\u2463 Bilibili login (optional)",
   "Cookies \u76EE\u5F55",
+  "Cookies folder",
   "\u4E3B\u5904\u7406\u540E\u7AEF",
+  "Main backend",
   "Codex \u672C\u5730\u670D\u52A1\u5730\u5740",
+  "Codex local service address",
   "\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09",
+  "Default webhook (n8n or compatible)",
   "\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6",
+  "Default depth",
   "\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B",
+  "Default content type",
   "\u89C2\u770B\u4EF7\u503C\u5224\u65AD",
+  "Worth watching?",
   "\u751F\u6210\u5B66\u4E60\u7EC3\u4E60",
+  "Generate learning exercises",
   "\u5904\u7406\u6A21\u578B",
+  "Model",
   "\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4",
+  "Request timeout",
   "\u9ED8\u8BA4\u8BED\u8A00",
+  "Default language",
   "\u81EA\u52A8\u4FDD\u5B58",
+  "Save automatically",
   "\u8F93\u51FA\u6587\u4EF6\u5939",
+  "Output folder",
   "\u6587\u7A3F\u5F15\u7528\u683C\u5F0F",
+  "Transcript quote format",
   "\u603B\u7ED3\u8BED\u8A00",
+  "Summary language",
   "\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4",
+  "Summary timeout",
   "\u6587\u7A3F\u8BED\u8A00",
+  "Transcript language",
   "\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4",
+  "Transcript timeout",
   "\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D",
+  "Rename after processing",
   "\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565",
+  "Name clash",
   "\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570",
+  "Batch parallelism",
   "\u6210\u529F\u72B6\u6001\u503C",
+  "Success status",
   "\u8C03\u8BD5\u6A21\u5F0F",
+  "Debug mode",
   "\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0",
+  "Check the backend before processing",
   "\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00",
+  "Expand short links",
   "\u5904\u7406\u5386\u53F2\u4E0A\u9650",
+  "History limit",
   "\u7F13\u5B58\u72B6\u6001",
+  "Cache status",
   "\u542F\u7528\u7F13\u5B58",
+  "Use the cache",
   "\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4",
-  "\u7F13\u5B58\u5185\u5BB9\u9884\u89C8"
+  "Cache expiry",
+  "\u7F13\u5B58\u5185\u5BB9\u9884\u89C8",
+  "Cache contents",
+  "\u8FDE\u63A5",
+  "Connection",
+  "\u8F93\u51FA",
+  "Output",
+  "\u5904\u7406",
+  "Processing",
+  "\u9996\u6B21\u914D\u7F6E",
+  "First-run setup",
+  "\u5404\u5E73\u53F0\u8BF4\u660E",
+  "Platforms",
+  "Cookies \u7BA1\u7406",
+  "Cookies",
+  "\u5904\u7406\u670D\u52A1",
+  "Backend",
+  "\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F",
+  "Default processing",
+  "\u7B14\u8BB0",
+  "Notes",
+  "\u547D\u4EE4\u9762\u677F\u91CC\u7684\u4E00\u952E\u5904\u7406",
+  "One-step commands",
+  "\u6587\u4EF6\u4E0E\u547D\u540D",
+  "Files and names",
+  "\u8BF7\u6C42\u5B57\u6BB5\u540D",
+  "Request field names",
+  "\u7F13\u5B58\u4E0E\u8C03\u8BD5",
+  "Cache and debugging"
 ];
 
 // main.ts
@@ -20864,42 +21740,45 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
   addCommands() {
     this.addCommand({
       id: "quick",
-      name: "\u5FEB\u901F\u603B\u7ED3\u5F53\u524D\u7B14\u8BB0",
+      name: tr("\u5FEB\u901F\u603B\u7ED3\u5F53\u524D\u7B14\u8BB0", "Quick summary of the current note"),
       editorCallback: (editor, view) => {
         void this.quickProcessCurrentNote(editor, view, "summary");
       }
     });
     this.addCommand({
       id: "full-text",
-      name: "\u5C06\u5F53\u524D\u7B14\u8BB0\u5168\u6587\u4F5C\u4E3A\u6587\u7A3F\u603B\u7ED3",
+      name: tr("\u5C06\u5F53\u524D\u7B14\u8BB0\u5168\u6587\u4F5C\u4E3A\u6587\u7A3F\u603B\u7ED3", "Summarise the whole note as a transcript"),
       editorCallback: (editor, view) => {
         void this.processFullTextAsTranscript(editor, view);
       }
     });
     this.addCommand({
       id: "transcript-quick",
-      name: "\u5FEB\u901F\u63D0\u53D6\u6587\u7A3F",
+      name: tr("\u5FEB\u901F\u63D0\u53D6\u6587\u7A3F", "Quick transcript"),
       editorCallback: (editor, view) => {
         void this.quickProcessCurrentNote(editor, view, "transcript-only");
       }
     });
     this.addCommand({
       id: "info-update",
-      name: "\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\uFF08\u4E0D\u6539\u6B63\u6587\uFF09",
+      name: tr("\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\uFF08\u4E0D\u6539\u6B63\u6587\uFF09", "Update video info (body unchanged)"),
       editorCallback: (editor, view) => {
         void this.updateVideoInfoOnly(editor, view, false);
       }
     });
     this.addCommand({
       id: "info-update-rename",
-      name: "\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5E76\u91CD\u547D\u540D",
+      name: tr("\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5E76\u91CD\u547D\u540D", "Update video info and rename"),
       editorCallback: (editor, view) => {
         void this.updateVideoInfoOnly(editor, view, true);
       }
     });
     this.addCommand({
       id: "collect-note-links",
-      name: "\u6536\u96C6\u5F53\u524D\u7B14\u8BB0\u91CC\u7684\u89C6\u9891\u94FE\u63A5\u5230\u4FA7\u680F",
+      name: tr(
+        "\u6536\u96C6\u5F53\u524D\u7B14\u8BB0\u91CC\u7684\u89C6\u9891\u94FE\u63A5\u5230\u4FA7\u680F",
+        "Collect the video links in this note into the side panel"
+      ),
       checkCallback: (checking) => {
         const file = this.app.workspace.getActiveFile();
         if (!file || file.extension !== "md") return false;
@@ -20909,91 +21788,94 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
     });
     this.addCommand({
       id: "view",
-      name: "\u6253\u5F00\u89C6\u9891\u603B\u7ED3\u4FA7\u680F",
+      name: tr("\u6253\u5F00\u89C6\u9891\u603B\u7ED3\u4FA7\u680F", "Open the Video Summary side panel"),
       callback: () => {
         void this.activateView();
       }
     });
     this.addCommand({
       id: "batch",
-      name: "\u6279\u91CF\u5904\u7406\u89C6\u9891",
+      name: tr("\u6279\u91CF\u5904\u7406\u89C6\u9891", "Batch process videos"),
       callback: () => {
         new BatchProcessingModal(this.app, this).open();
       }
     });
     this.addCommand({
       id: "reprocess",
-      name: "\u91CD\u65B0\u5904\u7406\u5F53\u524D\u7B14\u8BB0",
+      name: tr("\u91CD\u65B0\u5904\u7406\u5F53\u524D\u7B14\u8BB0", "Process the current note again"),
       editorCallback: (editor, view) => {
         void this.reprocessCurrentNote(editor, view);
       }
     });
     this.addCommand({
       id: "process-all-pending",
-      name: "\u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891",
+      name: tr("\u5904\u7406\u6240\u6709\u5F85\u5904\u7406\u89C6\u9891", "Process all pending videos"),
       callback: () => {
         void this.processAllPendingVideos();
       }
     });
     this.addCommand({
       id: "test-connection",
-      name: "\u6D4B\u8BD5\u5F53\u524D\u89C6\u9891\u5904\u7406\u540E\u7AEF",
+      name: tr("\u6D4B\u8BD5\u5F53\u524D\u89C6\u9891\u5904\u7406\u540E\u7AEF", "Test the current video backend"),
       callback: () => {
         void this.testProcessingBackendConnection();
       }
     });
     this.addCommand({
       id: "open-worker-dashboard",
-      name: "Codex \u672C\u5730\u670D\u52A1\u63A7\u5236\u53F0",
+      name: tr("Codex \u672C\u5730\u670D\u52A1\u63A7\u5236\u53F0", "Codex local service dashboard"),
       callback: () => {
         this.openCodexWorkerDashboard();
       }
     });
     this.addCommand({
       id: "memory-search",
-      name: "\u641C\u7D22\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6",
+      name: tr("\u641C\u7D22\u8DE8\u6A21\u6001\u89C6\u9891\u8BB0\u5FC6", "Search video memory across media"),
       callback: () => {
         new KnowledgeLabModal(this.app, this, "memory").open();
       }
     });
     this.addCommand({
       id: "claim-lab",
-      name: "\u751F\u6210\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4",
+      name: tr("\u751F\u6210\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4", "Build a multi-video claim lab"),
       callback: () => {
         new KnowledgeLabModal(this.app, this, "claim-lab").open();
       }
     });
     this.addCommand({
       id: "learning-review",
-      name: "\u590D\u4E60\u5F53\u524D\u89C6\u9891\u7684\u5B66\u4E60\u5361",
+      name: tr("\u590D\u4E60\u5F53\u524D\u89C6\u9891\u7684\u5B66\u4E60\u5361", "Review this video's learning cards"),
       editorCallback: (_editor, view) => {
         if (view.file) void this.openLearningReviewForFile(view.file);
       }
     });
     this.addCommand({
       id: "learning-review-due",
-      name: "\u590D\u4E60\u6240\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361",
+      name: tr("\u590D\u4E60\u6240\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361", "Review all due video learning cards"),
       callback: () => {
         void this.openGlobalLearningReview();
       }
     });
     this.addCommand({
       id: "reprocess-from-artifact",
-      name: "\u7528\u672C\u5730\u53EF\u590D\u73B0\u5DE5\u4EF6\u91CD\u65B0\u5904\u7406",
+      name: tr("\u7528\u672C\u5730\u53EF\u590D\u73B0\u5DE5\u4EF6\u91CD\u65B0\u5904\u7406", "Process again from the local reproducible artifact"),
       editorCallback: (_editor, view) => {
         if (view.file) void this.reprocessFromPersistedArtifact(view.file);
       }
     });
     this.addCommand({
       id: "generate-base",
-      name: "\u751F\u6210\u6216\u5B89\u5168\u66F4\u65B0\u89C6\u9891\u5E93\u6570\u636E\u89C6\u56FE\uFF08.base \u6587\u4EF6\uFF09",
+      name: tr(
+        "\u751F\u6210\u6216\u5B89\u5168\u66F4\u65B0\u89C6\u9891\u5E93\u6570\u636E\u89C6\u56FE\uFF08.base \u6587\u4EF6\uFF09",
+        "Create or safely update the video library view (.base file)"
+      ),
       callback: () => {
         void this.ensureVideoLibraryBase(true);
       }
     });
     this.addCommand({
       id: "mark-excluded",
-      name: "\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0",
+      name: tr("\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0", "Mark as not a video note"),
       editorCallback: (editor, view) => {
         void this.markAsExcluded(editor, view);
       }
@@ -21004,12 +21886,12 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
       this.app.workspace.on("file-menu", (menu, file) => {
         if (file instanceof import_obsidian20.TFile && file.extension === "md") {
           menu.addItem((item) => {
-            item.setTitle("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406").setIcon("video").onClick(async () => {
+            item.setTitle(tr("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406", "Video Summary - quick process")).setIcon("video").onClick(async () => {
               await this.processFile(file);
             });
           });
           menu.addItem((item) => {
-            item.setTitle("\u89C6\u9891\u603B\u7ED3 - \u4EC5\u63D0\u53D6\u6587\u7A3F").setIcon("document").onClick(async () => {
+            item.setTitle(tr("\u89C6\u9891\u603B\u7ED3 - \u4EC5\u63D0\u53D6\u6587\u7A3F", "Video Summary - transcript only")).setIcon("document").onClick(async () => {
               await this.processFileWithMode(file, "transcript-only");
             });
           });
@@ -21021,7 +21903,7 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -21029,19 +21911,30 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice(
+          tr(
+            "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
+            "No video link, transcript or local file name in this note"
+          )
+        );
         return;
       }
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new import_obsidian20.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `Could not process the current note: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async processCurrentNoteWithMode(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -21049,25 +21942,41 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice(
+          tr(
+            "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
+            "No video link, transcript or local file name in this note"
+          )
+        );
         return;
       }
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian20.Notice(`\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `Could not process the current note: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async updateVideoInfoOnly(editor, view, forceRename) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
       const videoInput = this.noteProcessor.buildVideoInput(content);
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice(
+          tr(
+            "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
+            "No video link, transcript or local file name in this note"
+          )
+        );
         return;
       }
       if (!await this.ensureBackendReady()) {
@@ -21075,7 +21984,7 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian20.Notice("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", 0);
+      const statusNotice = new import_obsidian20.Notice(tr("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", "Getting video info..."), 0);
       try {
         const result = await this.api.processVideo(
           file.basename,
@@ -21107,36 +22016,53 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
           result.artifact?.artifact_id
         );
         this.addToHistory(file.basename, "success", "info-only");
-        statusNotice.setMessage("\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u66F4\u65B0");
+        statusNotice.setMessage(tr("\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u66F4\u65B0", "\u2705 Video info updated"));
         window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
         this.addToHistory(file.basename, "error", "info-only");
-        statusNotice.setMessage(`\u66F4\u65B0\u5931\u8D25: ${this.formatErrorForNotice(error)}`);
+        statusNotice.setMessage(
+          tr(
+            `\u66F4\u65B0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+            `Update failed: ${this.formatErrorForNotice(error)}`
+          )
+        );
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian20.Notice(`\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `Could not update the video info: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async reprocessCurrentNote(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       await this.processFile(file);
     } catch (error) {
-      new import_obsidian20.Notice(`\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `Could not process again: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async quickProcessCurrentNote(editor, view, mode) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -21144,7 +22070,12 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D");
+        new import_obsidian20.Notice(
+          tr(
+            "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
+            "No video link, transcript or local file name in this note"
+          )
+        );
         return;
       }
       if (!await this.ensureBackendReady()) {
@@ -21152,7 +22083,13 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
       const requestTimeoutMinutes = mode === "summary" ? this.settings.quickSummaryOptions.timeoutMinutes : mode === "transcript-only" ? this.settings.quickTranscriptOptions.timeoutMinutes : this.settings.timeoutMinutes;
-      const statusNotice = new import_obsidian20.Notice(`\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`, 0);
+      const statusNotice = new import_obsidian20.Notice(
+        tr(
+          `\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`,
+          `Processing: ${this.getModeDisplayText(mode)}`
+        ),
+        0
+      );
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
       let isMerge = false;
@@ -21167,12 +22104,22 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
         let result;
         let artifactInput = {};
         if (isMerge) {
-          const langText = requestLanguage === "zh" ? "\u4E2D\u6587" : requestLanguage === "en" ? "\u82F1\u6587" : "\u65E5\u6587";
-          statusNotice.setMessage(`\u6B63\u5728\u5408\u5E76\u5904\u7406 ${localFiles.length} \u4E2A\u6587\u4EF6...`);
+          const langText = requestLanguage === "zh" ? tr("\u4E2D\u6587", "Chinese") : requestLanguage === "en" ? tr("\u82F1\u6587", "English") : tr("\u65E5\u6587", "Japanese");
+          statusNotice.setMessage(
+            tr(
+              `\u6B63\u5728\u5408\u5E76\u5904\u7406 ${localFiles.length} \u4E2A\u6587\u4EF6...`,
+              `Processing ${localFiles.length} files together...`
+            )
+          );
           let combinedTranscript = "";
           for (let i = 0; i < localFiles.length; i++) {
             const localFile = localFiles[i];
-            statusNotice.setMessage(`\u6B63\u5728\u63D0\u53D6\u7B2C ${i + 1}/${localFiles.length} \u4E2A\u6587\u4EF6\u7684\u5185\u5BB9...`);
+            statusNotice.setMessage(
+              tr(
+                `\u6B63\u5728\u63D0\u53D6\u7B2C ${i + 1}/${localFiles.length} \u4E2A\u6587\u4EF6\u7684\u5185\u5BB9...`,
+                `Extracting file ${i + 1}/${localFiles.length}...`
+              )
+            );
             const extractResult = await this.api.processVideoSimple(
               { localFile },
               "transcript-only",
@@ -21193,7 +22140,12 @@ ${extractResult.video_transcript}
           if (!combinedTranscript) {
             throw new Error("\u672A\u80FD\u4ECE\u6587\u4EF6\u4E2D\u63D0\u53D6\u5230\u4EFB\u4F55\u5185\u5BB9");
           }
-          statusNotice.setMessage(`\u6B63\u5728\u4EE5${langText}\u751F\u6210\u5408\u5E76\u603B\u7ED3...`);
+          statusNotice.setMessage(
+            tr(
+              `\u6B63\u5728\u4EE5${langText}\u751F\u6210\u5408\u5E76\u603B\u7ED3...`,
+              `Generating a combined summary in ${langText}...`
+            )
+          );
           const mergedInput = {
             transcript: combinedTranscript,
             url: url || void 0,
@@ -21216,7 +22168,9 @@ ${extractResult.video_transcript}
             1,
             2e3,
             (attempt, error) => {
-              statusNotice.setMessage(`\u91CD\u8BD5\u4E2D: ${errorMessage(error)}`);
+              statusNotice.setMessage(
+                tr(`\u91CD\u8BD5\u4E2D: ${errorMessage(error)}`, `Retrying: ${errorMessage(error)}`)
+              );
             }
           );
         } else {
@@ -21243,7 +22197,12 @@ ${extractResult.video_transcript}
             2e3,
             // 2秒延迟
             (attempt, error) => {
-              statusNotice.setMessage(`\u91CD\u8BD5\u4E2D (${attempt}/2): ${errorMessage(error)}`);
+              statusNotice.setMessage(
+                tr(
+                  `\u91CD\u8BD5\u4E2D (${attempt}/2): ${errorMessage(error)}`,
+                  `Retrying (${attempt}/2): ${errorMessage(error)}`
+                )
+              );
             }
           );
         }
@@ -21270,29 +22229,40 @@ ${extractResult.video_transcript}
           result.artifact?.artifact_id
         );
         this.addToHistory(file.basename, "success", mode);
-        statusNotice.setMessage(`\u2705 \u5904\u7406\u5B8C\u6210`);
+        statusNotice.setMessage(tr(`\u2705 \u5904\u7406\u5B8C\u6210`, `\u2705 Done`));
         window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
         this.addToHistory(file.basename, "error", mode);
-        statusNotice.setMessage(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`);
+        statusNotice.setMessage(
+          tr(
+            `\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+            `Processing failed: ${this.formatErrorForNotice(error)}`
+          )
+        );
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian20.Notice(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `Processing failed: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async processFullTextAsTranscript(editor, view) {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new import_obsidian20.Notice("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9");
+        new import_obsidian20.Notice(tr("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9", "The note has no text"));
         return;
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
@@ -21302,7 +22272,10 @@ ${extractResult.video_transcript}
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian20.Notice(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, 0);
+      const statusNotice = new import_obsidian20.Notice(
+        tr(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, `Sending the whole note for processing...`),
+        0
+      );
       try {
         const input = {
           transcript: fullText
@@ -21324,7 +22297,12 @@ ${extractResult.video_transcript}
           2e3,
           // 2秒延迟
           (attempt, error) => {
-            statusNotice.setMessage(`\u91CD\u8BD5\u4E2D (${attempt}/2): ${errorMessage(error)}`);
+            statusNotice.setMessage(
+              tr(
+                `\u91CD\u8BD5\u4E2D (${attempt}/2): ${errorMessage(error)}`,
+                `Retrying (${attempt}/2): ${errorMessage(error)}`
+              )
+            );
           }
         );
         const artifactContext = {
@@ -21350,17 +22328,28 @@ ${extractResult.video_transcript}
           result.artifact?.artifact_id
         );
         this.addToHistory(file.basename, "success", mode);
-        statusNotice.setMessage(`\u2705 \u5168\u6587\u5904\u7406\u5B8C\u6210`);
+        statusNotice.setMessage(tr(`\u2705 \u5168\u6587\u5904\u7406\u5B8C\u6210`, `\u2705 Whole note processed`));
         window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
         this.addToHistory(file.basename, "error", mode);
-        statusNotice.setMessage(`\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`);
+        statusNotice.setMessage(
+          tr(
+            `\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+            `Processing failed: ${this.formatErrorForNotice(error)}`
+          )
+        );
         window.setTimeout(() => statusNotice.hide(), 5e3);
       }
     } catch (error) {
-      new import_obsidian20.Notice(`\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `Could not start: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async processAllPendingVideos() {
@@ -21388,18 +22377,18 @@ ${extractResult.video_transcript}
         }
       }
       if (pendingFiles.length === 0) {
-        new import_obsidian20.Notice("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0");
+        new import_obsidian20.Notice(tr("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0", "No pending video notes found"));
         return;
       }
       const confirmed = await this.showConfirmDialog(
-        `\u6279\u91CF\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891`,
-        `\u662F\u5426\u8981\u6279\u91CF\u5904\u7406\u8FD9\u4E9B\u89C6\u9891\uFF1F
-
-\u6587\u4EF6\u5217\u8868\uFF1A
-${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
-          "\n"
-        )}${pendingFiles.length > 10 ? `
-... \u8FD8\u6709 ${pendingFiles.length - 10} \u4E2A\u6587\u4EF6` : ""}`
+        tr(`\u6279\u91CF\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891`, `Process ${pendingFiles.length} videos`),
+        `${tr("\u662F\u5426\u8981\u6279\u91CF\u5904\u7406\u8FD9\u4E9B\u89C6\u9891\uFF1F\n\n\u6587\u4EF6\u5217\u8868\uFF1A", "Process these videos?\n\nFiles:")}
+${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pendingFiles.length > 10 ? tr(
+          `
+... \u8FD8\u6709 ${pendingFiles.length - 10} \u4E2A\u6587\u4EF6`,
+          `
+... and ${pendingFiles.length - 10} more`
+        ) : ""}`
       );
       if (!confirmed) {
         return;
@@ -21407,13 +22396,24 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
       if (!await this.ensureBackendReady()) {
         return;
       }
-      const progressNotice = new import_obsidian20.Notice(`\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`, 0);
+      const progressNotice = new import_obsidian20.Notice(
+        tr(
+          `\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`,
+          `Processing ${pendingFiles.length} videos...`
+        ),
+        0
+      );
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < pendingFiles.length; i++) {
         const file = pendingFiles[i];
         try {
-          progressNotice.setMessage(`\u5904\u7406\u4E2D (${i + 1}/${pendingFiles.length})`);
+          progressNotice.setMessage(
+            tr(
+              `\u5904\u7406\u4E2D (${i + 1}/${pendingFiles.length})`,
+              `Processing (${i + 1}/${pendingFiles.length})`
+            )
+          );
           await this.processFileWithMode(file, this.settings.defaultMode);
           successCount++;
         } catch (error) {
@@ -21425,10 +22425,21 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
         }
       }
       await this.saveSettings();
-      progressNotice.setMessage(`\u5B8C\u6210\uFF01\u6210\u529F: ${successCount}, \u5931\u8D25: ${errorCount}`);
+      progressNotice.setMessage(
+        tr(
+          `\u5B8C\u6210\uFF01\u6210\u529F: ${successCount}, \u5931\u8D25: ${errorCount}`,
+          `Done! Succeeded: ${successCount}, failed: ${errorCount}`
+        )
+      );
       window.setTimeout(() => progressNotice.hide(), 3e3);
     } catch (error) {
-      new import_obsidian20.Notice(`\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `Batch processing failed: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async showConfirmDialog(title, message) {
@@ -21459,24 +22470,46 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new import_obsidian20.Notice("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406");
+      new import_obsidian20.Notice(tr("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406", "Processing history cleared"));
     } catch (error) {
-      new import_obsidian20.Notice(`\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${errorMessage(error)}`);
+      new import_obsidian20.Notice(
+        tr(
+          `\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${errorMessage(error)}`,
+          `Could not clear the history: ${errorMessage(error)}`
+        )
+      );
     }
   }
   async testProcessingBackendConnection() {
     try {
       const result = await this.api.testConnection();
-      const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : "\u517C\u5BB9 n8n \u7684 webhook";
+      const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
       if (result.success) {
-        new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`);
+        new import_obsidian20.Notice(
+          tr(
+            `${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`,
+            `${label} connected (${result.durationMs ?? 0} ms)`
+          )
+        );
       } else {
         const hint = result.hint ? `
 \u5EFA\u8BAE: ${result.hint}` : "";
-        new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+        new import_obsidian20.Notice(
+          tr(
+            `${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
+            `${label} connection failed: ${result.error || "unknown error"}${hint}`
+          ),
+          8e3
+        );
       }
     } catch (error) {
-      new import_obsidian20.Notice(`\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`,
+          `Connection failed: ${this.api.formatUserFacingError(error)}`
+        ),
+        8e3
+      );
     }
   }
   formatErrorForNotice(error) {
@@ -21503,9 +22536,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     if (result.ok) {
       return true;
     }
-    const label = backend === "codex-worker" ? "Codex Worker" : "\u517C\u5BB9 n8n \u7684 webhook";
+    const label = backend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
     const otherBackend = backend === "n8n" ? "codex-worker" : "n8n";
-    const otherLabel = otherBackend === "codex-worker" ? "Codex Worker" : "\u517C\u5BB9 n8n \u7684 webhook";
+    const otherLabel = otherBackend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
     const otherUrl = otherBackend === "codex-worker" ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl : this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl;
     const fallbackWebhookProfile = this.getActiveWebhookProfile();
     const otherResult = await VideoSummaryAPI.probeEndpoint(
@@ -21520,23 +22553,33 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join(
     );
     if (otherResult.ok) {
       const confirmed = await this.showConfirmDialog(
-        `${label} \u4E0D\u53EF\u7528`,
-        `\u5F53\u524D\u540E\u7AEF ${label} \u8FDE\u63A5\u5931\u8D25\uFF1A
+        tr(`${label} \u4E0D\u53EF\u7528`, `${label} is unavailable`),
+        tr(
+          `\u5F53\u524D\u540E\u7AEF ${label} \u8FDE\u63A5\u5931\u8D25\uFF1A
 ${result.error || "\u672A\u77E5\u9519\u8BEF"}
 
-\u68C0\u6D4B\u5230 ${otherLabel} \u53EF\u7528\u3002\u662F\u5426\u5207\u6362\u5230 ${otherLabel} \u5E76\u7EE7\u7EED\uFF1F`
+\u68C0\u6D4B\u5230 ${otherLabel} \u53EF\u7528\u3002\u662F\u5426\u5207\u6362\u5230 ${otherLabel} \u5E76\u7EE7\u7EED\uFF1F`,
+          `The current backend ${label} failed to connect:
+${result.error || "unknown error"}
+
+${otherLabel} is available. Switch to ${otherLabel} and continue?`
+        )
       );
       if (confirmed) {
         await this.setActiveBackend(otherBackend);
         this.lastPreflight = null;
-        new import_obsidian20.Notice(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`);
+        new import_obsidian20.Notice(tr(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`, `Switched to ${otherLabel}`));
         return true;
       }
       return false;
     }
     new import_obsidian20.Notice(
-      `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
+      tr(
+        `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
 \uFF08${otherLabel} \u4E5F\u672A\u68C0\u6D4B\u5230\uFF09\u8BF7\u5148\u542F\u52A8\u5904\u7406\u670D\u52A1\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5 URL\u3002`,
+        `\u26A0\uFE0F ${label} unreachable: ${result.error || "unknown error"}
+(${otherLabel} not found either) Start the backend, or check the URL in settings.`
+      ),
       8e3
     );
     return false;
@@ -21552,12 +22595,22 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     const content = await this.app.vault.cachedRead(file);
     const urls = VideoUtils.extractVideoUrls(content);
     if (urls.length === 0) {
-      new import_obsidian20.Notice(`\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`);
+      new import_obsidian20.Notice(
+        tr(
+          `\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`,
+          `No supported video link in "${file.basename}"`
+        )
+      );
       return;
     }
     const view = await this.activateView();
     view?.prefillInput(urls.join("\n"));
-    new import_obsidian20.Notice(`\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`);
+    new import_obsidian20.Notice(
+      tr(
+        `\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`,
+        `Put ${urls.length} video links into the side panel; pick a mode and press Start`
+      )
+    );
   }
   async activateView() {
     const { workspace } = this.app;
@@ -21598,7 +22651,10 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       if (!salvage.corrupt) return { stored: salvage.settings, migrated: false };
       await adapter.write(`${this.pluginDir}/data.corrupt-${Date.now()}.json`, raw);
       new import_obsidian20.Notice(
-        `Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u635F\u574F\uFF08\u540C\u6B65\u51B2\u7A81\uFF09\uFF0C\u5DF2\u6551\u56DE ${salvage.history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${salvage.webhookHistory.length} \u6761\u7ED3\u679C\uFF0C\u539F\u6587\u4EF6\u53E6\u5B58\u4E3A data.corrupt-*.json\u3002`,
+        tr(
+          `Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u635F\u574F\uFF08\u540C\u6B65\u51B2\u7A81\uFF09\uFF0C\u5DF2\u6551\u56DE ${salvage.history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${salvage.webhookHistory.length} \u6761\u7ED3\u679C\uFF0C\u539F\u6587\u4EF6\u53E6\u5B58\u4E3A data.corrupt-*.json\u3002`,
+          `Video Summary: the settings file was damaged by a sync conflict. Recovered ${salvage.history.length} job records and ${salvage.webhookHistory.length} results; the original is saved as data.corrupt-*.json.`
+        ),
         15e3
       );
       return {
@@ -21649,7 +22705,10 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       }
       await this.copyFolder(`${folder}/data`, `${this.pluginDir}/data`);
       new import_obsidian20.Notice(
-        `Video Summary\uFF1A\u5DF2\u4ECE\u65E7\u7248\u63D2\u4EF6\u76EE\u5F55\uFF08${folder}\uFF09\u5BFC\u5165\u8BBE\u7F6E\u3001${history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${webhookHistory.length} \u6761\u7ED3\u679C\u3002\u786E\u8BA4\u65E0\u8BEF\u540E\u53EF\u505C\u7528\u5E76\u5220\u9664\u65E7\u7248\u3002`,
+        tr(
+          `Video Summary\uFF1A\u5DF2\u4ECE\u65E7\u7248\u63D2\u4EF6\u76EE\u5F55\uFF08${folder}\uFF09\u5BFC\u5165\u8BBE\u7F6E\u3001${history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${webhookHistory.length} \u6761\u7ED3\u679C\u3002\u786E\u8BA4\u65E0\u8BEF\u540E\u53EF\u505C\u7528\u5E76\u5220\u9664\u65E7\u7248\u3002`,
+          `Video Summary: imported settings, ${history.length} job records and ${webhookHistory.length} results from the old plugin folder (${folder}). Once everything looks right, disable and delete the old version.`
+        ),
         15e3
       );
       return { ...salvage.settings, history, webhookHistory };
@@ -21729,7 +22788,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     if (this.settings.activeBackend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
       shouldSave = true;
-      new import_obsidian20.Notice("\u65E7\u8BBE\u7F6E\u4E2D\u7684\u201C\u6DF1\u5EA6\u89C6\u89C9\u201D\u5DF2\u6309 n8n \u5B9E\u9645\u80FD\u529B\u8FC1\u79FB\u4E3A\u201C\u8BC1\u636E\u201D\u6A21\u5F0F\u3002", 7e3);
+      new import_obsidian20.Notice(
+        tr(
+          "\u65E7\u8BBE\u7F6E\u4E2D\u7684\u201C\u6DF1\u5EA6\u89C6\u89C9\u201D\u5DF2\u6309 n8n \u5B9E\u9645\u80FD\u529B\u8FC1\u79FB\u4E3A\u201C\u8BC1\u636E\u201D\u6A21\u5F0F\u3002",
+          '"Deep visual" in the old settings was changed to "Evidence", which is what n8n supports.'
+        ),
+        7e3
+      );
     }
     const normalizedConcurrency = Math.max(
       1,
@@ -21756,7 +22821,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       this.settings.webhookProfiles = [
         {
           id: "default-webhook",
-          name: "\u9ED8\u8BA4 Webhook",
+          name: tr("\u9ED8\u8BA4 Webhook", "Default webhook"),
           url: this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl,
           headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
           secret: ""
@@ -21923,7 +22988,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   async setActiveWebhook(profileId, options = {}) {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new import_obsidian20.Notice("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E");
+      new import_obsidian20.Notice(tr("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E", "Webhook configuration not found"));
       return null;
     }
     this.settings.activeWebhookId = profileId;
@@ -21932,13 +22997,21 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     if (this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
       if (!options.silent) {
-        new import_obsidian20.Notice("\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
+        new import_obsidian20.Notice(
+          tr(
+            "\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002",
+            'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".'
+          ),
+          7e3
+        );
       }
     }
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
-      new import_obsidian20.Notice(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`);
+      new import_obsidian20.Notice(
+        tr(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`, `Switched to ${profile.name || profile.url}`)
+      );
     }
     return profile;
   }
@@ -21968,7 +23041,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     this.settings.activeBackend = backend;
     if (backend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
-      new import_obsidian20.Notice("\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002", 7e3);
+      new import_obsidian20.Notice(
+        tr(
+          "\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002",
+          'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".'
+        ),
+        7e3
+      );
     }
     this.initializeApiInstance();
     await this.saveSettings();
@@ -22012,18 +23091,30 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     const finished = await this.jobs.waitFor(job.id);
     if (!finished) return;
     if (finished.state === "error") {
-      new import_obsidian20.Notice(`\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`,
+          `Processing failed: ${finished.error || "unknown error"}`
+        ),
+        8e3
+      );
       throw new Error(finished.error || "\u5904\u7406\u5931\u8D25");
     }
     if (finished.state === "cancelled") {
-      new import_obsidian20.Notice("\u5904\u7406\u5DF2\u53D6\u6D88");
+      new import_obsidian20.Notice(tr("\u5904\u7406\u5DF2\u53D6\u6D88", "Processing cancelled"));
       return;
     }
     if (finished.state === "review") {
-      new import_obsidian20.Notice(`${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`, 6e3);
+      new import_obsidian20.Notice(
+        tr(
+          `${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`,
+          `${this.getModeDisplayText(mode)} ready; confirm writing it in the side panel`
+        ),
+        6e3
+      );
       return;
     }
-    new import_obsidian20.Notice(`${this.getModeDisplayText(mode)}\u5B8C\u6210`);
+    new import_obsidian20.Notice(tr(`${this.getModeDisplayText(mode)}\u5B8C\u6210`, `${this.getModeDisplayText(mode)} done`));
   }
   /**
    * 刷新视频总结视图
@@ -22031,11 +23122,11 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
   getModeDisplayText(mode) {
     switch (mode) {
       case "summary":
-        return "\u89C6\u9891\u603B\u7ED3";
+        return tr("\u89C6\u9891\u603B\u7ED3", "Video summary");
       case "transcript-only":
-        return "\u6587\u7A3F\u63D0\u53D6";
+        return tr("\u6587\u7A3F\u63D0\u53D6", "Transcript");
       default:
-        return "\u89C6\u9891\u4FE1\u606F";
+        return tr("\u89C6\u9891\u4FE1\u606F", "Video info");
     }
   }
   /**
@@ -22100,26 +23191,43 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian20.Notice("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6");
+        new import_obsidian20.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "excluded");
-      new import_obsidian20.Notice("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0");
+      new import_obsidian20.Notice(tr("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0", "Marked as not a video note"));
     } catch (error) {
-      new import_obsidian20.Notice(`\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${errorMessage(error)}`);
+      new import_obsidian20.Notice(
+        tr(
+          `\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${errorMessage(error)}`,
+          `Could not mark it: ${errorMessage(error)}`
+        )
+      );
     }
   }
   async openLearningReviewForFile(file) {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002", 6e3);
+        new import_obsidian20.Notice(
+          tr(
+            "\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002",
+            "This note has no saved video artifact yet; process it once first."
+          ),
+          6e3
+        );
         return;
       }
       const artifact = await this.artifactStore.load(artifactId);
       const learningCount = (artifact.learning?.flashcards?.length || 0) + (artifact.learning?.questions?.length || 0);
       if (learningCount === 0) {
-        new import_obsidian20.Notice("\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002", 6e3);
+        new import_obsidian20.Notice(
+          tr(
+            "\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002",
+            'This artifact has no learning cards; turn on "Generate learning exercises" and process it again.'
+          ),
+          6e3
+        );
         return;
       }
       new LearningReviewModal(this.app, {
@@ -22127,7 +23235,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         artifact,
         onOpenEvidence: async (_source, target) => {
           if (target.start === null) {
-            new import_obsidian20.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+            new import_obsidian20.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
             return;
           }
           const view = await this.activateView();
@@ -22136,7 +23244,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         }
       }).open();
     } catch (error) {
-      new import_obsidian20.Notice(`\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
+          `Could not open the review: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async openGlobalLearningReview() {
@@ -22160,15 +23274,21 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         (left, right) => left.firstDue.localeCompare(right.firstDue) || right.dueCount - left.dueCount || String(left.artifact.title || "").localeCompare(String(right.artifact.title || ""))
       );
       if (candidates.length === 0) {
-        new import_obsidian20.Notice("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002");
+        new import_obsidian20.Notice(tr("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002", "No video learning cards are due."));
         return;
       }
       const total = candidates.reduce((sum, item) => sum + item.dueCount, 0);
-      new import_obsidian20.Notice(`\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`, 5e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`,
+          `${candidates.length} videos, ${total} cards due.`
+        ),
+        5e3
+      );
       const openAt = (index) => {
         const candidate = candidates[index];
         if (!candidate) {
-          new import_obsidian20.Notice("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002");
+          new import_obsidian20.Notice(tr("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002", "All due reviews done."));
           return;
         }
         new LearningReviewModal(this.app, {
@@ -22177,7 +23297,7 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
           mode: "due",
           onOpenEvidence: async (artifact, target) => {
             if (target.start === null) {
-              new import_obsidian20.Notice("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9");
+              new import_obsidian20.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
               return;
             }
             const notePath = artifact.source.note_path;
@@ -22192,7 +23312,12 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
               window.open(externalUrl, "_blank", "noopener,noreferrer");
               return;
             }
-            new import_obsidian20.Notice("\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002");
+            new import_obsidian20.Notice(
+              tr(
+                "\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002",
+                "The artifact's original note is gone; cannot find the player."
+              )
+            );
           },
           ...index + 1 < candidates.length ? {
             continueLabel: `\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891\uFF08\u8FD8\u5269 ${candidates.length - index - 1} \u4E2A\uFF09`,
@@ -22202,14 +23327,20 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       };
       openAt(0);
     } catch (error) {
-      new import_obsidian20.Notice(`\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
+          `Could not open the due review: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async reprocessFromPersistedArtifact(file) {
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian20.Notice("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", 6e3);
+        new import_obsidian20.Notice(tr("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", "This note has no reproducible artifact."), 6e3);
         return;
       }
       const manifest = await this.reproducibilityStore.load(artifactId);
@@ -22248,7 +23379,10 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       );
       if (!job) return;
       new import_obsidian20.Notice(
-        "\u5DF2\u63D0\u4EA4\u65E0\u6E90\u91CD\u5904\u7406\uFF1A\u672C\u5730\u6587\u7A3F\u4F1A\u91CD\u65B0\u603B\u7ED3\uFF0C\u6821\u9A8C\u8FC7\u7684\u65E7\u8BC1\u636E\u4F5C\u4E3A\u7F3A\u5931\u56DE\u9000\uFF1B\u4E0D\u4F1A\u4E0B\u8F7D\u6765\u6E90\uFF0C\u7ED3\u679C\u4F7F\u7528\u5F53\u524D\u540E\u7AEF\u914D\u7F6E\u3002",
+        tr(
+          "\u5DF2\u63D0\u4EA4\u65E0\u6E90\u91CD\u5904\u7406\uFF1A\u672C\u5730\u6587\u7A3F\u4F1A\u91CD\u65B0\u603B\u7ED3\uFF0C\u6821\u9A8C\u8FC7\u7684\u65E7\u8BC1\u636E\u4F5C\u4E3A\u7F3A\u5931\u56DE\u9000\uFF1B\u4E0D\u4F1A\u4E0B\u8F7D\u6765\u6E90\uFF0C\u7ED3\u679C\u4F7F\u7528\u5F53\u524D\u540E\u7AEF\u914D\u7F6E\u3002",
+          "Sent for source-free reprocessing: the local transcript is summarised again and checked old evidence is kept as a fallback; nothing is downloaded and the current backend settings are used."
+        ),
         9e3
       );
       const finished = await this.jobs.waitFor(job.id);
@@ -22256,7 +23390,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
         throw new Error(finished.error || "\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25");
       }
     } catch (error) {
-      new import_obsidian20.Notice(`\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
+          `Reproducible reprocessing failed: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
   async artifactIdForFile(file) {
@@ -22449,7 +23589,13 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       const rawUrl = (params.url || params.link || "").trim();
       const localFile = (params.local_file || params.localFile || "").trim();
       if (!rawUrl && !localFile) {
-        new import_obsidian20.Notice("\u534F\u8BAE\u8C03\u7528 video-summary \u7F3A\u5C11 URL \u6216 local_file \u53C2\u6570", 6e3);
+        new import_obsidian20.Notice(
+          tr(
+            "\u534F\u8BAE\u8C03\u7528 video-summary \u7F3A\u5C11 URL \u6216 local_file \u53C2\u6570",
+            "The video-summary link is missing a URL or local_file"
+          ),
+          6e3
+        );
         return;
       }
       const requestedAction = String(params.action || "").trim().toLowerCase();
@@ -22475,25 +23621,37 @@ ${result.error || "\u672A\u77E5\u9519\u8BEF"}
       await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
         new import_obsidian20.Notice(
-          result.status === "created" ? "\u5DF2\u79BB\u7EBF\u52A0\u5165\u89C6\u9891\u6536\u4EF6\u7BB1" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5DF2\u6253\u5F00\u539F\u7B14\u8BB0"
+          result.status === "created" ? tr("\u5DF2\u79BB\u7EBF\u52A0\u5165\u89C6\u9891\u6536\u4EF6\u7BB1", "Added to the video inbox offline") : tr("\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5DF2\u6253\u5F00\u539F\u7B14\u8BB0", "Already captured; opened the existing note")
         );
         return;
       }
       if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
         new import_obsidian20.Notice(
-          "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u5F53\u524D\u81EA\u52A8\u5904\u7406\u53EA\u652F\u6301 YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u548C\u5C0F\u7EA2\u4E66\u94FE\u63A5\uFF0C\u901A\u7528 URL \u672A\u53D1\u9001\u5230\u540E\u7AEF\u3002",
+          tr(
+            "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u5F53\u524D\u81EA\u52A8\u5904\u7406\u53EA\u652F\u6301 YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u548C\u5C0F\u7EA2\u4E66\u94FE\u63A5\uFF0C\u901A\u7528 URL \u672A\u53D1\u9001\u5230\u540E\u7AEF\u3002",
+            "Captured to the inbox. Automatic processing supports YouTube, Bilibili, Douyin, TikTok and Xiaohongshu links only, so this URL was not sent."
+          ),
           8e3
         );
         return;
       }
       if (localFile) {
         if (!isSupportedLocalMediaPath(localFile)) {
-          new import_obsidian20.Notice("\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 8e3);
+          new import_obsidian20.Notice(
+            tr(
+              "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002",
+              "Captured to the inbox. This local path is not a supported media file and was not read or sent."
+            ),
+            8e3
+          );
           return;
         }
         if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== "codex-worker") {
           new import_obsidian20.Notice(
-            "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u81EA\u5E26\u7684 n8n \u65E0\u6CD5\u8BFB\u53D6\u94FE\u63A5\u91CC\u7684\u4E3B\u673A\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u590D\u5236\u5230\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u518D\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\uFF0C\u6216\u5207\u6362\u5230\u80FD\u8BBF\u95EE\u8BE5\u8DEF\u5F84\u7684\u672C\u673A\u670D\u52A1\u3002",
+            tr(
+              "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u81EA\u5E26\u7684 n8n \u65E0\u6CD5\u8BFB\u53D6\u94FE\u63A5\u91CC\u7684\u4E3B\u673A\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u590D\u5236\u5230\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u518D\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\uFF0C\u6216\u5207\u6362\u5230\u80FD\u8BBF\u95EE\u8BE5\u8DEF\u5F84\u7684\u672C\u673A\u670D\u52A1\u3002",
+              "Captured to the inbox. The bundled n8n cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name, or use a local service that can reach that path."
+            ),
             9e3
           );
           return;
@@ -22506,18 +23664,29 @@ ${localFile}
 \u4EC5\u5728\u4F60\u8BA4\u8BC6\u8BE5\u6765\u6E90\u65F6\u786E\u8BA4\u3002`
         );
         if (!confirmed) {
-          new import_obsidian20.Notice("\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002", 6e3);
+          new import_obsidian20.Notice(
+            tr(
+              "\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002",
+              "Kept in the video inbox; the local file was not read or sent."
+            ),
+            6e3
+          );
           return;
         }
       }
-      new import_obsidian20.Notice(result.status === "created" ? "\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406" : "\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406");
+      new import_obsidian20.Notice(
+        result.status === "created" ? tr("\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406", "Captured; processing") : tr("\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406", "Already captured; processing again")
+      );
       const requestedMode = (params.mode || "").trim();
       const mode = ["summary", "transcript-only", "info-only"].includes(
         requestedMode
       ) ? requestedMode : this.settings.defaultMode;
       const activeProcessing = this.captureProcessingLocks.get(result.entry.source_hash);
       if (activeProcessing) {
-        new import_obsidian20.Notice("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", 5e3);
+        new import_obsidian20.Notice(
+          tr("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", "Already processing; not sent twice."),
+          5e3
+        );
         return;
       }
       const processing = this.processFileWithMode(file, mode).then(() => void 0);
@@ -22530,7 +23699,13 @@ ${localFile}
         }
       }
     } catch (error) {
-      new import_obsidian20.Notice(`video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`, 8e3);
+      new import_obsidian20.Notice(
+        tr(
+          `video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
+          `video-summary link failed: ${this.formatErrorForNotice(error)}`
+        ),
+        8e3
+      );
     }
   }
 };
@@ -22569,8 +23744,11 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   getSettingDefinitions() {
     return [
       {
-        name: "\u89C6\u9891\u603B\u7ED3\u8BBE\u7F6E",
-        desc: "\u8FDE\u63A5\u3001\u8F93\u51FA\u3001\u5904\u7406\u548C\u9AD8\u7EA7\u9009\u9879",
+        name: tr("\u89C6\u9891\u603B\u7ED3\u8BBE\u7F6E", "Video Summary settings"),
+        desc: tr(
+          "\u8FDE\u63A5\u3001\u8F93\u51FA\u3001\u5904\u7406\u548C\u9AD8\u7EA7\u9009\u9879",
+          "Connection, output, processing and advanced options"
+        ),
         aliases: SETTINGS_SEARCH_TERMS,
         render: (setting) => {
           const host = setting.settingEl;
@@ -22591,17 +23769,43 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("vs-settings", "ap", "ap-settings");
     this.renderSettingsHeader(containerEl);
-    this.group(containerEl, "\u8FDE\u63A5", "\u5904\u7406\u670D\u52A1\u5728\u54EA\u91CC\uFF0C\u4EE5\u53CA\u7B2C\u4E00\u6B21\u4F7F\u7528\u65F6\u7684\u68C0\u67E5\u3002");
+    this.group(
+      containerEl,
+      tr("\u8FDE\u63A5", "Connection"),
+      tr(
+        "\u5904\u7406\u670D\u52A1\u5728\u54EA\u91CC\uFF0C\u4EE5\u53CA\u7B2C\u4E00\u6B21\u4F7F\u7528\u65F6\u7684\u68C0\u67E5\u3002",
+        "Where videos are processed, and the first-run checks."
+      )
+    );
     this.createSetupGuideSection(containerEl);
     this.createApiSection(containerEl);
-    this.group(containerEl, "\u8F93\u51FA", "\u7B14\u8BB0\u5199\u5230\u54EA\u3001\u53EB\u4EC0\u4E48\u3001\u957F\u4EC0\u4E48\u6837\u3002");
+    this.group(
+      containerEl,
+      tr("\u8F93\u51FA", "Output"),
+      tr(
+        "\u7B14\u8BB0\u5199\u5230\u54EA\u3001\u53EB\u4EC0\u4E48\u3001\u957F\u4EC0\u4E48\u6837\u3002",
+        "Where notes go, what they are called and how they look."
+      )
+    );
     this.createOutputSection(containerEl);
     this.createFileProcessingSection(containerEl);
-    this.group(containerEl, "\u5904\u7406", "\u9ED8\u8BA4\u600E\u4E48\u7406\u89E3\u4E00\u4E2A\u89C6\u9891\uFF1B\u4FA7\u680F\u91CC\u4E5F\u53EF\u4EE5\u9010\u6B21\u6539\u3002");
+    this.group(
+      containerEl,
+      tr("\u5904\u7406", "Processing"),
+      tr(
+        "\u9ED8\u8BA4\u600E\u4E48\u7406\u89E3\u4E00\u4E2A\u89C6\u9891\uFF1B\u4FA7\u680F\u91CC\u4E5F\u53EF\u4EE5\u9010\u6B21\u6539\u3002",
+        "How a video is understood by default; the side panel can change it each time."
+      )
+    );
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
     const advanced = containerEl.createEl("details", { cls: "vs-settings-advanced" });
-    advanced.createEl("summary", { text: "\u9AD8\u7EA7\uFF1Acookies\u3001\u5E73\u53F0\u8BF4\u660E\u3001\u8BF7\u6C42\u5B57\u6BB5\u540D\u3001\u7F13\u5B58\u3001\u8C03\u8BD5\u65E5\u5FD7" });
+    advanced.createEl("summary", {
+      text: tr(
+        "\u9AD8\u7EA7\uFF1Acookies\u3001\u5E73\u53F0\u8BF4\u660E\u3001\u8BF7\u6C42\u5B57\u6BB5\u540D\u3001\u7F13\u5B58\u3001\u8C03\u8BD5\u65E5\u5FD7",
+        "Advanced: cookies, platforms, request field names, cache, debug log"
+      )
+    });
     this.createCookiesSection(advanced);
     this.createPlatformMatrixSection(advanced);
     this.createPayloadKeysSection(advanced);
@@ -22616,30 +23820,41 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   renderSettingsHeader(containerEl) {
     const header = containerEl.createDiv({ cls: "vs-settings-header" });
     const text2 = header.createDiv({ cls: "vs-settings-heading" });
-    text2.createDiv({ text: "\u89C6\u9891\u603B\u7ED3", cls: "vs-settings-title" });
+    text2.createDiv({ text: tr("\u89C6\u9891\u603B\u7ED3", "Video summary"), cls: "vs-settings-title" });
     const backendLabel = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n webhook";
     text2.createDiv({
-      text: `v${this.plugin.manifest.version} \xB7 \u8FDE\u63A5 ${backendLabel} \u5904\u7406\u89C6\u9891\u3001\u6587\u7A3F\u4E0E\u7B14\u8BB0`,
+      text: tr(
+        `v${this.plugin.manifest.version} \xB7 \u8FDE\u63A5 ${backendLabel} \u5904\u7406\u89C6\u9891\u3001\u6587\u7A3F\u4E0E\u7B14\u8BB0`,
+        `v${this.plugin.manifest.version} \xB7 uses ${backendLabel} to process videos, transcripts and notes`
+      ),
       cls: "vs-settings-sub"
     });
     const pill = header.createEl("button", {
       cls: "vs-settings-pill",
-      attr: { type: "button", title: "\u70B9\u51FB\u6D4B\u8BD5\u540E\u7AEF\u8FDE\u63A5" }
+      attr: {
+        type: "button",
+        title: tr("\u70B9\u51FB\u6D4B\u8BD5\u540E\u7AEF\u8FDE\u63A5", "Click to test the backend connection")
+      }
     });
     const dot = pill.createSpan({ cls: "vs-backend-dot" });
-    const label = pill.createSpan({ text: "\u672A\u68C0\u6D4B" });
+    const label = pill.createSpan({ text: tr("\u672A\u68C0\u6D4B", "Not checked") });
     pill.addEventListener(
       "click",
       fire(async () => {
         dot.className = "vs-backend-dot is-checking";
-        label.setText("\u68C0\u6D4B\u4E2D\u2026");
+        label.setText(tr("\u68C0\u6D4B\u4E2D\u2026", "Checking\u2026"));
         try {
           const result = await this.plugin.api.testConnection();
           dot.className = `vs-backend-dot ${result.success ? "is-online" : "is-offline"}`;
-          label.setText(result.success ? `\u540E\u7AEF\u5728\u7EBF \xB7 ${result.durationMs ?? 0}ms` : "\u540E\u7AEF\u79BB\u7EBF");
+          label.setText(
+            result.success ? tr(
+              `\u540E\u7AEF\u5728\u7EBF \xB7 ${result.durationMs ?? 0}ms`,
+              `Backend online \xB7 ${result.durationMs ?? 0} ms`
+            ) : tr("\u540E\u7AEF\u79BB\u7EBF", "Backend offline")
+          );
         } catch {
           dot.className = "vs-backend-dot is-offline";
-          label.setText("\u540E\u7AEF\u79BB\u7EBF");
+          label.setText(tr("\u540E\u7AEF\u79BB\u7EBF", "Backend offline"));
         }
       })
     );
@@ -22658,13 +23873,18 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     const { section: section3, titleRow } = this.sectionCard(
       containerEl,
       "shield-check",
-      "\u9996\u6B21\u914D\u7F6E",
+      tr("\u9996\u6B21\u914D\u7F6E", "First-run setup"),
       "setup-guide-section"
     );
     titleRow.addClass("setup-guide-title-row");
     if (this.plugin.settings.setupGuideDismissed) {
-      new import_obsidian20.Setting(section3).setName("\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210").setDesc("\u6362\u4E86\u540E\u7AEF\u3001\u8FDE\u63A5\u51FA\u9519\u6216\u60F3\u91CD\u65B0\u68C0\u67E5\u65F6\uFF0C\u518D\u6253\u5F00\u5B83\u3002").addButton(
-        (button) => button.setButtonText("\u91CD\u65B0\u6253\u5F00").onClick(async () => {
+      new import_obsidian20.Setting(section3).setName(tr("\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210", "First-run setup done")).setDesc(
+        tr(
+          "\u6362\u4E86\u540E\u7AEF\u3001\u8FDE\u63A5\u51FA\u9519\u6216\u60F3\u91CD\u65B0\u68C0\u67E5\u65F6\uFF0C\u518D\u6253\u5F00\u5B83\u3002",
+          "Open it again after changing the backend, when the connection fails, or to check again."
+        )
+      ).addButton(
+        (button) => button.setButtonText(tr("\u91CD\u65B0\u6253\u5F00", "Open again")).onClick(async () => {
           this.plugin.settings.setupGuideDismissed = false;
           await this.plugin.saveSettings();
           this.redraw();
@@ -22674,15 +23894,21 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     }
     const intro = section3.createEl("p", { cls: "setting-item-description" });
     intro.appendText(
-      "\u4E09\u6B65\uFF1A\u5728\u7535\u8111\u4E0A\u542F\u52A8\u540E\u7AEF \u2192 \u628A\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801\u7C98\u8D34\u5230\u8FD9\u91CC \u2192 \u68C0\u67E5\u3002\u8FD8\u6CA1\u6709\u540E\u7AEF\uFF1F\u770B"
+      tr(
+        "\u4E09\u6B65\uFF1A\u5728\u7535\u8111\u4E0A\u542F\u52A8\u540E\u7AEF \u2192 \u628A\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801\u7C98\u8D34\u5230\u8FD9\u91CC \u2192 \u68C0\u67E5\u3002\u8FD8\u6CA1\u6709\u540E\u7AEF\uFF1F\u770B",
+        "Three steps: start the backend on your computer \u2192 paste the connection code from the start script here \u2192 check. No backend yet? See the"
+      )
     );
-    intro.createEl("a", { text: "\u5B89\u88C5\u6559\u7A0B", href: SETUP_GUIDE_URL });
+    intro.createEl("a", { text: tr("\u5B89\u88C5\u6559\u7A0B", "install guide"), href: SETUP_GUIDE_URL });
     intro.appendText("\u3002");
     const results = section3.createDiv({ cls: "setup-check-list" });
     const runCheck = async (deep) => {
       results.empty();
       results.createDiv({
-        text: deep ? "\u5B8C\u6574\u68C0\u67E5\u4E2D\uFF0C\u4F1A\u8C03\u7528\u4E00\u6B21\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\uFF0C\u7EA6 10\u201330 \u79D2\u2026" : "\u68C0\u67E5\u4E2D\u2026",
+        text: deep ? tr(
+          "\u5B8C\u6574\u68C0\u67E5\u4E2D\uFF0C\u4F1A\u8C03\u7528\u4E00\u6B21\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\uFF0C\u7EA6 10\u201330 \u79D2\u2026",
+          "Full check in progress; it calls the model and speech-to-text once, about 10\u201330 seconds\u2026"
+        ) : tr("\u68C0\u67E5\u4E2D\u2026", "Checking\u2026"),
         cls: "setup-check-progress"
       });
       const outcome = await this.plugin.api.checkBackend(deep);
@@ -22699,41 +23925,64 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     const applyCode = async (raw) => {
       const code = parseConnectionCode(raw, DEFAULT_N8N_WEBHOOK_URL);
       if (!code) {
-        new import_obsidian20.Notice("\u8FD9\u4E0D\u662F\u8FDE\u63A5\u7801\u3002\u8BF7\u7C98\u8D34\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u6574\u884C\u3002", 8e3);
+        new import_obsidian20.Notice(
+          tr(
+            "\u8FD9\u4E0D\u662F\u8FDE\u63A5\u7801\u3002\u8BF7\u7C98\u8D34\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u6574\u884C\u3002",
+            "That is not a connection code. Paste the whole last line the start script printed."
+          ),
+          8e3
+        );
         return;
       }
       await this.applyConnectionCode(code);
       if (codeInput) codeInput.value = "";
-      new import_obsidian20.Notice("\u8FDE\u63A5\u7801\u5DF2\u4FDD\u5B58\uFF0C\u6B63\u5728\u68C0\u67E5\u2026");
+      new import_obsidian20.Notice(tr("\u8FDE\u63A5\u7801\u5DF2\u4FDD\u5B58\uFF0C\u6B63\u5728\u68C0\u67E5\u2026", "Connection code saved; checking\u2026"));
       await runCheck(false);
     };
-    new import_obsidian20.Setting(section3).setName("\u2460 \u8FDE\u63A5\u7801").setDesc("\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u884C\uFF0C\u5B83\u4E5F\u5DF2\u7ECF\u590D\u5236\u5230\u526A\u8D34\u677F\u3002\u8FDE\u63A5\u7801\u76F8\u5F53\u4E8E\u53E3\u4EE4\uFF0C\u4E0D\u8981\u53D1\u7ED9\u522B\u4EBA\u3002").addText((text2) => {
+    new import_obsidian20.Setting(section3).setName(tr("\u2460 \u8FDE\u63A5\u7801", "\u2460 Connection code")).setDesc(
+      tr(
+        "\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u884C\uFF0C\u5B83\u4E5F\u5DF2\u7ECF\u590D\u5236\u5230\u526A\u8D34\u677F\u3002\u8FDE\u63A5\u7801\u76F8\u5F53\u4E8E\u53E3\u4EE4\uFF0C\u4E0D\u8981\u53D1\u7ED9\u522B\u4EBA\u3002",
+        "The last line the start script printed; it is also on your clipboard. The code works like a password, so keep it to yourself."
+      )
+    ).addText((text2) => {
       codeInput = text2.inputEl;
       text2.inputEl.type = "password";
-      text2.setPlaceholder("\u7C98\u8D34\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801");
+      text2.setPlaceholder(
+        tr("\u7C98\u8D34\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801", "Paste the connection code from the start script")
+      );
       text2.inputEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter") fire(() => applyCode(text2.getValue()))();
       });
     }).addButton(
-      (button) => button.setButtonText("\u4ECE\u526A\u8D34\u677F\u7C98\u8D34").setCta().onClick(async () => {
+      (button) => button.setButtonText(tr("\u4ECE\u526A\u8D34\u677F\u7C98\u8D34", "Paste from clipboard")).setCta().onClick(async () => {
         let clip = "";
         try {
           clip = await navigator.clipboard.readText();
         } catch {
-          new import_obsidian20.Notice("\u8BFB\u4E0D\u5230\u526A\u8D34\u677F\uFF0C\u8BF7\u624B\u52A8\u7C98\u8D34\u5230\u8F93\u5165\u6846\u540E\u6309\u56DE\u8F66\u3002");
+          new import_obsidian20.Notice(
+            tr(
+              "\u8BFB\u4E0D\u5230\u526A\u8D34\u677F\uFF0C\u8BF7\u624B\u52A8\u7C98\u8D34\u5230\u8F93\u5165\u6846\u540E\u6309\u56DE\u8F66\u3002",
+              "Cannot read the clipboard; paste into the box and press Enter."
+            )
+          );
           return;
         }
         await applyCode(clip);
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u2461 \u68C0\u67E5").setDesc("\u5FEB\u901F\u68C0\u67E5\u53EA\u770B\u540E\u7AEF\u548C\u8FDE\u63A5\u7801\uFF1B\u5B8C\u6574\u68C0\u67E5\u8FD8\u4F1A\u786E\u8BA4\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\u7684\u5BC6\u94A5\u771F\u7684\u80FD\u7528\u3002").addButton(
-      (button) => button.setButtonText("\u5FEB\u901F\u68C0\u67E5").onClick(async () => {
+    new import_obsidian20.Setting(section3).setName(tr("\u2461 \u68C0\u67E5", "\u2461 Check")).setDesc(
+      tr(
+        "\u5FEB\u901F\u68C0\u67E5\u53EA\u770B\u540E\u7AEF\u548C\u8FDE\u63A5\u7801\uFF1B\u5B8C\u6574\u68C0\u67E5\u8FD8\u4F1A\u786E\u8BA4\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\u7684\u5BC6\u94A5\u771F\u7684\u80FD\u7528\u3002",
+        "The quick check covers the backend and the connection code; the full check also confirms the model and speech-to-text keys work."
+      )
+    ).addButton(
+      (button) => button.setButtonText(tr("\u5FEB\u901F\u68C0\u67E5", "Quick check")).onClick(async () => {
         button.setDisabled(true);
         await runCheck(false);
         button.setDisabled(false);
       })
     ).addButton(
-      (button) => button.setButtonText("\u5B8C\u6574\u68C0\u67E5").setCta().onClick(async () => {
+      (button) => button.setButtonText(tr("\u5B8C\u6574\u68C0\u67E5", "Full check")).setCta().onClick(async () => {
         button.setDisabled(true);
         await runCheck(true);
         button.setDisabled(false);
@@ -22741,17 +23990,25 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     );
     section3.appendChild(results);
     const trialResult = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian20.Setting(section3).setName("\u2462 \u8BD5\u8FD0\u884C").setDesc("\u7528\u4E00\u6BB5\u5185\u7F6E\u7684\u77ED\u6587\u7A3F\u751F\u6210\u4E00\u6B21\u603B\u7ED3\uFF0C\u786E\u8BA4\u6574\u6761\u6D41\u7A0B\u80FD\u8DD1\u901A\u3002\u4F1A\u6D88\u8017\u6781\u5C11\u91CF\u6A21\u578B\u989D\u5EA6\u3002").addButton(
-      (button) => button.setButtonText("\u8BD5\u8FD0\u884C").onClick(async () => {
+    new import_obsidian20.Setting(section3).setName(tr("\u2462 \u8BD5\u8FD0\u884C", "\u2462 Trial run")).setDesc(
+      tr(
+        "\u7528\u4E00\u6BB5\u5185\u7F6E\u7684\u77ED\u6587\u7A3F\u751F\u6210\u4E00\u6B21\u603B\u7ED3\uFF0C\u786E\u8BA4\u6574\u6761\u6D41\u7A0B\u80FD\u8DD1\u901A\u3002\u4F1A\u6D88\u8017\u6781\u5C11\u91CF\u6A21\u578B\u989D\u5EA6\u3002",
+        "Summarises a short built-in text to confirm the whole chain works. Uses a tiny amount of model credit."
+      )
+    ).addButton(
+      (button) => button.setButtonText(tr("\u8BD5\u8FD0\u884C", "Trial run")).onClick(async () => {
         button.setDisabled(true);
         trialResult.empty();
         trialResult.removeClass("is-success", "is-error");
-        trialResult.createEl("p", { text: "\u6B63\u5728\u751F\u6210\u603B\u7ED3\u2026" });
+        trialResult.createEl("p", { text: tr("\u6B63\u5728\u751F\u6210\u603B\u7ED3\u2026", "Generating a summary\u2026") });
         const result = await this.plugin.api.trialRun(SETUP_TRIAL_TRANSCRIPT);
         trialResult.empty();
         trialResult.addClass(result.ok ? "is-success" : "is-error");
         trialResult.createEl("strong", {
-          text: result.ok ? `\u8DD1\u901A\u4E86\uFF0C\u7528\u65F6 ${(result.durationMs / 1e3).toFixed(1)} \u79D2` : "\u6CA1\u6709\u8DD1\u901A"
+          text: result.ok ? tr(
+            `\u8DD1\u901A\u4E86\uFF0C\u7528\u65F6 ${(result.durationMs / 1e3).toFixed(1)} \u79D2`,
+            `It works, ${(result.durationMs / 1e3).toFixed(1)} s`
+          ) : tr("\u6CA1\u6709\u8DD1\u901A", "It did not work")
         });
         trialResult.createEl("p", { text: result.message });
         button.setDisabled(false);
@@ -22760,18 +24017,27 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     section3.appendChild(trialResult);
     this.createBilibiliLoginStep(section3);
     const cookies = section3.createEl("details", { cls: "setup-cookie-paste" });
-    cookies.createEl("summary", { text: "\u4E0D\u65B9\u4FBF\u626B\u7801\uFF1F\u7C98\u8D34 cookies.txt" });
+    cookies.createEl("summary", {
+      text: tr("\u4E0D\u65B9\u4FBF\u626B\u7801\uFF1F\u7C98\u8D34 cookies.txt", "Cannot scan? Paste a cookies.txt")
+    });
     cookies.createEl("p", {
-      text: "\u4E5F\u53EF\u4EE5\u7528\u89C6\u9891\u603B\u7ED3\u6D4F\u89C8\u5668\u6269\u5C55\u7684\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\uFF0C\u6216\u7528\u4EFB\u610F\u201C\u5BFC\u51FA cookies.txt\u201D\u6269\u5C55\u5728 bilibili.com \u5BFC\u51FA\uFF0C\u628A\u5168\u6587\u7C98\u8D34\u5230\u8FD9\u91CC\u3002\u5185\u5BB9\u53EA\u53D1\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\u3002",
+      text: tr(
+        "\u4E5F\u53EF\u4EE5\u7528\u89C6\u9891\u603B\u7ED3\u6D4F\u89C8\u5668\u6269\u5C55\u7684\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\uFF0C\u6216\u7528\u4EFB\u610F\u201C\u5BFC\u51FA cookies.txt\u201D\u6269\u5C55\u5728 bilibili.com \u5BFC\u51FA\uFF0C\u628A\u5168\u6587\u7C98\u8D34\u5230\u8FD9\u91CC\u3002\u5185\u5BB9\u53EA\u53D1\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\u3002",
+        `You can also use the Video Summary browser extension's "Sync Bilibili login", or export bilibili.com with any "export cookies.txt" extension and paste the whole file here. It goes only to your own backend.`
+      ),
       cls: "setting-item-description"
     });
     const cookieText = cookies.createEl("textarea", {
       cls: "setup-cookie-text",
-      attr: { rows: "4", placeholder: "\u7C98\u8D34 cookies.txt \u7684\u5168\u6587", spellcheck: "false" }
+      attr: {
+        rows: "4",
+        placeholder: tr("\u7C98\u8D34 cookies.txt \u7684\u5168\u6587", "Paste the whole cookies.txt"),
+        spellcheck: "false"
+      }
     });
     const cookieStatus = cookies.createEl("p", { cls: "setting-item-description" });
     new import_obsidian20.Setting(cookies).addButton(
-      (button) => button.setButtonText("\u4FDD\u5B58\u5230\u540E\u7AEF").onClick(async () => {
+      (button) => button.setButtonText(tr("\u4FDD\u5B58\u5230\u540E\u7AEF", "Save to backend")).onClick(async () => {
         button.setDisabled(true);
         const result = await this.plugin.api.uploadCookies("bilibili", cookieText.value);
         cookieStatus.setText(result.message);
@@ -22780,7 +24046,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       })
     );
     new import_obsidian20.Setting(section3).addButton(
-      (button) => button.setButtonText("\u5B8C\u6210\uFF0C\u6536\u8D77").onClick(async () => {
+      (button) => button.setButtonText(tr("\u5B8C\u6210\uFF0C\u6536\u8D77", "Done, collapse")).onClick(async () => {
         this.plugin.settings.setupGuideDismissed = true;
         await this.plugin.saveSettings();
         this.redraw();
@@ -22796,22 +24062,35 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       if (polling) window.clearInterval(polling);
       polling = 0;
     };
-    new import_obsidian20.Setting(section3).setName("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09").setDesc(
-      "\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u7801\u767B\u5F55\u540E\uFF0C\u80FD\u62FF\u5230\u5B83\u7684\u5B57\u5E55\u548C AI \u5B57\u5E55\uFF0C\u4E0D\u7528\u518D\u8F6C\u5199\u3002\u767B\u5F55\u4FE1\u606F\u53EA\u4EA4\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\uFF0C\u63D2\u4EF6\u4E0D\u4FDD\u5B58\u3002"
+    new import_obsidian20.Setting(section3).setName(tr("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09", "\u2463 Bilibili login (optional)")).setDesc(
+      tr(
+        "\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u7801\u767B\u5F55\u540E\uFF0C\u80FD\u62FF\u5230\u5B83\u7684\u5B57\u5E55\u548C AI \u5B57\u5E55\uFF0C\u4E0D\u7528\u518D\u8F6C\u5199\u3002\u767B\u5F55\u4FE1\u606F\u53EA\u4EA4\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\uFF0C\u63D2\u4EF6\u4E0D\u4FDD\u5B58\u3002",
+        "Scan with the Bilibili phone app to log in; the backend can then use Bilibili subtitles and AI subtitles instead of transcribing. The login goes only to your own backend; the plugin does not keep it."
+      )
     ).addButton(
-      (button) => button.setButtonText("\u626B\u7801\u767B\u5F55").onClick(async () => {
+      (button) => button.setButtonText(tr("\u626B\u7801\u767B\u5F55", "Scan to log in")).onClick(async () => {
         stop();
         panel.empty();
-        status.setText("\u6B63\u5728\u5411\u54D4\u54E9\u54D4\u54E9\u8981\u4E8C\u7EF4\u7801\u2026");
+        status.setText(tr("\u6B63\u5728\u5411\u54D4\u54E9\u54D4\u54E9\u8981\u4E8C\u7EF4\u7801\u2026", "Asking Bilibili for a QR code\u2026"));
         let ticket;
         try {
           ticket = await startQrLogin();
         } catch (error) {
-          status.setText(`\u62FF\u4E0D\u5230\u4E8C\u7EF4\u7801\uFF1A${this.plugin.formatErrorForNotice(error)}`);
+          status.setText(
+            tr(
+              `\u62FF\u4E0D\u5230\u4E8C\u7EF4\u7801\uFF1A${this.plugin.formatErrorForNotice(error)}`,
+              `Could not get a QR code: ${this.plugin.formatErrorForNotice(error)}`
+            )
+          );
           return;
         }
         drawQrCode(panel, ticket.url);
-        status.setText("\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u4E00\u626B\uFF0C\u5E76\u5728\u624B\u673A\u4E0A\u786E\u8BA4\u767B\u5F55\u3002");
+        status.setText(
+          tr(
+            "\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u4E00\u626B\uFF0C\u5E76\u5728\u624B\u673A\u4E0A\u786E\u8BA4\u767B\u5F55\u3002",
+            "Scan with the Bilibili phone app and confirm the login on your phone."
+          )
+        );
         const started = Date.now();
         let busy = false;
         polling = window.setInterval(() => {
@@ -22819,7 +24098,12 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           if (Date.now() - started > 18e4) {
             stop();
             panel.empty();
-            status.setText("\u4E8C\u7EF4\u7801\u8FC7\u671F\u4E86\uFF0C\u518D\u70B9\u4E00\u6B21\u201C\u626B\u7801\u767B\u5F55\u201D\u3002");
+            status.setText(
+              tr(
+                "\u4E8C\u7EF4\u7801\u8FC7\u671F\u4E86\uFF0C\u518D\u70B9\u4E00\u6B21\u201C\u626B\u7801\u767B\u5F55\u201D\u3002",
+                'The QR code expired; press "Scan to log in" again.'
+              )
+            );
             return;
           }
           busy = true;
@@ -22833,20 +24117,29 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         }, 2e3);
         const tick = async () => {
           const result = await pollQrLogin(ticket.key);
-          if (result.state === "scanned") status.setText("\u5DF2\u626B\u7801\uFF0C\u8BF7\u5728\u624B\u673A\u4E0A\u70B9\u786E\u8BA4\u3002");
+          if (result.state === "scanned")
+            status.setText(tr("\u5DF2\u626B\u7801\uFF0C\u8BF7\u5728\u624B\u673A\u4E0A\u70B9\u786E\u8BA4\u3002", "Scanned; confirm on your phone."));
           if (result.state === "expired" || result.state === "error") {
             stop();
             panel.empty();
             status.setText(
-              result.state === "expired" ? "\u4E8C\u7EF4\u7801\u8FC7\u671F\u4E86\uFF0C\u518D\u70B9\u4E00\u6B21\u201C\u626B\u7801\u767B\u5F55\u201D\u3002" : `\u767B\u5F55\u6CA1\u6709\u5B8C\u6210\uFF1A${result.message}`
+              result.state === "expired" ? tr(
+                "\u4E8C\u7EF4\u7801\u8FC7\u671F\u4E86\uFF0C\u518D\u70B9\u4E00\u6B21\u201C\u626B\u7801\u767B\u5F55\u201D\u3002",
+                'The QR code expired; press "Scan to log in" again.'
+              ) : tr(`\u767B\u5F55\u6CA1\u6709\u5B8C\u6210\uFF1A${result.message}`, `Login not completed: ${result.message}`)
             );
           }
           if (result.state === "done") {
             stop();
             panel.empty();
-            status.setText("\u5DF2\u767B\u5F55\uFF0C\u6B63\u5728\u4EA4\u7ED9\u540E\u7AEF\u2026");
+            status.setText(tr("\u5DF2\u767B\u5F55\uFF0C\u6B63\u5728\u4EA4\u7ED9\u540E\u7AEF\u2026", "Logged in; handing it to the backend\u2026"));
             const saved = await this.plugin.api.uploadCookies("bilibili", result.cookies);
-            status.setText(saved.ok ? `B \u7AD9\u767B\u5F55\u5DF2\u4EA4\u7ED9\u540E\u7AEF\u3002${saved.message}` : saved.message);
+            status.setText(
+              saved.ok ? tr(
+                `B \u7AD9\u767B\u5F55\u5DF2\u4EA4\u7ED9\u540E\u7AEF\u3002${saved.message}`,
+                `Bilibili login handed to the backend. ${saved.message}`
+              ) : saved.message
+            );
           }
         };
         this.plugin.register(stop);
@@ -22870,7 +24163,10 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       body.createEl("strong", { text: item.label });
       body.createSpan({ text: item.detail });
       if (item.fix && item.state !== "ready") {
-        body.createSpan({ text: `\u600E\u4E48\u529E\uFF1A${item.fix}`, cls: "setup-check-fix" });
+        body.createSpan({
+          text: tr(`\u600E\u4E48\u529E\uFF1A${item.fix}`, `What to do: ${item.fix}`),
+          cls: "setup-check-fix"
+        });
       }
     }
   }
@@ -22878,7 +24174,13 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     const settings = this.plugin.settings;
     let profile = this.plugin.getActiveWebhookProfile();
     if (!profile) {
-      profile = { id: "default-webhook", name: "\u672C\u673A\u540E\u7AEF", url: "", headerName: "", secret: "" };
+      profile = {
+        id: "default-webhook",
+        name: tr("\u672C\u673A\u540E\u7AEF", "This computer"),
+        url: "",
+        headerName: "",
+        secret: ""
+      };
       settings.webhookProfiles.push(profile);
       settings.activeWebhookId = profile.id;
     }
@@ -22894,7 +24196,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     containerEl.removeClass("is-error");
     containerEl.addClass(result.success ? "is-success" : "is-error");
     containerEl.createEl("strong", {
-      text: result.success ? "\u8FDE\u63A5\u8BCA\u65AD\u901A\u8FC7" : "\u8FDE\u63A5\u8BCA\u65AD\u5931\u8D25"
+      text: result.success ? tr("\u8FDE\u63A5\u8BCA\u65AD\u901A\u8FC7", "Connection check passed") : tr("\u8FDE\u63A5\u8BCA\u65AD\u5931\u8D25", "Connection check failed")
     });
     const details = [
       result.durationMs !== void 0 ? `\u8017\u65F6 ${result.durationMs}ms` : "",
@@ -22905,7 +24207,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       containerEl.createEl("p", { text: details });
     }
     if (result.hint) {
-      containerEl.createEl("p", { text: `\u5EFA\u8BAE: ${result.hint}` });
+      containerEl.createEl("p", { text: tr(`\u5EFA\u8BAE: ${result.hint}`, `Suggestion: ${result.hint}`) });
     }
     if (result.workflow) {
       const workflow = result.workflow;
@@ -22933,15 +24235,18 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     const { section: section3 } = this.sectionCard(
       containerEl,
       "layout-grid",
-      "\u5404\u5E73\u53F0\u8BF4\u660E",
+      tr("\u5404\u5E73\u53F0\u8BF4\u660E", "Platforms"),
       "platform-matrix-section"
     );
     section3.createEl("p", {
-      text: "\u4E0D\u540C\u5E73\u53F0\u7684\u53EF\u7528\u6027\u4E0D\u4E00\u6837\u3002\u4F18\u5148\u7528\u672C\u5730\u6587\u4EF6\u3001\u516C\u5F00\u7684 YouTube \u6216\u54D4\u54E9\u54D4\u54E9\u89C6\u9891\u3001\u5DF2\u7C98\u8D34\u7684\u6587\u7A3F\uFF1B\u77ED\u89C6\u9891\u5E73\u53F0\u901A\u5E38\u9700\u8981 cookies\u3002",
+      text: tr(
+        "\u4E0D\u540C\u5E73\u53F0\u7684\u53EF\u7528\u6027\u4E0D\u4E00\u6837\u3002\u4F18\u5148\u7528\u672C\u5730\u6587\u4EF6\u3001\u516C\u5F00\u7684 YouTube \u6216\u54D4\u54E9\u54D4\u54E9\u89C6\u9891\u3001\u5DF2\u7C98\u8D34\u7684\u6587\u7A3F\uFF1B\u77ED\u89C6\u9891\u5E73\u53F0\u901A\u5E38\u9700\u8981 cookies\u3002",
+        "Platforms differ. Local files, public YouTube or Bilibili videos and pasted transcripts work best; short-video platforms usually need cookies."
+      ),
       cls: "setting-item-description"
     });
     const grid = section3.createDiv({ cls: "platform-matrix-grid" });
-    PLATFORM_CAPABILITIES.forEach((item) => {
+    platformCapabilities().forEach((item) => {
       const card = grid.createDiv({ cls: `platform-matrix-card is-${item.status}` });
       const header = card.createDiv({ cls: "platform-matrix-card-header" });
       header.createEl("strong", { text: item.platform });
@@ -22949,21 +24254,21 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         text: this.getPlatformStatusLabel(item.status),
         cls: "platform-status-label"
       });
-      card.createEl("p", { text: `\u8F93\u5165: ${item.input}` });
-      card.createEl("p", { text: `\u8981\u6C42: ${item.requirements}` });
+      card.createEl("p", { text: tr(`\u8F93\u5165: ${item.input}`, `Input: ${item.input}`) });
+      card.createEl("p", { text: tr(`\u8981\u6C42: ${item.requirements}`, `Needs: ${item.requirements}`) });
       card.createEl("p", { text: item.notes });
     });
   }
   getPlatformStatusLabel(status) {
     switch (status) {
       case "recommended":
-        return "\u63A8\u8350";
+        return tr("\u63A8\u8350", "Recommended");
       case "supported":
-        return "\u53EF\u7528";
+        return tr("\u53EF\u7528", "Works");
       case "limited":
-        return "\u53D7\u9650";
+        return tr("\u53D7\u9650", "Limited");
       default:
-        return "\u672C\u5730";
+        return tr("\u672C\u5730", "Local");
     }
   }
   /**
@@ -22971,34 +24276,52 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
   createCookiesSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "cookie", "Cookies \u7BA1\u7406");
+    const { section: section3 } = this.sectionCard(containerEl, "cookie", tr("Cookies \u7BA1\u7406", "Cookies"));
     section3.createEl("p", {
-      text: "\u53D7\u9650\u5E73\u53F0\uFF08\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u3001\u5C0F\u7EA2\u4E66\uFF09\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002\u76EE\u5F55\u662F\u540E\u7AEF\u6587\u4EF6\u5939\u91CC\u7684 cookies\uFF1B\u6587\u4EF6\u540D\u5982 bilibili_cookies.txt\u3002",
+      text: tr(
+        "\u53D7\u9650\u5E73\u53F0\uFF08\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u3001\u5C0F\u7EA2\u4E66\uFF09\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002\u76EE\u5F55\u662F\u540E\u7AEF\u6587\u4EF6\u5939\u91CC\u7684 cookies\uFF1B\u6587\u4EF6\u540D\u5982 bilibili_cookies.txt\u3002",
+        "Restricted platforms (Bilibili, Douyin, TikTok, Xiaohongshu) often need cookies exported from your browser. They go in the cookies folder inside the backend folder, named like bilibili_cookies.txt."
+      ),
       cls: "setting-item-description"
     });
     const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian20.Setting(section3).setName("Cookies \u76EE\u5F55").setDesc("Cookies \u76EE\u5F55\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 ~/video-summary-backend/cookies").addText(
+    new import_obsidian20.Setting(section3).setName(tr("Cookies \u76EE\u5F55", "Cookies folder")).setDesc(
+      tr(
+        "Cookies \u76EE\u5F55\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 ~/video-summary-backend/cookies",
+        "Absolute path of the cookies folder, for example ~/video-summary-backend/cookies"
+      )
+    ).addText(
       (text2) => text2.setPlaceholder("/path/to/video-summary-backend/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
       })
     ).addButton(
-      (button) => button.setButtonText("\u6253\u5F00\u76EE\u5F55").onClick(() => {
+      (button) => button.setButtonText(tr("\u6253\u5F00\u76EE\u5F55", "Open folder")).onClick(() => {
         const dir = (this.plugin.settings.cookiesDirPath || "").trim();
         if (!dir) {
-          new import_obsidian20.Notice("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84");
+          new import_obsidian20.Notice(tr("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84", "Fill in the cookies folder first"));
           return;
         }
         try {
           if (!openPathInSystem(dir)) {
-            new import_obsidian20.Notice("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09");
+            new import_obsidian20.Notice(
+              tr(
+                "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09",
+                "Opening system folders is not available here (desktop only)"
+              )
+            );
           }
         } catch (error) {
-          new import_obsidian20.Notice(`\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`);
+          new import_obsidian20.Notice(
+            tr(
+              `\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`,
+              `Could not open the folder: ${error.message}`
+            )
+          );
         }
       })
     ).addButton(
-      (button) => button.setButtonText("\u68C0\u6D4B cookies").setCta().onClick(() => {
+      (button) => button.setButtonText(tr("\u68C0\u6D4B cookies", "Check cookies")).setCta().onClick(() => {
         this.renderCookiesCheckResult(resultBox);
       })
     );
@@ -23011,7 +24334,9 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     const dir = (this.plugin.settings.cookiesDirPath || "").trim();
     if (!dir) {
       containerEl.addClass("is-error");
-      containerEl.createEl("p", { text: "\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84\u3002" });
+      containerEl.createEl("p", {
+        text: tr("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84\u3002", "Fill in the cookies folder first.")
+      });
       return;
     }
     let fs;
@@ -23023,28 +24348,40 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     }
     if (!fs || !pathModule) {
       containerEl.addClass("is-error");
-      containerEl.createEl("p", { text: "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6587\u4EF6\u7CFB\u7EDF\u8BBF\u95EE\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09\u3002" });
+      containerEl.createEl("p", {
+        text: tr(
+          "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6587\u4EF6\u7CFB\u7EDF\u8BBF\u95EE\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09\u3002",
+          "File system access is not available here (desktop only)."
+        )
+      });
       return;
     }
     try {
       if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
         containerEl.addClass("is-error");
-        containerEl.createEl("strong", { text: "\u76EE\u5F55\u4E0D\u5B58\u5728" });
-        containerEl.createEl("p", { text: `\u627E\u4E0D\u5230\u76EE\u5F55: ${dir}` });
+        containerEl.createEl("strong", { text: tr("\u76EE\u5F55\u4E0D\u5B58\u5728", "Folder not found") });
+        containerEl.createEl("p", { text: tr(`\u627E\u4E0D\u5230\u76EE\u5F55: ${dir}`, `Folder not found: ${dir}`) });
         return;
       }
       const STALE_DAYS = 30;
       const files = fs.readdirSync(dir).filter((name) => /_cookies\.txt$/i.test(name) || /^cookies\.txt$/i.test(name));
       if (files.length === 0) {
         containerEl.addClass("is-error");
-        containerEl.createEl("strong", { text: "\u6CA1\u6709\u627E\u5230\u4EFB\u4F55 cookies \u6587\u4EF6" });
+        containerEl.createEl("strong", {
+          text: tr("\u6CA1\u6709\u627E\u5230\u4EFB\u4F55 cookies \u6587\u4EF6", "No cookies files found")
+        });
         containerEl.createEl("p", {
-          text: `\u76EE\u5F55\u91CC\u6CA1\u6709 *_cookies.txt\u3002Bilibili \u9700\u8981 bilibili_cookies.txt\uFF1B\u7528\u6D4F\u89C8\u5668\u6269\u5C55\uFF08\u5982 Get cookies.txt LOCALLY\uFF09\u5BFC\u51FA\u540E\u653E\u8FDB\u6765\u5373\u53EF\u3002`
+          text: tr(
+            `\u76EE\u5F55\u91CC\u6CA1\u6709 *_cookies.txt\u3002Bilibili \u9700\u8981 bilibili_cookies.txt\uFF1B\u7528\u6D4F\u89C8\u5668\u6269\u5C55\uFF08\u5982 Get cookies.txt LOCALLY\uFF09\u5BFC\u51FA\u540E\u653E\u8FDB\u6765\u5373\u53EF\u3002`,
+            `No *_cookies.txt in the folder. Bilibili needs bilibili_cookies.txt; export it with a browser extension (such as Get cookies.txt LOCALLY) and put it here.`
+          )
         });
         return;
       }
       containerEl.addClass("is-success");
-      containerEl.createEl("strong", { text: `\u627E\u5230 ${files.length} \u4E2A cookies \u6587\u4EF6` });
+      containerEl.createEl("strong", {
+        text: tr(`\u627E\u5230 ${files.length} \u4E2A cookies \u6587\u4EF6`, `Found ${files.length} cookies files`)
+      });
       const now = Date.now();
       const list = containerEl.createEl("ul", { cls: "setup-warning-list" });
       let hasStale = false;
@@ -23056,41 +24393,65 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           const stale = ageDays > STALE_DAYS;
           if (stale) hasStale = true;
           list.createEl("li", {
-            text: `${stale ? "\u26A0\uFE0F " : ""}${name} \u2014 ${sizeKb}KB\uFF0C\u66F4\u65B0\u4E8E ${ageDays} \u5929\u524D${stale ? `\uFF08\u8D85\u8FC7 ${STALE_DAYS} \u5929\uFF0C\u53EF\u80FD\u5DF2\u5931\u6548\uFF09` : ""}`
+            text: tr(
+              `${stale ? "\u26A0\uFE0F " : ""}${name} \u2014 ${sizeKb}KB\uFF0C\u66F4\u65B0\u4E8E ${ageDays} \u5929\u524D${stale ? `\uFF08\u8D85\u8FC7 ${STALE_DAYS} \u5929\uFF0C\u53EF\u80FD\u5DF2\u5931\u6548\uFF09` : ""}`,
+              `${stale ? "\u26A0\uFE0F " : ""}${name} \u2014 ${sizeKb} KB, updated ${ageDays} days ago${stale ? ` (over ${STALE_DAYS} days, may have expired)` : ""}`
+            )
           });
         } catch {
-          list.createEl("li", { text: `${name} \u2014 \u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6\u4FE1\u606F` });
+          list.createEl("li", {
+            text: tr(`${name} \u2014 \u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6\u4FE1\u606F`, `${name} \u2014 cannot read file info`)
+          });
         }
       });
       if (!files.some((name) => /^bilibili_/i.test(name))) {
         containerEl.createEl("p", {
-          text: "\u63D0\u793A\uFF1A\u672A\u53D1\u73B0 bilibili_cookies.txt\uFF0C\u54D4\u54E9\u54D4\u54E9\u8FD4\u56DE HTTP 412 \u65F6\u9700\u8981\u5B83\u3002"
+          text: tr(
+            "\u63D0\u793A\uFF1A\u672A\u53D1\u73B0 bilibili_cookies.txt\uFF0C\u54D4\u54E9\u54D4\u54E9\u8FD4\u56DE HTTP 412 \u65F6\u9700\u8981\u5B83\u3002",
+            "Tip: no bilibili_cookies.txt; Bilibili needs it when it returns HTTP 412."
+          )
         });
       }
       if (hasStale) {
         containerEl.createEl("p", {
-          text: "\u6709\u6587\u4EF6\u8F83\u65E7\u3002\u5E73\u53F0 cookies \u901A\u5E38\u51E0\u5468\u5185\u5931\u6548\uFF0C\u4E0B\u8F7D\u5931\u8D25\u65F6\u4F18\u5148\u91CD\u65B0\u5BFC\u51FA\u3002"
+          text: tr(
+            "\u6709\u6587\u4EF6\u8F83\u65E7\u3002\u5E73\u53F0 cookies \u901A\u5E38\u51E0\u5468\u5185\u5931\u6548\uFF0C\u4E0B\u8F7D\u5931\u8D25\u65F6\u4F18\u5148\u91CD\u65B0\u5BFC\u51FA\u3002",
+            "Some files are old. Platform cookies usually expire within weeks; export again if downloads fail."
+          )
         });
       }
     } catch (error) {
       containerEl.addClass("is-error");
-      containerEl.createEl("p", { text: `\u68C0\u6D4B\u5931\u8D25: ${error.message}` });
+      containerEl.createEl("p", {
+        text: tr(
+          `\u68C0\u6D4B\u5931\u8D25: ${error.message}`,
+          `Check failed: ${error.message}`
+        )
+      });
     }
   }
   createApiSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "link", "\u5904\u7406\u670D\u52A1");
-    new import_obsidian20.Setting(section3).setName("\u4E3B\u5904\u7406\u540E\u7AEF").setDesc(
-      "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8C03\u7528 n8n\uFF0C\u8FD8\u662F\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002"
+    const { section: section3 } = this.sectionCard(containerEl, "link", tr("\u5904\u7406\u670D\u52A1", "Backend"));
+    new import_obsidian20.Setting(section3).setName(tr("\u4E3B\u5904\u7406\u540E\u7AEF", "Main backend")).setDesc(
+      tr(
+        "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8C03\u7528 n8n\uFF0C\u8FD8\u662F\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002",
+        "The Obsidian plugin is the entry point: choose whether quick summary, batch and reprocessing call n8n or the local video service."
+      )
     ).addDropdown(
-      (dropdown) => dropdown.addOption("n8n", "\u517C\u5BB9 n8n \u7684 webhook").addOption("codex-worker", "Codex \u672C\u5730\u89C6\u9891\u670D\u52A1").setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
+      (dropdown) => dropdown.addOption("n8n", tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook")).addOption("codex-worker", tr("Codex \u672C\u5730\u89C6\u9891\u670D\u52A1", "Codex local video service")).setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
         await this.plugin.setActiveBackend(value);
         new import_obsidian20.Notice(
-          value === "codex-worker" ? "\u5DF2\u5207\u6362\u5230 Codex Video Worker" : "\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook"
+          value === "codex-worker" ? tr("\u5DF2\u5207\u6362\u5230 Codex Video Worker", "Switched to the Codex Video Worker") : tr("\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook", "Switched to n8n / compatible webhook")
         );
         this.redraw();
       })
     );
-    new import_obsidian20.Setting(section3).setName("Codex \u672C\u5730\u670D\u52A1\u5730\u5740").setDesc("\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u5728\u540C\u4E00\u4E3B\u673A\u7684 /dashboard\u3002").addText(
+    new import_obsidian20.Setting(section3).setName(tr("Codex \u672C\u5730\u670D\u52A1\u5730\u5740", "Codex local service address")).setDesc(
+      tr(
+        "\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u5728\u540C\u4E00\u4E3B\u673A\u7684 /dashboard\u3002",
+        "Sync entry point of the local video service. Its dashboard is at /dashboard on the same host."
+      )
+    ).addText(
       (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
         this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
         if (this.plugin.settings.activeBackend === "codex-worker") {
@@ -23099,11 +24460,16 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     ).addButton(
-      (button) => button.setButtonText("\u6253\u5F00\u63A7\u5236\u53F0").onClick(() => {
+      (button) => button.setButtonText(tr("\u6253\u5F00\u63A7\u5236\u53F0", "Open dashboard")).onClick(() => {
         this.plugin.openCodexWorkerDashboard();
       })
     );
-    const webhookSetting = new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09").setDesc("\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n \u6216\u517C\u5BB9\u670D\u52A1\u3002");
+    const webhookSetting = new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09", "Default webhook (n8n or compatible)")).setDesc(
+      tr(
+        "\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n \u6216\u517C\u5BB9\u670D\u52A1\u3002",
+        "Keep several webhooks for different workflows. Choosing the default here switches the main backend back to n8n or a compatible service."
+      )
+    );
     let webhookDropdown = null;
     webhookSetting.addDropdown((dropdown) => {
       webhookDropdown = dropdown;
@@ -23118,7 +24484,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       this.plugin.settings.webhookProfiles.forEach((profile) => {
         const option = createEl("option");
         option.value = profile.id;
-        option.textContent = profile.name || profile.url || "\u672A\u547D\u540D Webhook";
+        option.textContent = profile.name || profile.url || tr("\u672A\u547D\u540D Webhook", "Unnamed webhook");
         webhookDropdown.selectEl.appendChild(option);
       });
       if (this.plugin.settings.activeWebhookId) {
@@ -23131,18 +24497,30 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     refreshDropdownOptions();
     const workflowDiagnosticResult = section3.createDiv({ cls: "setup-diagnostic-result" });
     webhookSetting.addButton(
-      (button) => button.setButtonText("\u6D4B\u8BD5\u5F53\u524D\u540E\u7AEF").onClick(async () => {
+      (button) => button.setButtonText(tr("\u6D4B\u8BD5\u5F53\u524D\u540E\u7AEF", "Test the current backend")).onClick(async () => {
         button.setDisabled(true);
-        button.setButtonText("\u6D4B\u8BD5\u4E2D...");
+        button.setButtonText(tr("\u6D4B\u8BD5\u4E2D...", "Testing..."));
         try {
           const res = await this.plugin.api.testConnection();
-          const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "\u517C\u5BB9 n8n \u7684 webhook";
+          const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
           if (res.success) {
-            new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`, 3e3);
+            new import_obsidian20.Notice(
+              tr(
+                `${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`,
+                `${label} connected (${res.durationMs} ms)`
+              ),
+              3e3
+            );
           } else {
             const hint = res.hint ? `
 \u5EFA\u8BAE: ${res.hint}` : "";
-            new import_obsidian20.Notice(`${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`, 8e3);
+            new import_obsidian20.Notice(
+              tr(
+                `${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
+                `${label} connection failed: ${res.error || "unknown error"}${hint}`
+              ),
+              8e3
+            );
           }
           this.renderConnectionResult(workflowDiagnosticResult, res);
         } catch (error) {
@@ -23152,7 +24530,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           });
         } finally {
           button.setDisabled(false);
-          button.setButtonText("\u6D4B\u8BD5\u5F53\u524D\u540E\u7AEF");
+          button.setButtonText(tr("\u6D4B\u8BD5\u5F53\u524D\u540E\u7AEF", "Test the current backend"));
         }
       })
     );
@@ -23161,7 +24539,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       profilesContainer.empty();
       if (this.plugin.settings.webhookProfiles.length === 0) {
         profilesContainer.createEl("p", {
-          text: "\u5C1A\u672A\u914D\u7F6E\u4EFB\u4F55 webhook\u3002",
+          text: tr("\u5C1A\u672A\u914D\u7F6E\u4EFB\u4F55 webhook\u3002", "No webhook configured yet."),
           cls: "setting-item-description"
         });
         return;
@@ -23172,7 +24550,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           type: "text",
           value: profile.name || "",
           cls: "webhook-name-input",
-          attr: { placeholder: "Webhook \u540D\u79F0" }
+          attr: { placeholder: tr("Webhook \u540D\u79F0", "Webhook name") }
         });
         nameInput.oninput = async () => {
           profile.name = nameInput.value;
@@ -23183,7 +24561,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           type: "text",
           value: profile.url || "",
           cls: "webhook-url-input",
-          attr: { placeholder: "Webhook \u5730\u5740" }
+          attr: { placeholder: tr("Webhook \u5730\u5740", "Webhook address") }
         });
         urlInput.oninput = async () => {
           profile.url = urlInput.value.trim();
@@ -23199,8 +24577,11 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           cls: "webhook-auth-header-input",
           attr: {
             placeholder: DEFAULT_WEBHOOK_AUTH_HEADER,
-            "aria-label": "Webhook \u9274\u6743\u8BF7\u6C42\u5934\u540D\u79F0",
-            title: "\u9644\u5E26\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF1A\u987B\u4E0E n8n Header Auth \u7684 Header \u540D\u79F0\u4E00\u81F4"
+            "aria-label": tr("Webhook \u9274\u6743\u8BF7\u6C42\u5934\u540D\u79F0", "Webhook auth header name"),
+            title: tr(
+              "\u9644\u5E26\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF1A\u987B\u4E0E n8n Header Auth \u7684 Header \u540D\u79F0\u4E00\u81F4",
+              "Required by the bundled workflow: must match the n8n Header Auth header name"
+            )
           }
         });
         headerInput.oninput = async () => {
@@ -23215,9 +24596,15 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           value: profile.secret || "",
           cls: "webhook-auth-secret-input",
           attr: {
-            placeholder: "\u9274\u6743 Secret\uFF08\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF09",
-            "aria-label": "Webhook \u9274\u6743\u5BC6\u94A5",
-            title: "\u9644\u5E26\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF1B\u53EA\u6709\u53E6\u884C\u90E8\u7F72\u7684\u517C\u5BB9\u65E7\u7AEF\u70B9\u624D\u53EF\u7559\u7A7A\uFF08\u7559\u7A7A\u65F6\u4E0D\u53D1\u9001\u9274\u6743 Header\uFF09",
+            placeholder: tr(
+              "\u9274\u6743 Secret\uFF08\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF09",
+              "Auth secret (required by the bundled workflow)"
+            ),
+            "aria-label": tr("Webhook \u9274\u6743\u5BC6\u94A5", "Webhook auth secret"),
+            title: tr(
+              "\u9644\u5E26\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF1B\u53EA\u6709\u53E6\u884C\u90E8\u7F72\u7684\u517C\u5BB9\u65E7\u7AEF\u70B9\u624D\u53EF\u7559\u7A7A\uFF08\u7559\u7A7A\u65F6\u4E0D\u53D1\u9001\u9274\u6743 Header\uFF09",
+              "Required by the bundled workflow; only an older compatible endpoint you deployed yourself may leave it empty (then no auth header is sent)"
+            ),
             autocomplete: "off",
             spellcheck: "false"
           }
@@ -23232,7 +24619,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         const actions = row.createDiv({ cls: "webhook-profile-actions" });
         const isActive = profile.id === this.plugin.settings.activeWebhookId;
         const defaultBtn = actions.createEl("button", {
-          text: isActive ? "\u9ED8\u8BA4" : "\u8BBE\u4E3A\u9ED8\u8BA4",
+          text: isActive ? tr("\u9ED8\u8BA4", "Default") : tr("\u8BBE\u4E3A\u9ED8\u8BA4", "Make default"),
           cls: "action-btn secondary webhook-default-btn"
         });
         defaultBtn.onclick = async () => {
@@ -23241,12 +24628,12 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           renderProfiles();
         };
         const deleteBtn = actions.createEl("button", {
-          text: "\u5220\u9664",
+          text: tr("\u5220\u9664", "Delete"),
           cls: "btn-text-only webhook-delete-btn"
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new import_obsidian20.Notice("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook");
+            new import_obsidian20.Notice(tr("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook", "Keep at least one webhook"));
             return;
           }
           this.plugin.settings.webhookProfiles = this.plugin.settings.webhookProfiles.filter(
@@ -23265,7 +24652,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     };
     renderProfiles();
     new import_obsidian20.Setting(section3).addButton(
-      (button) => button.setButtonText("\u6DFB\u52A0 webhook").setCta().onClick(async () => {
+      (button) => button.setButtonText(tr("\u6DFB\u52A0 webhook", "Add webhook")).setCta().onClick(async () => {
         const newProfile = {
           id: `webhook-${Date.now()}`,
           name: `Webhook ${this.plugin.settings.webhookProfiles.length + 1}`,
@@ -23281,16 +24668,29 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     );
   }
   createBasicSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "sliders-horizontal", "\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F");
-    new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6").setDesc(
-      this.plugin.settings.activeBackend === "codex-worker" ? "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF1B\u6DF1\u5EA6\u89C6\u89C9\u4F1A\u5206\u6790\u5173\u952E\u753B\u9762\u3002" : "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\u3002\u6DF1\u5EA6\u89C6\u89C9\u9700\u8981\u5148\u5207\u6362\u5230 Codex Worker\u3002"
+    const { section: section3 } = this.sectionCard(
+      containerEl,
+      "sliders-horizontal",
+      tr("\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F", "Default processing")
+    );
+    new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6", "Default depth")).setDesc(
+      this.plugin.settings.activeBackend === "codex-worker" ? tr(
+        "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF1B\u6DF1\u5EA6\u89C6\u89C9\u4F1A\u5206\u6790\u5173\u952E\u753B\u9762\u3002",
+        "Quick reads subtitles only; evidence keeps the timeline; deep visual analyses key frames."
+      ) : tr(
+        "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\u3002\u6DF1\u5EA6\u89C6\u89C9\u9700\u8981\u5148\u5207\u6362\u5230 Codex Worker\u3002",
+        "Quick reads subtitles only; evidence keeps the timeline. Deep visual needs the Codex Worker."
+      )
     ).addDropdown(
-      (dropdown) => dropdown.addOption("quick", "\u6781\u901F").addOption("evidence", "\u8BC1\u636E").addOption("deep-visual", "\u6DF1\u5EA6\u89C6\u89C9").setValue(this.plugin.settings.defaultProcessingDepth).onChange(async (value) => {
+      (dropdown) => dropdown.addOption("quick", tr("\u6781\u901F", "Quick")).addOption("evidence", tr("\u8BC1\u636E", "Evidence")).addOption("deep-visual", tr("\u6DF1\u5EA6\u89C6\u89C9", "Deep visual")).setValue(this.plugin.settings.defaultProcessingDepth).onChange(async (value) => {
         const depth = value;
         if (depth === "deep-visual" && this.plugin.settings.activeBackend !== "codex-worker") {
           dropdown.setValue("evidence");
           new import_obsidian20.Notice(
-            "\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002",
+            tr(
+              "\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002",
+              "Deep visual runs only on the local video service; the n8n backend goes up to evidence."
+            ),
             7e3
           );
           return;
@@ -23300,8 +24700,13 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B").setDesc("\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002").addDropdown(
-      (dropdown) => dropdown.addOption("auto", "\u81EA\u52A8\u8BC6\u522B").addOption("course", "\u8BFE\u7A0B").addOption("interview", "\u8BBF\u8C08").addOption("tutorial", "\u6559\u7A0B").addOption("news", "\u65B0\u95FB").addOption("meeting", "\u4F1A\u8BAE").addOption("review", "\u8BC4\u6D4B").addOption("general", "\u901A\u7528").setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
+    new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B", "Default content type")).setDesc(
+      tr(
+        "\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002",
+        "Automatic picks a course, interview, tutorial, news, meeting or review structure from the content."
+      )
+    ).addDropdown(
+      (dropdown) => dropdown.addOption("auto", tr("\u81EA\u52A8\u8BC6\u522B", "Automatic")).addOption("course", tr("\u8BFE\u7A0B", "Course")).addOption("interview", tr("\u8BBF\u8C08", "Interview")).addOption("tutorial", tr("\u6559\u7A0B", "Tutorial")).addOption("news", tr("\u65B0\u95FB", "News")).addOption("meeting", tr("\u4F1A\u8BAE", "Meeting")).addOption("review", tr("\u8BC4\u6D4B", "Review")).addOption("general", tr("\u901A\u7528", "General")).setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
         const contentType = value;
         this.plugin.settings.defaultContentType = contentType;
         this.plugin.settings.autoRouteContent = contentType === "auto";
@@ -23312,24 +24717,37 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u89C2\u770B\u4EF7\u503C\u5224\u65AD").setDesc("\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002").addToggle(
+    new import_obsidian20.Setting(section3).setName(tr("\u89C2\u770B\u4EF7\u503C\u5224\u65AD", "Worth watching?")).setDesc(
+      tr(
+        "\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002",
+        "Say whether a video is worth watching, worth skimming or skippable, with its best segments."
+      )
+    ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.attentionAssessmentEnabled).onChange(async (value) => {
         this.plugin.settings.attentionAssessmentEnabled = value;
         this.plugin.api.setAnalysisDefaults({ attentionAssessment: value });
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60").setDesc("\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002").addToggle(
+    new import_obsidian20.Setting(section3).setName(tr("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60", "Generate learning exercises")).setDesc(
+      tr(
+        "\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002",
+        "Add flashcards, quiz questions and Feynman prompts to the result; off by default to save cost."
+      )
+    ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.generateLearningArtifacts).onChange(async (value) => {
         this.plugin.settings.generateLearningArtifacts = value;
         this.plugin.api.setAnalysisDefaults({ generateLearning: value });
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u5904\u7406\u6A21\u578B").setDesc(
-      `\u7531\u540E\u7AEF .env \u91CC\u7684 VS_CHAT_MODEL \u51B3\u5B9A\uFF0C\u6240\u6709\u603B\u7ED3\u6B65\u9AA4\u5171\u7528\u4E00\u4E2A\u6A21\u578B\u3002\u4E0A\u6B21\u68C0\u67E5\uFF1A${this.plugin.settings.aiModel || "\u8FD8\u6CA1\u68C0\u67E5"}\u3002\u6362\u6A21\u578B\u65F6\u6539 .env\uFF0C\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C\u3002`
+    new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u6A21\u578B", "Model")).setDesc(
+      tr(
+        `\u7531\u540E\u7AEF .env \u91CC\u7684 VS_CHAT_MODEL \u51B3\u5B9A\uFF0C\u6240\u6709\u603B\u7ED3\u6B65\u9AA4\u5171\u7528\u4E00\u4E2A\u6A21\u578B\u3002\u4E0A\u6B21\u68C0\u67E5\uFF1A${this.plugin.settings.aiModel || "\u8FD8\u6CA1\u68C0\u67E5"}\u3002\u6362\u6A21\u578B\u65F6\u6539 .env\uFF0C\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C\u3002`,
+        `Set by VS_CHAT_MODEL in the backend's .env; every summary step uses this one model. Last check: ${this.plugin.settings.aiModel || "not checked yet"}. To change it, edit .env and run the start script again.`
+      )
     );
-    new import_obsidian20.Setting(section3).setName("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4").setDesc("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian20.Setting(section3).setName(tr("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4", "Request timeout")).setDesc(tr("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09", "Timeout for API requests (minutes)")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
@@ -23338,33 +24756,47 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     );
   }
   createOutputSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "folder", "\u7B14\u8BB0");
-    new import_obsidian20.Setting(section3).setName("\u9ED8\u8BA4\u8BED\u8A00").setDesc("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00").addDropdown(
-      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
+    const { section: section3 } = this.sectionCard(containerEl, "folder", tr("\u7B14\u8BB0", "Notes"));
+    new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u8BED\u8A00", "Default language")).setDesc(tr("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00", "Default language of summaries")).addDropdown(
+      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u81EA\u52A8\u4FDD\u5B58").setDesc("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6").addToggle(
+    new import_obsidian20.Setting(section3).setName(tr("\u81EA\u52A8\u4FDD\u5B58", "Save automatically")).setDesc(tr("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6", "Save the file when processing finishes")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u8F93\u51FA\u6587\u4EF6\u5939").setDesc("\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u5728\u5E93\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002").addText(
-      (text2) => text2.setPlaceholder("\u4F8B\u5982: Videos/2024").setValue(this.plugin.settings.outputFolder).onChange(async (value) => {
+    new import_obsidian20.Setting(section3).setName(tr("\u8F93\u51FA\u6587\u4EF6\u5939", "Output folder")).setDesc(
+      tr(
+        "\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u5728\u5E93\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002",
+        "Folder for new video notes, relative to the vault; ., .. and absolute paths are not allowed."
+      )
+    ).addText(
+      (text2) => text2.setPlaceholder(tr("\u4F8B\u5982: Videos/2024", "For example Videos/2024")).setValue(this.plugin.settings.outputFolder).onChange(async (value) => {
         try {
           const normalized = normalizeVideoSummaryBaseFolder(value.trim());
           this.plugin.settings.outputFolder = normalized;
           await this.plugin.saveSettings();
         } catch {
           text2.setValue(this.plugin.settings.outputFolder);
-          new import_obsidian20.Notice("\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5E93\u5185\u7684\u5B89\u5168\u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002", 6e3);
+          new import_obsidian20.Notice(
+            tr(
+              "\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5E93\u5185\u7684\u5B89\u5168\u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002",
+              "The output folder must be a safe path inside the vault, without . or .."
+            ),
+            6e3
+          );
         }
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F").setDesc(
-      "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002"
+    new import_obsidian20.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(
+      tr(
+        "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002",
+        "Used when you right-click a transcript line in Reader to copy a quote or insert it into a note, or drag it into a note. Available: {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}; \\n is a line break."
+      )
     ).addText(
       (text2) => text2.setPlaceholder(DEFAULT_QUOTE_TEMPLATE).setValue(this.plugin.settings.readerQuoteTemplate).onChange(async (value) => {
         this.plugin.settings.readerQuoteTemplate = value.trim() || DEFAULT_QUOTE_TEMPLATE;
@@ -23373,30 +24805,40 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     );
   }
   createQuickProcessingSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "zap", "\u547D\u4EE4\u9762\u677F\u91CC\u7684\u4E00\u952E\u5904\u7406");
+    const { section: section3 } = this.sectionCard(
+      containerEl,
+      "zap",
+      tr("\u547D\u4EE4\u9762\u677F\u91CC\u7684\u4E00\u952E\u5904\u7406", "One-step commands")
+    );
     const summarySubsection = section3.createDiv({ cls: "vs-subsection" });
-    summarySubsection.createDiv({ text: "\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian20.Setting(summarySubsection).setName("\u603B\u7ED3\u8BED\u8A00").setDesc("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
-      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
+    summarySubsection.createDiv({
+      text: tr("\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", "Quick summary settings"),
+      cls: "vs-subsection-title"
+    });
+    new import_obsidian20.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8BED\u8A00", "Summary language")).setDesc(tr("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00", "Language of quick summaries")).addDropdown(
+      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(summarySubsection).setName("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian20.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4", "Summary timeout")).setDesc(tr("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09", "Timeout of quick summaries (minutes)")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
       })
     );
     const transcriptSubsection = section3.createDiv({ cls: "vs-subsection" });
-    transcriptSubsection.createDiv({ text: "\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", cls: "vs-subsection-title" });
-    new import_obsidian20.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8BED\u8A00").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00").addDropdown(
-      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", "\u82F1\u6587").addOption("ja", "\u65E5\u6587").setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
+    transcriptSubsection.createDiv({
+      text: tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", "Quick transcript settings"),
+      cls: "vs-subsection-title"
+    });
+    new import_obsidian20.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8BED\u8A00", "Transcript language")).setDesc(tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00", "Language of quick transcripts")).addDropdown(
+      (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(transcriptSubsection).setName("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4").setDesc("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09").addSlider(
+    new import_obsidian20.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4", "Transcript timeout")).setDesc(tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09", "Timeout of quick transcripts (minutes)")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -23404,30 +24846,45 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     );
   }
   createFileProcessingSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "files", "\u6587\u4EF6\u4E0E\u547D\u540D");
-    new import_obsidian20.Setting(section3).setName("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D").setDesc("\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7").addToggle(
+    const { section: section3 } = this.sectionCard(containerEl, "files", tr("\u6587\u4EF6\u4E0E\u547D\u540D", "Files and names"));
+    new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D", "Rename after processing")).setDesc(
+      tr(
+        "\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7",
+        "Rename the note from the video or body title; a number is added to avoid duplicates"
+      )
+    ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565").setDesc("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F").addDropdown(
-      (drop) => drop.addOption("append-number", "\u8FFD\u52A0\u7F16\u53F7").addOption("append-date", "\u8FFD\u52A0\u65E5\u671F").addOption("skip", "\u8DF3\u8FC7").setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
+    new import_obsidian20.Setting(section3).setName(tr("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565", "Name clash")).setDesc(tr("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F", "What to do when the file name already exists")).addDropdown(
+      (drop) => drop.addOption("append-number", tr("\u8FFD\u52A0\u7F16\u53F7", "Add a number")).addOption("append-date", tr("\u8FFD\u52A0\u65E5\u671F", "Add the date")).addOption("skip", tr("\u8DF3\u8FC7", "Skip")).setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570").setDesc("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF").addSlider(
+    new import_obsidian20.Setting(section3).setName(tr("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570", "Batch parallelism")).setDesc(tr("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF", "Most files processed at the same time")).addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u6210\u529F\u72B6\u6001\u503C").setDesc("\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49").addText(
-      (text2) => text2.setPlaceholder("\u4F8B\u5982 success").setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
+    new import_obsidian20.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(
+      tr(
+        "\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49",
+        "The status text written to frontmatter after success, such as success, done or \u2705"
+      )
+    ).addText(
+      (text2) => text2.setPlaceholder(tr("\u4F8B\u5982 success", "For example success")).setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
-          new import_obsidian20.Notice("\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success");
+          new import_obsidian20.Notice(
+            tr(
+              "\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success",
+              "The success status cannot be a pending, processing or failure value; reset to success"
+            )
+          );
         }
         this.plugin.settings.successStatusValue = normalized;
         await this.plugin.saveSettings();
@@ -23435,9 +24892,16 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     );
   }
   createPayloadKeysSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "radio", "\u8BF7\u6C42\u5B57\u6BB5\u540D");
+    const { section: section3 } = this.sectionCard(
+      containerEl,
+      "radio",
+      tr("\u8BF7\u6C42\u5B57\u6BB5\u540D", "Request field names")
+    );
     section3.createEl("p", {
-      text: "\u81EA\u5B9A\u4E49\u53D1\u9001\u5230 n8n webhook \u7684 JSON \u5BF9\u8C61\u4E2D\u7684\u952E\u540D\u3002\u8FD9\u5141\u8BB8\u60A8\u9002\u5E94\u4E0D\u540C\u7684 n8n \u5DE5\u4F5C\u6D41\u914D\u7F6E\u3002",
+      text: tr(
+        "\u81EA\u5B9A\u4E49\u53D1\u9001\u5230 n8n webhook \u7684 JSON \u5BF9\u8C61\u4E2D\u7684\u952E\u540D\u3002\u8FD9\u5141\u8BB8\u60A8\u9002\u5E94\u4E0D\u540C\u7684 n8n \u5DE5\u4F5C\u6D41\u914D\u7F6E\u3002",
+        "Customise the key names in the JSON sent to the n8n webhook, to fit a different n8n workflow."
+      ),
       cls: "setting-item-description"
     });
     const keys = this.plugin.settings.payloadKeys;
@@ -23459,24 +24923,34 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     createKeySetting("\u672C\u5730\u6587\u4EF6\u952E", "\u53D1\u9001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u7684\u952E\u540D", "local_file");
   }
   createAdvancedSection(containerEl) {
-    const { section: section3 } = this.sectionCard(containerEl, "wrench", "\u7F13\u5B58\u4E0E\u8C03\u8BD5");
-    new import_obsidian20.Setting(section3).setName("\u8C03\u8BD5\u6A21\u5F0F").setDesc("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09").addToggle(
+    const { section: section3 } = this.sectionCard(
+      containerEl,
+      "wrench",
+      tr("\u7F13\u5B58\u4E0E\u8C03\u8BD5", "Cache and debugging")
+    );
+    new import_obsidian20.Setting(section3).setName(tr("\u8C03\u8BD5\u6A21\u5F0F", "Debug mode")).setDesc(tr("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09", "Write more debug logs to the console")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0").setDesc(
-      "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002"
+    new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0", "Check the backend before processing")).setDesc(
+      tr(
+        "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002",
+        "Ping the current backend before processing (cached for 60 seconds). If it is unreachable you are told, with a suggestion to switch when the other backend works."
+      )
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.preflightCheckEnabled !== false).onChange(async (value) => {
         this.plugin.settings.preflightCheckEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00").setDesc(
-      "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002"
+    new import_obsidian20.Setting(section3).setName(tr("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00", "Expand short links")).setDesc(
+      tr(
+        "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002",
+        "Expand b23.tv, v.douyin.com, xhslink.com and other short links before sending, which avoids download failures (desktop only; falls back to the original link on failure)."
+      )
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
         this.plugin.settings.expandShortLinks = value;
@@ -23484,80 +24958,131 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    const historyLimitSetting = new import_obsidian20.Setting(section3).setName("\u5904\u7406\u5386\u53F2\u4E0A\u9650").setDesc(
-      `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`
+    const historyLimitSetting = new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u5386\u53F2\u4E0A\u9650", "History limit")).setDesc(
+      tr(
+        `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`,
+        `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${this.plugin.settings.historyLimit ?? 300}.`
+      )
     ).addSlider(
       (slider) => slider.setLimits(100, 1e3, 50).setValue(this.plugin.settings.historyLimit ?? 300).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.historyLimit = value;
         await this.plugin.saveSettings();
         historyLimitSetting.setDesc(
-          `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${value} \u6761\u3002`
+          tr(
+            `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${value} \u6761\u3002`,
+            `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${value}.`
+          )
         );
       })
     );
     const cacheSubsection = section3.createDiv({ cls: "vs-subsection" });
-    cacheSubsection.createDiv({ text: "\u7F13\u5B58\u914D\u7F6E", cls: "vs-subsection-title" });
-    const cacheStatusSetting = new import_obsidian20.Setting(cacheSubsection).setName("\u7F13\u5B58\u72B6\u6001").setDesc("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F").addButton(
-      (button) => button.setButtonText("\u{1F4CA} \u67E5\u770B\u72B6\u6001").setClass("cache-status-btn").onClick(async () => {
+    cacheSubsection.createDiv({ text: tr("\u7F13\u5B58\u914D\u7F6E", "Cache"), cls: "vs-subsection-title" });
+    const cacheStatusSetting = new import_obsidian20.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u72B6\u6001", "Cache status")).setDesc(tr("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F", "Show the current cache status and statistics")).addButton(
+      (button) => button.setButtonText(tr("\u{1F4CA} \u67E5\u770B\u72B6\u6001", "\u{1F4CA} Show status")).setClass("cache-status-btn").onClick(async () => {
         try {
           const stats = this.plugin.api.getCacheStats();
           await this.showCachePreviewModal(stats);
         } catch (error) {
           console.error("\u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-          new import_obsidian20.Notice(`\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+          new import_obsidian20.Notice(
+            tr(
+              `\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${errorMessage(error)}`,
+              `\u274C Could not read cache statistics: ${errorMessage(error)}`
+            ),
+            5e3
+          );
         }
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian20.Setting(cacheSubsection).setName("\u542F\u7528\u7F13\u5B58").setDesc("\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09").addToggle(
+    const enableCacheSetting = new import_obsidian20.Setting(cacheSubsection).setName(tr("\u542F\u7528\u7F13\u5B58", "Use the cache")).setDesc(
+      tr(
+        "\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09",
+        "Keep processed results to avoid calling the API again (saves money)"
+      )
+    ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableCache ?? true).onChange(async (value) => {
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
         await this.plugin.saveSettings();
-        new import_obsidian20.Notice(value ? "\u2705 \u7F13\u5B58\u5DF2\u542F\u7528" : "\u274C \u7F13\u5B58\u5DF2\u7981\u7528", 2e3);
+        new import_obsidian20.Notice(
+          value ? tr("\u2705 \u7F13\u5B58\u5DF2\u542F\u7528", "\u2705 Cache on") : tr("\u274C \u7F13\u5B58\u5DF2\u7981\u7528", "\u274C Cache off"),
+          2e3
+        );
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian20.Setting(cacheSubsection).setName("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4").setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`).addSlider(
+    const expirySetting = new import_obsidian20.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4", "Cache expiry")).setDesc(
+      tr(
+        `\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`,
+        `How long cached results stay valid (now ${this.plugin.settings.cacheExpiryDays ?? 30} days)`
+      )
+    ).addSlider(
       (slider) => slider.setLimits(1, 365, 1).setValue(this.plugin.settings.cacheExpiryDays ?? 30).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.cacheExpiryDays = value;
         this.plugin.api.setCacheConfig(1e3, value);
         await this.plugin.saveSettings();
-        expirySetting.setDesc(`\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${value} \u5929\uFF09`);
+        expirySetting.setDesc(
+          tr(
+            `\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${value} \u5929\uFF09`,
+            `How long cached results stay valid (now ${value} days)`
+          )
+        );
       })
     );
     expirySetting.controlEl.addClass("cache-setting-item");
     expirySetting.controlEl.addClass("cache-expiry-slider");
     cacheSubsection.createEl("hr", { cls: "cache-divider" });
-    cacheSubsection.createDiv({ text: "\u7F13\u5B58\u7BA1\u7406", cls: "vs-subsection-title" });
+    cacheSubsection.createDiv({
+      text: tr("\u7F13\u5B58\u7BA1\u7406", "Cache management"),
+      cls: "vs-subsection-title"
+    });
     const quickActionsContainer = cacheSubsection.createDiv({ cls: "cache-quick-actions" });
     const testBtn = quickActionsContainer.createEl("button", {
-      text: "\u{1F9EA} \u6DFB\u52A0\u6D4B\u8BD5",
+      text: tr("\u{1F9EA} \u6DFB\u52A0\u6D4B\u8BD5", "\u{1F9EA} Add test entry"),
       cls: "cache-quick-btn"
     });
     testBtn.onclick = async () => {
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new import_obsidian20.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+        new import_obsidian20.Notice(
+          tr(
+            `\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`,
+            `\u274C Could not add test data: ${errorMessage(error)}`
+          ),
+          5e3
+        );
       }
     };
     const cleanupBtn = quickActionsContainer.createEl("button", {
-      text: "\u6E05\u7406\u8FC7\u671F",
+      text: tr("\u6E05\u7406\u8FC7\u671F", "Remove expired"),
       cls: "cache-quick-btn"
     });
     cleanupBtn.onclick = async () => {
       try {
         this.plugin.api.cleanupCache();
         const stats = this.plugin.api.getCacheStats();
-        new import_obsidian20.Notice(`\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`, 3e3);
+        new import_obsidian20.Notice(
+          tr(
+            `\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`,
+            `\u{1F9F9} Removed expired entries; ${stats.size} left`
+          ),
+          3e3
+        );
       } catch (error) {
         console.error("\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25:", error);
-        new import_obsidian20.Notice(`\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+        new import_obsidian20.Notice(
+          tr(
+            `\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`,
+            `\u274C Could not remove expired entries: ${errorMessage(error)}`
+          ),
+          5e3
+        );
       }
     };
     const clearBtn = quickActionsContainer.createEl("button", {
-      text: "\u6E05\u7A7A\u6240\u6709",
+      text: tr("\u6E05\u7A7A\u6240\u6709", "Clear all"),
       cls: "cache-quick-btn cache-danger-btn"
     });
     clearBtn.onclick = async () => {
@@ -23573,23 +25098,43 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       if (confirmed) {
         try {
           this.plugin.api.clearCache();
-          new import_obsidian20.Notice("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", 3e3);
+          new import_obsidian20.Notice(tr("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", "\u{1F5D1}\uFE0F Cache cleared"), 3e3);
         } catch (error) {
           console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-          new import_obsidian20.Notice(`\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+          new import_obsidian20.Notice(
+            tr(
+              `\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`,
+              `\u274C Could not clear the cache: ${errorMessage(error)}`
+            ),
+            5e3
+          );
         }
       }
     };
     const cacheInfoContainer = cacheSubsection.createDiv({ cls: "cache-info-container" });
     const cacheInfoTip = cacheInfoContainer.createDiv({ cls: "cache-info-tip" });
-    cacheInfoTip.createEl("strong", { text: "\u{1F4A1} \u7F13\u5B58\u63D0\u793A\uFF1A" });
+    cacheInfoTip.createEl("strong", { text: tr("\u{1F4A1} \u7F13\u5B58\u63D0\u793A\uFF1A", "\u{1F4A1} About the cache:") });
     const cacheInfoList = cacheInfoTip.createEl("ul");
     const cachePathItem = cacheInfoList.createEl("li");
-    cachePathItem.appendText("\u7F13\u5B58\u6587\u4EF6\u5B58\u50A8\u5728\uFF1A");
-    cachePathItem.createEl("code", { text: "<\u63D2\u4EF6\u76EE\u5F55>/data/cache/" });
-    cacheInfoList.createEl("li", { text: "\u7F13\u5B58\u4F1A\u81EA\u52A8\u6E05\u7406\u8FC7\u671F\u9879" });
-    cacheInfoList.createEl("li", { text: "\u7981\u7528\u7F13\u5B58\u540E\uFF0C\u6240\u6709\u7F13\u5B58\u64CD\u4F5C\u5C06\u88AB\u5FFD\u7565" });
-    cacheInfoList.createEl("li", { text: "\u5EFA\u8BAE\u5B9A\u671F\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u4EE5\u8282\u7701\u7A7A\u95F4" });
+    cachePathItem.appendText(tr("\u7F13\u5B58\u6587\u4EF6\u5B58\u50A8\u5728\uFF1A", "Cache files are stored in:"));
+    cachePathItem.createEl("code", {
+      text: tr("<\u63D2\u4EF6\u76EE\u5F55>/data/cache/", "<plugin folder>/data/cache/")
+    });
+    cacheInfoList.createEl("li", {
+      text: tr("\u7F13\u5B58\u4F1A\u81EA\u52A8\u6E05\u7406\u8FC7\u671F\u9879", "Expired entries are removed automatically")
+    });
+    cacheInfoList.createEl("li", {
+      text: tr(
+        "\u7981\u7528\u7F13\u5B58\u540E\uFF0C\u6240\u6709\u7F13\u5B58\u64CD\u4F5C\u5C06\u88AB\u5FFD\u7565",
+        "With the cache off, all cache actions are ignored"
+      )
+    });
+    cacheInfoList.createEl("li", {
+      text: tr(
+        "\u5EFA\u8BAE\u5B9A\u671F\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u4EE5\u8282\u7701\u7A7A\u95F4",
+        "Remove expired entries now and then to save space"
+      )
+    });
   }
   /**
    * 显示缓存预览模态框
@@ -23597,7 +25142,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   async showCachePreviewModal(stats) {
     const modal = new import_obsidian21.Modal(this.app);
     modal.modalEl.addClass("ap", "ap-modal");
-    modal.titleEl.setText("\u{1F4CA} \u7F13\u5B58\u9884\u89C8");
+    modal.titleEl.setText(tr("\u{1F4CA} \u7F13\u5B58\u9884\u89C8", "\u{1F4CA} Cache preview"));
     const { contentEl } = modal;
     const refreshModalContent = async () => {
       try {
@@ -23606,7 +25151,10 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error("\u274C \u5237\u65B0\u6A21\u6001\u6846\u5185\u5BB9\u5931\u8D25:", error);
-        new import_obsidian20.Notice(`\u274C \u5237\u65B0\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+        new import_obsidian20.Notice(
+          tr(`\u274C \u5237\u65B0\u5931\u8D25: ${errorMessage(error)}`, `\u274C Could not refresh: ${errorMessage(error)}`),
+          5e3
+        );
       }
     };
     const renderModalContent = async (container, currentStats) => {
@@ -23629,24 +25177,27 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       addStatCard("\u603B\u5927\u5C0F", this.formatBytes(currentStats.totalSize));
       if (currentStats.size > 0) {
         const previewSection = container.createDiv({ cls: "cache-preview-content" });
-        new import_obsidian20.Setting(previewSection).setName("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8").setHeading();
+        new import_obsidian20.Setting(previewSection).setName(tr("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8", "Cache contents")).setHeading();
         await this.showCacheContentPreview(previewSection);
       } else {
         const emptySection = container.createDiv({ cls: "cache-empty-section" });
         const emptyMessage = emptySection.createDiv({ cls: "cache-empty-message" });
-        emptyMessage.createEl("p", { text: "\u{1F4ED} \u6682\u65E0\u7F13\u5B58\u5185\u5BB9" });
+        emptyMessage.createEl("p", { text: tr("\u{1F4ED} \u6682\u65E0\u7F13\u5B58\u5185\u5BB9", "\u{1F4ED} The cache is empty") });
         emptyMessage.createEl("p", {
           cls: "cache-empty-tip",
-          text: "\u63D0\u793A\uFF1A\u5904\u7406\u89C6\u9891\u540E\u4F1A\u81EA\u52A8\u6DFB\u52A0\u5230\u7F13\u5B58\uFF0C\u6216\u8005\u70B9\u51FB\u201C\u6DFB\u52A0\u6D4B\u8BD5\u201D\u6309\u94AE\u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E"
+          text: tr(
+            "\u63D0\u793A\uFF1A\u5904\u7406\u89C6\u9891\u540E\u4F1A\u81EA\u52A8\u6DFB\u52A0\u5230\u7F13\u5B58\uFF0C\u6216\u8005\u70B9\u51FB\u201C\u6DFB\u52A0\u6D4B\u8BD5\u201D\u6309\u94AE\u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E",
+            'Processed videos are added automatically, or press "Add test entry" for sample data'
+          )
         });
       }
       const actionsSection = container.createDiv({ cls: "cache-preview-actions" });
       actionsSection.createEl("button", {
-        text: "\u5237\u65B0",
+        text: tr("\u5237\u65B0", "Refresh"),
         cls: "cache-action-btn"
       }).onclick = refreshModalContent;
       actionsSection.createEl("button", {
-        text: "\u5173\u95ED",
+        text: tr("\u5173\u95ED", "Close"),
         cls: "cache-action-btn"
       }).onclick = () => {
         modal.close();
@@ -23663,7 +25214,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       const items = await this.plugin.api.getAllCacheItems();
       if (items.length === 0) {
         container.createEl("p", {
-          text: "\u6682\u65E0\u7F13\u5B58\u5185\u5BB9",
+          text: tr("\u6682\u65E0\u7F13\u5B58\u5185\u5BB9", "The cache is empty"),
           cls: "cache-empty-message"
         });
         return;
@@ -23705,7 +25256,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         });
         metaEl.createSpan({
           cls: `cache-item-status ${item.isExpired ? "expired" : "valid"}`,
-          text: item.isExpired ? "\u5DF2\u8FC7\u671F" : "\u6709\u6548"
+          text: item.isExpired ? tr("\u5DF2\u8FC7\u671F", "Expired") : tr("\u6709\u6548", "Valid")
         });
         const deleteBtn = itemEl.createEl("button", {
           text: "\u{1F5D1}\uFE0F",
@@ -23715,21 +25266,33 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new import_obsidian20.Notice(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, 3e3);
+            new import_obsidian20.Notice(
+              tr(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, `\u2705 Removed cache entry: ${item.url}`),
+              3e3
+            );
           } catch (error) {
-            new import_obsidian20.Notice(`\u274C \u5220\u9664\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+            new import_obsidian20.Notice(
+              tr(
+                `\u274C \u5220\u9664\u5931\u8D25: ${errorMessage(error)}`,
+                `\u274C Could not delete: ${errorMessage(error)}`
+              ),
+              5e3
+            );
           }
         };
       }
       if (items.length > 20) {
         container.createEl("p", {
-          text: `\u8FD8\u6709 ${items.length - 20} \u9879\u672A\u663E\u793A`,
+          text: tr(`\u8FD8\u6709 ${items.length - 20} \u9879\u672A\u663E\u793A`, `${items.length - 20} more not shown`),
           cls: "cache-more-items"
         });
       }
     } catch (error) {
       container.createEl("p", {
-        text: `\u83B7\u53D6\u7F13\u5B58\u5185\u5BB9\u5931\u8D25: ${errorMessage(error)}`,
+        text: tr(
+          `\u83B7\u53D6\u7F13\u5B58\u5185\u5BB9\u5931\u8D25: ${errorMessage(error)}`,
+          `Could not read the cache: ${errorMessage(error)}`
+        ),
         cls: "cache-error-message"
       });
     }
@@ -23778,11 +25341,17 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         "zh",
         testResult
       );
-      new import_obsidian20.Notice("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", 3e3);
+      new import_obsidian20.Notice(tr("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", "\u2705 Test cache entry added"), 3e3);
       this.plugin.api.getCacheStats();
     } catch (error) {
       console.error("\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25:", error);
-      new import_obsidian20.Notice(`\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`, 5e3);
+      new import_obsidian20.Notice(
+        tr(
+          `\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`,
+          `\u274C Could not add test cache data: ${errorMessage(error)}`
+        ),
+        5e3
+      );
     }
   }
   /**
@@ -23823,11 +25392,11 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1e3 * 60 * 60 * 24));
     if (diffDays === 0) {
-      return "\u4ECA\u5929";
+      return tr("\u4ECA\u5929", "Today");
     } else if (diffDays === 1) {
-      return "\u6628\u5929";
+      return tr("\u6628\u5929", "Yesterday");
     } else if (diffDays < 7) {
-      return `${diffDays}\u5929\u524D`;
+      return tr(`${diffDays}\u5929\u524D`, `${diffDays} days ago`);
     } else {
       return date.toLocaleDateString();
     }

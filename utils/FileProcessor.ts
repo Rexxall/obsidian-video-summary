@@ -4,6 +4,7 @@ import { VideoSummaryModal } from '../modals';
 import VideoSummaryPlugin from '../main';
 
 import { errorMessage } from './errors';
+import { tr } from './i18n';
 /**
  * 文件处理工具类
  * 包含通用的文件处理逻辑
@@ -31,7 +32,12 @@ export class FileProcessor {
         }
       }, 100);
     } catch (error) {
-      new Notice(`处理文件失败: ${errorMessage(error)}`);
+      new Notice(
+        tr(
+          `处理文件失败: ${errorMessage(error)}`,
+          `Could not process the file: ${errorMessage(error)}`,
+        ),
+      );
     }
   }
 

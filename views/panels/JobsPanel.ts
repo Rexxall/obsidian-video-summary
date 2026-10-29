@@ -55,7 +55,7 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
     iconButton(header, 'more-horizontal', '列表操作', (event) => {
       showMenu(event, [
         {
-          title: '清掉已完成的任务卡',
+          title: tr('清掉已完成的任务卡', 'Clear finished job cards'),
           icon: 'eraser',
           onClick: () => {
             ctx.plugin.jobs.clearFinished();
@@ -63,7 +63,7 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
           },
         },
         {
-          title: '清空处理历史',
+          title: tr('清空处理历史', 'Clear processing history'),
           icon: 'trash',
           onClick: async () => {
             await ctx.plugin.clearProcessingHistory();
@@ -71,14 +71,19 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
           },
         },
         {
-          title: '清空结果缓存',
+          title: tr('清空结果缓存', 'Clear result cache'),
           icon: 'database',
           onClick: async () => {
             try {
               ctx.plugin.api.clearCache();
-              new Notice('缓存已清空');
+              new Notice(tr('缓存已清空', 'Cache cleared'));
             } catch (error) {
-              new Notice(`清空缓存失败: ${error instanceof Error ? errorMessage(error) : error}`);
+              new Notice(
+                tr(
+                  `清空缓存失败: ${error instanceof Error ? errorMessage(error) : error}`,
+                  `Could not clear the cache: ${error instanceof Error ? errorMessage(error) : error}`,
+                ),
+              );
             }
           },
         },
@@ -94,8 +99,11 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
     if (historyRows.length > RECENT_HISTORY_LIMIT) {
       const more = container.createEl('button', {
         text: historyExpanded
-          ? '收起最近完成'
-          : `显示更多 · 还有 ${historyRows.length - RECENT_HISTORY_LIMIT} 条`,
+          ? tr('收起最近完成', 'Hide recent jobs')
+          : tr(
+              `显示更多 · 还有 ${historyRows.length - RECENT_HISTORY_LIMIT} 条`,
+              `Show more · ${historyRows.length - RECENT_HISTORY_LIMIT} more`,
+            ),
         cls: 'vs-more-btn vs-history-more',
         attr: { type: 'button' },
       });
@@ -163,15 +171,29 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   const sub = info.createDiv({ cls: 'vs-job-sub' });
   platformText(sub, job.platform, platformLabel(job.platform));
   if (job.startedAt) {
-    sub.createSpan({ text: `已用 ${formatClock(Date.now() - job.startedAt)}`, cls: 'vs-mono' });
+    sub.createSpan({
+      text: tr(
+        `已用 ${formatClock(Date.now() - job.startedAt)}`,
+        `${formatClock(Date.now() - job.startedAt)} so far`,
+      ),
+      cls: 'vs-mono',
+    });
   }
-  if (!job.useCache) sub.createSpan({ text: '跳过缓存' });
+  if (!job.useCache) sub.createSpan({ text: tr('跳过缓存', 'Skip cache') });
 
   const side = body.createDiv({ cls: 'vs-job-side' });
   // n8n 是一次性请求拿不到中间态，这里就只说"处理中"，不编造阶段
   statusPill(side, job.state === 'queued' ? 'queued' : 'running', {
-    label: job.state === 'queued' ? '排队中' : job.stageLabel || '处理中',
-    title: job.stageLabel ? undefined : '该后端不上报处理阶段，仅显示计时',
+    label:
+      job.state === 'queued'
+        ? tr('排队中', 'Queued')
+        : job.stageLabel || tr('处理中', 'Processing'),
+    title: job.stageLabel
+      ? undefined
+      : tr(
+          '该后端不上报处理阶段，仅显示计时',
+          'This backend does not report stages; only the timer is shown',
+        ),
   });
   iconButton(
     side,
@@ -219,7 +241,7 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
     '直接写入',
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
-        new Notice('已写入笔记');
+        new Notice(tr('已写入笔记', 'Written to the note'));
         ctx.renderPanels();
       }
     }),
@@ -334,7 +356,7 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
     body.createDiv({
       text: summarizeError(row.error),
       cls: 'vs-row-sub is-error',
-      attr: { title: '点击任务查看完整失败详情' },
+      attr: { title: tr('点击任务查看完整失败详情', 'Click the job for the full failure details') },
     });
   } else {
     const sub = body.createDiv({ cls: 'vs-row-sub' });
@@ -352,7 +374,10 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   });
   body.tabIndex = 0;
   body.setAttribute('role', 'button');
-  body.setAttribute('aria-label', `查看任务详情：${displayTitle}`);
+  body.setAttribute(
+    'aria-label',
+    tr(`查看任务详情：${displayTitle}`, `Job details: ${displayTitle}`),
+  );
   body.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -363,12 +388,12 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   const statePill =
     row.state === 'error'
       ? statusPill(item, 'error', {
-          label: '重试',
-          title: '跳过缓存重新处理',
+          label: tr('重试', 'Retry'),
+          title: tr('跳过缓存重新处理', 'Process again, skipping the cache'),
           onClick: () => void rerun(ctx, row),
         })
       : statusPill(item, row.state, {
-          label: row.state === 'success' ? '完成' : '已取消',
+          label: row.state === 'success' ? tr('完成', 'Done') : tr('已取消', 'Cancelled'),
         });
   statePill.addClass('vs-row-status');
 
@@ -378,22 +403,22 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   iconButton(actions, 'more-horizontal', '更多操作', (event) => {
     showMenu(event, [
       {
-        title: '打开笔记',
+        title: tr('打开笔记', 'Open note'),
         icon: 'file-text',
         onClick: () => openNoteByName(ctx, row.title),
       },
       {
-        title: '重跑（跳过缓存）',
+        title: tr('重跑（跳过缓存）', 'Run again (skip cache)'),
         icon: 'refresh-cw',
         onClick: () => rerun(ctx, row),
       },
       {
-        title: '复制失败原因',
+        title: tr('复制失败原因', 'Copy the failure reason'),
         icon: 'clipboard',
         disabled: !row.error,
         onClick: () => {
           void navigator.clipboard.writeText(row.error || '');
-          new Notice('已复制');
+          new Notice(tr('已复制', 'Copied'));
         },
       },
     ]);
@@ -406,7 +431,7 @@ function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRo
   if (!kind) return;
   const strip = container.createDiv({ cls: 'vs-next-step' });
   if (kind === 'no-transcript') {
-    strip.createSpan({ text: '可以补一份文稿再总结' });
+    strip.createSpan({ text: tr('可以补一份文稿再总结', 'Add a transcript and summarise again') });
     textButton(strip, '粘贴文稿 →', () => {
       const url = row.job?.input.url || row.record?.url || '';
       ctx.state.inputDraft = url;
@@ -417,10 +442,12 @@ function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRo
       }, 0);
     });
   } else if (kind === 'login') {
-    strip.createSpan({ text: '登录状态失效，更新 Cookies 后重试' });
+    strip.createSpan({
+      text: tr('登录状态失效，更新 Cookies 后重试', 'Login expired; update the cookies and retry'),
+    });
     textButton(strip, '打开设置 →', () => openSettings(ctx));
   } else {
-    strip.createSpan({ text: '处理服务没有连上' });
+    strip.createSpan({ text: tr('处理服务没有连上', 'The backend is not connected') });
     textButton(strip, '重新检测 →', () => {
       document.querySelector<HTMLButtonElement>('.vs-backend-line')?.click();
     });
@@ -481,45 +508,54 @@ function summarizeError(raw: string): string {
   const error = raw.toLowerCase();
 
   if (NO_TRANSCRIPT.test(error)) {
-    return '没有字幕';
+    return tr('没有字幕', 'No subtitles');
   }
   if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) {
-    return '登录状态已失效 · 更新凭证后重试';
+    return tr(
+      '登录状态已失效 · 更新凭证后重试',
+      'Login expired · update the credentials and retry',
+    );
   }
   if (/429|rate.?limit|too many requests|请求过于频繁|限流|quota/.test(error)) {
-    return '请求过于频繁 · 稍后重试';
+    return tr('请求过于频繁 · 稍后重试', 'Too many requests · try again later');
   }
   if (/401|unauthorized|api.?key|鉴权|授权失败|invalid.?key/.test(error)) {
-    return '服务授权失败 · 检查密钥配置';
+    return tr('服务授权失败 · 检查密钥配置', 'Auth failed · check the key');
   }
   if (/403|forbidden|拒绝访问|access denied/.test(error)) {
-    return '访问被拒绝 · 检查账号权限';
+    return tr('访问被拒绝 · 检查账号权限', "Access denied · check the account's permissions");
   }
   if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
-    return '处理流程未启用 · 检查 Webhook';
+    return tr('处理流程未启用 · 检查 Webhook', 'Workflow not active · check the webhook');
   }
   if (/空响应|empty response|no response body/.test(error)) {
-    return '服务端未返回内容 · 检查处理流程';
+    return tr(
+      '服务端未返回内容 · 检查处理流程',
+      'The backend returned nothing · check the workflow',
+    );
   }
   if (/json|返回格式|unexpected token|parse response/.test(error)) {
-    return '服务返回格式异常 · 查看详情';
+    return tr('服务返回格式异常 · 查看详情', 'The backend returned a bad format · see details');
   }
   if (/timeout|timed out|etimedout|超时|aborterror/.test(error)) {
-    return '连接超时 · 检查服务或网络';
+    return tr('连接超时 · 检查服务或网络', 'Timed out · check the backend or network');
   }
   if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
-    return '无法连接处理服务 · 检查后端';
+    return tr('无法连接处理服务 · 检查后端', 'Cannot reach the backend · check it');
   }
   if (/cookie|download|下载|video unavailable|视频不可用|解析视频|提取视频/.test(error)) {
-    return '视频读取失败 · 查看详情';
+    return tr('视频读取失败 · 查看详情', 'Could not read the video · see details');
   }
   if (/enoent|eacces|permission denied|本地文件|local file|文件不存在/.test(error)) {
-    return '本机文件无法读取 · 检查路径权限';
+    return tr(
+      '本机文件无法读取 · 检查路径权限',
+      'Cannot read the local file · check its path and permissions',
+    );
   }
   if (/model|模型|gemini|openai|anthropic/.test(error)) {
-    return '模型处理失败 · 查看详情';
+    return tr('模型处理失败 · 查看详情', 'The model failed · see details');
   }
-  return '处理失败 · 点击查看详情';
+  return tr('处理失败 · 点击查看详情', 'Failed · click for details');
 }
 
 async function rerun(ctx: ViewContext, row: HistoryRow) {
@@ -530,7 +566,7 @@ async function rerun(ctx: ViewContext, row: HistoryRow) {
   }
   const file = findNote(ctx, row.title);
   if (!file) {
-    new Notice(`找不到笔记：${row.title}`);
+    new Notice(tr(`找不到笔记：${row.title}`, `Note not found: ${row.title}`));
     return;
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
@@ -540,7 +576,7 @@ async function rerun(ctx: ViewContext, row: HistoryRow) {
 function openNoteByName(ctx: ViewContext, name: string) {
   const file = findNote(ctx, name);
   if (!file) {
-    new Notice(`找不到笔记：${name}`);
+    new Notice(tr(`找不到笔记：${name}`, `Note not found: ${name}`));
     return;
   }
   void ctx.openNote(file.path);
@@ -555,26 +591,29 @@ function findNote(ctx: ViewContext, name: string): TFile | null {
 
 function summarize(job: Job): string {
   const result = job.result;
-  if (!result) return '等待确认';
+  if (!result) return tr('等待确认', 'Waiting for confirmation');
   const bits: string[] = [];
   if (result.video_title) bits.push(result.video_title);
   if (result.video_duration) bits.push(result.video_duration);
   if (result.summary) bits.push(`总结 ${result.summary.length} 字`);
   if (result.video_transcript) bits.push(`文稿 ${result.video_transcript.length} 字`);
-  return bits.join(' · ') || '结果已就绪，等待写入';
+  return bits.join(' · ') || tr('结果已就绪，等待写入', 'Result ready; waiting to be written');
 }
 
 /** 从 api 的 webhook 结果历史里取回一条：建新笔记、写入当前笔记或插到当前笔记末尾 */
 function showWebhookHistoryMenu(ctx: ViewContext, event: MouseEvent) {
   const history = ctx.plugin.api.getWebhookHistory();
   if (!history || history.length === 0) {
-    new Notice('还没有可复用的 webhook 结果');
+    new Notice(tr('还没有可复用的 webhook 结果', 'No reusable webhook result yet'));
     return;
   }
   showMenu(
     event,
     history.slice(0, 12).map((entry, index) => ({
-      title: `${index + 1}. ${entry.result.video_title || entry.input.url || '未命名'}`,
+      title: tr(
+        `${index + 1}. ${entry.result.video_title || entry.input.url || '未命名'}`,
+        `${index + 1}. ${entry.result.video_title || entry.input.url || 'untitled'}`,
+      ),
       icon: 'file-plus',
       onClick: () => showWebhookEntryActions(ctx, entry, event),
     })),
@@ -584,7 +623,7 @@ function showWebhookHistoryMenu(ctx: ViewContext, event: MouseEvent) {
 function showWebhookEntryActions(ctx: ViewContext, entry: WebhookHistoryEntry, event: MouseEvent) {
   showMenu(event, [
     {
-      title: '新建笔记',
+      title: tr('新建笔记', 'New note'),
       icon: 'file-plus',
       onClick: async () => {
         await ctx.plugin.jobService.createNoteFromJson(
@@ -595,7 +634,7 @@ function showWebhookEntryActions(ctx: ViewContext, entry: WebhookHistoryEntry, e
       },
     },
     {
-      title: '应用到当前笔记',
+      title: tr('应用到当前笔记', 'Apply to the current note'),
       icon: 'save',
       onClick: async () => {
         await ctx.plugin.jobService.applyToActiveNote(entry.result, entry.mode);
@@ -603,16 +642,16 @@ function showWebhookEntryActions(ctx: ViewContext, entry: WebhookHistoryEntry, e
       },
     },
     {
-      title: '插到当前笔记末尾',
+      title: tr('插到当前笔记末尾', 'Insert at the end of the current note'),
       icon: 'text-cursor-input',
       onClick: () => ctx.plugin.jobService.insertIntoActiveNote(entry.result),
     },
     {
-      title: '复制 JSON',
+      title: tr('复制 JSON', 'Copy JSON'),
       icon: 'clipboard',
       onClick: () => {
         void navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
-        new Notice('已复制');
+        new Notice(tr('已复制', 'Copied'));
       },
     },
   ]);
