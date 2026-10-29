@@ -21,8 +21,9 @@ English interface and a first result before any setup.
 - Settings line up on one left and one right edge: group text, headings, notes, button rows and
   dividers start at the same place, setup steps stay in one group, and buttons without a row name
   of their own sit on a plain row. The divider under the side panel tabs ends where the cards do.
-- Switches keep the knob 2px from every edge when off and on; pressing one shows Obsidian's own
-  pressed state.
+- Switches keep the knob 2px from every edge. Pressed, the knob stretches into a capsule inside the
+  track instead of growing past it, then turns round and slides when released; with reduced motion
+  it does not stretch.
 - The backend is unchanged: `video-summary-backend-2.8.0.zip` works with this version.
 
 ## 2.8.0

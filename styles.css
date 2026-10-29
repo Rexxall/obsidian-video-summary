@@ -340,9 +340,32 @@
 .ap .checkbox-container::after {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
   transition:
-    transform var(--ap-base) var(--ap-ease-spring),
-    width 0.1s ease-in-out 0.05s,
-    left 0.1s ease-in-out 0.05s;
+    width 0.08s ease-out,
+    left 0.08s ease-out,
+    transform var(--ap-base) var(--ap-ease-spring) 0.08s;
+}
+/* Pressed: the knob stretches to a 26px capsule inside the track, keeping its 2px margin; it grows away
+   from the end it rests on. Released, it turns round first, then slides. Repeated classes outrank
+   Obsidian's pressed bubble, which grows past the track. */
+:root .ap.ap .checkbox-container.checkbox-container:not(.is-disabled):active::after {
+  width: 26px;
+  height: var(--toggle-thumb-height);
+  margin-top: var(--toggle-border-width);
+  left: 0;
+  opacity: 1;
+}
+:root .ap.ap .checkbox-container.checkbox-container.is-enabled:not(.is-disabled):active::after {
+  left: -6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root .ap.ap .checkbox-container.checkbox-container:not(.is-disabled):active::after,
+  :root .ap.ap .checkbox-container.checkbox-container.is-enabled:not(.is-disabled):active::after {
+    width: var(--toggle-thumb-width);
+    left: 0;
+  }
+  .ap .checkbox-container::after {
+    transition: none;
+  }
 }
 
 /* ---------- Segmented control: capsule track, glass thumb ---------- */
