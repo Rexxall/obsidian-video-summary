@@ -3,6 +3,7 @@ import { VideoUtils } from '../utils/VideoUtils';
 import { safeInlineRasterDataUrl, safeRemoteImageUrl } from '../utils/SafeExternalUrl';
 
 import type { JsonRecord } from '../utils/json';
+import { tr } from '../utils/i18n';
 export interface VideoNoteEntry {
   path: string;
   basename: string;
@@ -608,16 +609,16 @@ export function detectPlatform(url: string): string {
 export function platformLabel(platform?: string): string {
   switch (platform) {
     case 'bilibili':
-      return 'B站';
+      return tr('B站', 'Bilibili');
     case 'youtube':
       return 'YouTube';
     case 'douyin':
-      return '抖音';
+      return tr('抖音', 'Douyin');
     case 'tiktok':
       return 'TikTok';
     case 'xiaohongshu':
-      return '小红书';
+      return tr('小红书', 'Xiaohongshu');
     default:
-      return '链接';
+      return tr('链接', 'Link');
   }
 }

@@ -3701,6 +3701,16 @@ body {
   padding: 2px;
   border-radius: var(--ap-r-pill);
   background: var(--ap-fill);
+  /* 窄侧栏或英文标签放不下时横向滑动，不裁掉后面的段 */
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ap :is(.vs-seg, .vs-segmented)::-webkit-scrollbar {
+  display: none;
+}
+.ap button.vs-seg-item {
+  flex-shrink: 0;
 }
 .ap button.vs-seg-item {
   justify-content: center;
