@@ -27,6 +27,7 @@ import { renderReaderPanel } from './ReaderPanel';
 import { fire } from '../../utils/fire';
 import { errorMessage } from '../../utils/errors';
 import { openPathInSystem } from '../../utils/desktop';
+import { isPlaceholderCover } from '../../core/CoverPlaceholder';
 /** 详情层：结果预览 + 写入方式 + 失败日志。写入笔记前能先看到要写什么。 */
 export function renderDetailPanel(container: HTMLElement, ctx: ViewContext) {
   const ref = ctx.state.detail;
@@ -66,6 +67,8 @@ function renderBanner(
   const banner = container.createDiv({
     cls: `vs-banner ${platformClass(options.platform)}`,
   });
+  // Shown only when there is no usable cover (.is-empty)
+  setIcon(banner.createSpan({ cls: 'vs-banner-icon', attr: { 'aria-hidden': 'true' } }), 'play');
   if (options.cover) {
     const img = banner.createEl('img', {
       cls: 'vs-banner-img',
@@ -76,7 +79,17 @@ function renderBanner(
         referrerpolicy: 'no-referrer',
       },
     });
-    img.addEventListener('error', () => img.remove());
+    const drop = () => {
+      img.remove();
+      banner.addClass('is-empty');
+    };
+    img.addEventListener('error', drop);
+    // YouTube's grey 120×90 stand-in is not a cover
+    img.addEventListener('load', () => {
+      if (isPlaceholderCover(options.cover ?? '', img.naturalWidth, img.naturalHeight)) drop();
+    });
+  } else {
+    banner.addClass('is-empty');
   }
   banner.createSpan({ cls: 'vs-banner-bar' });
   iconButton(banner, 'arrow-left', '返回列表', () => ctx.closeDetail(), 'vs-banner-back');

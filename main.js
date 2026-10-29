@@ -11380,6 +11380,7 @@ function renderBanner(container, ctx, options) {
   const banner = container.createDiv({
     cls: `vs-banner ${platformClass(options.platform)}`
   });
+  (0, import_obsidian13.setIcon)(banner.createSpan({ cls: "vs-banner-icon", attr: { "aria-hidden": "true" } }), "play");
   if (options.cover) {
     const img = banner.createEl("img", {
       cls: "vs-banner-img",
@@ -11390,7 +11391,16 @@ function renderBanner(container, ctx, options) {
         referrerpolicy: "no-referrer"
       }
     });
-    img.addEventListener("error", () => img.remove());
+    const drop = () => {
+      img.remove();
+      banner.addClass("is-empty");
+    };
+    img.addEventListener("error", drop);
+    img.addEventListener("load", () => {
+      if (isPlaceholderCover(options.cover ?? "", img.naturalWidth, img.naturalHeight)) drop();
+    });
+  } else {
+    banner.addClass("is-empty");
   }
   banner.createSpan({ cls: "vs-banner-bar" });
   iconButton(banner, "arrow-left", "\u8FD4\u56DE\u5217\u8868", () => ctx.closeDetail(), "vs-banner-back");

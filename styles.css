@@ -753,6 +753,370 @@
   box-shadow: var(--ap-glass-edge), var(--ap-shadow-2);
 }
 
+/* ---------- Action bar: glass, one or two capsules, in place of a row of text links ----------
+   <div class="ap-actionbar"><span class="ap-actionbar-note">3 selected</span>
+     <button class="ap-btn">Cancel</button><button class="ap-btn is-primary">Import</button></div>
+   Sticks to the bottom of whatever scrolls; content fades out under its top edge. */
+.ap-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ap-s2);
+  padding: var(--ap-s2) var(--ap-s2) var(--ap-s2) var(--ap-s4);
+  border-radius: var(--ap-r-pill);
+  background: var(--ap-glass);
+  -webkit-backdrop-filter: var(--ap-blur);
+  backdrop-filter: var(--ap-blur);
+  box-shadow: var(--ap-glass-edge), var(--ap-shadow-2);
+}
+.ap-actionbar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 16px;
+  pointer-events: none;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--ap-page) 70%, transparent));
+}
+.ap-actionbar-note {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--ap-callout);
+  color: var(--ap-label-2);
+}
+.ap-actionbar.is-flush {
+  border-radius: 0;
+  margin-inline: calc(-1 * var(--ap-s4));
+  padding-inline: var(--ap-s4);
+  box-shadow: inset 0 0.5px 0 var(--ap-sep);
+}
+.ap-actionbar.is-flush::before {
+  display: none;
+}
+
+/* ---------- Row actions: icons that appear on hover, focus and touch ----------
+   <div class="ap-row"> … <div class="ap-row-actions"><button class="ap-icon-btn" aria-label="Edit">…svg…</button></div></div>
+   Hidden until the row is hovered or something in it has focus; always shown where there is no hover. */
+.ap-icon-btn {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--ap-r-pill);
+  color: var(--ap-label-2);
+  transition:
+    background var(--ap-fast) var(--ap-ease),
+    color var(--ap-fast) var(--ap-ease);
+}
+.ap-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.ap-icon-btn:hover {
+  background: var(--ap-fill);
+  color: var(--ap-label);
+}
+.ap-icon-btn:focus-visible {
+  outline: 2px solid var(--ap-accent);
+  outline-offset: 1px;
+}
+.ap-icon-btn.is-danger:hover {
+  color: var(--ap-bad);
+  background: color-mix(in srgb, var(--ap-bad) 12%, transparent);
+}
+.ap-row-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--ap-fast) var(--ap-ease);
+}
+:is(.ap-row, .ap-item, .setting-item):hover > .ap-row-actions,
+:is(.ap-row, .ap-item, .setting-item):focus-within > .ap-row-actions,
+.ap-row-actions:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .ap-row-actions {
+    opacity: 1;
+  }
+}
+.is-mobile .ap-row-actions {
+  opacity: 1;
+}
+
+/* ---------- Picker: a capsule in place of a native <select> or date field ----------
+   <button class="ap-picker" aria-haspopup="listbox" aria-expanded="false"><span class="ap-picker-value">Auto</span></button>
+   Opens .ap-menu, a glass popover list (see the helper in 74 appendix B for the behaviour). */
+.ap-picker {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  flex: none;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12px/16px var(--ap-font);
+  color: var(--ap-label);
+  padding: 5px 10px 5px 12px;
+  border-radius: var(--ap-r-pill);
+  background: var(--ap-fill);
+  transition: background var(--ap-fast) var(--ap-ease);
+}
+.ap-picker:hover,
+.ap-picker[aria-expanded='true'] {
+  background: var(--ap-fill-strong);
+}
+/* Obsidian styles every <button> (button:not(.clickable-icon)); win over it inside .ap */
+.ap button.ap-picker,
+.ap button.ap-icon-btn {
+  height: auto;
+  border: 0;
+  box-shadow: none;
+  background: var(--ap-fill);
+  color: var(--ap-label);
+}
+.ap button.ap-icon-btn {
+  background: none;
+  color: var(--ap-label-2);
+}
+.ap button.ap-picker:hover,
+.ap button.ap-picker[aria-expanded='true'] {
+  background: var(--ap-fill-strong);
+}
+.ap button.ap-icon-btn:hover {
+  background: var(--ap-fill);
+  color: var(--ap-label);
+}
+.ap button.ap-picker.is-plain {
+  background: none;
+  color: var(--ap-accent);
+}
+.ap-picker:focus-visible {
+  outline: 2px solid var(--ap-accent);
+  outline-offset: 2px;
+}
+.ap-picker-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Up-down chevron, drawn with two borders so no icon font is needed */
+.ap-picker::after {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin: -2px 2px 0 2px;
+  border: solid var(--ap-label-2);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.ap-picker.is-plain {
+  background: none;
+  color: var(--ap-accent);
+  padding-inline: 6px;
+}
+.ap-picker.is-plain::after {
+  border-color: currentColor;
+}
+.ap-menu {
+  position: fixed;
+  z-index: var(--layer-menu, 65);
+  box-sizing: border-box;
+  min-width: 180px;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(360px, 60vh);
+  overflow: auto;
+  display: grid;
+  gap: 1px;
+  padding: 5px;
+  border-radius: 14px;
+  background: var(--ap-glass);
+  -webkit-backdrop-filter: var(--ap-blur);
+  backdrop-filter: var(--ap-blur);
+  box-shadow: var(--ap-glass-edge), var(--ap-shadow-2);
+  font: var(--ap-body);
+  color: var(--ap-label);
+  animation: ap-menu-in var(--ap-base) var(--ap-ease);
+  transform-origin: top center;
+}
+@keyframes ap-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.ap-menu-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 9px;
+  cursor: pointer;
+  outline: none;
+}
+.ap-menu-item::before {
+  content: '';
+  width: 10px;
+  height: 5px;
+  margin: -3px 0 0 3px;
+  transform: rotate(-45deg);
+  border: solid transparent;
+  border-width: 0 0 1.8px 1.8px;
+}
+.ap-menu-item[aria-selected='true']::before {
+  border-color: currentColor;
+}
+.ap-menu-item:hover,
+.ap-menu-item.is-focused {
+  background: var(--ap-accent);
+  color: var(--ap-on-accent);
+}
+.ap-menu-item:hover .ap-menu-desc,
+.ap-menu-item.is-focused .ap-menu-desc {
+  color: color-mix(in srgb, var(--ap-on-accent) 78%, transparent);
+}
+.ap-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-menu-desc {
+  grid-column: 2 / -1;
+  font: var(--ap-subhead);
+  color: var(--ap-label-2);
+}
+.ap-menu-sep {
+  height: 0.5px;
+  margin: 4px 8px;
+  background: var(--ap-sep);
+}
+/* A month grid inside .ap-menu, for dates */
+.ap-cal {
+  display: grid;
+  gap: 6px;
+  padding: 4px;
+}
+.ap-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: var(--ap-headline);
+  padding-inline: 4px;
+}
+.ap-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 30px);
+  gap: 2px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ap-cal-dow {
+  font: var(--ap-caption);
+  color: var(--ap-label-3);
+  line-height: 22px;
+}
+.ap-cal-day {
+  all: unset;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  height: 30px;
+  border-radius: var(--ap-r-pill);
+  font: var(--ap-body);
+}
+.ap-cal-day:hover {
+  background: var(--ap-fill);
+}
+.ap-cal-day.is-other {
+  color: var(--ap-label-3);
+}
+.ap-cal-day.is-today {
+  color: var(--ap-accent);
+  font-weight: 600;
+}
+.ap-cal-day[aria-selected='true'] {
+  background: var(--ap-accent);
+  color: var(--ap-on-accent);
+  font-weight: 600;
+}
+.ap-cal-day:focus-visible {
+  outline: 2px solid var(--ap-accent);
+  outline-offset: 1px;
+}
+
+/* ---------- Disclosure row: a grouped row with a chevron that turns, in place of a bare ▸ ----------
+   <details class="ap-disclosure"><summary class="ap-row">…</summary><div class="ap-disclosure-body">…</div></details>
+   Works inside .ap-group; nest them for a tree. */
+.ap-disclosure > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.ap-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.ap-disclosure > summary::after {
+  content: '';
+  flex: none;
+  order: 99;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border: solid var(--ap-label-3);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+  transition: transform var(--ap-base) var(--ap-ease);
+}
+.ap-disclosure[open] > summary::after {
+  transform: rotate(45deg);
+}
+.ap-disclosure > summary:hover {
+  background: var(--ap-fill);
+}
+.ap-disclosure > summary:focus-visible {
+  outline: 2px solid var(--ap-accent);
+  outline-offset: -2px;
+  border-radius: var(--ap-r-field);
+}
+.ap-disclosure-body {
+  padding: 0 var(--ap-s4) var(--ap-s3);
+  font: var(--ap-callout);
+  color: var(--ap-label-2);
+}
+.ap-disclosure-body > .ap-group {
+  margin-top: var(--ap-s1);
+}
+.ap-disclosure.is-leading > summary::after {
+  order: -1;
+  margin: 0 2px 0 0;
+}
+.ap-group > .ap-disclosure + .ap-disclosure > summary::before,
+.ap-group > .ap-row + .ap-disclosure > summary::before,
+.ap-group > .ap-disclosure + .ap-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: var(--ap-s4);
+  border-top: 0.5px solid var(--ap-sep);
+}
+
 /* ---------- Obsidian's translucent window ----------
    With Appearance → Translucent window on, Obsidian adds .is-translucent to body and the
    wallpaper shows through the app. Panel backgrounds then step back to a faint tint so it
@@ -1654,6 +2018,14 @@ body {
   .video-summary-view .vs-row-status {
     opacity: 0;
   }
+}
+/* Touch devices without a coarse pointer report (and Obsidian's mobile emulation) */
+.is-mobile .video-summary-view .vs-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.is-mobile .video-summary-view .vs-row-status {
+  opacity: 0;
 }
 
 /* 失败行下面的下一步 */
@@ -3654,4 +4026,28 @@ body {
 .ap .vs-thumb.is-empty:has(.vs-thumb-time) .vs-thumb-placeholder {
   justify-content: flex-start;
   padding-left: 6px;
+}
+
+/* Phones: Obsidian drops the modal's own padding, so give the sheet content an inset */
+.is-phone .modal.ap-modal > .modal-content {
+  padding: var(--ap-s4);
+}
+
+/* Detail banner without a cover: platform tint and a play icon instead of a grey block */
+.video-summary-view .vs-banner-icon {
+  display: none;
+}
+.video-summary-view .vs-banner.is-empty {
+  background: color-mix(in srgb, var(--vs-pf) 12%, var(--ap-page));
+}
+.video-summary-view .vs-banner.is-empty .vs-banner-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--vs-pf);
+}
+.video-summary-view .vs-banner.is-empty .vs-banner-icon svg {
+  width: 32px;
+  height: 32px;
 }

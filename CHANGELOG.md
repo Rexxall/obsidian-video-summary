@@ -24,6 +24,8 @@ Community-directory release.
   language switch use theme classes instead of inline styles.
 - Command names no longer start with emoji, so they read cleanly in the command palette.
 - Deleting a note from the library follows your Obsidian "Deleted files" setting.
+- Passes the Obsidian community directory's automated review (eslint-plugin-obsidianmd recommended set) with no errors: replies from the webhook, the Worker and the browser are read as untyped data and checked field by field; js-yaml and builtin-modules are gone, the plugin uses Obsidian's own YAML functions.
+- Phones: row actions stay visible without hover, dialogs keep their inner margins, and a video without a cover shows its platform icon in the detail banner too.
 - Requires Obsidian 1.8.7 or later.
 
 ## 2.6.0
