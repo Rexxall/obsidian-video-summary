@@ -5129,17 +5129,17 @@ function detectPlatform2(url) {
 function platformLabel(platform) {
   switch (platform) {
     case "bilibili":
-      return "B\u7AD9";
+      return tr("B\u7AD9", "Bilibili");
     case "youtube":
       return "YouTube";
     case "douyin":
-      return "\u6296\u97F3";
+      return tr("\u6296\u97F3", "Douyin");
     case "tiktok":
       return "TikTok";
     case "xiaohongshu":
-      return "\u5C0F\u7EA2\u4E66";
+      return tr("\u5C0F\u7EA2\u4E66", "Xiaohongshu");
     default:
-      return "\u94FE\u63A5";
+      return tr("\u94FE\u63A5", "Link");
   }
 }
 
@@ -6157,7 +6157,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     const chipRow = bodyEl.createDiv({ cls: "vs-chip-row" });
     configChip(
       chipRow,
-      "\u5904\u7406\u6A21\u5F0F",
+      tr("\u5904\u7406\u6A21\u5F0F", "Processing mode"),
       processingModes().find((item) => item.value === this.mode)?.label || tr("\u5B8C\u6574\u603B\u7ED3", "Full summary"),
       processingModes().map((item) => ({
         title: item.label,
@@ -6169,7 +6169,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     );
     configChip(
       chipRow,
-      "\u8F93\u51FA\u8BED\u8A00",
+      tr("\u8F93\u51FA\u8BED\u8A00", "Output language"),
       LANGUAGE_OPTIONS.find((item) => item.value === this.language)?.label || "\u4E2D\u6587",
       LANGUAGE_OPTIONS.map((item) => ({
         title: item.label,
@@ -6200,16 +6200,16 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       })
     );
     const statusLabels = {
-      all: "\u5168\u90E8\u72B6\u6001",
+      all: tr("\u5168\u90E8\u72B6\u6001", "All statuses"),
       pending: "\u5F85\u5904\u7406",
       error: "\u5904\u7406\u5931\u8D25",
-      processed: "\u5DF2\u5904\u7406"
+      processed: tr("\u5DF2\u5904\u7406", "Processed")
     };
     const dateLabels = {
-      all: "\u5168\u90E8\u65F6\u95F4",
-      today: "\u4ECA\u5929",
-      week: "\u672C\u5468",
-      month: "\u672C\u6708"
+      all: tr("\u5168\u90E8\u65F6\u95F4", "Any time"),
+      today: tr("\u4ECA\u5929", "Today"),
+      week: tr("\u672C\u5468", "This week"),
+      month: tr("\u672C\u6708", "This month")
     };
     const applied = [
       this.statusFilter !== "all" ? statusLabels[this.statusFilter] : "",
@@ -6223,7 +6223,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     };
     this.filterPill(
       this.filterEl,
-      applied.length ? applied.join(" \xB7 ") : "\u7B5B\u9009",
+      applied.length ? applied.join(" \xB7 ") : tr("\u7B5B\u9009", "Filter"),
       () => [
         ...Object.entries(statusLabels).map(([value, label]) => ({
           title: label,
@@ -6251,7 +6251,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     iconButton(
       quickRow,
       "more-horizontal",
-      "\u9009\u62E9",
+      tr("\u9009\u62E9", "Select"),
       (event) => showMenu(event, [
         {
           title: tr("\u5168\u9009", "Select all"),
@@ -6832,7 +6832,10 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       this.progress.status = "complete";
       this.progress.current = "";
       this.updateProgressDisplay();
-      const successText = `\u6279\u91CF\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`;
+      const successText = tr(
+        `\u6279\u91CF\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`,
+        `Batch finished. Succeeded: ${this.progress.completed}, failed: ${this.progress.failed}`
+      );
       new import_obsidian7.Notice(successText, 5e3);
     } catch (error) {
       console.error("\u6279\u91CF\u5904\u7406\u5931\u8D25:", error);
@@ -7015,7 +7018,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     return byKey;
   }
   async resolveCourseIndexPath(manifest) {
-    const folder = [this.plugin.settings.outputFolder || "", "\u8BFE\u7A0B"].filter(Boolean).join("/");
+    const folder = [this.plugin.settings.outputFolder || "", tr("\u8BFE\u7A0B", "Lecture")].filter(Boolean).join("/");
     await this.ensureDirectoryExists(folder);
     const base = courseIndexBaseName(manifest);
     let path = folder ? `${folder}/${base}.md` : `${base}.md`;
@@ -7047,7 +7050,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
   updateProgressDisplay() {
     if (!this.progressEl) return;
     this.progressEl.empty();
-    const statusText = this.progress.status === "running" ? "\u23F3 \u5904\u7406\u4E2D" : this.progress.status === "complete" ? "\u2705 \u5B8C\u6210" : this.progress.status === "error" ? "\u274C \u9519\u8BEF" : "\u{1F4FA} \u5C31\u7EEA";
+    const statusText = this.progress.status === "running" ? tr("\u23F3 \u5904\u7406\u4E2D", "\u23F3 Processing") : this.progress.status === "complete" ? tr("\u2705 \u5B8C\u6210", "\u2705 Done") : this.progress.status === "error" ? tr("\u274C \u9519\u8BEF", "\u274C Error") : tr("\u{1F4FA} \u5C31\u7EEA", "\u{1F4FA} Ready");
     this.progressEl.createEl("h3", {
       text: tr(`\u6279\u91CF\u5904\u7406\u72B6\u6001: ${statusText}`, `Batch status: ${statusText}`)
     });
@@ -10182,7 +10185,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
           console.debug(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
         onProgress?.({
-          stageLabel: "\u547D\u4E2D\u7F13\u5B58",
+          stageLabel: tr("\u547D\u4E2D\u7F13\u5B58", "From cache"),
           progress: 1,
           message: tr("\u547D\u4E2D\u7F13\u5B58\uFF0C\u672A\u8BF7\u6C42\u540E\u7AEF", "From cache; the backend was not called")
         });
@@ -11198,7 +11201,7 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
    */
   static async probeEndpoint(url, backend, timeoutMs = 4e3, n8nBody, n8nAuth) {
     if (!url || !url.trim()) {
-      return { ok: false, error: "\u670D\u52A1 URL \u672A\u914D\u7F6E" };
+      return { ok: false, error: tr("\u670D\u52A1 URL \u672A\u914D\u7F6E", "Service URL not set") };
     }
     if (backend === "codex-worker") {
       let probeUrl;
@@ -11248,7 +11251,10 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
       } catch (error) {
         return {
           ok: false,
-          error: error?.name === "TimeoutError" ? `${timeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09` : error?.message || String(error)
+          error: error?.name === "TimeoutError" ? tr(
+            `${timeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09`,
+            `No answer within ${timeoutMs}ms (the service may not be running)`
+          ) : error?.message || String(error)
         };
       }
     }
@@ -11268,14 +11274,29 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
         controller.signal
       );
       if (response.status === 404) {
-        return { ok: false, error: "HTTP 404 \u2014 webhook \u4E0D\u5B58\u5728\u6216 workflow \u672A\u6FC0\u6D3B" };
+        return {
+          ok: false,
+          error: tr(
+            "HTTP 404 \u2014 webhook \u4E0D\u5B58\u5728\u6216 workflow \u672A\u6FC0\u6D3B",
+            "HTTP 404 \u2014 the webhook does not exist or the workflow is not active"
+          )
+        };
       }
       if (!response.ok) {
-        return { ok: false, error: `HTTP ${response.status} \u2014 webhook \u5065\u5EB7\u68C0\u67E5\u5931\u8D25` };
+        return {
+          ok: false,
+          error: tr(
+            `HTTP ${response.status} \u2014 webhook \u5065\u5EB7\u68C0\u67E5\u5931\u8D25`,
+            `HTTP ${response.status} \u2014 webhook health check failed`
+          )
+        };
       }
       return { ok: true };
     } catch (error) {
-      const message = error?.name === "AbortError" ? `${timeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09` : error?.message || String(error);
+      const message = error?.name === "AbortError" ? tr(
+        `${timeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09`,
+        `No answer within ${timeoutMs}ms (the service may not be running)`
+      ) : error?.message || String(error);
       return { ok: false, error: message };
     } finally {
       window.clearTimeout(timer);
@@ -11329,7 +11350,7 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
         };
       }
       if (!text2 || text2.trim() === "") {
-        const error = "\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94";
+        const error = tr("\u670D\u52A1\u5668\u8FD4\u56DE\u7A7A\u54CD\u5E94", "The server returned an empty response");
         return {
           success: false,
           durationMs,
@@ -11346,10 +11367,15 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
             durationMs,
             status: response.status,
             bodySnippet: snippet,
-            warnings: ["\u5F53\u524D\u5DE5\u4F5C\u6D41\u6D4B\u8BD5\u5206\u652F\u672A\u8FD4\u56DE\u7248\u672C\u4FE1\u606F\u3002\u5EFA\u8BAE\u91CD\u65B0\u5BFC\u5165\u4ED3\u5E93\u5185\u6700\u65B0 workflow\u3002"]
+            warnings: [
+              tr(
+                "\u5F53\u524D\u5DE5\u4F5C\u6D41\u6D4B\u8BD5\u5206\u652F\u672A\u8FD4\u56DE\u7248\u672C\u4FE1\u606F\u3002\u5EFA\u8BAE\u91CD\u65B0\u5BFC\u5165\u4ED3\u5E93\u5185\u6700\u65B0 workflow\u3002",
+                "This workflow's test branch returned no version. Import the latest workflow from the repository again."
+              )
+            ]
           };
         }
-        const error = "\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u4E0D\u662F JSON";
+        const error = tr("\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u4E0D\u662F JSON", "The server did not return JSON");
         return {
           success: false,
           durationMs,
@@ -11520,31 +11546,57 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
   getWorkflowCompatibilityWarnings(workflow) {
     if (this.backend !== "n8n") return [];
     if (!workflow) {
-      return ["\u5F53\u524D\u5DE5\u4F5C\u6D41\u672A\u8FD4\u56DE\u7248\u672C\u4FE1\u606F\u3002\u5EFA\u8BAE\u91CD\u65B0\u5BFC\u5165\u4ED3\u5E93\u5185\u6700\u65B0 workflow \u540E\u518D\u8FD0\u884C\u8BCA\u65AD\u3002"];
+      return [
+        tr(
+          "\u5F53\u524D\u5DE5\u4F5C\u6D41\u672A\u8FD4\u56DE\u7248\u672C\u4FE1\u606F\u3002\u5EFA\u8BAE\u91CD\u65B0\u5BFC\u5165\u4ED3\u5E93\u5185\u6700\u65B0 workflow \u540E\u518D\u8FD0\u884C\u8BCA\u65AD\u3002",
+          "This workflow returned no version. Import the latest workflow from the repository, then run diagnostics again."
+        )
+      ];
     }
     const warnings = [];
     if (workflow.version && workflow.version !== RECOMMENDED_WORKFLOW.version) {
       warnings.push(
-        `\u5F53\u524D workflow \u7248\u672C\u662F ${workflow.version}\uFF0C\u63A8\u8350\u7248\u672C\u662F ${RECOMMENDED_WORKFLOW.version}\u3002`
+        tr(
+          `\u5F53\u524D workflow \u7248\u672C\u662F ${workflow.version}\uFF0C\u63A8\u8350\u7248\u672C\u662F ${RECOMMENDED_WORKFLOW.version}\u3002`,
+          `This workflow is version ${workflow.version}; the recommended version is ${RECOMMENDED_WORKFLOW.version}.`
+        )
       );
     }
     if (!workflow.version) {
-      warnings.push(`workflow \u672A\u58F0\u660E\u7248\u672C\u3002\u63A8\u8350\u7248\u672C\u662F ${RECOMMENDED_WORKFLOW.version}\u3002`);
+      warnings.push(
+        tr(
+          `workflow \u672A\u58F0\u660E\u7248\u672C\u3002\u63A8\u8350\u7248\u672C\u662F ${RECOMMENDED_WORKFLOW.version}\u3002`,
+          `The workflow declares no version. The recommended version is ${RECOMMENDED_WORKFLOW.version}.`
+        )
+      );
     }
     if (workflow.webhookPath && workflow.webhookPath !== RECOMMENDED_WORKFLOW.webhookPath) {
       warnings.push(
-        `\u5F53\u524D webhook path \u662F ${workflow.webhookPath}\uFF0C\u63A8\u8350 path \u662F ${RECOMMENDED_WORKFLOW.webhookPath}\u3002`
+        tr(
+          `\u5F53\u524D webhook path \u662F ${workflow.webhookPath}\uFF0C\u63A8\u8350 path \u662F ${RECOMMENDED_WORKFLOW.webhookPath}\u3002`,
+          `This webhook path is ${workflow.webhookPath}; the recommended path is ${RECOMMENDED_WORKFLOW.webhookPath}.`
+        )
       );
     }
     const models = workflow.models || [];
     const missingModels = RECOMMENDED_WORKFLOW.models.filter((model) => !models.includes(model));
     if (models.length > 0 && missingModels.length > 0) {
-      warnings.push(`workflow \u672A\u58F0\u660E\u63A8\u8350\u6A21\u578B\u6807\u7B7E: ${missingModels.join(", ")}\u3002`);
+      warnings.push(
+        tr(
+          `workflow \u672A\u58F0\u660E\u63A8\u8350\u6A21\u578B\u6807\u7B7E: ${missingModels.join(", ")}\u3002`,
+          `The workflow does not declare the recommended model tags: ${missingModels.join(", ")}.`
+        )
+      );
     }
     const tools = workflow.requiredTools || [];
     const missingTools = RECOMMENDED_WORKFLOW.requiredTools.filter((tool) => !tools.includes(tool));
     if (tools.length > 0 && missingTools.length > 0) {
-      warnings.push(`workflow \u672A\u58F0\u660E\u63A8\u8350\u5A92\u4F53\u5DE5\u5177: ${missingTools.join(", ")}\u3002`);
+      warnings.push(
+        tr(
+          `workflow \u672A\u58F0\u660E\u63A8\u8350\u5A92\u4F53\u5DE5\u5177: ${missingTools.join(", ")}\u3002`,
+          `The workflow does not declare the recommended media tools: ${missingTools.join(", ")}.`
+        )
+      );
     }
     return warnings;
   }
@@ -11899,7 +11951,7 @@ function renderActionBar(container, ctx) {
   iconButton(
     boxBar,
     "folder-open",
-    "\u9009\u62E9\u672C\u673A\u97F3\u89C6\u9891",
+    tr("\u9009\u62E9\u672C\u673A\u97F3\u89C6\u9891", "Choose a local audio or video file"),
     () => pickLocalFiles(ctx, input),
     "vs-add-file"
   );
@@ -11911,9 +11963,9 @@ function renderActionBar(container, ctx) {
   bindFileDrop(box, ctx, input);
   const quick = currentQuickMode(ctx);
   const quickLabels = {
-    transcript: "\u53EA\u8981\u6587\u7A3F",
-    summary: "\u603B\u7ED3",
-    evidence: "\u8BC1\u636E"
+    transcript: tr("\u53EA\u8981\u6587\u7A3F", "Transcript only"),
+    summary: tr("\u603B\u7ED3", "Summary"),
+    evidence: tr("\u8BC1\u636E", "Evidence")
   };
   const fold = root.createDiv({ cls: `vs-fold${state.advancedOpen ? " is-open" : ""}` });
   const foldToggle = fold.createEl("button", {
@@ -11925,7 +11977,7 @@ function renderActionBar(container, ctx) {
     cls: "vs-fold-value",
     text: [
       quick ? quickLabels[quick] : modeLabel(ctx.plugin.settings.defaultMode),
-      ctx.plugin.settings.generateLearningArtifacts ? "\u5B66\u4E60\u5361" : ""
+      ctx.plugin.settings.generateLearningArtifacts ? tr("\u5B66\u4E60\u5361", "Study cards") : ""
     ].filter(Boolean).join(" \xB7 ")
   });
   (0, import_obsidian10.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
@@ -11990,7 +12042,7 @@ function renderHeader(root, ctx) {
   iconButton(
     header,
     "more-horizontal",
-    "\u66F4\u591A",
+    tr("\u66F4\u591A", "More"),
     (event) => showMoreMenu(ctx, event),
     "vs-header-more"
   );
@@ -12127,7 +12179,11 @@ async function probeBackend(ctx, backend, force = false) {
   const pending = (async () => {
     const checkedAt = Date.now();
     if (!backend.endpoint) {
-      return { state: "is-offline", checkedAt, reason: "\u672A\u914D\u7F6E\u670D\u52A1\u5730\u5740" };
+      return {
+        state: "is-offline",
+        checkedAt,
+        reason: tr("\u672A\u914D\u7F6E\u670D\u52A1\u5730\u5740", "No service address set")
+      };
     }
     try {
       if (force) {
@@ -12186,7 +12242,10 @@ function updateBackendPill(pill, dot, label, backend, state, result) {
   dot.className = `vs-backend-dot ${state}`;
   if (state === "is-checking") {
     label.setText(tr(`\u6B63\u5728\u68C0\u6D4B ${backend.label}\u2026`, `Checking ${backend.label}\u2026`));
-    pill.setAttr("title", `${backend.label}\uFF1A\u6B63\u5728\u68C0\u6D4B\u8FDE\u63A5`);
+    pill.setAttr(
+      "title",
+      tr(`${backend.label}\uFF1A\u6B63\u5728\u68C0\u6D4B\u8FDE\u63A5`, `${backend.label}: checking connection`)
+    );
     return;
   }
   if (state === "is-online") {
@@ -12194,25 +12253,34 @@ function updateBackendPill(pill, dot, label, backend, state, result) {
     label.setText(tr(`${backend.label} \u5DF2\u8FDE\u63A5`, `${backend.label} connected`));
     pill.setAttr(
       "title",
-      `${backend.label} ${reachabilityOnly ? "\u7AEF\u70B9\u53EF\u8FBE\uFF0C\u5C1A\u672A\u9A8C\u8BC1\u5B8C\u6574\u54CD\u5E94" : "\u5728\u7EBF"}${result?.durationMs !== void 0 ? ` \xB7 ${result.durationMs}ms` : ""}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u8FD0\u884C\u5B8C\u6574\u68C0\u6D4B`
+      tr(
+        `${backend.label} ${reachabilityOnly ? "\u7AEF\u70B9\u53EF\u8FBE\uFF0C\u5C1A\u672A\u9A8C\u8BC1\u5B8C\u6574\u54CD\u5E94" : "\u5728\u7EBF"}${result?.durationMs !== void 0 ? ` \xB7 ${result.durationMs}ms` : ""}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u8FD0\u884C\u5B8C\u6574\u68C0\u6D4B`,
+        `${backend.label} ${reachabilityOnly ? "endpoint reachable, full response not yet verified" : "online"}${result?.durationMs !== void 0 ? ` \xB7 ${result.durationMs}ms` : ""}${result ? ` \xB7 last checked ${formatProbeTime(result.checkedAt)}` : ""}; click to run a full check`
+      )
     );
     return;
   }
   if (state === "is-offline") {
-    const reason = result?.reason || "\u65E0\u6CD5\u8FDE\u63A5";
+    const reason = result?.reason || tr("\u65E0\u6CD5\u8FDE\u63A5", "Unreachable");
     label.setText(
       tr(`${backend.label} \u672A\u8FDE\u63A5 \xB7 ${reason}`, `${backend.label} not connected \xB7 ${reason}`)
     );
     pill.setAttr(
       "title",
-      `${backend.label} \u79BB\u7EBF\uFF1A${reason}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u91CD\u65B0\u68C0\u6D4B`
+      tr(
+        `${backend.label} \u79BB\u7EBF\uFF1A${reason}${result ? ` \xB7 \u6700\u8FD1\u68C0\u6D4B ${formatProbeTime(result.checkedAt)}` : ""}\uFF1B\u70B9\u51FB\u91CD\u65B0\u68C0\u6D4B`,
+        `${backend.label} offline: ${reason}${result ? ` \xB7 last checked ${formatProbeTime(result.checkedAt)}` : ""}; click to check again`
+      )
     );
     return;
   }
   label.setText(
     tr(`${backend.label} \u672A\u68C0\u6D4B \xB7 \u70B9\u6B64\u6D4B\u8BD5`, `${backend.label} not checked \xB7 click to test`)
   );
-  pill.setAttr("title", `${backend.label}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5`);
+  pill.setAttr(
+    "title",
+    tr(`${backend.label}\uFF1A\u70B9\u51FB\u6D4B\u8BD5\u8FDE\u63A5`, `${backend.label}: click to test the connection`)
+  );
 }
 function formatProbeTime(timestamp) {
   return new Date(timestamp).toLocaleTimeString("zh-CN", {
@@ -12247,7 +12315,7 @@ function renderContextStrip(root, ctx) {
   const entry = ctx.plugin.noteIndex.get(activeFile.path);
   const frontmatter = ctx.plugin.app.metadataCache.getFileCache(activeFile)?.frontmatter;
   const isVideoNote = entry !== void 0 || VideoUtils.isVideoNoteFromFrontmatter(frontmatter);
-  if (!isVideoNote) return;
+  if (!isVideoNote || frontmatter?.video_summary_demo === true) return;
   const status = entry ? noteDisplayStatus(entry, ctx.plugin.jobs) : "pending";
   const meta = statusMeta(status);
   const strip = root.createDiv({ cls: "vs-context-strip" });
@@ -12267,7 +12335,7 @@ function renderContextStrip(root, ctx) {
     const artifactId = entry.artifactId;
     textButton(
       strip,
-      "\u966A\u8BFB",
+      tr("\u966A\u8BFB", "Read along"),
       () => ctx.openDetail({ kind: "note", path: entry.path, artifactId }),
       "vs-context-action"
     );
@@ -12275,14 +12343,14 @@ function renderContextStrip(root, ctx) {
   if (status === "review" && liveJob) {
     textButton(
       strip,
-      "\u786E\u8BA4",
+      tr("\u786E\u8BA4", "Confirm"),
       () => ctx.openDetail({ kind: "job", id: liveJob.id }),
       "vs-context-action"
     );
   } else if (status !== "running" && status !== "queued") {
     textButton(
       strip,
-      status === "success" || status === "interrupted" ? "\u91CD\u8DD1" : "\u5904\u7406",
+      status === "success" || status === "interrupted" ? tr("\u91CD\u8DD1", "Run again") : tr("\u5904\u7406", "Process"),
       fire(async () => {
         await ctx.plugin.jobService.submitFile(activeFile, ctx.submitOptions());
         ctx.state.tab = "jobs";
@@ -12300,7 +12368,7 @@ function renderOptions(container, ctx) {
     el.createSpan({ text: label, cls: "vs-opt-label" });
     return el.createDiv({ cls: "vs-opt-value" });
   };
-  const modeHost = row("\u5904\u7406\u65B9\u5F0F");
+  const modeHost = row(tr("\u5904\u7406\u65B9\u5F0F", "Processing mode"));
   segmented(
     modeHost,
     ["summary", "transcript-only", "info-only"].map((mode) => ({
@@ -12315,12 +12383,12 @@ function renderOptions(container, ctx) {
     })
   );
   const depthLabels = {
-    quick: "\u6781\u901F",
-    evidence: "\u8BC1\u636E",
-    "deep-visual": "\u6DF1\u5EA6\u89C6\u89C9"
+    quick: tr("\u6781\u901F", "Fast"),
+    evidence: tr("\u8BC1\u636E", "Evidence"),
+    "deep-visual": tr("\u6DF1\u5EA6\u89C6\u89C9", "Deep visual")
   };
   segmented(
-    row("\u7406\u89E3\u6DF1\u5EA6"),
+    row(tr("\u7406\u89E3\u6DF1\u5EA6", "Depth")),
     ["quick", "evidence", "deep-visual"].map((depth) => ({
       value: depth,
       label: depthLabels[depth]
@@ -12344,7 +12412,7 @@ function renderOptions(container, ctx) {
     })
   );
   segmented(
-    row("\u8F93\u51FA\u8BED\u8A00"),
+    row(tr("\u8F93\u51FA\u8BED\u8A00", "Output language")),
     ["zh", "en", "ja"].map((language) => ({
       value: language,
       label: languageLabel(language)
@@ -12357,16 +12425,16 @@ function renderOptions(container, ctx) {
     })
   );
   const contentLabels = {
-    auto: "\u81EA\u52A8\u8BC6\u522B",
-    course: "\u8BFE\u7A0B",
-    interview: "\u8BBF\u8C08",
-    tutorial: "\u6559\u7A0B",
-    news: "\u65B0\u95FB",
-    meeting: "\u4F1A\u8BAE",
-    review: "\u8BC4\u6D4B",
-    general: "\u901A\u7528"
+    auto: tr("\u81EA\u52A8\u8BC6\u522B", "Auto-detect"),
+    course: tr("\u8BFE\u7A0B", "Lecture"),
+    interview: tr("\u8BBF\u8C08", "Interview"),
+    tutorial: tr("\u6559\u7A0B", "Tutorial"),
+    news: tr("\u65B0\u95FB", "News"),
+    meeting: tr("\u4F1A\u8BAE", "Meeting"),
+    review: tr("\u8BC4\u6D4B", "Review"),
+    general: tr("\u901A\u7528", "General")
   };
-  const contentSelect = row("\u5185\u5BB9\u7C7B\u578B").createEl("select", { cls: "dropdown" });
+  const contentSelect = row(tr("\u5185\u5BB9\u7C7B\u578B", "Content type")).createEl("select", { cls: "dropdown" });
   Object.keys(contentLabels).forEach(
     (value) => contentSelect.createEl("option", { text: contentLabels[value], attr: { value } })
   );
@@ -12381,8 +12449,8 @@ function renderOptions(container, ctx) {
       await plugin.saveSettings();
     })
   );
-  const folderBtn = row("\u4FDD\u5B58\u4F4D\u7F6E").createEl("button", {
-    text: shortenPath(settings.outputFolder || "\u5F53\u524D\u6587\u4EF6\u5939"),
+  const folderBtn = row(tr("\u4FDD\u5B58\u4F4D\u7F6E", "Save to")).createEl("button", {
+    text: shortenPath(settings.outputFolder || tr("\u5F53\u524D\u6587\u4EF6\u5939", "Current folder")),
     cls: "vs-link-btn",
     attr: { type: "button", title: settings.outputFolder || tr("\u5F53\u524D\u6587\u4EF6\u5939", "Current folder") }
   });
@@ -12408,8 +12476,11 @@ function renderOptions(container, ctx) {
     box.addEventListener("change", () => void onChange(box.checked));
   };
   check(
-    "\u5148\u9884\u89C8\u518D\u5199\u5165",
-    "\u7ED3\u679C\u5148\u9884\u89C8\uFF0C\u786E\u8BA4\u540E\u624D\u5199\u5165\u7B14\u8BB0",
+    tr("\u5148\u9884\u89C8\u518D\u5199\u5165", "Preview before writing"),
+    tr(
+      "\u7ED3\u679C\u5148\u9884\u89C8\uFF0C\u786E\u8BA4\u540E\u624D\u5199\u5165\u7B14\u8BB0",
+      "Show the result first and write the note only after you confirm"
+    ),
     settings.previewBeforeWrite === true,
     async (value) => {
       settings.previewBeforeWrite = value;
@@ -12417,8 +12488,11 @@ function renderOptions(container, ctx) {
     }
   );
   check(
-    "\u89C2\u770B\u5224\u65AD",
-    "\u8F93\u51FA\u503C\u5F97\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7",
+    tr("\u89C2\u770B\u5224\u65AD", "Watch verdict"),
+    tr(
+      "\u8F93\u51FA\u503C\u5F97\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7",
+      "Say whether it is worth watching, worth skimming or skippable"
+    ),
     settings.attentionAssessmentEnabled,
     async (value) => {
       settings.attentionAssessmentEnabled = value;
@@ -12427,8 +12501,11 @@ function renderOptions(container, ctx) {
     }
   );
   check(
-    "\u8FD9\u6B21\u8DF3\u8FC7\u7F13\u5B58",
-    "\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF0C\u53EA\u5BF9\u672C\u6B21\u6253\u5F00\u7684\u4FA7\u680F\u6709\u6548",
+    tr("\u8FD9\u6B21\u8DF3\u8FC7\u7F13\u5B58", "Skip the cache this time"),
+    tr(
+      "\u5F3A\u5236\u91CD\u65B0\u5904\u7406\uFF0C\u53EA\u5BF9\u672C\u6B21\u6253\u5F00\u7684\u4FA7\u680F\u6709\u6548",
+      "Process again from scratch; applies only to this sidebar session"
+    ),
     ctx.state.ignoreCache,
     async (value) => {
       ctx.state.ignoreCache = value;
@@ -12665,7 +12742,10 @@ function renderJobsPanel(container, ctx) {
     (job) => job.state === "success" || job.state === "error" || job.state === "cancelled"
   );
   if (active.length + review.length > 0) {
-    section2(container, `\u8FDB\u884C\u4E2D ${active.length + review.length}`);
+    section2(
+      container,
+      tr(`\u8FDB\u884C\u4E2D ${active.length + review.length}`, `In progress ${active.length + review.length}`)
+    );
   }
   if (active.length > 0) {
     active.forEach((job) => renderActiveJob(container, ctx, job));
@@ -12675,11 +12755,16 @@ function renderJobsPanel(container, ctx) {
   }
   const historyRows = buildHistoryRows(ctx, finished);
   if (historyRows.length > 0) {
-    const header = section2(container, "\u6700\u8FD1\u5B8C\u6210");
-    iconButton(header, "history", "\u4ECE webhook \u5386\u53F2\u7ED3\u679C\u91CC\u53D6\u56DE", (event) => {
-      showWebhookHistoryMenu(ctx, event);
-    });
-    iconButton(header, "more-horizontal", "\u5217\u8868\u64CD\u4F5C", (event) => {
+    const header = section2(container, tr("\u6700\u8FD1\u5B8C\u6210", "Recently finished"));
+    iconButton(
+      header,
+      "history",
+      tr("\u4ECE webhook \u5386\u53F2\u7ED3\u679C\u91CC\u53D6\u56DE", "Fetched from webhook history"),
+      (event) => {
+        showWebhookHistoryMenu(ctx, event);
+      }
+    );
+    iconButton(header, "more-horizontal", tr("\u5217\u8868\u64CD\u4F5C", "List actions"), (event) => {
       showMenu(event, [
         {
           title: tr("\u6E05\u6389\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u5361", "Clear finished job cards"),
@@ -12807,7 +12892,7 @@ function renderActiveJob(container, ctx, job) {
   iconButton(
     side,
     "x",
-    "\u53D6\u6D88",
+    tr("\u53D6\u6D88", "Cancel"),
     fire(async () => {
       await ctx.plugin.jobService.cancel(job);
       ctx.renderPanels();
@@ -12835,13 +12920,13 @@ function renderReviewJob(container, ctx, job) {
   const actions = card.createDiv({ cls: "vs-job-actions" });
   textButton(
     actions,
-    "\u9884\u89C8",
+    tr("\u9884\u89C8", "Preview"),
     () => ctx.openDetail({ kind: "job", id: job.id }),
     "is-primary is-fill"
   );
   textButton(
     actions,
-    "\u76F4\u63A5\u5199\u5165",
+    tr("\u76F4\u63A5\u5199\u5165", "Write now"),
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
         new import_obsidian11.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
@@ -12853,7 +12938,7 @@ function renderReviewJob(container, ctx, job) {
   iconButton(
     actions,
     "trash-2",
-    "\u4E22\u5F03\u7ED3\u679C",
+    tr("\u4E22\u5F03\u7ED3\u679C", "Discard result"),
     fire(async () => {
       await ctx.plugin.jobService.discardResult(job);
       ctx.renderPanels();
@@ -12969,7 +13054,7 @@ function renderHistoryRow(container, ctx, row) {
   statePill.addClass("vs-row-status");
   if (row.state === "error" && row.error) renderNextStep(container, ctx, row);
   const actions = item.createDiv({ cls: "vs-row-actions" });
-  iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
+  iconButton(actions, "more-horizontal", tr("\u66F4\u591A\u64CD\u4F5C", "More actions"), (event) => {
     showMenu(event, [
       {
         title: tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
@@ -12999,7 +13084,7 @@ function renderNextStep(container, ctx, row) {
   const strip = container.createDiv({ cls: "vs-next-step" });
   if (kind === "no-transcript") {
     strip.createSpan({ text: tr("\u53EF\u4EE5\u8865\u4E00\u4EFD\u6587\u7A3F\u518D\u603B\u7ED3", "Add a transcript and summarise again") });
-    textButton(strip, "\u7C98\u8D34\u6587\u7A3F \u2192", () => {
+    textButton(strip, tr("\u7C98\u8D34\u6587\u7A3F \u2192", "Paste a transcript \u2192"), () => {
       const url = row.job?.input.url || row.record?.url || "";
       ctx.state.inputDraft = url;
       ctx.state.advancedOpen = true;
@@ -13012,10 +13097,10 @@ function renderNextStep(container, ctx, row) {
     strip.createSpan({
       text: tr("\u767B\u5F55\u72B6\u6001\u5931\u6548\uFF0C\u66F4\u65B0 Cookies \u540E\u91CD\u8BD5", "Login expired; update the cookies and retry")
     });
-    textButton(strip, "\u6253\u5F00\u8BBE\u7F6E \u2192", () => openSettings(ctx));
+    textButton(strip, tr("\u6253\u5F00\u8BBE\u7F6E \u2192", "Open settings \u2192"), () => openSettings(ctx));
   } else {
     strip.createSpan({ text: tr("\u5904\u7406\u670D\u52A1\u6CA1\u6709\u8FDE\u4E0A", "The backend is not connected") });
-    textButton(strip, "\u91CD\u65B0\u68C0\u6D4B \u2192", () => {
+    textButton(strip, tr("\u91CD\u65B0\u68C0\u6D4B \u2192", "Check again \u2192"), () => {
       document.querySelector(".vs-backend-line")?.click();
     });
   }
@@ -13036,11 +13121,11 @@ function displayTaskTitle(raw) {
   const match = raw.match(/^(文稿(?:处理)?|本地文件|YouTube视频|B站视频)_(?:\d{8}_\d{6}_)?(.+)$/);
   if (!match) return raw;
   const sourceLabel = {
-    \u6587\u7A3F: "\u6587\u7A3F",
-    \u6587\u7A3F\u5904\u7406: "\u6587\u7A3F",
-    \u672C\u5730\u6587\u4EF6: "\u672C\u5730",
+    \u6587\u7A3F: tr("\u6587\u7A3F", "Transcript"),
+    \u6587\u7A3F\u5904\u7406: tr("\u6587\u7A3F", "Transcript"),
+    \u672C\u5730\u6587\u4EF6: tr("\u672C\u5730", "Local"),
     YouTube\u89C6\u9891: "YouTube",
-    B\u7AD9\u89C6\u9891: "B\u7AD9"
+    B\u7AD9\u89C6\u9891: tr("B\u7AD9", "Bilibili")
   };
   const title = match[2].replace(/_\d{13}$/, "").replace(/_/g, " ").trim();
   return title ? `${sourceLabel[match[1]]} \xB7 ${title}` : raw;
@@ -13141,8 +13226,15 @@ function summarize(job) {
   const bits = [];
   if (result.video_title) bits.push(result.video_title);
   if (result.video_duration) bits.push(result.video_duration);
-  if (result.summary) bits.push(`\u603B\u7ED3 ${result.summary.length} \u5B57`);
-  if (result.video_transcript) bits.push(`\u6587\u7A3F ${result.video_transcript.length} \u5B57`);
+  if (result.summary)
+    bits.push(tr(`\u603B\u7ED3 ${result.summary.length} \u5B57`, `Summary ${result.summary.length} chars`));
+  if (result.video_transcript)
+    bits.push(
+      tr(
+        `\u6587\u7A3F ${result.video_transcript.length} \u5B57`,
+        `Transcript ${result.video_transcript.length} chars`
+      )
+    );
   return bits.join(" \xB7 ") || tr("\u7ED3\u679C\u5DF2\u5C31\u7EEA\uFF0C\u7B49\u5F85\u5199\u5165", "Result ready; waiting to be written");
 }
 function showWebhookHistoryMenu(ctx, event) {
@@ -13228,7 +13320,7 @@ function renderLibraryPanel(container, ctx) {
       value: state.librarySearch
     }
   });
-  iconButton(header, "arrow-up-down", "\u6392\u5E8F\u65B9\u5F0F", (event) => {
+  iconButton(header, "arrow-up-down", tr("\u6392\u5E8F\u65B9\u5F0F", "Sort by"), (event) => {
     showMenu(
       event,
       [
@@ -13248,18 +13340,21 @@ function renderLibraryPanel(container, ctx) {
     );
   });
   const counts = countByStatus(entries2, ctx);
-  const runningLabel = counts.active > 0 && counts.interrupted > 0 ? `\u8FDB\u884C ${counts.active} \xB7 \u4E2D\u65AD ${counts.interrupted}` : counts.active > 0 ? `\u5904\u7406\u4E2D ${counts.active}` : counts.interrupted > 0 ? `\u5DF2\u4E2D\u65AD ${counts.interrupted}` : "\u5904\u7406\u4E2D 0";
+  const runningLabel = counts.active > 0 && counts.interrupted > 0 ? tr(
+    `\u8FDB\u884C ${counts.active} \xB7 \u4E2D\u65AD ${counts.interrupted}`,
+    `Running ${counts.active} \xB7 interrupted ${counts.interrupted}`
+  ) : counts.active > 0 ? tr(`\u5904\u7406\u4E2D ${counts.active}`, `Processing ${counts.active}`) : counts.interrupted > 0 ? tr(`\u5DF2\u4E2D\u65AD ${counts.interrupted}`, `Interrupted ${counts.interrupted}`) : tr("\u5904\u7406\u4E2D 0", "Processing 0");
   const filters = container.createDiv({ cls: "vs-filter-row" });
   [
-    ["all", `\u5168\u90E8 ${entries2.length}`, ""],
-    ["pending", `\u5F85\u5904\u7406 ${counts.pending}`, "is-pending"],
+    ["all", tr(`\u5168\u90E8 ${entries2.length}`, `All ${entries2.length}`), ""],
+    ["pending", tr(`\u5F85\u5904\u7406 ${counts.pending}`, `Pending ${counts.pending}`), "is-pending"],
     [
       "running",
       runningLabel,
       counts.active === 0 && counts.interrupted > 0 ? "is-interrupted" : "is-running"
     ],
-    ["error", `\u5931\u8D25 ${counts.error}`, "is-error"],
-    ["success", `\u5DF2\u5B8C\u6210 ${counts.success}`, "is-success"]
+    ["error", tr(`\u5931\u8D25 ${counts.error}`, `Failed ${counts.error}`), "is-error"],
+    ["success", tr(`\u5DF2\u5B8C\u6210 ${counts.success}`, `Done ${counts.success}`), "is-success"]
   ].forEach(([value, label, tone]) => {
     const chip = filters.createEl("button", {
       text: label,
@@ -13434,7 +13529,7 @@ function renderRow(listEl, ctx, entry, observer) {
     iconButton(
       actions,
       "x",
-      "\u53D6\u6D88",
+      tr("\u53D6\u6D88", "Cancel"),
       fire(async () => {
         if (liveJob) await ctx.plugin.jobService.cancel(liveJob);
         ctx.renderPanels();
@@ -13445,7 +13540,7 @@ function renderRow(listEl, ctx, entry, observer) {
     iconButton(
       actions,
       "eye",
-      "\u786E\u8BA4\u7ED3\u679C",
+      tr("\u786E\u8BA4\u7ED3\u679C", "Confirm result"),
       () => ctx.openDetail({ kind: "job", id: liveJob.id }),
       "is-accent"
     );
@@ -13453,7 +13548,7 @@ function renderRow(listEl, ctx, entry, observer) {
     iconButton(
       actions,
       displayStatus === "interrupted" ? "refresh-cw" : "play",
-      displayStatus === "success" || displayStatus === "interrupted" ? "\u91CD\u8DD1" : "\u5904\u7406",
+      displayStatus === "success" || displayStatus === "interrupted" ? tr("\u91CD\u8DD1", "Run again") : tr("\u5904\u7406", "Process"),
       fire(async () => {
         const file = fileOf(ctx, entry);
         if (!file) return;
@@ -13468,7 +13563,7 @@ function renderRow(listEl, ctx, entry, observer) {
     iconButton(
       actions,
       "book-open",
-      "\u6253\u5F00\u540C\u6B65\u966A\u8BFB",
+      tr("\u6253\u5F00\u540C\u6B65\u966A\u8BFB", "Open synced read-along"),
       () => ctx.openDetail({
         kind: "note",
         path: entry.path,
@@ -13477,7 +13572,7 @@ function renderRow(listEl, ctx, entry, observer) {
       "is-accent"
     );
   }
-  iconButton(actions, "more-horizontal", "\u66F4\u591A\u64CD\u4F5C", (event) => {
+  iconButton(actions, "more-horizontal", tr("\u66F4\u591A\u64CD\u4F5C", "More actions"), (event) => {
     const menuItems = [
       {
         title: tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
@@ -13536,8 +13631,11 @@ function renderRow(listEl, ctx, entry, observer) {
 function confirmDelete(ctx, entry) {
   new ConfirmModal(
     ctx.plugin.app,
-    "\u5220\u9664\u7B14\u8BB0",
-    `\u786E\u5B9A\u5220\u9664 "${entry.basename}"\uFF1F\u4F1A\u6309 Obsidian \u7684\u201C\u5220\u9664\u6587\u4EF6\u201D\u8BBE\u7F6E\u79FB\u5230\u56DE\u6536\u7AD9\u3002`,
+    tr("\u5220\u9664\u7B14\u8BB0", "Delete note"),
+    tr(
+      `\u786E\u5B9A\u5220\u9664 "${entry.basename}"\uFF1F\u4F1A\u6309 Obsidian \u7684\u201C\u5220\u9664\u6587\u4EF6\u201D\u8BBE\u7F6E\u79FB\u5230\u56DE\u6536\u7AD9\u3002`,
+      `Delete "${entry.basename}"? It goes to the trash according to Obsidian's "Deleted files" setting.`
+    ),
     fire(async (confirmed) => {
       if (!confirmed) return;
       const file = fileOf(ctx, entry);
@@ -13696,7 +13794,7 @@ function renderReaderPanel(container, ctx, job) {
         });
       }
       const highlighted = highlights.has(segment.id);
-      const highlightLabel = highlighted ? "\u53D6\u6D88\u91CD\u70B9" : "\u6807\u8BB0\u91CD\u70B9";
+      const highlightLabel = highlighted ? tr("\u53D6\u6D88\u91CD\u70B9", "Unmark highlight") : tr("\u6807\u8BB0\u91CD\u70B9", "Mark as highlight");
       const star = row.createSpan({
         cls: "vs-reader-highlight",
         attr: {
@@ -14174,7 +14272,13 @@ function renderBanner(container, ctx, options) {
     banner.addClass("is-empty");
   }
   banner.createSpan({ cls: "vs-banner-bar" });
-  iconButton(banner, "arrow-left", "\u8FD4\u56DE\u5217\u8868", () => ctx.closeDetail(), "vs-banner-back");
+  iconButton(
+    banner,
+    "arrow-left",
+    tr("\u8FD4\u56DE\u5217\u8868", "Back to list"),
+    () => ctx.closeDetail(),
+    "vs-banner-back"
+  );
   statusPill(banner, options.status, { label: statusMeta(options.status).label }).addClass(
     "vs-banner-pill"
   );
@@ -14228,19 +14332,23 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     const actions2 = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
       actions2,
-      "\u91CD\u8BD5\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+      tr("\u91CD\u8BD5\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", "Retry (skip cache)"),
       () => {
         ctx.plugin.jobs.retry(job.id);
         ctx.closeDetail();
       },
       "is-primary is-fill"
     );
-    textButton(actions2, "\u590D\u5236\u9519\u8BEF", () => {
+    textButton(actions2, tr("\u590D\u5236\u9519\u8BEF", "Copy error"), () => {
       void navigator.clipboard.writeText(job.error || "");
       new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
     });
     if (isCookieError(job.error)) {
-      textButton(actions2, "\u6253\u5F00 cookies \u76EE\u5F55", () => openCookiesFolder(ctx));
+      textButton(
+        actions2,
+        tr("\u6253\u5F00 cookies \u76EE\u5F55", "Open cookies folder"),
+        () => openCookiesFolder(ctx)
+      );
     }
     renderLogs(body, job);
     return;
@@ -14274,10 +14382,18 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
       renderEvidence(pane, ctx, job);
       break;
     case "transcript":
-      renderText(pane, job.result.video_transcript, "\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u6587\u7A3F");
+      renderText(
+        pane,
+        job.result.video_transcript,
+        tr("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u6587\u7A3F", "No transcript came back this time")
+      );
       break;
     case "meta":
-      renderText(pane, JSON.stringify(job.result, null, 2).slice(0, 8e3), "\u6CA1\u6709\u5143\u6570\u636E");
+      renderText(
+        pane,
+        JSON.stringify(job.result, null, 2).slice(0, 8e3),
+        tr("\u6CA1\u6709\u5143\u6570\u636E", "No metadata")
+      );
       break;
     case "logs":
       renderLogs(pane, job);
@@ -14289,7 +14405,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (job.state === "review") {
     const write = textButton(
       actions,
-      "\u5199\u5165\u7B14\u8BB0",
+      tr("\u5199\u5165\u7B14\u8BB0", "Write note"),
       fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
           new import_obsidian14.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
@@ -14302,20 +14418,20 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   } else if (job.notePath) {
     const open = textButton(
       actions,
-      "\u6253\u5F00\u7B14\u8BB0",
+      tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
       fire(() => ctx.openNote(job.notePath)),
       "is-primary is-fill has-icon"
     );
     prependIcon(open, "file-text");
   }
   if (persistedArtifact) {
-    const copy = textButton(actions, "\u590D\u5236\u5DE5\u4EF6 JSON", () => {
+    const copy = textButton(actions, tr("\u590D\u5236\u5DE5\u4EF6 JSON", "Copy artifact JSON"), () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
       new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON", "Artifact JSON copied"));
     });
     prependIcon(copy, "clipboard");
   } else {
-    const more = textButton(actions, "\u66F4\u591A", () => void 0, "has-caret");
+    const more = textButton(actions, tr("\u66F4\u591A", "More"), () => void 0, "has-caret");
     more.addEventListener("click", (event) => {
       showMenu(event, [
         {
@@ -14355,7 +14471,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
       iconButton(
         actions,
         "trash-2",
-        "\u4E22\u5F03\u7ED3\u679C",
+        tr("\u4E22\u5F03\u7ED3\u679C", "Discard result"),
         fire(async () => {
           await ctx.plugin.jobService.discardResult(job);
           ctx.closeDetail();
@@ -14396,10 +14512,15 @@ function renderStoredArtifactDetail(container, ctx, notePath, artifactId) {
       error instanceof Error ? errorMessage(error) : String(error)
     );
     const actions = container.createDiv({ cls: "vs-detail-actions" });
-    textButton(actions, "\u8FD4\u56DE\u7B14\u8BB0\u5E93", () => ctx.closeDetail(), "is-primary");
     textButton(
       actions,
-      "\u6253\u5F00\u7B14\u8BB0",
+      tr("\u8FD4\u56DE\u7B14\u8BB0\u5E93", "Back to library"),
+      () => ctx.closeDetail(),
+      "is-primary"
+    );
+    textButton(
+      actions,
+      tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
       fire(() => ctx.openNote(notePath))
     );
   });
@@ -14541,7 +14662,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (!result.attention) {
     textButton(
       actionRow,
-      "\u5148\u505A\u89C2\u770B\u5224\u65AD",
+      tr("\u5148\u505A\u89C2\u770B\u5224\u65AD", "Get a watch verdict first"),
       fire(() => queueKnowledgeUpgrade(ctx, job, "quick")),
       "has-icon"
     );
@@ -14549,7 +14670,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (depth !== "deep-visual" && !result.visual_evidence?.length) {
     const upgrade = textButton(
       actionRow,
-      "\u6DF1\u5EA6\u770B\u753B\u9762",
+      tr("\u6DF1\u5EA6\u770B\u753B\u9762", "Look at the frames in depth"),
       fire(() => queueKnowledgeUpgrade(ctx, job, "deep-visual")),
       "has-icon"
     );
@@ -14558,7 +14679,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (learningCount > 0 && job.notePath) {
     const review = textButton(
       actionRow,
-      `\u5F00\u59CB\u590D\u4E60 \xB7 ${learningCount}`,
+      tr(`\u5F00\u59CB\u590D\u4E60 \xB7 ${learningCount}`, `Start review \xB7 ${learningCount}`),
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || "");
         if (!(file instanceof import_obsidian14.TFile)) {
@@ -14573,7 +14694,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   } else if (learningCount === 0 && job.notePath) {
     const generate = textButton(
       actionRow,
-      "\u751F\u6210\u5B66\u4E60\u5361",
+      tr("\u751F\u6210\u5B66\u4E60\u5361", "Make study cards"),
       fire(() => queueLearningUpgrade(ctx, job)),
       "has-icon"
     );
@@ -14648,20 +14769,20 @@ async function queueLearningUpgrade(ctx, job) {
 }
 function contentTypeLabel(type) {
   return {
-    course: "\u8BFE\u7A0B",
-    interview: "\u8BBF\u8C08",
-    tutorial: "\u6559\u7A0B",
-    news: "\u65B0\u95FB",
-    meeting: "\u4F1A\u8BAE",
-    review: "\u8BC4\u6D4B",
-    general: "\u901A\u7528"
+    course: tr("\u8BFE\u7A0B", "Lecture"),
+    interview: tr("\u8BBF\u8C08", "Interview"),
+    tutorial: tr("\u6559\u7A0B", "Tutorial"),
+    news: tr("\u65B0\u95FB", "News"),
+    meeting: tr("\u4F1A\u8BAE", "Meeting"),
+    review: tr("\u8BC4\u6D4B", "Review"),
+    general: tr("\u901A\u7528", "General")
   }[type] || type;
 }
 function attentionLabel(action) {
   return {
-    watch: "\u503C\u5F97\u5B8C\u6574\u89C2\u770B",
-    skim: "\u5EFA\u8BAE\u9009\u6BB5\u6D4F\u89C8",
-    skip: "\u53EF\u4EE5\u8DF3\u8FC7"
+    watch: tr("\u503C\u5F97\u5B8C\u6574\u89C2\u770B", "Worth watching in full"),
+    skim: tr("\u5EFA\u8BAE\u9009\u6BB5\u6D4F\u89C8", "Skim selected parts"),
+    skip: tr("\u53EF\u4EE5\u8DF3\u8FC7", "Can skip")
   }[action];
 }
 function formatShortTime(seconds) {
@@ -14722,12 +14843,16 @@ function renderPreview(body, ctx, job) {
   });
   const markdown = sanitizeGeneratedMarkdownActiveResources(
     [
-      result.summary ? `## \u603B\u7ED3
+      result.summary ? tr(`## \u603B\u7ED3
 
-${result.summary}` : "",
-      result.note ? `## \u7B14\u8BB0
+${result.summary}`, `## Summary
 
-${result.note}` : ""
+${result.summary}`) : "",
+      result.note ? tr(`## \u7B14\u8BB0
+
+${result.note}`, `## Notes
+
+${result.note}`) : ""
     ].filter(Boolean).join("\n\n")
   );
   const markdownEl = body.createDiv({ cls: "vs-markdown" });
@@ -14798,13 +14923,13 @@ function renderRecordDetail(container, ctx, record) {
   if (file) {
     textButton(
       actions,
-      "\u6253\u5F00\u7B14\u8BB0",
+      tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
       fire(() => ctx.openNote(file.path)),
       "is-primary is-fill"
     );
     textButton(
       actions,
-      "\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09",
+      tr("\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", "Run again (skip cache)"),
       fire(async () => {
         await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
         ctx.closeDetail();
@@ -15062,8 +15187,8 @@ var VideoSummaryView = class extends import_obsidian15.ItemView {
     const activeCount = this.plugin.jobs.getActive().length + this.plugin.jobs.countByState("review");
     const libraryCount = this.plugin.noteIndex.getAll().length;
     const tabs = [
-      ["jobs", "\u4EFB\u52A1", activeCount > 0 ? String(activeCount) : void 0],
-      ["library", "\u7B14\u8BB0\u5E93", String(libraryCount)]
+      ["jobs", tr("\u4EFB\u52A1", "Jobs"), activeCount > 0 ? String(activeCount) : void 0],
+      ["library", tr("\u7B14\u8BB0\u5E93", "Library"), String(libraryCount)]
     ];
     const wrapper = panel.createDiv({ cls: "vs-tab-row ap-bar-glass" });
     segmented(
@@ -19450,12 +19575,12 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       cls: "mod-cta"
     });
     const filtersEl = this.contentEl.createDiv({ cls: "vs-memory-filters" });
-    const author = labeledInput(filtersEl, "\u4F5C\u8005", "\u4EFB\u610F\u4F5C\u8005");
-    const platform = labeledSelect(filtersEl, "\u5E73\u53F0", [
+    const author = labeledInput(filtersEl, tr("\u4F5C\u8005", "Author"), tr("\u4EFB\u610F\u4F5C\u8005", "Any author"));
+    const platform = labeledSelect(filtersEl, tr("\u5E73\u53F0", "Platform"), [
       "",
       ...uniqueStrings5(this.artifacts.map((artifact) => artifact.platform))
     ]);
-    const contentType = labeledSelect(filtersEl, "\u7C7B\u578B", [
+    const contentType = labeledSelect(filtersEl, tr("\u7C7B\u578B", "Type"), [
       "",
       "course",
       "interview",
@@ -19465,10 +19590,18 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       "review",
       "general"
     ]);
-    const courseId = labeledInput(filtersEl, "\u8BFE\u7A0B ID", "\u4EFB\u610F\u8BFE\u7A0B");
-    const dateField = labeledSelect(filtersEl, "\u65E5\u671F\u5B57\u6BB5", ["either", "generated", "updated"]);
-    const dateFrom = labeledInput(filtersEl, "\u8D77\u59CB\u65E5\u671F", "", "date");
-    const dateTo = labeledInput(filtersEl, "\u7ED3\u675F\u65E5\u671F", "", "date");
+    const courseId = labeledInput(
+      filtersEl,
+      tr("\u8BFE\u7A0B ID", "Course ID"),
+      tr("\u4EFB\u610F\u8BFE\u7A0B", "Any course")
+    );
+    const dateField = labeledSelect(filtersEl, tr("\u65E5\u671F\u5B57\u6BB5", "Date field"), [
+      "either",
+      "generated",
+      "updated"
+    ]);
+    const dateFrom = labeledInput(filtersEl, tr("\u8D77\u59CB\u65E5\u671F", "From"), "", "date");
+    const dateTo = labeledInput(filtersEl, tr("\u7ED3\u675F\u65E5\u671F", "To"), "", "date");
     const relationRow = this.contentEl.createDiv({ cls: "vs-memory-relation-source" });
     relationRow.createEl("label", {
       text: tr("\u5173\u7CFB\u5EFA\u8BAE\u6765\u6E90\uFF08\u53EF\u9009\uFF09", "Relation suggestions from (optional)")
@@ -19569,7 +19702,10 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
           result.author,
           result.platform,
           result.content_type,
-          result.evidence_type === "claim" && result.claim_review_state ? `\u4E3B\u5F20\u72B6\u6001 ${result.claim_review_state}` : void 0,
+          result.evidence_type === "claim" && result.claim_review_state ? tr(
+            `\u4E3B\u5F20\u72B6\u6001 ${result.claim_review_state}`,
+            `Claim state ${result.claim_review_state}`
+          ) : void 0,
           ...result.course_ids
         ].filter(Boolean).join(" \xB7 ")
       );
@@ -19602,7 +19738,11 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
     if (!source) return;
     card.createEl("img", {
       cls: "vs-memory-keyframe",
-      attr: { src: source, alt: `\u5173\u952E\u5E27\uFF1A${result.title}`, loading: "lazy" }
+      attr: {
+        src: source,
+        alt: tr(`\u5173\u952E\u5E27\uFF1A${result.title}`, `Key frame: ${result.title}`),
+        loading: "lazy"
+      }
     });
   }
   renderRelationReview(card, suggestion) {
@@ -19683,8 +19823,16 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
       return;
     }
     const toolbar = this.contentEl.createDiv({ cls: "vs-claim-lab-toolbar" });
-    const title = labeledInput(toolbar, "\u5B9E\u9A8C\u5BA4\u6807\u9898", "\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4");
-    const artifactSearch = labeledInput(toolbar, "\u7B5B\u9009\u5DE5\u4EF6", "\u6309\u6807\u9898\u3001\u4F5C\u8005\u6216\u5E73\u53F0\u8FC7\u6EE4");
+    const title = labeledInput(
+      toolbar,
+      tr("\u5B9E\u9A8C\u5BA4\u6807\u9898", "Lab title"),
+      tr("\u591A\u89C6\u9891\u8BBA\u70B9\u5B9E\u9A8C\u5BA4", "Multi-video claim lab")
+    );
+    const artifactSearch = labeledInput(
+      toolbar,
+      tr("\u7B5B\u9009\u5DE5\u4EF6", "Filter artifacts"),
+      tr("\u6309\u6807\u9898\u3001\u4F5C\u8005\u6216\u5E73\u53F0\u8FC7\u6EE4", "Filter by title, author or platform")
+    );
     const count = toolbar.createSpan({ cls: "vs-claim-lab-count" });
     const list = this.contentEl.createDiv({ cls: "vs-claim-lab-artifacts" });
     const selected = /* @__PURE__ */ new Set();
@@ -19705,8 +19853,8 @@ var KnowledgeLabModal = class extends import_obsidian18.Modal {
           text: [
             artifact.author,
             artifact.platform,
-            `${artifact.claims.length} \u6761\u4E3B\u5F20`,
-            `${artifact.segments.length} \u4E2A\u65F6\u95F4\u6BB5`
+            tr(`${artifact.claims.length} \u6761\u4E3B\u5F20`, `${artifact.claims.length} claims`),
+            tr(`${artifact.segments.length} \u4E2A\u65F6\u95F4\u6BB5`, `${artifact.segments.length} segments`)
           ].filter(Boolean).join(" \xB7 ")
         });
         checkbox.onchange = () => {
@@ -20476,9 +20624,9 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
   renderToolbar() {
     const toolbar = this.contentEl.createDiv({ cls: "vs-learning-review-toolbar" });
     const modes = [
-      ["due", "\u5230\u671F"],
-      ["mistakes", "\u9519\u9898"],
-      ["all", "\u5168\u90E8"]
+      ["due", tr("\u5230\u671F", "Due")],
+      ["mistakes", tr("\u9519\u9898", "Mistakes")],
+      ["all", tr("\u5168\u90E8", "All")]
     ];
     modes.forEach(([mode, label]) => {
       const button = toolbar.createEl("button", {
@@ -20577,7 +20725,13 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
     const row = container.createEl("label", { cls: "vs-learning-review-confidence" });
     row.createSpan({ text: tr("\u628A\u63E1\u7A0B\u5EA6", "Confidence") });
     const select = row.createEl("select");
-    const labels = ["1 \xB7 \u5B8C\u5168\u6CA1\u628A\u63E1", "2 \xB7 \u6BD4\u8F83\u72B9\u8C6B", "3 \xB7 \u4E00\u822C", "4 \xB7 \u6709\u628A\u63E1", "5 \xB7 \u975E\u5E38\u786E\u5B9A"];
+    const labels = [
+      tr("1 \xB7 \u5B8C\u5168\u6CA1\u628A\u63E1", "1 \xB7 No idea"),
+      tr("2 \xB7 \u6BD4\u8F83\u72B9\u8C6B", "2 \xB7 Unsure"),
+      tr("3 \xB7 \u4E00\u822C", "3 \xB7 So-so"),
+      tr("4 \xB7 \u6709\u628A\u63E1", "4 \xB7 Fairly sure"),
+      tr("5 \xB7 \u975E\u5E38\u786E\u5B9A", "5 \xB7 Certain")
+    ];
     labels.forEach((label, index) => {
       const confidence = index + 1;
       const option = select.createEl("option", {
@@ -20685,7 +20839,7 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
       const row = section3.createDiv({
         cls: `vs-learning-review-evidence-row is-${target.status}`
       });
-      const label = target.status === "available" ? formatTimestamp(target.start) : target.status === "untimed" ? "\u65E0\u65F6\u95F4\u70B9" : "\u8BC1\u636E\u7F3A\u5931";
+      const label = target.status === "available" ? formatTimestamp(target.start) : target.status === "untimed" ? tr("\u65E0\u65F6\u95F4\u70B9", "No timestamp") : tr("\u8BC1\u636E\u7F3A\u5931", "Evidence missing");
       row.createSpan({ text: label, cls: "vs-learning-review-evidence-time" });
       row.createSpan({
         text: target.text || target.message,
@@ -20754,7 +20908,7 @@ function normalizeAnswer(value) {
 function progressMessage(progress, state) {
   const due = new Date(progress.due_at).toLocaleString();
   if (state === "suspended") return tr("\u8FD9\u9053\u9898\u5DF2\u6682\u505C\u3002", "This question is paused.");
-  const mastery = progress.mastery === "mastered" ? "\u5DF2\u638C\u63E1" : "\u5B66\u4E60\u4E2D";
+  const mastery = progress.mastery === "mastered" ? tr("\u5DF2\u638C\u63E1", "Mastered") : tr("\u5B66\u4E60\u4E2D", "Learning");
   return tr(
     `${mastery} \xB7 \u8FDE\u7EED\u7B54\u5BF9 ${progress.consecutive_correct} \u6B21 \xB7 \u4E0B\u6B21 ${due}`,
     `${mastery} \xB7 right ${progress.consecutive_correct} times in a row \xB7 next ${due}`
@@ -22492,8 +22646,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
           )
         );
       } else {
-        const hint = result.hint ? `
-\u5EFA\u8BAE: ${result.hint}` : "";
+        const hint = result.hint ? tr(`
+\u5EFA\u8BAE: ${result.hint}`, `
+Suggestion: ${result.hint}`) : "";
         new import_obsidian20.Notice(
           tr(
             `${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
@@ -23320,7 +23475,10 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
             );
           },
           ...index + 1 < candidates.length ? {
-            continueLabel: `\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891\uFF08\u8FD8\u5269 ${candidates.length - index - 1} \u4E2A\uFF09`,
+            continueLabel: tr(
+              `\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891\uFF08\u8FD8\u5269 ${candidates.length - index - 1} \u4E2A\uFF09`,
+              `Continue with the next video (${candidates.length - index - 1} left)`
+            ),
             onContinue: () => openAt(index + 1)
           } : {}
         }).open();
@@ -23421,7 +23579,10 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
       await this.app.vault.modify(existing, result.content);
     }
     if (notify) {
-      const message = result.status === "preserved" ? `\u5DF2\u4FDD\u7559\u7528\u6237\u4FEE\u6539\u7684 Base\uFF1A${path}\u3002\u5982\u9700\u65B0\u7248\uFF0C\u8BF7\u5148\u53E6\u5B58\u6216\u624B\u52A8\u5220\u9664\u8BE5\u6587\u4EF6\u3002` : `${result.reason} ${path}`;
+      const message = result.status === "preserved" ? tr(
+        `\u5DF2\u4FDD\u7559\u7528\u6237\u4FEE\u6539\u7684 Base\uFF1A${path}\u3002\u5982\u9700\u65B0\u7248\uFF0C\u8BF7\u5148\u53E6\u5B58\u6216\u624B\u52A8\u5220\u9664\u8BE5\u6587\u4EF6\u3002`,
+        `Kept your edited Base: ${path}. Save it under another name or delete it to get the new version.`
+      ) : `${result.reason} ${path}`;
       new import_obsidian20.Notice(message, 7e3);
     }
   }
@@ -23657,11 +23818,17 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
           return;
         }
         const confirmed = await this.showConfirmDialog(
-          "\u5141\u8BB8\u5904\u7406\u672C\u5730\u5A92\u4F53\uFF1F",
-          `\u5916\u90E8\u534F\u8BAE\u8BF7\u6C42\u8BFB\u53D6\u5E76\u53D1\u9001\u8FD9\u4E2A\u672C\u5730\u6587\u4EF6\u5230\u5F53\u524D\u540E\u7AEF\uFF1A
+          tr("\u5141\u8BB8\u5904\u7406\u672C\u5730\u5A92\u4F53\uFF1F", "Allow processing a local file?"),
+          tr(
+            `\u5916\u90E8\u534F\u8BAE\u8BF7\u6C42\u8BFB\u53D6\u5E76\u53D1\u9001\u8FD9\u4E2A\u672C\u5730\u6587\u4EF6\u5230\u5F53\u524D\u540E\u7AEF\uFF1A
 ${localFile}
 
-\u4EC5\u5728\u4F60\u8BA4\u8BC6\u8BE5\u6765\u6E90\u65F6\u786E\u8BA4\u3002`
+\u4EC5\u5728\u4F60\u8BA4\u8BC6\u8BE5\u6765\u6E90\u65F6\u786E\u8BA4\u3002`,
+            `An external link asks to read this local file and send it to the current backend:
+${localFile}
+
+Confirm only if you recognise where it came from.`
+          )
         );
         if (!confirmed) {
           new import_obsidian20.Notice(
@@ -23896,11 +24063,11 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     intro.appendText(
       tr(
         "\u4E09\u6B65\uFF1A\u5728\u7535\u8111\u4E0A\u542F\u52A8\u540E\u7AEF \u2192 \u628A\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801\u7C98\u8D34\u5230\u8FD9\u91CC \u2192 \u68C0\u67E5\u3002\u8FD8\u6CA1\u6709\u540E\u7AEF\uFF1F\u770B",
-        "Three steps: start the backend on your computer \u2192 paste the connection code from the start script here \u2192 check. No backend yet? See the"
+        "Three steps: start the backend on your computer \u2192 paste the connection code from the start script here \u2192 check. No backend yet? See the "
       )
     );
     intro.createEl("a", { text: tr("\u5B89\u88C5\u6559\u7A0B", "install guide"), href: SETUP_GUIDE_URL });
-    intro.appendText("\u3002");
+    intro.appendText(tr("\u3002", "."));
     const results = section3.createDiv({ cls: "setup-check-list" });
     const runCheck = async (deep) => {
       results.empty();
@@ -24199,7 +24366,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       text: result.success ? tr("\u8FDE\u63A5\u8BCA\u65AD\u901A\u8FC7", "Connection check passed") : tr("\u8FDE\u63A5\u8BCA\u65AD\u5931\u8D25", "Connection check failed")
     });
     const details = [
-      result.durationMs !== void 0 ? `\u8017\u65F6 ${result.durationMs}ms` : "",
+      result.durationMs !== void 0 ? tr(`\u8017\u65F6 ${result.durationMs}ms`, `Took ${result.durationMs}ms`) : "",
       result.status ? `HTTP ${result.status}` : "",
       result.error || ""
     ].filter(Boolean).join(" | ");
@@ -24212,12 +24379,18 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     if (result.workflow) {
       const workflow = result.workflow;
       const workflowLines = [
-        workflow.name ? `\u540D\u79F0: ${workflow.name}` : "",
-        workflow.version ? `\u7248\u672C: ${workflow.version}` : "",
-        workflow.variant ? `\u7C7B\u578B: ${workflow.variant}` : "",
+        workflow.name ? tr(`\u540D\u79F0: ${workflow.name}`, `Name: ${workflow.name}`) : "",
+        workflow.version ? tr(`\u7248\u672C: ${workflow.version}`, `Version: ${workflow.version}`) : "",
+        workflow.variant ? tr(`\u7C7B\u578B: ${workflow.variant}`, `Variant: ${workflow.variant}`) : "",
         workflow.webhookPath ? `Path: ${workflow.webhookPath}` : "",
-        workflow.models?.length ? `\u6A21\u578B\u6807\u7B7E: ${workflow.models.join(", ")}` : "",
-        workflow.requiredTools?.length ? `\u4F9D\u8D56\u5DE5\u5177: ${workflow.requiredTools.join(", ")}` : ""
+        workflow.models?.length ? tr(
+          `\u6A21\u578B\u6807\u7B7E: ${workflow.models.join(", ")}`,
+          `Model tags: ${workflow.models.join(", ")}`
+        ) : "",
+        workflow.requiredTools?.length ? tr(
+          `\u4F9D\u8D56\u5DE5\u5177: ${workflow.requiredTools.join(", ")}`,
+          `Required tools: ${workflow.requiredTools.join(", ")}`
+        ) : ""
       ].filter(Boolean);
       if (workflowLines.length > 0) {
         containerEl.createEl("pre", { text: workflowLines.join("\n") });
@@ -24512,8 +24685,9 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
               3e3
             );
           } else {
-            const hint = res.hint ? `
-\u5EFA\u8BAE: ${res.hint}` : "";
+            const hint = res.hint ? tr(`
+\u5EFA\u8BAE: ${res.hint}`, `
+Suggestion: ${res.hint}`) : "";
             new import_obsidian20.Notice(
               tr(
                 `${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
@@ -24914,13 +25088,47 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         })
       );
     };
-    createKeySetting("\u5904\u7406\u6A21\u5F0F\u952E", "\u53D1\u9001\u5904\u7406\u6A21\u5F0F\uFF08summary/transcript-only \u7B49\uFF09\u7684\u952E\u540D", "mode");
-    createKeySetting("\u8BED\u8A00\u952E", "\u53D1\u9001\u8BED\u8A00\u4EE3\u7801\uFF08zh/en/ja\uFF09\u7684\u952E\u540D", "language");
-    createKeySetting("\u6A21\u578B\u952E", "\u53D1\u9001\u6A21\u578B\u6807\u7B7E\u7684\u952E\u540D", "ai");
-    createKeySetting("\u4EC5\u4FE1\u606F\u6807\u5FD7\u952E", "\u5F53\u6A21\u5F0F\u4E3A info-only \u65F6\u53D1\u9001 true \u7684\u952E\u540D", "info_only");
-    createKeySetting("\u89C6\u9891\u94FE\u63A5\u952E", "\u53D1\u9001\u89C6\u9891 URL \u7684\u952E\u540D", "link");
-    createKeySetting("\u624B\u52A8\u6587\u7A3F\u952E", "\u53D1\u9001\u624B\u52A8\u63D0\u4F9B\u7684\u6587\u7A3F\u5185\u5BB9\u7684\u952E\u540D", "provided_transcript");
-    createKeySetting("\u672C\u5730\u6587\u4EF6\u952E", "\u53D1\u9001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u7684\u952E\u540D", "local_file");
+    createKeySetting(
+      tr("\u5904\u7406\u6A21\u5F0F\u952E", "Mode key"),
+      tr(
+        "\u53D1\u9001\u5904\u7406\u6A21\u5F0F\uFF08summary/transcript-only \u7B49\uFF09\u7684\u952E\u540D",
+        "Key that carries the processing mode (summary, transcript-only and so on)"
+      ),
+      "mode"
+    );
+    createKeySetting(
+      tr("\u8BED\u8A00\u952E", "Language key"),
+      tr("\u53D1\u9001\u8BED\u8A00\u4EE3\u7801\uFF08zh/en/ja\uFF09\u7684\u952E\u540D", "Key that carries the language code (zh/en/ja)"),
+      "language"
+    );
+    createKeySetting(
+      tr("\u6A21\u578B\u952E", "Model key"),
+      tr("\u53D1\u9001\u6A21\u578B\u6807\u7B7E\u7684\u952E\u540D", "Key that carries the model tag"),
+      "ai"
+    );
+    createKeySetting(
+      tr("\u4EC5\u4FE1\u606F\u6807\u5FD7\u952E", "Info-only flag key"),
+      tr(
+        "\u5F53\u6A21\u5F0F\u4E3A info-only \u65F6\u53D1\u9001 true \u7684\u952E\u540D",
+        "Key that carries true when the mode is info-only"
+      ),
+      "info_only"
+    );
+    createKeySetting(
+      tr("\u89C6\u9891\u94FE\u63A5\u952E", "Video link key"),
+      tr("\u53D1\u9001\u89C6\u9891 URL \u7684\u952E\u540D", "Key that carries the video URL"),
+      "link"
+    );
+    createKeySetting(
+      tr("\u624B\u52A8\u6587\u7A3F\u952E", "Manual transcript key"),
+      tr("\u53D1\u9001\u624B\u52A8\u63D0\u4F9B\u7684\u6587\u7A3F\u5185\u5BB9\u7684\u952E\u540D", "Key that carries a transcript you supplied"),
+      "provided_transcript"
+    );
+    createKeySetting(
+      tr("\u672C\u5730\u6587\u4EF6\u952E", "Local file key"),
+      tr("\u53D1\u9001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u7684\u952E\u540D", "Key that carries the local file path"),
+      "local_file"
+    );
   }
   createAdvancedSection(containerEl) {
     const { section: section3 } = this.sectionCard(
@@ -25089,8 +25297,11 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       const confirmed = await new Promise((resolve) => {
         const confirmModal = new ConfirmModal(
           this.app,
-          "\u786E\u8BA4\u6E05\u7A7A\u6240\u6709\u7F13\u5B58",
-          "\u6B64\u64CD\u4F5C\u5C06\u5220\u9664\u6240\u6709\u7F13\u5B58\u9879\uFF0C\u65E0\u6CD5\u6062\u590D\u3002\u786E\u5B9A\u8981\u7EE7\u7EED\u5417\uFF1F",
+          tr("\u786E\u8BA4\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", "Clear all cache?"),
+          tr(
+            "\u6B64\u64CD\u4F5C\u5C06\u5220\u9664\u6240\u6709\u7F13\u5B58\u9879\uFF0C\u65E0\u6CD5\u6062\u590D\u3002\u786E\u5B9A\u8981\u7EE7\u7EED\u5417\uFF1F",
+            "This deletes every cached item and cannot be undone. Continue?"
+          ),
           resolve
         );
         confirmModal.open();
@@ -25167,14 +25378,14 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
           text: value
         });
       };
-      addStatCard("\u603B\u7F13\u5B58\u9879", String(currentStats.size));
-      addStatCard("\u6700\u5927\u5BB9\u91CF", String(currentStats.maxSize));
+      addStatCard(tr("\u603B\u7F13\u5B58\u9879", "Cached items"), String(currentStats.size));
+      addStatCard(tr("\u6700\u5927\u5BB9\u91CF", "Capacity"), String(currentStats.maxSize));
       addStatCard(
-        "\u8FC7\u671F\u9879",
+        tr("\u8FC7\u671F\u9879", "Expired"),
         String(currentStats.expiredCount),
         currentStats.expiredCount > 0 ? "expired" : ""
       );
-      addStatCard("\u603B\u5927\u5C0F", this.formatBytes(currentStats.totalSize));
+      addStatCard(tr("\u603B\u5927\u5C0F", "Total size"), this.formatBytes(currentStats.totalSize));
       if (currentStats.size > 0) {
         const previewSection = container.createDiv({ cls: "cache-preview-content" });
         new import_obsidian20.Setting(previewSection).setName(tr("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8", "Cache contents")).setHeading();
@@ -25366,9 +25577,9 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
    */
   getModeLabel(mode) {
     const modeLabels = {
-      summary: "\u5B8C\u6574\u603B\u7ED3",
-      "transcript-only": "\u4EC5\u6587\u7A3F",
-      "info-only": "\u4EC5\u89C6\u9891\u4FE1\u606F"
+      summary: tr("\u5B8C\u6574\u603B\u7ED3", "Full summary"),
+      "transcript-only": tr("\u4EC5\u6587\u7A3F", "Transcript only"),
+      "info-only": tr("\u4EC5\u89C6\u9891\u4FE1\u606F", "Video info only")
     };
     return modeLabels[mode] || mode;
   }
@@ -25378,8 +25589,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   getLanguageLabel(language) {
     const languageLabels = {
       zh: "\u4E2D\u6587",
-      en: "\u82F1\u6587",
-      ja: "\u65E5\u6587"
+      en: tr("\u82F1\u6587", "English"),
+      ja: tr("\u65E5\u6587", "Japanese")
     };
     return languageLabels[language] || language;
   }

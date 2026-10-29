@@ -2,59 +2,73 @@
 
 # Video Summary
 
-**Turn videos, local recordings, and rough transcripts into evidence-linked, searchable Obsidian knowledge.**
+**Paste a video link, drop a local recording or paste a transcript, and get an Obsidian note with a summary, a timestamped transcript and key points.**
 
-把视频链接、本地录音录像和现成文稿，整理成带时间戳出处、可检索的 Obsidian 笔记。
+English · [中文](README.zh.md) · [日本語](#日本語)
 
-[What's new](#whats-new-in-280) · [Install](#install) · [Backend](#backend) · [Privacy](#privacy-and-data-boundary) · [中文说明](#中文说明) · [日本語](#日本語)
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/panel-dark.jpg">
-  <img src="docs/screenshots/panel.jpg" width="860">
-</picture>
+<img src="docs/screenshots/hero.png" width="860" alt="A finished example note on the left; the Library tab of the side panel on the right">
 
 </div>
+
+## Start here
+
+1. Install and enable Video Summary, then run **Open the Video Summary side panel** from the command palette.
+2. Press **See an example note**. It writes one finished note (an interview on reading papers in three passes), marked as a demo, so you can see the result before setting anything up.
+3. To process your own videos, start the backend on your computer: download `video-summary-backend-<version>.zip` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest), unzip it outside your vault and double-click `start-mac.command` (macOS) or `start-windows.cmd` (Windows). It asks for your keys and prints a connection code. About 20 minutes the first time; [step-by-step guide](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
+4. In **Settings → Video Summary → First-run setup**, paste the connection code, run **Full check**, then **Trial run**.
+5. Paste a link into the side panel and press **Start**.
+
+## What you need and what it costs
+
+| Part            | What it is                                                                                         | Cost                                                                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The plugin      | Obsidian desktop                                                                                   | Free, no account                                                                                                                                                    |
+| Backend hosting | n8n with yt-dlp and ffmpeg in Docker on your own computer, started by the script                   | Free: Docker Desktop or OrbStack, free for personal use; no server to rent                                                                                          |
+| Speech-to-text  | SiliconFlow `SenseVoiceSmall`, used only for videos without subtitles and for local audio or video | The model is free, but SiliconFlow refuses even free models while the account balance is zero; top up a small amount once                                           |
+| Summary model   | DeepSeek `deepseek-flash` by default, or any OpenAI-compatible model                               | Billed per token by the provider. In our test on 2026-10-29, eight summaries including a 47-minute video cost about ¥0.4 off-peak. Check the provider's price page. |
+
+Bilibili login is optional and free: scan a QR code in the setup wizard to let the backend read Bilibili subtitles and AI subtitles.
+
+## What is sent where
+
+| What                                                                | Goes to                                                 | Stored                                                                                                                                                             |
+| ------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Link, pasted transcript or local file, note name, mode and language | Your backend on `127.0.0.1` only                        | The note in your vault, plus evidence and learning data in the plugin folder                                                                                       |
+| Video subtitles or audio                                            | Fetched by your backend from the video platform         | The backend's working volume; downloads older than a day are removed                                                                                               |
+| Audio without subtitles                                             | Your backend sends it to SiliconFlow for speech-to-text | Not kept by the plugin                                                                                                                                             |
+| Transcript text                                                     | Your backend sends it to your summary model             | Not kept by the plugin                                                                                                                                             |
+| Model and speech-to-text keys                                       | Only to their providers                                 | The backend's `.env` and n8n's credential store, never in the vault                                                                                                |
+| Connection code (backend address and password)                      | Only to your backend                                    | The plugin's `data.json` in the vault, so it syncs with the vault. The backend listens on `127.0.0.1`, so another computer needs its own backend and its own code. |
+| Bilibili login                                                      | Only to your backend                                    | The backend; the plugin does not keep it                                                                                                                           |
+
+No telemetry, no analytics, nothing sent to the plugin author. Details: [Privacy and data boundary](#privacy-and-data-boundary).
+
+## Screens
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/first-open.png" alt="Side panel before a backend is connected"><br>Before setup, the side panel offers the first-run setup or an example note.</td>
+<td width="50%"><img src="docs/screenshots/setup.png" alt="First-run setup in the settings"><br>First-run setup: paste the connection code, check, trial run, optional Bilibili login.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/setup-check.jpg" alt="Full check results"><br>The full check names each failing part and what to change.</td>
+<td width="50%"><img src="docs/screenshots/batch.jpg" alt="Batch processing"><br>Several links at once, one per line, each with its own progress.</td>
+</tr>
+</table>
+
+## What's new in 2.9.0
+
+- English interface when Obsidian is not set to Chinese; Chinese stays as before.
+- **See an example note** shows a real result before any setup; the side panel tells apart "no backend yet" and "no jobs yet", each with one next step.
+- The connection check tells a slow backend from one that is not running.
+- The backend is unchanged: `video-summary-backend-2.8.0.zip` works with this version.
+
+Earlier releases: [CHANGELOG.md](CHANGELOG.md).
 
 Video Summary connects Obsidian to a processing endpoint you control. The repository includes a
 general-purpose n8n workflow; the plugin can also talk to a compatible external Worker endpoint.
 It keeps the reader-facing result in Markdown and stores structured evidence, learning state, and
 reproducibility metadata as local plugin sidecars.
-
-## What's new in 2.8.0
-
-- **One-download backend.** The release now has `video-summary-backend-2.8.0.zip` in place of the
-  bare n8n workflow. Unzip it, double-click `start-mac.command` (macOS) or `start-windows.cmd`
-  (Windows), paste your keys, and it builds and starts n8n with yt-dlp and ffmpeg. It switches to
-  mainland-China mirrors by itself when Docker Hub is unreachable, picks a free port when 5678 is
-  taken, and prints a connection code. Nothing to import or click in n8n: credentials and both
-  workflows are created on first start.
-- **One model for everything.** Every AI step uses one OpenAI-compatible model, set in `.env`.
-  Default DeepSeek `deepseek-flash`; SiliconFlow, Qwen, Kimi or Gemini need only a different
-  address and model name. The ten per-provider model nodes and unused branches are gone (61 → 51
-  nodes).
-- **Speech-to-text included.** Videos without subtitles and local audio/video work out of the box
-  with SiliconFlow's free SenseVoice. Long audio is cut into 10-minute parts and joined in order.
-  Local images are read by an OpenAI-compatible vision model; PDFs by n8n's own text extraction.
-- **Bilibili first.** Uploader subtitles, then Bilibili's AI subtitles, then speech-to-text;
-  danmaku is never used as a transcript. New in the setup wizard: scan a QR code with the Bilibili
-  app to give your backend the login it needs for subtitles. Browser extension 0.6.0 can sync the
-  login too, and now sends the backend password with its requests.
-- **First-run setup in the plugin.** Settings → 视频总结 → 首次配置: paste the connection code
-  from the clipboard, run the full check (backend, code, workflow version, yt-dlp and ffmpeg,
-  model key and name, speech-to-text, Bilibili login), then a trial run. Every failed step says
-  what to change. Wrong or missing model keys now end a job with that message instead of four
-  silent retries.
-- The plugin no longer keeps a list of model labels; the model name shown with each result comes
-  from the backend.
-- **Fixed (affects 2.7.0):** requests from the plugin to the backend failed inside Obsidian with
-  "Failed to resolve module specifier 'obsidian'"; the bundle now loads Obsidian's API with
-  `require`. Also fixed: every Bilibili link stopped at "Short-link redirect limit exceeded";
-  logged-in Bilibili videos ignored their AI subtitles; `local_file: '…'` written with quotes was
-  never found; links failed in n8n 2.x Code nodes, which have no `URL` global.
-- Downloaded audio and subtitles older than a day are removed from the backend's working volume.
-- Install guide rewritten in Chinese, with shorter English and Japanese versions.
-
-Earlier releases: [CHANGELOG.md](CHANGELOG.md).
 
 ## What it does
 
@@ -198,8 +212,8 @@ Recommended folder:
 Download `video-summary-backend-<version>.zip` from the same release, unzip it outside your vault,
 and run `start-mac.command` (macOS), `start-windows.cmd` (Windows) or `./vs-backend.sh` (Linux).
 It needs Docker Desktop or OrbStack, builds n8n with yt-dlp and ffmpeg, asks for your model and
-speech-to-text keys, and prints a connection code. Paste that code into Settings → 视频总结 →
-首次配置 and run the check. The full guide is [INSTALL.md](INSTALL.md) (Chinese), with
+speech-to-text keys, and prints a connection code. Paste that code into Settings → Video Summary →
+First-run setup and run the check. The full guide is [INSTALL.md](INSTALL.md) (Chinese), with
 [English](docs/INSTALL.en.md) and [Japanese](docs/INSTALL.ja.md) versions.
 
 The backend listens only on `127.0.0.1` and requires the connection code's token on every
@@ -416,15 +430,7 @@ the manifest version. Before each submission or release, confirm:
 
 ## 中文说明
 
-**是什么：** 一个 Obsidian 插件。贴一个视频链接（YouTube、B 站、抖音、TikTok、小红书等）、选一个本地音视频文件，或者直接粘贴文稿，它会交给你自己部署的处理服务（仓库附带一键启动的 n8n 后端），拿回结构化的总结和带时间戳的文稿，写成 Obsidian 笔记。
-
-**特点：**
-
-- 处理服务由你自己掌控，插件本身没有账号、不收集数据。
-- 重新处理时只替换插件自己的区块，你写在笔记里的内容不会被覆盖；处理期间你改过笔记，插件会停下来，不会覆盖。
-- 侧栏可以看任务进度、取消任务、跟着时间戳阅读文稿。
-
-**安装：** 在第三方插件里装好插件；从 Releases 下载 `video-summary-backend-<version>.zip`，解压后双击启动脚本，按提示填 DeepSeek 和硅基流动的密钥；最后把它给的连接码粘贴到 设置 → 视频总结 → 首次配置。完整步骤和排错见 [安装教程](INSTALL.md)。
+见 [README.zh.md](README.zh.md)。
 
 ## 日本語
 

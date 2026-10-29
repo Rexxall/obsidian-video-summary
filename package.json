@@ -1,7 +1,7 @@
 {
   "name": "obsidian-video-summary-plugin",
-  "version": "2.8.0",
-  "description": "将视频链接、本地音视频和文稿整理为结构化 Obsidian 笔记",
+  "version": "2.9.0",
+  "description": "Turn video links, local recordings and transcripts into Obsidian notes with a summary, a timestamped transcript and key points, processed by a backend you run.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
