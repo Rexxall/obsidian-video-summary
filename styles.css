@@ -243,7 +243,7 @@
 }
 .ap-settings .setting-item-heading {
   background: none;
-  padding: var(--ap-s6) var(--ap-s1) var(--ap-s2);
+  padding: var(--ap-s6) 0 var(--ap-s2);
   min-height: 0;
 }
 .ap-settings .setting-item-heading .setting-item-name {
@@ -3822,7 +3822,7 @@ body {
 }
 .vs-settings.ap-settings .setting-item.vs-settings-group {
   margin: 0;
-  padding: var(--ap-s6) var(--ap-s1) var(--ap-s2);
+  padding: var(--ap-s6) 0 var(--ap-s2);
   border: 0;
   background: none;
 }
@@ -3847,13 +3847,11 @@ body {
 }
 .vs-settings.ap-settings .vs-settings-section-title {
   margin-bottom: var(--ap-s2);
-  padding-inline: var(--ap-s1);
   color: var(--ap-label);
   font: var(--ap-headline);
   letter-spacing: 0;
 }
 .vs-settings.ap-settings .vs-settings-section > p.setting-item-description {
-  padding-inline: var(--ap-s1);
   font: var(--ap-callout);
 }
 .vs-settings.ap-settings .setting-item {
@@ -3872,18 +3870,6 @@ body {
   right: 0;
   left: var(--ap-s4);
   border-top: 0.5px solid var(--ap-sep);
-}
-.vs-settings.ap-settings
-  .vs-settings-section
-  .setting-item:is(:first-child, :not(.setting-item) + *) {
-  border-top-left-radius: var(--ap-r-group);
-  border-top-right-radius: var(--ap-r-group);
-}
-.vs-settings.ap-settings
-  .vs-settings-section
-  .setting-item:is(:last-child, :has(+ :not(.setting-item))) {
-  border-bottom-left-radius: var(--ap-r-group);
-  border-bottom-right-radius: var(--ap-r-group);
 }
 .vs-settings.ap-settings .vs-subsection {
   border-top: 0;
@@ -4086,4 +4072,114 @@ body {
 }
 .vs-settings .setup-qr-canvas {
   border-radius: 8px;
+}
+
+/* Settings alignment: one left line and one right line.
+   Group text, headings, notes, button rows and hairlines all start at --ap-inset; groups bleed out by
+   the same amount, so controls inside and outside a group end on one right line. From Obsidian 1.13
+   the page is drawn inside a settings row whose card is dropped here. Empty or hidden helpers between
+   rows (status lines, QR boxes) do not split a group. */
+.setting-group .setting-items:has(> .ap-settings) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.ap.ap-settings {
+  --ap-inset: var(--ap-s4);
+  padding-inline: var(--ap-inset);
+}
+.vertical-tab-content.ap.ap-settings {
+  padding-inline: calc(var(--size-4-8, 32px) + var(--ap-inset));
+}
+.ap.ap-settings .setting-item:not(.setting-item-heading) {
+  margin-inline: calc(-1 * var(--ap-inset));
+  padding-inline: var(--ap-inset);
+  border-radius: 0;
+}
+.ap.ap-settings .setting-item-heading {
+  margin: 0;
+  padding-inline: 0;
+  border: 0;
+}
+.ap.ap-settings
+  .setting-item:not(.setting-item-heading):is(
+    .setting-item:not(.setting-item-heading) + *,
+    .setting-item:not(.setting-item-heading) + :is(:empty, [style*='display: none']) + *,
+    .setting-item:not(.setting-item-heading)
+      + :is(:empty, [style*='display: none'])
+      + :is(:empty, [style*='display: none'])
+      + *
+  )::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  left: var(--ap-inset);
+  right: 0;
+  border-top: 0.5px solid var(--ap-sep);
+}
+.ap.ap-settings
+  .setting-item:not(.setting-item-heading):not(
+    .setting-item:not(.setting-item-heading) + *,
+    .setting-item:not(.setting-item-heading) + :is(:empty, [style*='display: none']) + *,
+    .setting-item:not(.setting-item-heading)
+      + :is(:empty, [style*='display: none'])
+      + :is(:empty, [style*='display: none'])
+      + *
+  ) {
+  border-top-left-radius: var(--ap-r-group);
+  border-top-right-radius: var(--ap-r-group);
+}
+.ap.ap-settings
+  .setting-item:not(.setting-item-heading):not(
+    .setting-item:not(.setting-item-heading) + *,
+    .setting-item:not(.setting-item-heading) + :is(:empty, [style*='display: none']) + *,
+    .setting-item:not(.setting-item-heading)
+      + :is(:empty, [style*='display: none'])
+      + :is(:empty, [style*='display: none'])
+      + *
+  )::before {
+  content: none;
+}
+.ap.ap-settings
+  .setting-item:not(.setting-item-heading):not(
+    :has(
+      + .setting-item:not(.setting-item-heading),
+      + :is(:empty, [style*='display: none']) + .setting-item:not(.setting-item-heading),
+      + :is(:empty, [style*='display: none'])
+        + :is(:empty, [style*='display: none'])
+        + .setting-item:not(.setting-item-heading)
+    )
+  ) {
+  border-bottom-left-radius: var(--ap-r-group);
+  border-bottom-right-radius: var(--ap-r-group);
+}
+
+/* Side panel: the hairline under the tabs starts and ends where the cards do */
+.video-summary-view.ap .vs-tab-row.ap-bar-glass {
+  --vs-row-inset: 16px;
+  box-shadow: none;
+}
+.video-summary-view.ap .vs-tab-row.ap-bar-glass::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: var(--vs-row-inset);
+  right: var(--vs-row-inset);
+  border-bottom: 0.5px solid var(--ap-sep);
+}
+@container vs-view (max-width: 300px) {
+  .video-summary-view.ap .vs-tab-row.ap-bar-glass {
+    --vs-row-inset: 12px;
+  }
+}
+
+/* Buttons with no row name of their own: a bare row outside the groups, spaced by gap only */
+.ap-settings .ap-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ap-s2);
+  padding-block: var(--ap-s2);
 }

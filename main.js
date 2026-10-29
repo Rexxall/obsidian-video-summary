@@ -23928,6 +23928,10 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   display() {
     this.renderPage(this.containerEl);
   }
+  /** A row of buttons outside any group, ending on the same right line as the controls. */
+  buttonRow(parent, build) {
+    build(new import_obsidian20.ButtonComponent(parent.createDiv({ cls: "ap-button-row" })));
+  }
   redraw() {
     if (this.host) this.renderPage(this.host);
   }
@@ -24203,7 +24207,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       }
     });
     const cookieStatus = cookies.createEl("p", { cls: "setting-item-description" });
-    new import_obsidian20.Setting(cookies).addButton(
+    this.buttonRow(
+      cookies,
       (button) => button.setButtonText(tr("\u4FDD\u5B58\u5230\u540E\u7AEF", "Save to backend")).onClick(async () => {
         button.setDisabled(true);
         const result = await this.plugin.api.uploadCookies("bilibili", cookieText.value);
@@ -24212,7 +24217,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         button.setDisabled(false);
       })
     );
-    new import_obsidian20.Setting(section3).addButton(
+    this.buttonRow(
+      section3,
       (button) => button.setButtonText(tr("\u5B8C\u6210\uFF0C\u6536\u8D77", "Done, collapse")).onClick(async () => {
         this.plugin.settings.setupGuideDismissed = true;
         await this.plugin.saveSettings();
@@ -24825,7 +24831,8 @@ Suggestion: ${res.hint}`) : "";
       });
     };
     renderProfiles();
-    new import_obsidian20.Setting(section3).addButton(
+    this.buttonRow(
+      section3,
       (button) => button.setButtonText(tr("\u6DFB\u52A0 webhook", "Add webhook")).setCta().onClick(async () => {
         const newProfile = {
           id: `webhook-${Date.now()}`,

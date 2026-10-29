@@ -1,6 +1,7 @@
 import { relinkVideoJobs } from './utils/NoteOutput';
 import {
   App,
+  ButtonComponent,
   Editor,
   MarkdownView,
   Notice,
@@ -2673,6 +2674,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.renderPage(this.containerEl);
   }
 
+  /** A row of buttons outside any group, ending on the same right line as the controls. */
+  private buttonRow(parent: HTMLElement, build: (button: ButtonComponent) => unknown) {
+    build(new ButtonComponent(parent.createDiv({ cls: 'ap-button-row' })));
+  }
+
   private redraw() {
     if (this.host) this.renderPage(this.host);
   }
@@ -3002,7 +3008,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       },
     });
     const cookieStatus = cookies.createEl('p', { cls: 'setting-item-description' });
-    new Setting(cookies).addButton((button) =>
+    this.buttonRow(cookies, (button) =>
       button.setButtonText(tr('保存到后端', 'Save to backend')).onClick(async () => {
         button.setDisabled(true);
         const result = await this.plugin.api.uploadCookies('bilibili', cookieText.value);
@@ -3012,7 +3018,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       }),
     );
 
-    new Setting(section).addButton((button) =>
+    this.buttonRow(section, (button) =>
       button.setButtonText(tr('完成，收起', 'Done, collapse')).onClick(async () => {
         this.plugin.settings.setupGuideDismissed = true;
         await this.plugin.saveSettings();
@@ -3735,7 +3741,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     renderProfiles();
 
-    new Setting(section).addButton((button) =>
+    this.buttonRow(section, (button) =>
       button
         .setButtonText(tr('添加 webhook', 'Add webhook'))
         .setCta()
