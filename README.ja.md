@@ -16,7 +16,7 @@ Obsidian が中国語以外の設定のとき、プラグインの画面は英�
 
 1. Video Summary を有効にし、コマンドパレットからサイドパネルを開きます。
 2. **See an example note**（例のノートを見る）を押すと、完成したノートが 1 本作られます。何も設定せずに結果を確認できます。
-3. 自分の動画を処理するには、[最新リリース](https://github.com/Rexxall/obsidian-video-summary/releases/latest)から `video-summary-backend-<version>.zip` をダウンロードし、保管庫の外に展開して `start-mac.command`（macOS）または `start-windows.cmd`（Windows）を実行します。キーを入力すると接続コードが表示されます。初回は 20 分ほどです。手順は[インストールガイド](docs/INSTALL.ja.md)。
+3. 自分の動画を処理するには、[最新リリース](https://github.com/Rexxall/obsidian-video-summary/releases/latest)から `video-summary-backend-<version>.zip` をダウンロードし、保管庫の外に展開して `start-mac.command`（macOS）または `start-windows.cmd`（Windows）を実行します。キーを入力すると接続コードが表示されます。初回は約 10 分で、ほとんどは約 550 MB のイメージのダウンロードです。手順は[インストールガイド](docs/INSTALL.ja.md)。
 4. **Settings → Video Summary → First-run setup** で接続コードを貼り付け、**Full check** と **Trial run** を押します。
 5. サイドパネルにリンクを貼り、**Start** を押します。
 

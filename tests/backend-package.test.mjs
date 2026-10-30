@@ -279,3 +279,32 @@ test('start scripts parse, keep Windows-readable encoding and never echo keys', 
   assert.match(script, /read -rs value/, 'keys are read without echo');
   assert.doesNotMatch(script, /echo[^\n]*API_KEY/);
 });
+
+test('the backend pulls the prebuilt image for this version and builds only as a fallback', () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const { version } = JSON.parse(read('../package.json'));
+  const compose = read('../backend/compose.yaml');
+  assert.ok(
+    compose.includes(`image: \${VS_IMAGE:-ghcr.io/rexxall/video-summary-backend:${version}}`),
+    'compose pulls the image published for this plugin version',
+  );
+  assert.match(compose, /^\s+build:\n\s+context: \./m, 'compose can still build locally');
+
+  const pinned = /node:\d+\.\d+\.\d+-alpine\d+\.\d+@sha256:[0-9a-f]{64}/;
+  assert.match(read('../backend/Dockerfile'), pinned, 'Dockerfile base image is pinned');
+  assert.match(compose, pinned, 'compose base image is pinned');
+  assert.match(read('../backend/Dockerfile'), /ARG N8N_VERSION=\d+\.\d+\.\d+\n/);
+
+  for (const script of [read('../backend/vs-backend.sh'), read('../backend/vs-backend.ps1')]) {
+    assert.match(script, /pull n8n/, 'start scripts try the prebuilt image first');
+    assert.match(script, /build (--pull )?n8n|build "\$@" n8n/, 'and build when the pull fails');
+    assert.match(script, /up -d --no-build/);
+    assert.doesNotMatch(script, /__IMAGE_SIZE__/, 'image size is filled in');
+  }
+
+  const release = read('../.github/workflows/release.yml');
+  assert.match(release, /platforms: linux\/amd64,linux\/arm64/);
+  assert.match(release, /provenance: mode=max/);
+  assert.match(release, /actions\/attest-build-provenance/);
+  assert.match(release, /needs: backend-image/);
+});

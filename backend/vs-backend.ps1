@@ -1,11 +1,11 @@
 ﻿# Video Summary backend for Windows (PowerShell 5.1 or newer).
-#   .\vs-backend.ps1          start (first run: creates .env, asks for API keys, builds the image)
+#   .\vs-backend.ps1          start (first run: creates .env, asks for API keys, downloads the image)
 #   .\vs-backend.ps1 code     print the connection code again and copy it
 #   .\vs-backend.ps1 check    ask the running backend whether model and speech-to-text work
 #   .\vs-backend.ps1 keys     enter or change API keys, then restart
 #   .\vs-backend.ps1 logs     follow the backend log
 #   .\vs-backend.ps1 stop     stop the backend (data is kept)
-#   .\vs-backend.ps1 update   rebuild with the newest base image, then restart
+#   .\vs-backend.ps1 update   download the image for this version again (or rebuild), then restart
 param([string]$Command = 'start')
 
 $ErrorActionPreference = 'Stop'
@@ -125,11 +125,38 @@ function Select-Mirrors {
 	}
 	if ($mode -eq 'cn') {
 		Write-Host '使用国内镜像构建（Docker Hub 连不上或已设为 cn）。'
-		if (-not $env:VS_BASE_IMAGE) { $env:VS_BASE_IMAGE = 'docker.m.daocloud.io/library/node:24-alpine' }
+		if (-not $env:VS_BASE_IMAGE) { $env:VS_BASE_IMAGE = 'docker.m.daocloud.io/library/node:24.22.2-alpine3.24@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85' }
 		if (-not $env:VS_APK_MIRROR) { $env:VS_APK_MIRROR = 'https://mirrors.aliyun.com' }
 		if (-not $env:VS_NPM_REGISTRY) { $env:VS_NPM_REGISTRY = 'https://registry.npmmirror.com' }
 		if (-not $env:VS_PIP_INDEX_URL) { $env:VS_PIP_INDEX_URL = 'https://mirrors.aliyun.com/pypi/simple/' }
 	}
+}
+
+function Get-ImageRef {
+	$images = & docker compose --env-file $EnvFile config --images 2>$null
+	return ($images | Select-Object -First 1)
+}
+
+# Download the prebuilt image; build it here only when the download is not possible.
+function Get-Image([switch]$PullBase) {
+	$mode = Get-EnvValue 'VS_MIRROR'
+	$ref = Get-ImageRef
+	$hostName = ($ref -split '/')[0]
+	$registry = if ($hostName -like 'localhost*' -or $hostName -like '127.0.0.1*') { "http://$hostName/v2/" } else { "https://$hostName/v2/" }
+	$reachable = $false
+	if ($mode -ne 'cn') {
+		try { Invoke-WebRequest -Uri $registry -TimeoutSec 6 -UseBasicParsing | Out-Null; $reachable = $true }
+		catch { if ($_.Exception.Response) { $reachable = $true } }
+	}
+	if ($reachable) {
+		Write-Host '下载预构建的后端镜像（约 550 MB，第一次通常 1–5 分钟）…'
+		& docker compose --env-file $EnvFile pull n8n
+		if ($LASTEXITCODE -eq 0) { return }
+		Write-Host '预构建镜像下载失败，改为在本机构建。'
+	}
+	Select-Mirrors
+	Write-Host '在本机构建后端（第一次约 10 分钟）…'
+	if ($PullBase) { Invoke-Compose build --pull n8n } else { Invoke-Compose build n8n }
 }
 
 function Wait-Ready {
@@ -169,9 +196,10 @@ switch ($Command) {
 		Initialize-Env
 		Read-Keys
 		Select-Port
-		Select-Mirrors
-		Write-Host '启动后端（第一次需要下载和构建，约 5–15 分钟）…'
-		Invoke-Compose up -d --build
+		& docker image inspect (Get-ImageRef) *> $null
+		if ($LASTEXITCODE -ne 0) { Get-Image }
+		Write-Host '启动后端…'
+		Invoke-Compose up -d --no-build
 		Wait-Ready
 		Show-Code
 	}
@@ -180,6 +208,6 @@ switch ($Command) {
 	'keys' { Test-Docker; Initialize-Env; Read-Keys -Force; Invoke-Compose up -d; Wait-Ready }
 	'logs' { & docker compose --env-file $EnvFile logs -f --tail 100 n8n }
 	'stop' { Invoke-Compose stop }
-	'update' { Test-Docker; Initialize-Env; Select-Mirrors; Invoke-Compose build --pull; Invoke-Compose up -d; Wait-Ready; Show-Code }
+	'update' { Test-Docker; Initialize-Env; Get-Image -PullBase; Invoke-Compose up -d --no-build; Wait-Ready; Show-Code }
 	default { Fail "不认识的命令：$Command（可用：start code check keys logs stop update）" }
 }

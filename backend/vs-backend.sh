@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Video Summary backend for macOS and Linux.
-#   ./vs-backend.sh          start (first run: creates .env, asks for API keys, builds the image)
+#   ./vs-backend.sh          start (first run: creates .env, asks for API keys, downloads the image)
 #   ./vs-backend.sh code     print the connection code again and copy it
 #   ./vs-backend.sh check    ask the running backend whether model and speech-to-text work
 #   ./vs-backend.sh keys     enter or change API keys, then restart
 #   ./vs-backend.sh logs     follow the backend log
 #   ./vs-backend.sh stop     stop the backend (data is kept)
-#   ./vs-backend.sh update   rebuild with the newest base image, then restart
+#   ./vs-backend.sh update   download the image for this version again (or rebuild), then restart
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -135,11 +135,37 @@ choose_mirrors() {
 	fi
 	if [ "$mode" = cn ]; then
 		say "使用国内镜像构建（Docker Hub 连不上或已设为 cn）。"
-		export VS_BASE_IMAGE="${VS_BASE_IMAGE:-docker.m.daocloud.io/library/node:24-alpine}"
+		export VS_BASE_IMAGE="${VS_BASE_IMAGE:-docker.m.daocloud.io/library/node:24.22.2-alpine3.24@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85}"
 		export VS_APK_MIRROR="${VS_APK_MIRROR:-https://mirrors.aliyun.com}"
 		export VS_NPM_REGISTRY="${VS_NPM_REGISTRY:-https://registry.npmmirror.com}"
 		export VS_PIP_INDEX_URL="${VS_PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}"
 	fi
+}
+
+# Where the prebuilt image lives, for a quick reachability check before pulling.
+image_ref() { compose config --images 2>/dev/null | head -n 1; }
+registry_url() {
+	local host="${1%%/*}"
+	case "$host" in
+	localhost* | 127.0.0.1*) printf 'http://%s/v2/' "$host" ;;
+	*.*) printf 'https://%s/v2/' "$host" ;;
+	*) printf 'https://registry-1.docker.io/v2/' ;;
+	esac
+}
+
+# Download the prebuilt image; build it here only when the download is not possible.
+get_image() {
+	local mode ref
+	mode="$(env_get VS_MIRROR)"
+	ref="$(image_ref)"
+	if [ "${mode:-auto}" != cn ] && curl -s -m 6 -o /dev/null "$(registry_url "$ref")"; then
+		say "下载预构建的后端镜像（约 550 MB，第一次通常 1–5 分钟）…"
+		if compose pull n8n; then return 0; fi
+		say "预构建镜像下载失败，改为在本机构建。"
+	fi
+	choose_mirrors
+	say "在本机构建后端（第一次约 10 分钟）…"
+	compose build "$@" n8n
 }
 
 wait_ready() {
@@ -189,9 +215,9 @@ start() {
 	ensure_env
 	ask_keys
 	choose_port
-	choose_mirrors
-	say "启动后端（第一次需要下载和构建，约 5–15 分钟）…"
-	compose up -d --build
+	if ! docker image inspect "$(image_ref)" >/dev/null 2>&1; then get_image; fi
+	say "启动后端…"
+	compose up -d --no-build
 	wait_ready
 	show_code
 }
@@ -215,9 +241,8 @@ stop) compose stop ;;
 update)
 	require_docker
 	ensure_env
-	choose_mirrors
-	compose build --pull
-	compose up -d
+	get_image --pull
+	compose up -d --no-build
 	wait_ready
 	show_code
 	;;

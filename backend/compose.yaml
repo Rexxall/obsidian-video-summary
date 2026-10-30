@@ -3,14 +3,17 @@ name: ${VS_PROJECT:-video-summary}
 
 services:
   n8n:
+    # The start script pulls this prebuilt image and builds from the Dockerfile only when the
+    # download fails. version-bump.mjs keeps the tag equal to the plugin version.
+    image: ${VS_IMAGE:-ghcr.io/rexxall/video-summary-backend:2.11.0}
+    pull_policy: missing
     build:
       context: .
       args:
-        BASE_IMAGE: ${VS_BASE_IMAGE:-node:24-alpine}
+        BASE_IMAGE: ${VS_BASE_IMAGE:-node:24.22.2-alpine3.24@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85}
         APK_MIRROR: ${VS_APK_MIRROR:-}
         NPM_REGISTRY: ${VS_NPM_REGISTRY:-}
         PIP_INDEX_URL: ${VS_PIP_INDEX_URL:-}
-    image: video-summary-backend:3.1.0
     restart: unless-stopped
     # Reachable only from this computer. Do not change to 0.0.0.0 without an authenticated HTTPS
     # proxy in front; see SECURITY.md.

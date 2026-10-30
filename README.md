@@ -14,7 +14,7 @@ English · [中文](README.zh-CN.md) · [日本語](README.ja.md)
 
 1. Install and enable Video Summary, then run **Open the Video Summary side panel** from the command palette.
 2. Press **See an example note**. It writes one finished note (an interview on reading papers in three passes), marked as a demo, so you can see the result before setting anything up.
-3. To process your own videos, start the backend on your computer: download `video-summary-backend-<version>.zip` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest), unzip it outside your vault and double-click `start-mac.command` (macOS) or `start-windows.cmd` (Windows). It asks for your keys and prints a connection code. About 20 minutes the first time; [step-by-step guide](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
+3. To process your own videos, start the backend on your computer: download `video-summary-backend-<version>.zip` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest), unzip it outside your vault and double-click `start-mac.command` (macOS) or `start-windows.cmd` (Windows). It asks for your keys and prints a connection code. About 10 minutes the first time, most of it downloading the 550 MB backend image; [step-by-step guide](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
 4. In **Settings → Video Summary → First-run setup**, paste the connection code, run **Full check**, then **Trial run**.
 5. Paste a link into the side panel and press **Start**.
 

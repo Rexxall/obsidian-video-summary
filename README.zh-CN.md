@@ -16,7 +16,7 @@
 
 1. 安装并启用 Video Summary，在命令面板运行“打开视频总结侧栏”。
 2. 点 **看示例笔记**：插件会写一篇已经完成的笔记（一期讲“论文三遍读法”的访谈），标着“演示，可删除”，不用装任何东西就能先看到成品。
-3. 想处理自己的视频，就在电脑上启动后端：从 [最新版本](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 下载 `video-summary-backend-<版本>.zip`，解压到库外面，双击 `start-mac.command`（macOS）或 `start-windows.cmd`（Windows）。脚本会问你要密钥，最后给出一个连接码。第一次大约 20 分钟，详细步骤见 [安装教程](INSTALL.md)。
+3. 想处理自己的视频，就在电脑上启动后端：从 [最新版本](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 下载 `video-summary-backend-<版本>.zip`，解压到库外面，双击 `start-mac.command`（macOS）或 `start-windows.cmd`（Windows）。脚本会问你要密钥，最后给出一个连接码。第一次约 10 分钟，主要是下载约 550 MB 的后端镜像，详细步骤见 [安装教程](INSTALL.md)。
 4. 打开 **设置 → Video Summary → 首次配置**，粘贴连接码，点 **完整检查**，再点 **试运行**。
 5. 在侧栏贴一个链接，点 **开始**。
 

@@ -8,9 +8,12 @@ All notable changes to this project are documented here.
 - The prompt no longer carries the author's own rules and examples (study-abroad fields, personal topics).
 - **The n8n workflow explains itself.** Nodes are named for what they do, the separate retry copy of the AI step is gone (a retry goes back to the same step), the canvas is laid out one lane per kind of request, and sticky notes say what each lane does and where to look when something fails. Workflow version 3.1.0.
 - **Removed the "Codex local video service" backend**, its settings, its dashboard command and the browser extension's "Send to Worker". Settings that pointed at it switch to n8n. "Deep visual" is gone with it; the bundled backend reads what is said, not the picture.
-- The install guide and the backend notes show the workflow, the credentials page and where a failed run's reason is.
+- **The backend downloads instead of building.** Each release publishes a ready-made backend image for Intel/AMD and Apple Silicon/ARM computers (about 550 MB) to `ghcr.io/rexxall/video-summary-backend`, with build provenance. The start script pulls it; if the download fails, for example on a network that cannot reach GitHub, it builds the image locally as before. The first start takes about 10 minutes instead of 20.
+- **The install guide starts with four steps, each with a screenshot:** the start script asking for keys, the connection code, the full check, the trial run and the first note. Costs, platforms and troubleshooting come after. English and Japanese guides follow the same shape.
+- The trial run in first-run setup summarizes in your note language; it used to answer in Chinese.
+- The install guide and the backend notes show the n8n workflow, the credentials page and where a failed run's reason is.
 
-Update the backend too: unzip `video-summary-backend-2.11.0.zip` over the old backend folder (your `.env` stays) and run the start script.
+Update the backend too: unzip `video-summary-backend-2.11.0.zip` over the old backend folder (your `.env` stays) and run `./vs-backend.sh update` (Windows: `.\vs-backend.ps1 update`).
 
 ## 2.10.3
 

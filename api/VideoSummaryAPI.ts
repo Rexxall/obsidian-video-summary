@@ -1293,14 +1293,22 @@ export class VideoSummaryAPI {
   }
 
   /** Summarise a short built-in text end to end; proves the model really answers. */
-  async trialRun(sample: string): Promise<{ ok: boolean; durationMs: number; message: string }> {
+  async trialRun(
+    sample: string,
+    language: SupportedLanguage = 'zh',
+  ): Promise<{ ok: boolean; durationMs: number; message: string }> {
     const started = Date.now();
     try {
       const response = await VideoSummaryAPI.webhookRequest(
         this.webhookUrl,
         this.buildN8nHeaders(),
         JSON.stringify(
-          this.buildPayload('首次配置试运行', { transcript: sample }, 'summary', 'zh'),
+          this.buildPayload(
+            tr('首次配置试运行', 'First-run trial'),
+            { transcript: sample },
+            'summary',
+            language,
+          ),
         ),
         180_000,
       );
@@ -1324,7 +1332,9 @@ export class VideoSummaryAPI {
             tr('后端没有返回总结。', 'The backend returned no summary.'),
         };
       }
-      return { ok: true, durationMs, message: summary.slice(0, 160) };
+      // The summary is one or two sentences; cut only a runaway reply, and say that it was cut.
+      const message = summary.length > 400 ? `${summary.slice(0, 400)}…` : summary;
+      return { ok: true, durationMs, message };
     } catch (error) {
       return {
         ok: false,
@@ -1501,8 +1511,8 @@ export class VideoSummaryAPI {
       (lower.includes('http error 412') || lower.includes('precondition failed'))
     ) {
       return tr(
-        'B 站拒绝了下载请求。在后端文件夹运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展“同步 B 站登录”。',
-        'Bilibili refused the download. Run vs-backend update in the backend folder to update yt-dlp; if it still fails, use the browser extension\'s "Sync Bilibili login".',
+        'B 站拒绝了下载请求。先在首次配置里扫码登录 B 站；仍失败时换新版后端，新版带新的下载器。',
+        'Bilibili refused the download. Log in to Bilibili in first-run setup; if it still fails, install the newest backend, which comes with a newer downloader.',
       );
     }
 
@@ -1590,8 +1600,8 @@ export class VideoSummaryAPI {
 
     if (/Bilibili 拒绝|B 站拒绝|Bilibili refused/.test(message)) {
       return tr(
-        '运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展同步 B 站登录。',
-        'Run vs-backend update to update yt-dlp; if it still fails, sync your Bilibili login with the browser extension.',
+        '先在首次配置里扫码登录 B 站；仍失败时换新版后端。',
+        'Log in to Bilibili in first-run setup; if it still fails, install the newest backend.',
       );
     }
 

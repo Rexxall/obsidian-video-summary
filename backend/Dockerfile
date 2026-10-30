@@ -1,8 +1,15 @@
 # Video Summary backend: n8n plus the media tools the bundled workflows call.
-# The start script fills the mirror arguments automatically when Docker Hub, npm or PyPI are slow
-# to reach (for example from mainland China); leave them empty to use the default registries.
-ARG BASE_IMAGE=node:24-alpine
+# Releases publish this image for amd64 and arm64 to ghcr.io/rexxall/video-summary-backend; the
+# start script builds it locally only when that download fails. It then fills the mirror arguments
+# automatically when Docker Hub, npm or PyPI are slow to reach (for example from mainland China);
+# leave them empty to use the default registries.
+ARG BASE_IMAGE=node:24.22.2-alpine3.24@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85
 FROM ${BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="Video Summary backend" \
+	org.opencontainers.image.description="n8n with yt-dlp and ffmpeg for the Video Summary Obsidian plugin" \
+	org.opencontainers.image.source="https://github.com/Rexxall/obsidian-video-summary" \
+	org.opencontainers.image.licenses="MIT"
 
 ARG N8N_VERSION=2.43.8
 ARG YT_DLP_VERSION=2026.10.26

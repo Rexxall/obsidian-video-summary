@@ -23,9 +23,12 @@ export const LEGACY_DEFAULT_N8N_WEBHOOK_URL =
   'http://localhost:5678/webhook/obsidian-video-summary';
 export const SETUP_GUIDE_URL =
   'https://github.com/Rexxall/obsidian-video-summary/blob/main/INSTALL.md';
-/** Short built-in text for the setup wizard's trial run. */
-export const SETUP_TRIAL_TRANSCRIPT =
-  '今天介绍番茄工作法。它由弗朗切斯科·西里洛在上世纪八十年代提出：选一件任务，计时二十五分钟专心做，然后休息五分钟；每完成四轮，休息十五到三十分钟。好处是把大任务切成小块，降低开始的难度，并用固定的休息防止疲劳。二十五分钟只是默认值，可以按任务调整。';
+/** Short built-in text for the setup wizard's trial run, in the interface language. */
+export const setupTrialTranscript = () =>
+  tr(
+    '今天介绍番茄工作法。它由弗朗切斯科·西里洛在上世纪八十年代提出：选一件任务，计时二十五分钟专心做，然后休息五分钟；每完成四轮，休息十五到三十分钟。好处是把大任务切成小块，降低开始的难度，并用固定的休息防止疲劳。二十五分钟只是默认值，可以按任务调整。',
+    'Today: the Pomodoro Technique. Francesco Cirillo came up with it in the late 1980s: pick one task, work on it for twenty-five minutes, then take a five-minute break; after four rounds, rest for fifteen to thirty minutes. It cuts a big task into small pieces, makes starting easier, and the fixed breaks keep you from tiring. Twenty-five minutes is only the default; adjust it to the task.',
+  );
 export const LEGACY_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/cyrus';
 export const RECOMMENDED_WORKFLOW: Required<WorkflowHealthInfo> = {
   name: 'Video Summary',

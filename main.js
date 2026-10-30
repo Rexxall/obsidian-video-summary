@@ -1859,7 +1859,10 @@ var DEFAULT_WEBHOOK_AUTH_HEADER = "X-Video-Summary-Token";
 var DEFAULT_N8N_WEBHOOK_URL = "http://127.0.0.1:5678/webhook/obsidian-video-summary";
 var LEGACY_DEFAULT_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/obsidian-video-summary";
 var SETUP_GUIDE_URL = "https://github.com/Rexxall/obsidian-video-summary/blob/main/INSTALL.md";
-var SETUP_TRIAL_TRANSCRIPT = "\u4ECA\u5929\u4ECB\u7ECD\u756A\u8304\u5DE5\u4F5C\u6CD5\u3002\u5B83\u7531\u5F17\u6717\u5207\u65AF\u79D1\xB7\u897F\u91CC\u6D1B\u5728\u4E0A\u4E16\u7EAA\u516B\u5341\u5E74\u4EE3\u63D0\u51FA\uFF1A\u9009\u4E00\u4EF6\u4EFB\u52A1\uFF0C\u8BA1\u65F6\u4E8C\u5341\u4E94\u5206\u949F\u4E13\u5FC3\u505A\uFF0C\u7136\u540E\u4F11\u606F\u4E94\u5206\u949F\uFF1B\u6BCF\u5B8C\u6210\u56DB\u8F6E\uFF0C\u4F11\u606F\u5341\u4E94\u5230\u4E09\u5341\u5206\u949F\u3002\u597D\u5904\u662F\u628A\u5927\u4EFB\u52A1\u5207\u6210\u5C0F\u5757\uFF0C\u964D\u4F4E\u5F00\u59CB\u7684\u96BE\u5EA6\uFF0C\u5E76\u7528\u56FA\u5B9A\u7684\u4F11\u606F\u9632\u6B62\u75B2\u52B3\u3002\u4E8C\u5341\u4E94\u5206\u949F\u53EA\u662F\u9ED8\u8BA4\u503C\uFF0C\u53EF\u4EE5\u6309\u4EFB\u52A1\u8C03\u6574\u3002";
+var setupTrialTranscript = () => tr(
+  "\u4ECA\u5929\u4ECB\u7ECD\u756A\u8304\u5DE5\u4F5C\u6CD5\u3002\u5B83\u7531\u5F17\u6717\u5207\u65AF\u79D1\xB7\u897F\u91CC\u6D1B\u5728\u4E0A\u4E16\u7EAA\u516B\u5341\u5E74\u4EE3\u63D0\u51FA\uFF1A\u9009\u4E00\u4EF6\u4EFB\u52A1\uFF0C\u8BA1\u65F6\u4E8C\u5341\u4E94\u5206\u949F\u4E13\u5FC3\u505A\uFF0C\u7136\u540E\u4F11\u606F\u4E94\u5206\u949F\uFF1B\u6BCF\u5B8C\u6210\u56DB\u8F6E\uFF0C\u4F11\u606F\u5341\u4E94\u5230\u4E09\u5341\u5206\u949F\u3002\u597D\u5904\u662F\u628A\u5927\u4EFB\u52A1\u5207\u6210\u5C0F\u5757\uFF0C\u964D\u4F4E\u5F00\u59CB\u7684\u96BE\u5EA6\uFF0C\u5E76\u7528\u56FA\u5B9A\u7684\u4F11\u606F\u9632\u6B62\u75B2\u52B3\u3002\u4E8C\u5341\u4E94\u5206\u949F\u53EA\u662F\u9ED8\u8BA4\u503C\uFF0C\u53EF\u4EE5\u6309\u4EFB\u52A1\u8C03\u6574\u3002",
+  "Today: the Pomodoro Technique. Francesco Cirillo came up with it in the late 1980s: pick one task, work on it for twenty-five minutes, then take a five-minute break; after four rounds, rest for fifteen to thirty minutes. It cuts a big task into small pieces, makes starting easier, and the fixed breaks keep you from tiring. Twenty-five minutes is only the default; adjust it to the task."
+);
 var LEGACY_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/cyrus";
 var RECOMMENDED_WORKFLOW = {
   name: "Video Summary",
@@ -10990,14 +10993,19 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
   }
   /** Summarise a short built-in text end to end; proves the model really answers. */
-  async trialRun(sample) {
+  async trialRun(sample, language = "zh") {
     const started = Date.now();
     try {
       const response = await _VideoSummaryAPI.webhookRequest(
         this.webhookUrl,
         this.buildN8nHeaders(),
         JSON.stringify(
-          this.buildPayload("\u9996\u6B21\u914D\u7F6E\u8BD5\u8FD0\u884C", { transcript: sample }, "summary", "zh")
+          this.buildPayload(
+            tr("\u9996\u6B21\u914D\u7F6E\u8BD5\u8FD0\u884C", "First-run trial"),
+            { transcript: sample },
+            "summary",
+            language
+          )
         ),
         18e4
       );
@@ -11019,7 +11027,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
           message: summary.replace(/^Error:\s*/, "") || tr("\u540E\u7AEF\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3\u3002", "The backend returned no summary.")
         };
       }
-      return { ok: true, durationMs, message: summary.slice(0, 160) };
+      const message = summary.length > 400 ? `${summary.slice(0, 400)}\u2026` : summary;
+      return { ok: true, durationMs, message };
     } catch (error) {
       return {
         ok: false,
@@ -11170,8 +11179,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     if (lower.includes("bilibili") && (lower.includes("http error 412") || lower.includes("precondition failed"))) {
       return tr(
-        "B \u7AD9\u62D2\u7EDD\u4E86\u4E0B\u8F7D\u8BF7\u6C42\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u201C\u540C\u6B65 B \u7AD9\u767B\u5F55\u201D\u3002",
-        `Bilibili refused the download. Run vs-backend update in the backend folder to update yt-dlp; if it still fails, use the browser extension's "Sync Bilibili login".`
+        "B \u7AD9\u62D2\u7EDD\u4E86\u4E0B\u8F7D\u8BF7\u6C42\u3002\u5148\u5728\u9996\u6B21\u914D\u7F6E\u91CC\u626B\u7801\u767B\u5F55 B \u7AD9\uFF1B\u4ECD\u5931\u8D25\u65F6\u6362\u65B0\u7248\u540E\u7AEF\uFF0C\u65B0\u7248\u5E26\u65B0\u7684\u4E0B\u8F7D\u5668\u3002",
+        "Bilibili refused the download. Log in to Bilibili in first-run setup; if it still fails, install the newest backend, which comes with a newer downloader."
       );
     }
     if (lower.includes("yt-dlp") && lower.includes("not found")) {
@@ -11236,8 +11245,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     if (/Bilibili 拒绝|B 站拒绝|Bilibili refused/.test(message)) {
       return tr(
-        "\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u540C\u6B65 B \u7AD9\u767B\u5F55\u3002",
-        "Run vs-backend update to update yt-dlp; if it still fails, sync your Bilibili login with the browser extension."
+        "\u5148\u5728\u9996\u6B21\u914D\u7F6E\u91CC\u626B\u7801\u767B\u5F55 B \u7AD9\uFF1B\u4ECD\u5931\u8D25\u65F6\u6362\u65B0\u7248\u540E\u7AEF\u3002",
+        "Log in to Bilibili in first-run setup; if it still fails, install the newest backend."
       );
     }
     if (/空响应|empty response/.test(message)) {
@@ -23441,7 +23450,10 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         trialResult.empty();
         trialResult.removeClass("is-success", "is-error");
         trialResult.createEl("p", { text: tr("\u6B63\u5728\u751F\u6210\u603B\u7ED3\u2026", "Generating a summary\u2026") });
-        const result = await this.plugin.api.trialRun(SETUP_TRIAL_TRANSCRIPT);
+        const result = await this.plugin.api.trialRun(
+          setupTrialTranscript(),
+          this.plugin.settings.defaultLanguage
+        );
         trialResult.empty();
         trialResult.addClass(result.ok ? "is-success" : "is-error");
         trialResult.createEl("strong", {

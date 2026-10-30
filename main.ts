@@ -40,7 +40,7 @@ import {
   LEGACY_DEFAULT_N8N_WEBHOOK_URL,
   LEGACY_N8N_WEBHOOK_URL,
   SETUP_GUIDE_URL,
-  SETUP_TRIAL_TRANSCRIPT,
+  setupTrialTranscript,
   SUPPORTED_PLATFORMS,
 } from './constants';
 import { pollQrLogin, startQrLogin, type QrLoginTicket } from './core/BilibiliLogin';
@@ -2817,7 +2817,10 @@ class VideoSummarySettingTab extends PluginSettingTab {
           trialResult.empty();
           trialResult.removeClass('is-success', 'is-error');
           trialResult.createEl('p', { text: tr('正在生成总结…', 'Generating a summary…') });
-          const result = await this.plugin.api.trialRun(SETUP_TRIAL_TRANSCRIPT);
+          const result = await this.plugin.api.trialRun(
+            setupTrialTranscript(),
+            this.plugin.settings.defaultLanguage,
+          );
           trialResult.empty();
           trialResult.addClass(result.ok ? 'is-success' : 'is-error');
           trialResult.createEl('strong', {

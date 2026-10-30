@@ -4,37 +4,66 @@
 
 Video Summary has two parts: the Obsidian plugin, and a backend that runs on your own computer in
 Docker and fetches subtitles or audio, transcribes, and asks a model for the summary. A start script
-sets the backend up; no coding is needed. Allow about 20 minutes, most of it the first image build.
+sets the backend up; no coding is needed.
 
-## You need
+**About 10 minutes in all.** The backend is a ready-made image of about 550 MB; the first
+download usually takes 1–5 minutes.
 
-- Obsidian desktop.
-- Docker Desktop (Windows, macOS) or OrbStack (macOS), running.
-- A key for an OpenAI-compatible chat model. The default is DeepSeek (`deepseek-flash`); any
-  OpenAI-compatible service works, Gemini included.
-- Optional: a SiliconFlow key for speech-to-text (its SenseVoice model is free) and image reading.
-  Videos without subtitles and local audio/video need it.
+## Four steps
 
-## Steps
+### 1. Plugin and Docker
 
-1. Install **Video Summary** from Obsidian's community plugins (or copy `main.js`, `manifest.json`
-   and `styles.css` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest)
-   into `<vault>/.obsidian/plugins/video-summary/`).
-2. Download `video-summary-backend-<version>.zip` from the same release and unzip it somewhere
-   permanent, outside your vault.
-3. Start it: on macOS right-click `start-mac.command` → Open; on Windows double-click
-   `start-windows.cmd`; on Linux run `./vs-backend.sh`. Paste the keys when asked. The first build
-   takes 5–15 minutes.
-4. The script ends with a **connection code** and copies it to the clipboard. It is the backend's
-   password; keep it private. `./vs-backend.sh code` shows it again.
-5. In Obsidian, open **Settings → Video Summary → 首次配置 (first-run setup)**: paste the code, run
-   the full check, then the trial run. Each failing check says what to change.
+- **Plugin:** in Obsidian, **Settings → Community plugins → Browse**, search for **Video Summary**,
+  install and enable it. If it is not listed yet, copy `main.js`, `manifest.json` and `styles.css`
+  from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) into
+  `<vault>/.obsidian/plugins/video-summary/`.
+- **Docker:** install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows,
+  macOS) or [OrbStack](https://orbstack.dev) (macOS) and start it.
+- **Keys:** one for an OpenAI-compatible chat model (default DeepSeek, `deepseek-flash`), and
+  optionally a [SiliconFlow](https://cloud.siliconflow.cn/account/ak) key for speech-to-text of
+  videos without subtitles (its SenseVoice model is free).
+
+### 2. Download the backend and start it
+
+Download `video-summary-backend-<version>.zip` from the
+[latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) and unzip it
+somewhere permanent, outside your vault. Then on macOS right-click `start-mac.command` → Open; on
+Windows double-click `start-windows.cmd`; on Linux run `./vs-backend.sh`.
+
+The first start asks for the two keys. Nothing is shown while you paste; press Enter, or press
+Enter alone to skip one for now.
+
+<img src="screenshots/install-1-keys.png" width="720" alt="The start script asking for the model key and the speech-to-text key">
+
+The script then downloads the backend image and starts it. It ends with a **connection code** and
+copies it to the clipboard. The code is the backend's password; keep it private.
+`./vs-backend.sh code` shows it again.
+
+<img src="screenshots/install-2-code.png" width="720" alt="The start script says the backend is ready and shows the connection code (hidden here)">
+
+### 3. Paste the code, check, trial run
+
+In Obsidian, open **Settings → Video Summary → First-run setup**: paste the code, run the
+**Full check**, then the **Trial run**. Each failing check says what to change. Bilibili login is
+optional; after it, Bilibili videos use their own subtitles instead of speech-to-text.
+
+<img src="screenshots/install-3-check-en.png" width="720" alt="First-run setup: connection code pasted and every check passed">
+
+<img src="screenshots/install-4-trial-en.png" width="720" alt="The trial run worked">
+
+### 4. Summarize a video
+
+Paste a video link into the input in the side panel and press **Start**. The note opens with a
+summary and key points, then sections and the timestamped transcript.
+
+<img src="screenshots/install-5-note-en.jpg" width="860" alt="The first video note: summary, key points and sections">
 
 ## Everyday commands
 
 `./vs-backend.sh` (Windows: `.\vs-backend.ps1`) followed by nothing (start, and apply `.env`
-changes), `check`, `code`, `keys`, `logs`, `stop` or `update` (refresh yt-dlp when a site starts
-failing).
+changes), `check`, `code`, `keys`, `logs`, `stop` or `update` (download this version's image
+again, or rebuild it). To upgrade, unzip a newer backend package over the old folder (`.env` stays)
+and run `update`.
 
 To use another model, edit `VS_CHAT_BASE_URL`, `VS_CHAT_MODEL` and `VS_CHAT_API_KEY` in `.env` and
 run the start script again. The table in the [Chinese guide](../INSTALL.md#换模型) lists tested
@@ -43,7 +72,9 @@ settings.
 ## Troubleshooting
 
 Run the full check in the plugin first; it names the setting to fix. Common cases: Docker not
-running (open it, rerun the script); port 5678 taken (the script picks the next free port, the code
+running (open it, rerun the script); the image download is slow or blocked (the script builds the
+image locally instead, about 10 minutes; in mainland China set `VS_MIRROR=cn` in `.env` to build
+with local mirrors right away); port 5678 taken (the script picks the next free port, the code
 already has it); "not ready" right after start (wait a minute); wrong key (`./vs-backend.sh keys`);
 YouTube blocked on your network (set `VS_HTTP_PROXY`). The backend listens only on `127.0.0.1`; see
 [backend/SECURITY.md](../backend/SECURITY.md) before exposing it anywhere else.
