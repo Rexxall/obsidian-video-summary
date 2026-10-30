@@ -1878,19 +1878,28 @@ var platformCapabilities = () => [
     platform: tr("\u672C\u5730\u97F3\u9891/\u89C6\u9891", "Local audio/video"),
     status: "recommended",
     input: "local_file",
-    requirements: tr("\u653E\u8FDB\u540E\u7AEF\u7684 uploads \u6587\u4EF6\u5939\uFF0C\u53EA\u586B\u6587\u4EF6\u540D", "Put it in the backend's uploads folder; give only the name")
+    requirements: tr(
+      "\u653E\u8FDB\u540E\u7AEF\u7684 uploads \u6587\u4EF6\u5939\uFF0C\u53EA\u586B\u6587\u4EF6\u540D",
+      "Put it in the backend's uploads folder; give only the name"
+    )
   },
   {
     platform: "YouTube",
     status: "supported",
     input: "link",
-    requirements: tr("\u516C\u5F00\u89C6\u9891\u76F4\u63A5\u53EF\u7528\uFF1B\u4E2D\u56FD\u5927\u9646\u9700\u8981\u4EE3\u7406", "Public videos work; needs a proxy in mainland China")
+    requirements: tr(
+      "\u516C\u5F00\u89C6\u9891\u76F4\u63A5\u53EF\u7528\uFF1B\u4E2D\u56FD\u5927\u9646\u9700\u8981\u4EE3\u7406",
+      "Public videos work; needs a proxy in mainland China"
+    )
   },
   {
     platform: "Bilibili",
     status: "recommended",
     input: "link",
-    requirements: tr("\u626B\u7801\u767B\u5F55\u540E\u7528\u5B57\u5E55\uFF0C\u4E0D\u767B\u5F55\u6539\u8D70\u8BED\u97F3\u8F6C\u5199", "Subtitles after QR login; speech-to-text without it")
+    requirements: tr(
+      "\u626B\u7801\u767B\u5F55\u540E\u7528\u5B57\u5E55\uFF0C\u4E0D\u767B\u5F55\u6539\u8D70\u8BED\u97F3\u8F6C\u5199",
+      "Subtitles after QR login; speech-to-text without it"
+    )
   },
   {
     platform: tr("\u6296\u97F3", "Douyin"),
@@ -1908,7 +1917,10 @@ var platformCapabilities = () => [
     platform: tr("\u5C0F\u7EA2\u4E66 / Rednote", "Xiaohongshu / Rednote"),
     status: "limited",
     input: "link",
-    requirements: tr("\u5E38\u9700 cookies\uFF0C\u90E8\u5206\u5206\u4EAB\u94FE\u63A5\u4E0D\u7A33\u5B9A", "Usually needs cookies; some share links fail")
+    requirements: tr(
+      "\u5E38\u9700 cookies\uFF0C\u90E8\u5206\u5206\u4EAB\u94FE\u63A5\u4E0D\u7A33\u5B9A",
+      "Usually needs cookies; some share links fail"
+    )
   },
   {
     platform: tr("\u624B\u52A8\u7C98\u8D34\u6587\u7A3F", "Pasted transcript"),
