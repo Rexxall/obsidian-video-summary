@@ -2,6 +2,7 @@
   "rules": {
     "declaration-no-important": true,
     "property-disallowed-list": ["all"],
-    "selector-pseudo-class-disallowed-list": ["has"]
+    "selector-pseudo-class-disallowed-list": ["has"],
+    "declaration-block-no-duplicate-properties": true
   }
 }
