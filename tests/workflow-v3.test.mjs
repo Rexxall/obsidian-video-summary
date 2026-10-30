@@ -111,6 +111,15 @@ test('the prompt asks for a summary and key points, not a retelling', () => {
   assert.doesNotMatch(buildNotePrompt({ transcript: 'x' }), /- learning:/);
 });
 
+test('timed transcripts are sent once, with segment ids on each line', () => {
+  const prompt = buildNotePrompt({
+    transcript: '[00:12] So in college,',
+    segments: [{ id: 'seg-12000-ab', start: 12, end: 15, text: 'So in college,' }],
+  });
+  assert.match(prompt, /\[00:12\] \(seg-12000-ab\) So in college,/);
+  assert.equal(prompt.split('So in college,').length - 1, 1);
+});
+
 test('the prompt carries every content type and the no-frames limit', () => {
   const prompt = buildNotePrompt({ transcript: 'x', language: 'zh' });
   for (const route of ['course', 'interview', 'tutorial', 'news', 'meeting', 'review', 'general']) {

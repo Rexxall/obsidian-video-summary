@@ -45,18 +45,29 @@ export function buildNotePrompt(input) {
   const assessAttention = metadata.attention_assessment !== false;
   const makeLearning = metadata.generate_learning === true;
   const segments = Array.isArray(input.segments)
-    ? input.segments.map(function (segment) {
-        return {
-          id: segment.id,
-          start: segment.start,
-          end: segment.end,
-          text: segment.text,
-          source: segment.source || 'speech',
-        };
+    ? input.segments.filter(function (segment) {
+        return segment && segment.id && segment.text;
       })
     : [];
   const transcript = String(input.transcript || '');
   const long = transcript.length > 12000;
+  function clock(seconds) {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const minutes = Math.floor(total / 60);
+    const rest = total % 60;
+    return (minutes < 10 ? '0' : '') + minutes + ':' + (rest < 10 ? '0' : '') + rest;
+  }
+  // With timed segments, each transcript line carries its id, so the text is sent once.
+  const transcriptText = segments.length
+    ? segments
+        .map(function (segment) {
+          const time = Number.isFinite(Number(segment.start))
+            ? '[' + clock(segment.start) + '] '
+            : '';
+          return time + '(' + segment.id + ') ' + segment.text;
+        })
+        .join('\n')
+    : transcript;
 
   const lines = [
     '// ' + MARKER,
@@ -70,9 +81,11 @@ export function buildNotePrompt(input) {
     'Author: ' + (input.author || '(none)'),
     'Requested content type: ' + contentType,
     '',
-    'Transcript:',
+    segments.length
+      ? 'Transcript (each line: time, segment id in parentheses, words):'
+      : 'Transcript:',
     '---',
-    transcript,
+    transcriptText,
     '---',
     '',
     'NOTE SHAPE (the "note" field, Markdown)',
@@ -110,7 +123,7 @@ export function buildNotePrompt(input) {
     '- summary: one or two sentences for a list view.',
     '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
     '- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.',
-    '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id from the list below","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only segment ids from the list; with no list, return [].',
+    '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return [].',
   ];
   if (assessAttention) {
     lines.push(
@@ -119,16 +132,13 @@ export function buildNotePrompt(input) {
   }
   if (makeLearning) {
     lines.push(
-      '- learning: {"flashcards":[{"front":"...","back":"...","evidence_segment_ids":[]}],"questions":[],"feynman_prompts":[]}, 3 to 8 cards, ids only from the list.',
+      '- learning: {"flashcards":[{"front":"...","back":"...","evidence_segment_ids":[]}],"questions":[],"feynman_prompts":[]}, 3 to 8 cards, ids only from the transcript.',
     );
   }
   lines.push(
     '',
     'Times: never invent 0:00 or start=0 when there is no time; use null.',
     'A statement inferred from the transcript but not said in it gets review_state inference or needs-review.',
-    '',
-    'Segments you may cite (speech, not images):',
-    JSON.stringify(segments),
   );
   if (Number(input.retryCount) > 0 && input.parseError) {
     lines.push(
