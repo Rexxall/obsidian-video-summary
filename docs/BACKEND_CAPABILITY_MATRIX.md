@@ -87,4 +87,4 @@ URI 本地文件参数必须是绝对路径，以便稳定去重；因此 bundle
 不要写入工作流导出或提交到 Git。Webhook Secret 会保存在 Obsidian 插件的 `data.json`
 中（明文、由本机文件权限保护），因此不要同步、分享或提交该文件；怀疑泄露时立即在
 n8n 和插件两端轮换。插件会把结构化工件、学习进度与课程状态保存在插件数据目录；详见
-[README 的隐私与数据边界](../README.md#privacy-and-data-boundary)。
+[README 的隐私与数据边界](../README.md#privacy-and-data)。

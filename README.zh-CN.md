@@ -4,7 +4,7 @@
 
 **贴一个视频链接、拖进一段本地录音录像，或者粘贴现成文稿，拿回一篇带总结、带时间戳文稿和要点的 Obsidian 笔记。**
 
-[English](README.md) · 中文
+[English](README.md) · 中文 · [日本語](README.ja.md)
 
 <img src="docs/screenshots/hero.png" width="860" alt="左边是一篇完成的示例笔记，右边是侧栏的笔记库">
 

@@ -74,8 +74,8 @@ test('versions.json contains only released versions plus the current candidate',
 
 test('README discloses network and external-file access', async () => {
   const readme = await readFile(new URL('README.md', projectRoot), 'utf8');
-  assert.match(readme, /^### Network use$/m);
-  assert.match(readme, /^### Files outside the vault$/m);
+  assert.match(readme, /^\*\*Network use\.\*\*/m);
+  assert.match(readme, /^\*\*Files outside the vault\.\*\*/m);
   assert.match(readme, /does not include client-side telemetry/i);
 });
 

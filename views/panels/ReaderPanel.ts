@@ -299,13 +299,6 @@ function createPlayer(
     text: tr('当前平台使用外部播放器', 'This platform uses an external player'),
     cls: 'vs-reader-player-title',
   });
-  fallback.createDiv({
-    text: tr(
-      '点击文稿时间点时会打开对应的视频位置。',
-      'Clicking a transcript time opens the video at that point.',
-    ),
-    cls: 'vs-hint',
-  });
   let listener: ((seconds: number) => void) | null = null;
   return {
     seek(seconds) {

@@ -149,19 +149,12 @@ export class LearningReviewModal extends Modal {
             ? tr('当前没有到期复习', 'Nothing due right now')
             : tr('这个列表已经复习完了', 'This list is done'),
       });
-      this.contentEl.createDiv({
-        text:
-          this.mode === 'mistakes'
-            ? tr(
-                '错题会保留在本地进度中；到期后可在“到期”列表再次练习。',
-                'Wrong answers stay in your local progress; practise them again from the due list.',
-              )
-            : tr(
-                '答错或低把握的题会更早回来，连续答对会逐步拉长间隔。',
-                'Wrong or unsure answers come back sooner; consecutive right answers stretch the interval.',
-              ),
-        cls: 'vs-hint',
-      });
+      if (this.mode === 'mistakes') {
+        this.contentEl.createDiv({
+          text: tr('错题到期后会出现在“到期”列表里。', 'Wrong answers come back in the due list.'),
+          cls: 'vs-hint',
+        });
+      }
       if (this.options.onContinue) {
         const next = this.contentEl.createEl('button', {
           text: this.options.continueLabel || tr('继续下一个视频', 'Next video'),
@@ -218,13 +211,6 @@ export class LearningReviewModal extends Modal {
         this.renderLoading();
         void this.refreshQueue();
       });
-    });
-    toolbar.createSpan({
-      text: tr(
-        '只写本地复习 sidecar，不修改笔记正文',
-        'Writes only the local review sidecar, never the note body',
-      ),
-      cls: 'vs-hint',
     });
   }
 

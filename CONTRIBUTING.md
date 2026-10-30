@@ -44,6 +44,10 @@ backend/workflows/video-summary.json
 
 ## Release changes
 
+Obsidian installs community plugins from GitHub Releases: the release tag must equal the `version` in `manifest.json`, and the release must contain `main.js`, `manifest.json` and `styles.css`. Pushing a version tag runs `.github/workflows/release.yml`, which tests and builds the plugin, checks the version files and publishes those files plus `video-summary-<version>.zip`, the backend zip, the n8n workflow JSON and `SHA256SUMS`. The workflow can be rerun from **Run workflow** with an existing tag; it replaces same-name assets.
+
+The plugin is listed through [community.obsidian.md](https://community.obsidian.md) (**Plugins → New plugin**), which reads `manifest.json` from the default branch. Its description must not contain the word "Obsidian".
+
 When preparing a release:
 
 1. Update `package.json` and `manifest.json` to the same semantic version.

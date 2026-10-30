@@ -80,8 +80,8 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
     attr: {
       rows: '2',
       placeholder: tr(
-        '粘贴链接、拖入音视频，或直接粘贴文稿',
-        'Paste links, drop audio or video, or paste a transcript',
+        '粘贴链接（一行一个）、拖入音视频，或粘贴文稿',
+        'Paste links (one per line), drop audio or video, or paste a transcript',
       ),
       'aria-label': tr('添加视频', 'Add video'),
     },
@@ -92,10 +92,6 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   });
   autoGrow(input);
   const boxBar = box.createDiv({ cls: 'vs-add-bar' });
-  boxBar.createSpan({
-    cls: 'vs-add-hint',
-    text: tr('多行即批量 · ⌘ Enter 开始', 'One per line for a batch · ⌘ Enter to start'),
-  });
   iconButton(
     boxBar,
     'folder-open',

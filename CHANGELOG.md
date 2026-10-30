@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## 2.10.1
+
+- Settings show fewer descriptions: rows whose name already says what they do have none, and the section headings stand alone. Notes about cost, side effects and which setting wins remain.
+- The side panel drops the hint line under the input; the placeholder says one link per line.
+- The README is shorter, with Chinese and Japanese versions in their own files.
+
 ## 2.10.0
 
 Passes the community directory's code checks with no warnings. No change in how the plugin looks

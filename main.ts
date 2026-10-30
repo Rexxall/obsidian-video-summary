@@ -2705,36 +2705,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.renderSettingsHeader(containerEl);
 
     // 一页三段：先连上后端，再定写到哪，最后是怎么处理；不常动的收进“高级”
-    this.group(
-      containerEl,
-      tr('连接', 'Connection'),
-      tr(
-        '处理服务在哪里，以及第一次使用时的检查。',
-        'Where videos are processed, and the first-run checks.',
-      ),
-    );
+    this.group(containerEl, tr('连接', 'Connection'));
     this.createSetupGuideSection(containerEl);
     this.createApiSection(containerEl);
 
-    this.group(
-      containerEl,
-      tr('输出', 'Output'),
-      tr(
-        '笔记写到哪、叫什么、长什么样。',
-        'Where notes go, what they are called and how they look.',
-      ),
-    );
+    this.group(containerEl, tr('输出', 'Output'));
     this.createOutputSection(containerEl);
     this.createFileProcessingSection(containerEl);
 
-    this.group(
-      containerEl,
-      tr('处理', 'Processing'),
-      tr(
-        '默认怎么理解一个视频；侧栏里也可以逐次改。',
-        'How a video is understood by default; the side panel can change it each time.',
-      ),
-    );
+    this.group(containerEl, tr('处理', 'Processing'));
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
 
@@ -2754,9 +2733,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.stopGroupMarks = watchSettingGroups(containerEl);
   }
 
-  /** 一段的标题与一句说明 */
-  private group(containerEl: HTMLElement, title: string, desc: string) {
-    const head = new Setting(containerEl).setName(title).setDesc(desc).setHeading();
+  /** 一段的标题 */
+  private group(containerEl: HTMLElement, title: string) {
+    const head = new Setting(containerEl).setName(title).setHeading();
     head.settingEl.addClass('vs-settings-group');
   }
 
@@ -2766,15 +2745,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     const text = header.createDiv({ cls: 'vs-settings-heading' });
     text.createDiv({ text: tr('视频总结', 'Video summary'), cls: 'vs-settings-title' });
-    const backendLabel =
-      this.plugin.settings.activeBackend === 'codex-worker' ? 'Codex Worker' : 'n8n webhook';
-    text.createDiv({
-      text: tr(
-        `v${this.plugin.manifest.version} · 连接 ${backendLabel} 处理视频、文稿与笔记`,
-        `v${this.plugin.manifest.version} · uses ${backendLabel} to process videos, transcripts and notes`,
-      ),
-      cls: 'vs-settings-sub',
-    });
+    text.createDiv({ text: `v${this.plugin.manifest.version}`, cls: 'vs-settings-sub' });
 
     const pill = header.createEl('button', {
       cls: 'vs-settings-pill',
@@ -2854,12 +2825,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     }
 
     const intro = section.createEl('p', { cls: 'setting-item-description' });
-    intro.appendText(
-      tr(
-        '三步：在电脑上启动后端 → 把启动脚本给的连接码粘贴到这里 → 检查。还没有后端？看',
-        'Three steps: start the backend on your computer → paste the connection code from the start script here → check. No backend yet? See the ',
-      ),
-    );
+    intro.appendText(tr('还没有后端？看', 'No backend yet? See the '));
     intro.createEl('a', { text: tr('安装教程', 'install guide'), href: SETUP_GUIDE_URL });
     intro.appendText(tr('。', '.'));
 
@@ -2909,8 +2875,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('① 连接码', '① Connection code'))
       .setDesc(
         tr(
-          '启动脚本最后显示的那一行，它也已经复制到剪贴板。连接码相当于口令，不要发给别人。',
-          'The last line the start script printed; it is also on your clipboard. The code works like a password, so keep it to yourself.',
+          '启动脚本的最后一行，已复制到剪贴板。连接码相当于口令，不要发给别人。',
+          'The last line of the start script, already on your clipboard. It works like a password; keep it to yourself.',
         ),
       )
       .addText((text) => {
@@ -3281,7 +3247,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
         text: this.getPlatformStatusLabel(item.status),
         cls: 'platform-status-label',
       });
-      card.createEl('p', { text: tr(`输入: ${item.input}`, `Input: ${item.input}`) });
       card.createEl('p', { text: tr(`要求: ${item.requirements}`, `Needs: ${item.requirements}`) });
       card.createEl('p', { text: item.notes });
     });
@@ -3318,12 +3283,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(section)
       .setName(tr('Cookies 目录', 'Cookies folder'))
-      .setDesc(
-        tr(
-          'Cookies 目录的绝对路径，例如 ~/video-summary-backend/cookies',
-          'Absolute path of the cookies folder, for example ~/video-summary-backend/cookies',
-        ),
-      )
       .addText((text) =>
         text
           .setPlaceholder('/path/to/video-summary-backend/cookies')
@@ -3488,38 +3447,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
   private createApiSection(containerEl: HTMLElement) {
     const { section } = this.sectionCard(containerEl, 'link', tr('处理服务', 'Backend'));
 
-    new Setting(section)
-      .setName(tr('主处理后端', 'Main backend'))
-      .setDesc(
-        tr(
-          'Obsidian 插件是主入口：选择一键总结、批量处理、重新处理时调用 n8n，还是本机视频处理服务。',
-          'The Obsidian plugin is the entry point: choose whether quick summary, batch and reprocessing call n8n or the local video service.',
-        ),
-      )
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption('n8n', tr('兼容 n8n 的 webhook', 'n8n-compatible webhook'))
-          .addOption('codex-worker', tr('Codex 本地视频服务', 'Codex local video service'))
-          .setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend)
-          .onChange(async (value) => {
-            await this.plugin.setActiveBackend(value as ProcessingBackend);
-            new Notice(
-              value === 'codex-worker'
-                ? tr('已切换到 Codex Video Worker', 'Switched to the Codex Video Worker')
-                : tr('已切换到 n8n / 兼容 Webhook', 'Switched to n8n / compatible webhook'),
-            );
-            this.redraw();
-          }),
-      );
+    new Setting(section).setName(tr('主处理后端', 'Main backend')).addDropdown((dropdown) =>
+      dropdown
+        .addOption('n8n', tr('兼容 n8n 的 webhook', 'n8n-compatible webhook'))
+        .addOption('codex-worker', tr('Codex 本地视频服务', 'Codex local video service'))
+        .setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend)
+        .onChange(async (value) => {
+          await this.plugin.setActiveBackend(value as ProcessingBackend);
+          new Notice(
+            value === 'codex-worker'
+              ? tr('已切换到 Codex Video Worker', 'Switched to the Codex Video Worker')
+              : tr('已切换到 n8n / 兼容 Webhook', 'Switched to n8n / compatible webhook'),
+          );
+          this.redraw();
+        }),
+    );
 
     new Setting(section)
       .setName(tr('Codex 本地服务地址', 'Codex local service address'))
-      .setDesc(
-        tr(
-          '本机视频处理服务的同步入口。控制台默认在同一主机的 /dashboard。',
-          'Sync entry point of the local video service. Its dashboard is at /dashboard on the same host.',
-        ),
-      )
       .addText((text) =>
         text
           .setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl)
@@ -3542,8 +3487,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('默认 webhook（n8n 或兼容服务）', 'Default webhook (n8n or compatible)'))
       .setDesc(
         tr(
-          '为不同工作流保存多个 webhook。选择这里的默认项会把主处理后端切回 n8n 或兼容服务。',
-          'Keep several webhooks for different workflows. Choosing the default here switches the main backend back to n8n or a compatible service.',
+          '选这里的默认项会把主处理后端切回 n8n 或兼容服务。',
+          'Choosing the default here switches the main backend back to n8n or a compatible service.',
         ),
       );
 
@@ -3825,12 +3770,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(section)
       .setName(tr('默认内容类型', 'Default content type'))
-      .setDesc(
-        tr(
-          '自动识别会根据内容选择课程、访谈、教程、新闻、会议或评测结构。',
-          'Automatic picks a course, interview, tutorial, news, meeting or review structure from the content.',
-        ),
-      )
       .addDropdown((dropdown) =>
         dropdown
           .addOption('auto', tr('自动识别', 'Automatic'))
@@ -3896,51 +3835,42 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 超时时间设置
-    new Setting(section)
-      .setName(tr('请求超时时间', 'Request timeout'))
-      .setDesc(tr('API请求的超时时间（分钟）', 'Timeout for API requests (minutes)'))
-      .addSlider((slider) =>
-        slider
-          .setLimits(1, 30, 1)
-          .setValue(this.plugin.settings.timeoutMinutes)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.timeoutMinutes = value;
-            this.plugin.reinitializeApi();
-            await this.plugin.saveSettings();
-          }),
-      );
+    new Setting(section).setName(tr('请求超时时间', 'Request timeout')).addSlider((slider) =>
+      slider
+        .setLimits(1, 30, 1)
+        .setValue(this.plugin.settings.timeoutMinutes)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.timeoutMinutes = value;
+          this.plugin.reinitializeApi();
+          await this.plugin.saveSettings();
+        }),
+    );
   }
 
   private createOutputSection(containerEl: HTMLElement) {
     const { section } = this.sectionCard(containerEl, 'folder', tr('笔记', 'Notes'));
 
     // 默认语言设置
-    new Setting(section)
-      .setName(tr('默认语言', 'Default language'))
-      .setDesc(tr('生成总结的默认语言', 'Default language of summaries'))
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption('zh', '中文')
-          .addOption('en', tr('英文', 'English'))
-          .addOption('ja', tr('日文', 'Japanese'))
-          .setValue(this.plugin.settings.defaultLanguage)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultLanguage = value as 'zh' | 'en' | 'ja';
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    // 自动保存设置
-    new Setting(section)
-      .setName(tr('自动保存', 'Save automatically'))
-      .setDesc(tr('处理完成后自动保存文件', 'Save the file when processing finishes'))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
-          this.plugin.settings.autoSave = value;
+    new Setting(section).setName(tr('默认语言', 'Default language')).addDropdown((dropdown) =>
+      dropdown
+        .addOption('zh', '中文')
+        .addOption('en', tr('英文', 'English'))
+        .addOption('ja', tr('日文', 'Japanese'))
+        .setValue(this.plugin.settings.defaultLanguage)
+        .onChange(async (value) => {
+          this.plugin.settings.defaultLanguage = value as 'zh' | 'en' | 'ja';
           await this.plugin.saveSettings();
         }),
-      );
+    );
+
+    // 自动保存设置
+    new Setting(section).setName(tr('自动保存', 'Save automatically')).addToggle((toggle) =>
+      toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
+        this.plugin.settings.autoSave = value;
+        await this.plugin.saveSettings();
+      }),
+    );
 
     // 输出文件夹设置
     new Setting(section)
@@ -4008,7 +3938,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(summarySubsection)
       .setName(tr('总结语言', 'Summary language'))
-      .setDesc(tr('一键总结时使用的语言', 'Language of quick summaries'))
       .addDropdown((dropdown) =>
         dropdown
           .addOption('zh', '中文')
@@ -4023,7 +3952,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(summarySubsection)
       .setName(tr('总结超时时间', 'Summary timeout'))
-      .setDesc(tr('一键总结的超时时间（分钟）', 'Timeout of quick summaries (minutes)'))
       .addSlider((slider) =>
         slider
           .setLimits(1, 30, 1)
@@ -4044,7 +3972,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(transcriptSubsection)
       .setName(tr('文稿语言', 'Transcript language'))
-      .setDesc(tr('一键提取文稿时使用的语言', 'Language of quick transcripts'))
       .addDropdown((dropdown) =>
         dropdown
           .addOption('zh', '中文')
@@ -4059,7 +3986,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     new Setting(transcriptSubsection)
       .setName(tr('文稿超时时间', 'Transcript timeout'))
-      .setDesc(tr('一键提取文稿的超时时间（分钟）', 'Timeout of quick transcripts (minutes)'))
       .addSlider((slider) =>
         slider
           .setLimits(1, 30, 1)
@@ -4078,12 +4004,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 自动重命名开关
     new Setting(section)
       .setName(tr('处理后自动重命名', 'Rename after processing'))
-      .setDesc(
-        tr(
-          '根据视频标题/正文标题自动重命名笔记，避免重复名将追加编号',
-          'Rename the note from the video or body title; a number is added to avoid duplicates',
-        ),
-      )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
           this.plugin.settings.autoRenameEnabled = value;
@@ -4092,46 +4012,35 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     // 重命名冲突策略
-    new Setting(section)
-      .setName(tr('重命名冲突策略', 'Name clash'))
-      .setDesc(tr('当目标文件名已存在时的处理方式', 'What to do when the file name already exists'))
-      .addDropdown((drop) =>
-        drop
-          .addOption('append-number', tr('追加编号', 'Add a number'))
-          .addOption('append-date', tr('追加日期', 'Add the date'))
-          .addOption('skip', tr('跳过', 'Skip'))
-          .setValue(this.plugin.settings.renameConflictStrategy)
-          .onChange(async (v) => {
-            this.plugin.settings.renameConflictStrategy =
-              v as VideoSummarySettings['renameConflictStrategy'];
-            await this.plugin.saveSettings();
-          }),
-      );
+    new Setting(section).setName(tr('重命名冲突策略', 'Name clash')).addDropdown((drop) =>
+      drop
+        .addOption('append-number', tr('追加编号', 'Add a number'))
+        .addOption('append-date', tr('追加日期', 'Add the date'))
+        .addOption('skip', tr('跳过', 'Skip'))
+        .setValue(this.plugin.settings.renameConflictStrategy)
+        .onChange(async (v) => {
+          this.plugin.settings.renameConflictStrategy =
+            v as VideoSummarySettings['renameConflictStrategy'];
+          await this.plugin.saveSettings();
+        }),
+    );
 
     // 批量处理设置
-    new Setting(section)
-      .setName(tr('批量处理并发数', 'Batch parallelism'))
-      .setDesc(tr('同时处理的最大文件数量', 'Most files processed at the same time'))
-      .addSlider((slider) =>
-        slider
-          .setLimits(1, 10, 1)
-          .setValue(this.plugin.settings.batchConcurrency)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.batchConcurrency = value;
-            await this.plugin.saveSettings();
-          }),
-      );
+    new Setting(section).setName(tr('批量处理并发数', 'Batch parallelism')).addSlider((slider) =>
+      slider
+        .setLimits(1, 10, 1)
+        .setValue(this.plugin.settings.batchConcurrency)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.batchConcurrency = value;
+          await this.plugin.saveSettings();
+        }),
+    );
 
     // 成功状态值
     new Setting(section)
       .setName(tr('成功状态值', 'Success status'))
-      .setDesc(
-        tr(
-          '处理成功后写入 frontmatter 的 status 文本，例如 success/已处理/✅ 等',
-          'The status text written to frontmatter after success, such as success, done or ✅',
-        ),
-      )
+      .setDesc(tr('写进 frontmatter 的 status', 'Written to the status property'))
       .addText((text) =>
         text
           .setPlaceholder(tr('例如 success', 'For example success'))
@@ -4160,71 +4069,34 @@ class VideoSummarySettingTab extends PluginSettingTab {
     );
     section.createEl('p', {
       text: tr(
-        '自定义发送到 n8n webhook 的 JSON 对象中的键名。这允许您适应不同的 n8n 工作流配置。',
-        'Customise the key names in the JSON sent to the n8n webhook, to fit a different n8n workflow.',
+        '只有改过 n8n 工作流的字段名时才需要改。',
+        'Change these only if your n8n workflow uses different field names.',
       ),
       cls: 'setting-item-description',
     });
 
     const keys = this.plugin.settings.payloadKeys;
 
-    const createKeySetting = (name: string, desc: string, key: keyof typeof keys) => {
-      new Setting(section)
-        .setName(name)
-        .setDesc(desc)
-        .addText((text) =>
-          text
-            .setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key])
-            .setValue(keys[key])
-            .onChange(async (value) => {
-              keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
-              this.plugin.api.setPayloadKeys(keys);
-              await this.plugin.saveSettings();
-            }),
-        );
+    const createKeySetting = (name: string, key: keyof typeof keys) => {
+      new Setting(section).setName(name).addText((text) =>
+        text
+          .setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key])
+          .setValue(keys[key])
+          .onChange(async (value) => {
+            keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
+            this.plugin.api.setPayloadKeys(keys);
+            await this.plugin.saveSettings();
+          }),
+      );
     };
 
-    createKeySetting(
-      tr('处理模式键', 'Mode key'),
-      tr(
-        '发送处理模式（summary/transcript-only 等）的键名',
-        'Key that carries the processing mode (summary, transcript-only and so on)',
-      ),
-      'mode',
-    );
-    createKeySetting(
-      tr('语言键', 'Language key'),
-      tr('发送语言代码（zh/en/ja）的键名', 'Key that carries the language code (zh/en/ja)'),
-      'language',
-    );
-    createKeySetting(
-      tr('模型键', 'Model key'),
-      tr('发送模型标签的键名', 'Key that carries the model tag'),
-      'ai',
-    );
-    createKeySetting(
-      tr('仅信息标志键', 'Info-only flag key'),
-      tr(
-        '当模式为 info-only 时发送 true 的键名',
-        'Key that carries true when the mode is info-only',
-      ),
-      'info_only',
-    );
-    createKeySetting(
-      tr('视频链接键', 'Video link key'),
-      tr('发送视频 URL 的键名', 'Key that carries the video URL'),
-      'link',
-    );
-    createKeySetting(
-      tr('手动文稿键', 'Manual transcript key'),
-      tr('发送手动提供的文稿内容的键名', 'Key that carries a transcript you supplied'),
-      'provided_transcript',
-    );
-    createKeySetting(
-      tr('本地文件键', 'Local file key'),
-      tr('发送本地文件路径的键名', 'Key that carries the local file path'),
-      'local_file',
-    );
+    createKeySetting(tr('处理模式键', 'Mode key'), 'mode');
+    createKeySetting(tr('语言键', 'Language key'), 'language');
+    createKeySetting(tr('模型键', 'Model key'), 'ai');
+    createKeySetting(tr('仅信息标志键', 'Info-only flag key'), 'info_only');
+    createKeySetting(tr('视频链接键', 'Video link key'), 'link');
+    createKeySetting(tr('手动文稿键', 'Manual transcript key'), 'provided_transcript');
+    createKeySetting(tr('本地文件键', 'Local file key'), 'local_file');
   }
 
   private createAdvancedSection(containerEl: HTMLElement) {
@@ -4235,24 +4107,21 @@ class VideoSummarySettingTab extends PluginSettingTab {
     );
 
     // 调试模式
-    new Setting(section)
-      .setName(tr('调试模式', 'Debug mode'))
-      .setDesc(tr('输出更多调试日志（控制台）', 'Write more debug logs to the console'))
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
-          this.plugin.settings.enableDebugMode = value;
-          this.plugin.api.setDebug(!!value);
-          await this.plugin.saveSettings();
-        }),
-      );
+    new Setting(section).setName(tr('调试模式', 'Debug mode')).addToggle((toggle) =>
+      toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
+        this.plugin.settings.enableDebugMode = value;
+        this.plugin.api.setDebug(!!value);
+        await this.plugin.saveSettings();
+      }),
+    );
 
     // 处理前后端自检
     new Setting(section)
       .setName(tr('处理前后端自检', 'Check the backend before processing'))
       .setDesc(
         tr(
-          '发起处理前先 ping 当前后端（结果缓存 60 秒）。不可达时会提示，并在另一个后端可用时建议切换。',
-          'Ping the current backend before processing (cached for 60 seconds). If it is unreachable you are told, with a suggestion to switch when the other backend works.',
+          '后端不可达时先提示，另一个后端可用时建议切换。',
+          'Warns when the backend is unreachable and suggests the other one if it works.',
         ),
       )
       .addToggle((toggle) =>
@@ -4269,8 +4138,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('短链自动展开', 'Expand short links'))
       .setDesc(
         tr(
-          '发送前把 b23.tv / v.douyin.com / xhslink.com 等短链展开成最终链接，减少后端下载失败（仅桌面端生效，失败时自动回退原链接）。',
-          'Expand b23.tv, v.douyin.com, xhslink.com and other short links before sending, which avoids download failures (desktop only; falls back to the original link on failure).',
+          '把 b23.tv、v.douyin.com、xhslink.com 等短链换成最终链接再发送，减少下载失败。',
+          'Sends the final link instead of b23.tv, v.douyin.com, xhslink.com and other short links, so fewer downloads fail.',
         ),
       )
       .addToggle((toggle) =>
@@ -4286,8 +4155,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('处理历史上限', 'History limit'))
       .setDesc(
         tr(
-          `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${this.plugin.settings.historyLimit ?? 300} 条。`,
-          `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${this.plugin.settings.historyLimit ?? 300}.`,
+          `${this.plugin.settings.historyLimit ?? 300} 条`,
+          `${this.plugin.settings.historyLimit ?? 300} entries`,
         ),
       )
       .addSlider((slider) =>
@@ -4298,12 +4167,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.historyLimit = value;
             await this.plugin.saveSettings();
-            historyLimitSetting.setDesc(
-              tr(
-                `历史与 webhook 结果已拆分存储到插件目录的 history.json（data.json 不再膨胀）。当前上限：${value} 条。`,
-                `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${value}.`,
-              ),
-            );
+            historyLimitSetting.setDesc(tr(`${value} 条`, `${value} entries`));
           }),
       );
 
@@ -4314,7 +4178,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 缓存状态概览
     const cacheStatusSetting = new Setting(cacheSubsection)
       .setName(tr('缓存状态', 'Cache status'))
-      .setDesc(tr('点击查看当前缓存状态和统计信息', 'Show the current cache status and statistics'))
       .addButton((button) =>
         button
           .setButtonText(tr('📊 查看状态', '📊 Show status'))
@@ -4364,8 +4227,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('缓存过期时间', 'Cache expiry'))
       .setDesc(
         tr(
-          `缓存结果的有效期（当前：${this.plugin.settings.cacheExpiryDays ?? 30} 天）`,
-          `How long cached results stay valid (now ${this.plugin.settings.cacheExpiryDays ?? 30} days)`,
+          `${this.plugin.settings.cacheExpiryDays ?? 30} 天`,
+          `${this.plugin.settings.cacheExpiryDays ?? 30} days`,
         ),
       )
       .addSlider((slider) =>
@@ -4378,12 +4241,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
             this.plugin.api.setCacheConfig(1000, value);
             await this.plugin.saveSettings();
             // 更新描述
-            expirySetting.setDesc(
-              tr(
-                `缓存结果的有效期（当前：${value} 天）`,
-                `How long cached results stay valid (now ${value} days)`,
-              ),
-            );
+            expirySetting.setDesc(tr(`${value} 天`, `${value} days`));
           }),
       );
     expirySetting.controlEl.addClass('cache-setting-item');

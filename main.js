@@ -11940,8 +11940,8 @@ function renderActionBar(container, ctx) {
     attr: {
       rows: "2",
       placeholder: tr(
-        "\u7C98\u8D34\u94FE\u63A5\u3001\u62D6\u5165\u97F3\u89C6\u9891\uFF0C\u6216\u76F4\u63A5\u7C98\u8D34\u6587\u7A3F",
-        "Paste links, drop audio or video, or paste a transcript"
+        "\u7C98\u8D34\u94FE\u63A5\uFF08\u4E00\u884C\u4E00\u4E2A\uFF09\u3001\u62D6\u5165\u97F3\u89C6\u9891\uFF0C\u6216\u7C98\u8D34\u6587\u7A3F",
+        "Paste links (one per line), drop audio or video, or paste a transcript"
       ),
       "aria-label": tr("\u6DFB\u52A0\u89C6\u9891", "Add video")
     }
@@ -11952,10 +11952,6 @@ function renderActionBar(container, ctx) {
   });
   autoGrow(input);
   const boxBar = box.createDiv({ cls: "vs-add-bar" });
-  boxBar.createSpan({
-    cls: "vs-add-hint",
-    text: tr("\u591A\u884C\u5373\u6279\u91CF \xB7 \u2318 Enter \u5F00\u59CB", "One per line for a batch \xB7 \u2318 Enter to start")
-  });
   iconButton(
     boxBar,
     "folder-open",
@@ -12837,10 +12833,7 @@ function renderJobsPanel(container, ctx) {
         container,
         "plug-zap",
         tr("\u8FD8\u6CA1\u8FDE\u4E0A\u540E\u7AEF", "No backend connected yet"),
-        tr(
-          "\u89C6\u9891\u8981\u4EA4\u7ED9\u4F60\u7535\u8111\u4E0A\u7684\u540E\u7AEF\u5904\u7406\u3002\u5148\u770B\u4E00\u7BC7\u793A\u4F8B\u7B14\u8BB0\uFF0C\u6216\u8005\u6309\u9996\u6B21\u914D\u7F6E\u628A\u540E\u7AEF\u8FDE\u4E0A\u3002",
-          "Videos are processed by a backend on your computer. Look at an example note first, or connect the backend in the first-run setup."
-        ),
+        void 0,
         {
           label: tr("\u6253\u5F00\u9996\u6B21\u914D\u7F6E", "Open first-run setup"),
           run: () => ctx.plugin.openSettingsPage()
@@ -13965,13 +13958,6 @@ function createPlayer(container, ctx, job, sourceUrl) {
   fallback.createDiv({
     text: tr("\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", "This platform uses an external player"),
     cls: "vs-reader-player-title"
-  });
-  fallback.createDiv({
-    text: tr(
-      "\u70B9\u51FB\u6587\u7A3F\u65F6\u95F4\u70B9\u65F6\u4F1A\u6253\u5F00\u5BF9\u5E94\u7684\u89C6\u9891\u4F4D\u7F6E\u3002",
-      "Clicking a transcript time opens the video at that point."
-    ),
-    cls: "vs-hint"
   });
   let listener = null;
   return {
@@ -20583,16 +20569,12 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
       this.contentEl.createEl("h3", {
         text: this.mode === "due" ? tr("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u590D\u4E60", "Nothing due right now") : tr("\u8FD9\u4E2A\u5217\u8868\u5DF2\u7ECF\u590D\u4E60\u5B8C\u4E86", "This list is done")
       });
-      this.contentEl.createDiv({
-        text: this.mode === "mistakes" ? tr(
-          "\u9519\u9898\u4F1A\u4FDD\u7559\u5728\u672C\u5730\u8FDB\u5EA6\u4E2D\uFF1B\u5230\u671F\u540E\u53EF\u5728\u201C\u5230\u671F\u201D\u5217\u8868\u518D\u6B21\u7EC3\u4E60\u3002",
-          "Wrong answers stay in your local progress; practise them again from the due list."
-        ) : tr(
-          "\u7B54\u9519\u6216\u4F4E\u628A\u63E1\u7684\u9898\u4F1A\u66F4\u65E9\u56DE\u6765\uFF0C\u8FDE\u7EED\u7B54\u5BF9\u4F1A\u9010\u6B65\u62C9\u957F\u95F4\u9694\u3002",
-          "Wrong or unsure answers come back sooner; consecutive right answers stretch the interval."
-        ),
-        cls: "vs-hint"
-      });
+      if (this.mode === "mistakes") {
+        this.contentEl.createDiv({
+          text: tr("\u9519\u9898\u5230\u671F\u540E\u4F1A\u51FA\u73B0\u5728\u201C\u5230\u671F\u201D\u5217\u8868\u91CC\u3002", "Wrong answers come back in the due list."),
+          cls: "vs-hint"
+        });
+      }
       if (this.options.onContinue) {
         const next = this.contentEl.createEl("button", {
           text: this.options.continueLabel || tr("\u7EE7\u7EED\u4E0B\u4E00\u4E2A\u89C6\u9891", "Next video"),
@@ -20646,13 +20628,6 @@ var LearningReviewModal = class extends import_obsidian19.Modal {
         this.renderLoading();
         void this.refreshQueue();
       });
-    });
-    toolbar.createSpan({
-      text: tr(
-        "\u53EA\u5199\u672C\u5730\u590D\u4E60 sidecar\uFF0C\u4E0D\u4FEE\u6539\u7B14\u8BB0\u6B63\u6587",
-        "Writes only the local review sidecar, never the note body"
-      ),
-      cls: "vs-hint"
     });
   }
   renderFlashcard(container, item) {
@@ -23988,34 +23963,13 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("vs-settings", "ap", "ap-settings");
     this.renderSettingsHeader(containerEl);
-    this.group(
-      containerEl,
-      tr("\u8FDE\u63A5", "Connection"),
-      tr(
-        "\u5904\u7406\u670D\u52A1\u5728\u54EA\u91CC\uFF0C\u4EE5\u53CA\u7B2C\u4E00\u6B21\u4F7F\u7528\u65F6\u7684\u68C0\u67E5\u3002",
-        "Where videos are processed, and the first-run checks."
-      )
-    );
+    this.group(containerEl, tr("\u8FDE\u63A5", "Connection"));
     this.createSetupGuideSection(containerEl);
     this.createApiSection(containerEl);
-    this.group(
-      containerEl,
-      tr("\u8F93\u51FA", "Output"),
-      tr(
-        "\u7B14\u8BB0\u5199\u5230\u54EA\u3001\u53EB\u4EC0\u4E48\u3001\u957F\u4EC0\u4E48\u6837\u3002",
-        "Where notes go, what they are called and how they look."
-      )
-    );
+    this.group(containerEl, tr("\u8F93\u51FA", "Output"));
     this.createOutputSection(containerEl);
     this.createFileProcessingSection(containerEl);
-    this.group(
-      containerEl,
-      tr("\u5904\u7406", "Processing"),
-      tr(
-        "\u9ED8\u8BA4\u600E\u4E48\u7406\u89E3\u4E00\u4E2A\u89C6\u9891\uFF1B\u4FA7\u680F\u91CC\u4E5F\u53EF\u4EE5\u9010\u6B21\u6539\u3002",
-        "How a video is understood by default; the side panel can change it each time."
-      )
-    );
+    this.group(containerEl, tr("\u5904\u7406", "Processing"));
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
     const advanced = containerEl.createEl("details", { cls: "vs-settings-advanced" });
@@ -24032,9 +23986,9 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     this.stopGroupMarks?.();
     this.stopGroupMarks = watchSettingGroups(containerEl);
   }
-  /** 一段的标题与一句说明 */
-  group(containerEl, title, desc) {
-    const head = new import_obsidian20.Setting(containerEl).setName(title).setDesc(desc).setHeading();
+  /** 一段的标题 */
+  group(containerEl, title) {
+    const head = new import_obsidian20.Setting(containerEl).setName(title).setHeading();
     head.settingEl.addClass("vs-settings-group");
   }
   /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
@@ -24042,14 +23996,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     const header = containerEl.createDiv({ cls: "vs-settings-header" });
     const text2 = header.createDiv({ cls: "vs-settings-heading" });
     text2.createDiv({ text: tr("\u89C6\u9891\u603B\u7ED3", "Video summary"), cls: "vs-settings-title" });
-    const backendLabel = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : "n8n webhook";
-    text2.createDiv({
-      text: tr(
-        `v${this.plugin.manifest.version} \xB7 \u8FDE\u63A5 ${backendLabel} \u5904\u7406\u89C6\u9891\u3001\u6587\u7A3F\u4E0E\u7B14\u8BB0`,
-        `v${this.plugin.manifest.version} \xB7 uses ${backendLabel} to process videos, transcripts and notes`
-      ),
-      cls: "vs-settings-sub"
-    });
+    text2.createDiv({ text: `v${this.plugin.manifest.version}`, cls: "vs-settings-sub" });
     const pill = header.createEl("button", {
       cls: "vs-settings-pill",
       attr: {
@@ -24114,12 +24061,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       return;
     }
     const intro = section3.createEl("p", { cls: "setting-item-description" });
-    intro.appendText(
-      tr(
-        "\u4E09\u6B65\uFF1A\u5728\u7535\u8111\u4E0A\u542F\u52A8\u540E\u7AEF \u2192 \u628A\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801\u7C98\u8D34\u5230\u8FD9\u91CC \u2192 \u68C0\u67E5\u3002\u8FD8\u6CA1\u6709\u540E\u7AEF\uFF1F\u770B",
-        "Three steps: start the backend on your computer \u2192 paste the connection code from the start script here \u2192 check. No backend yet? See the "
-      )
-    );
+    intro.appendText(tr("\u8FD8\u6CA1\u6709\u540E\u7AEF\uFF1F\u770B", "No backend yet? See the "));
     intro.createEl("a", { text: tr("\u5B89\u88C5\u6559\u7A0B", "install guide"), href: SETUP_GUIDE_URL });
     intro.appendText(tr("\u3002", "."));
     const results = section3.createDiv({ cls: "setup-check-list" });
@@ -24162,8 +24104,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     };
     new import_obsidian20.Setting(section3).setName(tr("\u2460 \u8FDE\u63A5\u7801", "\u2460 Connection code")).setDesc(
       tr(
-        "\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u884C\uFF0C\u5B83\u4E5F\u5DF2\u7ECF\u590D\u5236\u5230\u526A\u8D34\u677F\u3002\u8FDE\u63A5\u7801\u76F8\u5F53\u4E8E\u53E3\u4EE4\uFF0C\u4E0D\u8981\u53D1\u7ED9\u522B\u4EBA\u3002",
-        "The last line the start script printed; it is also on your clipboard. The code works like a password, so keep it to yourself."
+        "\u542F\u52A8\u811A\u672C\u7684\u6700\u540E\u4E00\u884C\uFF0C\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F\u3002\u8FDE\u63A5\u7801\u76F8\u5F53\u4E8E\u53E3\u4EE4\uFF0C\u4E0D\u8981\u53D1\u7ED9\u522B\u4EBA\u3002",
+        "The last line of the start script, already on your clipboard. It works like a password; keep it to yourself."
       )
     ).addText((text2) => {
       codeInput = text2.inputEl;
@@ -24483,7 +24425,6 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         text: this.getPlatformStatusLabel(item.status),
         cls: "platform-status-label"
       });
-      card.createEl("p", { text: tr(`\u8F93\u5165: ${item.input}`, `Input: ${item.input}`) });
       card.createEl("p", { text: tr(`\u8981\u6C42: ${item.requirements}`, `Needs: ${item.requirements}`) });
       card.createEl("p", { text: item.notes });
     });
@@ -24514,12 +24455,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       cls: "setting-item-description"
     });
     const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian20.Setting(section3).setName(tr("Cookies \u76EE\u5F55", "Cookies folder")).setDesc(
-      tr(
-        "Cookies \u76EE\u5F55\u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u4F8B\u5982 ~/video-summary-backend/cookies",
-        "Absolute path of the cookies folder, for example ~/video-summary-backend/cookies"
-      )
-    ).addText(
+    new import_obsidian20.Setting(section3).setName(tr("Cookies \u76EE\u5F55", "Cookies folder")).addText(
       (text2) => text2.setPlaceholder("/path/to/video-summary-backend/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
@@ -24661,12 +24597,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   }
   createApiSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "link", tr("\u5904\u7406\u670D\u52A1", "Backend"));
-    new import_obsidian20.Setting(section3).setName(tr("\u4E3B\u5904\u7406\u540E\u7AEF", "Main backend")).setDesc(
-      tr(
-        "Obsidian \u63D2\u4EF6\u662F\u4E3B\u5165\u53E3\uFF1A\u9009\u62E9\u4E00\u952E\u603B\u7ED3\u3001\u6279\u91CF\u5904\u7406\u3001\u91CD\u65B0\u5904\u7406\u65F6\u8C03\u7528 n8n\uFF0C\u8FD8\u662F\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002",
-        "The Obsidian plugin is the entry point: choose whether quick summary, batch and reprocessing call n8n or the local video service."
-      )
-    ).addDropdown(
+    new import_obsidian20.Setting(section3).setName(tr("\u4E3B\u5904\u7406\u540E\u7AEF", "Main backend")).addDropdown(
       (dropdown) => dropdown.addOption("n8n", tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook")).addOption("codex-worker", tr("Codex \u672C\u5730\u89C6\u9891\u670D\u52A1", "Codex local video service")).setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
         await this.plugin.setActiveBackend(value);
         new import_obsidian20.Notice(
@@ -24675,12 +24606,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         this.redraw();
       })
     );
-    new import_obsidian20.Setting(section3).setName(tr("Codex \u672C\u5730\u670D\u52A1\u5730\u5740", "Codex local service address")).setDesc(
-      tr(
-        "\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u7684\u540C\u6B65\u5165\u53E3\u3002\u63A7\u5236\u53F0\u9ED8\u8BA4\u5728\u540C\u4E00\u4E3B\u673A\u7684 /dashboard\u3002",
-        "Sync entry point of the local video service. Its dashboard is at /dashboard on the same host."
-      )
-    ).addText(
+    new import_obsidian20.Setting(section3).setName(tr("Codex \u672C\u5730\u670D\u52A1\u5730\u5740", "Codex local service address")).addText(
       (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
         this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
         if (this.plugin.settings.activeBackend === "codex-worker") {
@@ -24695,8 +24621,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     );
     const webhookSetting = new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09", "Default webhook (n8n or compatible)")).setDesc(
       tr(
-        "\u4E3A\u4E0D\u540C\u5DE5\u4F5C\u6D41\u4FDD\u5B58\u591A\u4E2A webhook\u3002\u9009\u62E9\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n \u6216\u517C\u5BB9\u670D\u52A1\u3002",
-        "Keep several webhooks for different workflows. Choosing the default here switches the main backend back to n8n or a compatible service."
+        "\u9009\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n \u6216\u517C\u5BB9\u670D\u52A1\u3002",
+        "Choosing the default here switches the main backend back to n8n or a compatible service."
       )
     );
     let webhookDropdown = null;
@@ -24931,12 +24857,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B", "Default content type")).setDesc(
-      tr(
-        "\u81EA\u52A8\u8BC6\u522B\u4F1A\u6839\u636E\u5185\u5BB9\u9009\u62E9\u8BFE\u7A0B\u3001\u8BBF\u8C08\u3001\u6559\u7A0B\u3001\u65B0\u95FB\u3001\u4F1A\u8BAE\u6216\u8BC4\u6D4B\u7ED3\u6784\u3002",
-        "Automatic picks a course, interview, tutorial, news, meeting or review structure from the content."
-      )
-    ).addDropdown(
+    new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B", "Default content type")).addDropdown(
       (dropdown) => dropdown.addOption("auto", tr("\u81EA\u52A8\u8BC6\u522B", "Automatic")).addOption("course", tr("\u8BFE\u7A0B", "Course")).addOption("interview", tr("\u8BBF\u8C08", "Interview")).addOption("tutorial", tr("\u6559\u7A0B", "Tutorial")).addOption("news", tr("\u65B0\u95FB", "News")).addOption("meeting", tr("\u4F1A\u8BAE", "Meeting")).addOption("review", tr("\u8BC4\u6D4B", "Review")).addOption("general", tr("\u901A\u7528", "General")).setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
         const contentType = value;
         this.plugin.settings.defaultContentType = contentType;
@@ -24978,7 +24899,7 @@ Suggestion: ${res.hint}`) : "";
         `Set by VS_CHAT_MODEL in the backend's .env; every summary step uses this one model. Last check: ${this.plugin.settings.aiModel || "not checked yet"}. To change it, edit .env and run the start script again.`
       )
     );
-    new import_obsidian20.Setting(section3).setName(tr("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4", "Request timeout")).setDesc(tr("API\u8BF7\u6C42\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09", "Timeout for API requests (minutes)")).addSlider(
+    new import_obsidian20.Setting(section3).setName(tr("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4", "Request timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
@@ -24988,13 +24909,13 @@ Suggestion: ${res.hint}`) : "";
   }
   createOutputSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "folder", tr("\u7B14\u8BB0", "Notes"));
-    new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u8BED\u8A00", "Default language")).setDesc(tr("\u751F\u6210\u603B\u7ED3\u7684\u9ED8\u8BA4\u8BED\u8A00", "Default language of summaries")).addDropdown(
+    new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u8BED\u8A00", "Default language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName(tr("\u81EA\u52A8\u4FDD\u5B58", "Save automatically")).setDesc(tr("\u5904\u7406\u5B8C\u6210\u540E\u81EA\u52A8\u4FDD\u5B58\u6587\u4EF6", "Save the file when processing finishes")).addToggle(
+    new import_obsidian20.Setting(section3).setName(tr("\u81EA\u52A8\u4FDD\u5B58", "Save automatically")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
@@ -25046,13 +24967,13 @@ Suggestion: ${res.hint}`) : "";
       text: tr("\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", "Quick summary settings"),
       cls: "vs-subsection-title"
     });
-    new import_obsidian20.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8BED\u8A00", "Summary language")).setDesc(tr("\u4E00\u952E\u603B\u7ED3\u65F6\u4F7F\u7528\u7684\u8BED\u8A00", "Language of quick summaries")).addDropdown(
+    new import_obsidian20.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8BED\u8A00", "Summary language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4", "Summary timeout")).setDesc(tr("\u4E00\u952E\u603B\u7ED3\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09", "Timeout of quick summaries (minutes)")).addSlider(
+    new import_obsidian20.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4", "Summary timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -25063,13 +24984,13 @@ Suggestion: ${res.hint}`) : "";
       text: tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", "Quick transcript settings"),
       cls: "vs-subsection-title"
     });
-    new import_obsidian20.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8BED\u8A00", "Transcript language")).setDesc(tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u65F6\u4F7F\u7528\u7684\u8BED\u8A00", "Language of quick transcripts")).addDropdown(
+    new import_obsidian20.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8BED\u8A00", "Transcript language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4", "Transcript timeout")).setDesc(tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u7684\u8D85\u65F6\u65F6\u95F4\uFF08\u5206\u949F\uFF09", "Timeout of quick transcripts (minutes)")).addSlider(
+    new import_obsidian20.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4", "Transcript timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -25078,35 +24999,25 @@ Suggestion: ${res.hint}`) : "";
   }
   createFileProcessingSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "files", tr("\u6587\u4EF6\u4E0E\u547D\u540D", "Files and names"));
-    new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D", "Rename after processing")).setDesc(
-      tr(
-        "\u6839\u636E\u89C6\u9891\u6807\u9898/\u6B63\u6587\u6807\u9898\u81EA\u52A8\u91CD\u547D\u540D\u7B14\u8BB0\uFF0C\u907F\u514D\u91CD\u590D\u540D\u5C06\u8FFD\u52A0\u7F16\u53F7",
-        "Rename the note from the video or body title; a number is added to avoid duplicates"
-      )
-    ).addToggle(
+    new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D", "Rename after processing")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName(tr("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565", "Name clash")).setDesc(tr("\u5F53\u76EE\u6807\u6587\u4EF6\u540D\u5DF2\u5B58\u5728\u65F6\u7684\u5904\u7406\u65B9\u5F0F", "What to do when the file name already exists")).addDropdown(
+    new import_obsidian20.Setting(section3).setName(tr("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565", "Name clash")).addDropdown(
       (drop) => drop.addOption("append-number", tr("\u8FFD\u52A0\u7F16\u53F7", "Add a number")).addOption("append-date", tr("\u8FFD\u52A0\u65E5\u671F", "Add the date")).addOption("skip", tr("\u8DF3\u8FC7", "Skip")).setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName(tr("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570", "Batch parallelism")).setDesc(tr("\u540C\u65F6\u5904\u7406\u7684\u6700\u5927\u6587\u4EF6\u6570\u91CF", "Most files processed at the same time")).addSlider(
+    new import_obsidian20.Setting(section3).setName(tr("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570", "Batch parallelism")).addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian20.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(
-      tr(
-        "\u5904\u7406\u6210\u529F\u540E\u5199\u5165 frontmatter \u7684 status \u6587\u672C\uFF0C\u4F8B\u5982 success/\u5DF2\u5904\u7406/\u2705 \u7B49",
-        "The status text written to frontmatter after success, such as success, done or \u2705"
-      )
-    ).addText(
+    new import_obsidian20.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(tr("\u5199\u8FDB frontmatter \u7684 status", "Written to the status property")).addText(
       (text2) => text2.setPlaceholder(tr("\u4F8B\u5982 success", "For example success")).setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
@@ -25130,14 +25041,14 @@ Suggestion: ${res.hint}`) : "";
     );
     section3.createEl("p", {
       text: tr(
-        "\u81EA\u5B9A\u4E49\u53D1\u9001\u5230 n8n webhook \u7684 JSON \u5BF9\u8C61\u4E2D\u7684\u952E\u540D\u3002\u8FD9\u5141\u8BB8\u60A8\u9002\u5E94\u4E0D\u540C\u7684 n8n \u5DE5\u4F5C\u6D41\u914D\u7F6E\u3002",
-        "Customise the key names in the JSON sent to the n8n webhook, to fit a different n8n workflow."
+        "\u53EA\u6709\u6539\u8FC7 n8n \u5DE5\u4F5C\u6D41\u7684\u5B57\u6BB5\u540D\u65F6\u624D\u9700\u8981\u6539\u3002",
+        "Change these only if your n8n workflow uses different field names."
       ),
       cls: "setting-item-description"
     });
     const keys = this.plugin.settings.payloadKeys;
-    const createKeySetting = (name, desc, key) => {
-      new import_obsidian20.Setting(section3).setName(name).setDesc(desc).addText(
+    const createKeySetting = (name, key) => {
+      new import_obsidian20.Setting(section3).setName(name).addText(
         (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
           keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
           this.plugin.api.setPayloadKeys(keys);
@@ -25145,47 +25056,13 @@ Suggestion: ${res.hint}`) : "";
         })
       );
     };
-    createKeySetting(
-      tr("\u5904\u7406\u6A21\u5F0F\u952E", "Mode key"),
-      tr(
-        "\u53D1\u9001\u5904\u7406\u6A21\u5F0F\uFF08summary/transcript-only \u7B49\uFF09\u7684\u952E\u540D",
-        "Key that carries the processing mode (summary, transcript-only and so on)"
-      ),
-      "mode"
-    );
-    createKeySetting(
-      tr("\u8BED\u8A00\u952E", "Language key"),
-      tr("\u53D1\u9001\u8BED\u8A00\u4EE3\u7801\uFF08zh/en/ja\uFF09\u7684\u952E\u540D", "Key that carries the language code (zh/en/ja)"),
-      "language"
-    );
-    createKeySetting(
-      tr("\u6A21\u578B\u952E", "Model key"),
-      tr("\u53D1\u9001\u6A21\u578B\u6807\u7B7E\u7684\u952E\u540D", "Key that carries the model tag"),
-      "ai"
-    );
-    createKeySetting(
-      tr("\u4EC5\u4FE1\u606F\u6807\u5FD7\u952E", "Info-only flag key"),
-      tr(
-        "\u5F53\u6A21\u5F0F\u4E3A info-only \u65F6\u53D1\u9001 true \u7684\u952E\u540D",
-        "Key that carries true when the mode is info-only"
-      ),
-      "info_only"
-    );
-    createKeySetting(
-      tr("\u89C6\u9891\u94FE\u63A5\u952E", "Video link key"),
-      tr("\u53D1\u9001\u89C6\u9891 URL \u7684\u952E\u540D", "Key that carries the video URL"),
-      "link"
-    );
-    createKeySetting(
-      tr("\u624B\u52A8\u6587\u7A3F\u952E", "Manual transcript key"),
-      tr("\u53D1\u9001\u624B\u52A8\u63D0\u4F9B\u7684\u6587\u7A3F\u5185\u5BB9\u7684\u952E\u540D", "Key that carries a transcript you supplied"),
-      "provided_transcript"
-    );
-    createKeySetting(
-      tr("\u672C\u5730\u6587\u4EF6\u952E", "Local file key"),
-      tr("\u53D1\u9001\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\u7684\u952E\u540D", "Key that carries the local file path"),
-      "local_file"
-    );
+    createKeySetting(tr("\u5904\u7406\u6A21\u5F0F\u952E", "Mode key"), "mode");
+    createKeySetting(tr("\u8BED\u8A00\u952E", "Language key"), "language");
+    createKeySetting(tr("\u6A21\u578B\u952E", "Model key"), "ai");
+    createKeySetting(tr("\u4EC5\u4FE1\u606F\u6807\u5FD7\u952E", "Info-only flag key"), "info_only");
+    createKeySetting(tr("\u89C6\u9891\u94FE\u63A5\u952E", "Video link key"), "link");
+    createKeySetting(tr("\u624B\u52A8\u6587\u7A3F\u952E", "Manual transcript key"), "provided_transcript");
+    createKeySetting(tr("\u672C\u5730\u6587\u4EF6\u952E", "Local file key"), "local_file");
   }
   createAdvancedSection(containerEl) {
     const { section: section3 } = this.sectionCard(
@@ -25193,7 +25070,7 @@ Suggestion: ${res.hint}`) : "";
       "wrench",
       tr("\u7F13\u5B58\u4E0E\u8C03\u8BD5", "Cache and debugging")
     );
-    new import_obsidian20.Setting(section3).setName(tr("\u8C03\u8BD5\u6A21\u5F0F", "Debug mode")).setDesc(tr("\u8F93\u51FA\u66F4\u591A\u8C03\u8BD5\u65E5\u5FD7\uFF08\u63A7\u5236\u53F0\uFF09", "Write more debug logs to the console")).addToggle(
+    new import_obsidian20.Setting(section3).setName(tr("\u8C03\u8BD5\u6A21\u5F0F", "Debug mode")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
@@ -25202,8 +25079,8 @@ Suggestion: ${res.hint}`) : "";
     );
     new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0", "Check the backend before processing")).setDesc(
       tr(
-        "\u53D1\u8D77\u5904\u7406\u524D\u5148 ping \u5F53\u524D\u540E\u7AEF\uFF08\u7ED3\u679C\u7F13\u5B58 60 \u79D2\uFF09\u3002\u4E0D\u53EF\u8FBE\u65F6\u4F1A\u63D0\u793A\uFF0C\u5E76\u5728\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002",
-        "Ping the current backend before processing (cached for 60 seconds). If it is unreachable you are told, with a suggestion to switch when the other backend works."
+        "\u540E\u7AEF\u4E0D\u53EF\u8FBE\u65F6\u5148\u63D0\u793A\uFF0C\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002",
+        "Warns when the backend is unreachable and suggests the other one if it works."
       )
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.preflightCheckEnabled !== false).onChange(async (value) => {
@@ -25213,8 +25090,8 @@ Suggestion: ${res.hint}`) : "";
     );
     new import_obsidian20.Setting(section3).setName(tr("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00", "Expand short links")).setDesc(
       tr(
-        "\u53D1\u9001\u524D\u628A b23.tv / v.douyin.com / xhslink.com \u7B49\u77ED\u94FE\u5C55\u5F00\u6210\u6700\u7EC8\u94FE\u63A5\uFF0C\u51CF\u5C11\u540E\u7AEF\u4E0B\u8F7D\u5931\u8D25\uFF08\u4EC5\u684C\u9762\u7AEF\u751F\u6548\uFF0C\u5931\u8D25\u65F6\u81EA\u52A8\u56DE\u9000\u539F\u94FE\u63A5\uFF09\u3002",
-        "Expand b23.tv, v.douyin.com, xhslink.com and other short links before sending, which avoids download failures (desktop only; falls back to the original link on failure)."
+        "\u628A b23.tv\u3001v.douyin.com\u3001xhslink.com \u7B49\u77ED\u94FE\u6362\u6210\u6700\u7EC8\u94FE\u63A5\u518D\u53D1\u9001\uFF0C\u51CF\u5C11\u4E0B\u8F7D\u5931\u8D25\u3002",
+        "Sends the final link instead of b23.tv, v.douyin.com, xhslink.com and other short links, so fewer downloads fail."
       )
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.expandShortLinks !== false).onChange(async (value) => {
@@ -25225,24 +25102,19 @@ Suggestion: ${res.hint}`) : "";
     );
     const historyLimitSetting = new import_obsidian20.Setting(section3).setName(tr("\u5904\u7406\u5386\u53F2\u4E0A\u9650", "History limit")).setDesc(
       tr(
-        `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${this.plugin.settings.historyLimit ?? 300} \u6761\u3002`,
-        `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${this.plugin.settings.historyLimit ?? 300}.`
+        `${this.plugin.settings.historyLimit ?? 300} \u6761`,
+        `${this.plugin.settings.historyLimit ?? 300} entries`
       )
     ).addSlider(
       (slider) => slider.setLimits(100, 1e3, 50).setValue(this.plugin.settings.historyLimit ?? 300).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.historyLimit = value;
         await this.plugin.saveSettings();
-        historyLimitSetting.setDesc(
-          tr(
-            `\u5386\u53F2\u4E0E webhook \u7ED3\u679C\u5DF2\u62C6\u5206\u5B58\u50A8\u5230\u63D2\u4EF6\u76EE\u5F55\u7684 history.json\uFF08data.json \u4E0D\u518D\u81A8\u80C0\uFF09\u3002\u5F53\u524D\u4E0A\u9650\uFF1A${value} \u6761\u3002`,
-            `History and webhook results are stored separately in history.json in the plugin folder (data.json stays small). Current limit: ${value}.`
-          )
-        );
+        historyLimitSetting.setDesc(tr(`${value} \u6761`, `${value} entries`));
       })
     );
     const cacheSubsection = section3.createDiv({ cls: "vs-subsection" });
     cacheSubsection.createDiv({ text: tr("\u7F13\u5B58\u914D\u7F6E", "Cache"), cls: "vs-subsection-title" });
-    const cacheStatusSetting = new import_obsidian20.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u72B6\u6001", "Cache status")).setDesc(tr("\u70B9\u51FB\u67E5\u770B\u5F53\u524D\u7F13\u5B58\u72B6\u6001\u548C\u7EDF\u8BA1\u4FE1\u606F", "Show the current cache status and statistics")).addButton(
+    const cacheStatusSetting = new import_obsidian20.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u72B6\u6001", "Cache status")).addButton(
       (button) => button.setButtonText(tr("\u{1F4CA} \u67E5\u770B\u72B6\u6001", "\u{1F4CA} Show status")).setClass("cache-status-btn").onClick(async () => {
         try {
           const stats = this.plugin.api.getCacheStats();
@@ -25279,20 +25151,15 @@ Suggestion: ${res.hint}`) : "";
     enableCacheSetting.controlEl.addClass("cache-setting-item");
     const expirySetting = new import_obsidian20.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4", "Cache expiry")).setDesc(
       tr(
-        `\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${this.plugin.settings.cacheExpiryDays ?? 30} \u5929\uFF09`,
-        `How long cached results stay valid (now ${this.plugin.settings.cacheExpiryDays ?? 30} days)`
+        `${this.plugin.settings.cacheExpiryDays ?? 30} \u5929`,
+        `${this.plugin.settings.cacheExpiryDays ?? 30} days`
       )
     ).addSlider(
       (slider) => slider.setLimits(1, 365, 1).setValue(this.plugin.settings.cacheExpiryDays ?? 30).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.cacheExpiryDays = value;
         this.plugin.api.setCacheConfig(1e3, value);
         await this.plugin.saveSettings();
-        expirySetting.setDesc(
-          tr(
-            `\u7F13\u5B58\u7ED3\u679C\u7684\u6709\u6548\u671F\uFF08\u5F53\u524D\uFF1A${value} \u5929\uFF09`,
-            `How long cached results stay valid (now ${value} days)`
-          )
-        );
+        expirySetting.setDesc(tr(`${value} \u5929`, `${value} days`));
       })
     );
     expirySetting.controlEl.addClass("cache-setting-item");

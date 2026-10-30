@@ -1875,11 +1875,6 @@ body {
 .video-summary-view .vs-add-controls button.vs-primary-btn {
   margin-left: auto;
 }
-.video-summary-view .vs-add-hint {
-  margin-top: 6px;
-  color: var(--vs-mute);
-  font-size: var(--font-ui-smaller);
-}
 
 /* 更多选项（折叠） */
 .video-summary-view .vs-fold {
@@ -4103,22 +4098,13 @@ body {
   display: none;
 }
 
-/* 添加框：开始按钮在框内右下角，提示在左下角 */
+/* 添加框：开始按钮在框内右下角 */
 .video-summary-view .vs-add-bar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--ap-s2);
   padding: 0 var(--ap-s2) var(--ap-s2) var(--ap-s3);
-}
-.video-summary-view .vs-add-bar .vs-add-hint {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: var(--ap-caption);
-  color: var(--ap-label-3);
 }
 .video-summary-view .vs-add-bar button.vs-add-file {
   position: static;

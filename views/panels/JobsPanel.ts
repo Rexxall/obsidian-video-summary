@@ -132,10 +132,7 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
         container,
         'plug-zap',
         tr('还没连上后端', 'No backend connected yet'),
-        tr(
-          '视频要交给你电脑上的后端处理。先看一篇示例笔记，或者按首次配置把后端连上。',
-          'Videos are processed by a backend on your computer. Look at an example note first, or connect the backend in the first-run setup.',
-        ),
+        undefined,
         {
           label: tr('打开首次配置', 'Open first-run setup'),
           run: () => ctx.plugin.openSettingsPage(),
