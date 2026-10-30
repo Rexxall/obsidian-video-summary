@@ -1,0 +1,7 @@
+{
+  "rules": {
+    "declaration-no-important": true,
+    "property-disallowed-list": ["all"],
+    "selector-pseudo-class-disallowed-list": ["has"]
+  }
+}

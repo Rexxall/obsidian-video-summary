@@ -43,6 +43,7 @@ class ItemView {
     };
   }
   registerEvent() {}
+  registerDomEvent() {}
   async open() {
     this.load();
     await this.onOpen();

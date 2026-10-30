@@ -1,4 +1,5 @@
 import { SHORT_LINK_HOSTS } from '../constants';
+import { desktopRequire, type DesktopHttp } from './desktop';
 
 /**
  * 短链展开工具。
@@ -59,18 +60,12 @@ export class UrlResolver {
    */
   private static fetchRedirectLocation(url: string, timeoutMs: number): Promise<string | null> {
     return new Promise((resolve) => {
-      let httpModule: typeof import('https') | undefined;
+      let httpModule: DesktopHttp | undefined;
       try {
-        const nodeRequire = (window as unknown as { require?: unknown }).require;
-        if (typeof nodeRequire !== 'function') {
-          resolve(null);
-          return;
-        }
-        const load = nodeRequire as (id: string) => unknown;
-        // http and https share the get() shape used here
-        httpModule = (
-          url.startsWith('https:') ? load('https') : load('http')
-        ) as typeof import('https');
+        // http and https share the get() shape used here; undefined on mobile
+        httpModule = desktopRequire(url.startsWith('https:') ? 'https' : 'http') as
+          | DesktopHttp
+          | undefined;
       } catch {
         resolve(null);
         return;

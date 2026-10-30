@@ -90,6 +90,7 @@
   --ap-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ap-ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
   --ap-ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ap-press: 80ms;
   --ap-fast: 120ms;
   --ap-base: 200ms;
   --ap-slow: 340ms;
@@ -229,15 +230,11 @@
   left: var(--ap-s4);
   border-top: 0.5px solid var(--ap-sep);
 }
-.ap-settings .setting-item:not(.setting-item-heading):first-child,
-.ap-settings .setting-item-heading + .setting-item,
-.ap-settings > :not(.setting-item) + .setting-item {
+.ap-settings .setting-item.ap-group-first {
   border-top-left-radius: var(--ap-r-group);
   border-top-right-radius: var(--ap-r-group);
 }
-.ap-settings .setting-item:not(.setting-item-heading):has(+ .setting-item-heading),
-.ap-settings .setting-item:not(.setting-item-heading):last-child,
-.ap-settings .setting-item:not(.setting-item-heading):has(+ :not(.setting-item)) {
+.ap-settings .setting-item.ap-group-last {
   border-bottom-left-radius: var(--ap-r-group);
   border-bottom-right-radius: var(--ap-r-group);
 }
@@ -340,9 +337,9 @@
 .ap .checkbox-container::after {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
   transition:
-    width 0.08s ease-out,
-    left 0.08s ease-out,
-    transform var(--ap-base) var(--ap-ease-spring) 0.08s;
+    width var(--ap-press) ease-out,
+    left var(--ap-press) ease-out,
+    transform var(--ap-base) var(--ap-ease-spring) var(--ap-press);
 }
 /* Pressed: the knob stretches to a 26px capsule inside the track, keeping its 2px margin; it grows away
    from the end it rests on. Released, it turns round first, then slides. Repeated classes outrank
@@ -378,7 +375,37 @@
   background: var(--ap-fill);
 }
 .ap-seg button {
-  all: unset;
+  appearance: none;
+  -webkit-app-region: initial;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  width: auto;
+  height: auto;
+  min-width: auto;
+  min-height: auto;
+  max-width: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  text-rendering: inherit;
+  white-space: inherit;
+  user-select: inherit;
+  display: inline;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  cursor: inherit;
+  box-sizing: content-box;
+  flex: initial;
+  transition: initial;
+  corner-shape: round;
   cursor: pointer;
   text-align: center;
   white-space: nowrap;
@@ -405,7 +432,37 @@
 
 /* ---------- Buttons: capsules ---------- */
 .ap-btn {
-  all: unset;
+  appearance: none;
+  -webkit-app-region: initial;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  width: auto;
+  height: auto;
+  min-width: auto;
+  min-height: auto;
+  max-width: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  text-rendering: inherit;
+  white-space: inherit;
+  user-select: inherit;
+  display: inline;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  cursor: inherit;
+  box-sizing: content-box;
+  flex: initial;
+  transition: initial;
+  corner-shape: round;
   cursor: pointer;
   box-sizing: border-box;
   display: inline-flex;
@@ -501,7 +558,37 @@
   color: var(--ap-label-3);
 }
 .ap-search input {
-  all: unset;
+  appearance: none;
+  -webkit-app-region: initial;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  width: auto;
+  height: auto;
+  min-width: auto;
+  min-height: auto;
+  max-width: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  text-rendering: inherit;
+  white-space: inherit;
+  user-select: inherit;
+  display: inline;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  cursor: inherit;
+  box-sizing: content-box;
+  flex: initial;
+  transition: initial;
+  corner-shape: round;
   flex: 1;
   min-width: 0;
   font: var(--ap-body);
@@ -834,7 +921,37 @@
    <div class="ap-row"> … <div class="ap-row-actions"><button class="ap-icon-btn" aria-label="Edit">…svg…</button></div></div>
    Hidden until the row is hovered or something in it has focus; always shown where there is no hover. */
 .ap-icon-btn {
-  all: unset;
+  appearance: none;
+  -webkit-app-region: initial;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  width: auto;
+  height: auto;
+  min-width: auto;
+  min-height: auto;
+  max-width: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  text-rendering: inherit;
+  white-space: inherit;
+  user-select: inherit;
+  display: inline;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  cursor: inherit;
+  box-sizing: content-box;
+  flex: initial;
+  transition: initial;
+  corner-shape: round;
   cursor: pointer;
   box-sizing: border-box;
   flex: none;
@@ -889,7 +1006,37 @@
    <button class="ap-picker" aria-haspopup="listbox" aria-expanded="false"><span class="ap-picker-value">Auto</span></button>
    Opens .ap-menu, a glass popover list (see the helper in 74 appendix B for the behaviour). */
 .ap-picker {
-  all: unset;
+  appearance: none;
+  -webkit-app-region: initial;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  width: auto;
+  height: auto;
+  min-width: auto;
+  min-height: auto;
+  max-width: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  text-rendering: inherit;
+  white-space: inherit;
+  user-select: inherit;
+  display: inline;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  cursor: inherit;
+  box-sizing: content-box;
+  flex: initial;
+  transition: initial;
+  corner-shape: round;
   cursor: pointer;
   box-sizing: border-box;
   flex: none;
@@ -1062,7 +1209,37 @@
   line-height: 22px;
 }
 .ap-cal-day {
-  all: unset;
+  appearance: none;
+  -webkit-app-region: initial;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  width: auto;
+  height: auto;
+  min-width: auto;
+  min-height: auto;
+  max-width: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  text-rendering: inherit;
+  white-space: inherit;
+  user-select: inherit;
+  display: inline;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  cursor: inherit;
+  box-sizing: content-box;
+  flex: initial;
+  transition: initial;
+  corner-shape: round;
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -1200,11 +1377,10 @@
 }
 /* Reduce motion: no movement, state changes are instant */
 @media (prefers-reduced-motion: reduce) {
-  .ap,
-  .ap *,
-  .modal.ap-modal {
-    animation: none !important;
-    transition: none !important;
+  /* The id in :not() lifts these above any class-only rule, no important flag needed */
+  :is(.ap, .ap *, .modal.ap-modal):not(#ap-reduced-motion) {
+    animation: none;
+    transition: none;
   }
 }
 /* Phones: lighter blur, no blur on anything inside a scrolling list */
@@ -2035,7 +2211,7 @@ body {
   pointer-events: auto;
 }
 .video-summary-view .vs-row:hover .vs-row-status,
-.video-summary-view .vs-row:has(.vs-row-actions:focus-within) .vs-row-status {
+.video-summary-view .vs-row.is-actions-focused .vs-row-status {
   opacity: 0;
   pointer-events: none;
 }
@@ -3907,8 +4083,7 @@ body {
   border-top: 0.5px solid var(--ap-sep);
 }
 /* 自带关闭按钮的弹窗不再显示 Obsidian 的第二个关闭按钮（1.13 起是 .modal-header-button） */
-.modal.ap-modal:has(.vs-modal-header .vs-icon-btn)
-  > :is(.modal-close-button, .modal-header-button) {
+.modal.ap-modal.vs-has-own-close > :is(.modal-close-button, .modal-header-button) {
   display: none;
 }
 
@@ -4061,7 +4236,7 @@ body {
 .video-summary-view.ap .vs-fold + .vs-context-strip {
   margin-top: var(--ap-s3);
 }
-.ap .vs-thumb.is-empty:has(.vs-thumb-time) .vs-thumb-placeholder {
+.ap .vs-thumb.is-empty.has-time .vs-thumb-placeholder {
   justify-content: flex-start;
   padding-left: 6px;
 }
@@ -4108,7 +4283,7 @@ body {
    the same amount, so controls inside and outside a group end on one right line. From Obsidian 1.13
    the page is drawn inside a settings row whose card is dropped here. Empty or hidden helpers between
    rows (status lines, QR boxes) do not split a group. */
-.setting-group .setting-items:has(> .ap-settings) {
+.setting-group .setting-items.ap-settings-host {
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -4131,15 +4306,7 @@ body {
   padding-inline: 0;
   border: 0;
 }
-.ap.ap-settings
-  .setting-item:not(.setting-item-heading):is(
-    .setting-item:not(.setting-item-heading) + *,
-    .setting-item:not(.setting-item-heading) + :is(:empty, [style*='display: none']) + *,
-    .setting-item:not(.setting-item-heading)
-      + :is(:empty, [style*='display: none'])
-      + :is(:empty, [style*='display: none'])
-      + *
-  )::before {
+.ap.ap-settings .setting-item:not(.setting-item-heading)::before {
   content: '';
   display: block;
   position: absolute;
@@ -4148,39 +4315,14 @@ body {
   right: 0;
   border-top: 0.5px solid var(--ap-sep);
 }
-.ap.ap-settings
-  .setting-item:not(.setting-item-heading):not(
-    .setting-item:not(.setting-item-heading) + *,
-    .setting-item:not(.setting-item-heading) + :is(:empty, [style*='display: none']) + *,
-    .setting-item:not(.setting-item-heading)
-      + :is(:empty, [style*='display: none'])
-      + :is(:empty, [style*='display: none'])
-      + *
-  ) {
+.ap.ap-settings .setting-item.ap-group-first {
   border-top-left-radius: var(--ap-r-group);
   border-top-right-radius: var(--ap-r-group);
 }
-.ap.ap-settings
-  .setting-item:not(.setting-item-heading):not(
-    .setting-item:not(.setting-item-heading) + *,
-    .setting-item:not(.setting-item-heading) + :is(:empty, [style*='display: none']) + *,
-    .setting-item:not(.setting-item-heading)
-      + :is(:empty, [style*='display: none'])
-      + :is(:empty, [style*='display: none'])
-      + *
-  )::before {
+.ap.ap-settings .setting-item.ap-group-first::before {
   content: none;
 }
-.ap.ap-settings
-  .setting-item:not(.setting-item-heading):not(
-    :has(
-      + .setting-item:not(.setting-item-heading),
-      + :is(:empty, [style*='display: none']) + .setting-item:not(.setting-item-heading),
-      + :is(:empty, [style*='display: none'])
-        + :is(:empty, [style*='display: none'])
-        + .setting-item:not(.setting-item-heading)
-    )
-  ) {
+.ap.ap-settings .setting-item.ap-group-last {
   border-bottom-left-radius: var(--ap-r-group);
   border-bottom-right-radius: var(--ap-r-group);
 }

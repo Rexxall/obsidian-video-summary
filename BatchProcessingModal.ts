@@ -79,7 +79,8 @@ export class BatchProcessingModal extends Modal {
   }
 
   onOpen() {
-    this.modalEl.addClass('ap', 'ap-modal');
+    // The header draws its own close button, so Obsidian's is hidden
+    this.modalEl.addClass('ap', 'ap-modal', 'vs-has-own-close');
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('batch-processing-modal');

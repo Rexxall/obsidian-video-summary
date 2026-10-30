@@ -220,6 +220,7 @@ export function thumbnail(parent: HTMLElement, options: ThumbOptions = {}): HTML
   }
   thumb.createSpan({ cls: 'vs-thumb-bar' });
   if (options.duration) {
+    thumb.addClass('has-time');
     thumb.createSpan({ text: options.duration, cls: 'vs-thumb-time' });
   }
   return thumb;

@@ -78,6 +78,16 @@ export class VideoSummaryView extends ItemView {
     container.toggleClass('is-narrow', container.clientWidth <= 520);
     container.toggleClass('is-tiny', container.clientWidth <= 260);
 
+    // A row whose action buttons have keyboard focus hides its status pill, as on hover
+    const markActionsFocus = (event: FocusEvent, focused: boolean) => {
+      const actions = (event.target as HTMLElement).closest('.vs-row-actions');
+      if (!actions) return;
+      if (!focused && actions.contains(event.relatedTarget as Node | null)) return;
+      actions.closest('.vs-row')?.toggleClass('is-actions-focused', focused);
+    };
+    this.registerDomEvent(container, 'focusin', (event) => markActionsFocus(event, true));
+    this.registerDomEvent(container, 'focusout', (event) => markActionsFocus(event, false));
+
     this.actionHeaderEl = container.createDiv({ cls: 'vs-top' });
     this.panelEl = container.createDiv({ cls: 'vs-panels' });
 

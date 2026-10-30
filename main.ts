@@ -87,7 +87,13 @@ import { Modal } from 'obsidian';
 import { fire } from './utils/fire';
 import { errorMessage } from './utils/errors';
 import { asArray, asRecord, isRecord, scalarText, type JsonRecord } from './utils/json';
-import { desktopRequire, openPathInSystem } from './utils/desktop';
+import {
+  desktopRequire,
+  openPathInSystem,
+  type DesktopFs,
+  type DesktopPath,
+} from './utils/desktop';
+import { watchSettingGroups } from './utils/settingGroups';
 import {
   LEGACY_PLUGIN_IDS,
   isHistoryEntry,
@@ -2683,6 +2689,14 @@ class VideoSummarySettingTab extends PluginSettingTab {
     if (this.host) this.renderPage(this.host);
   }
 
+  /** Stops keeping the group corners current once the page is closed. */
+  private stopGroupMarks: (() => void) | null = null;
+
+  hide(): void {
+    this.stopGroupMarks?.();
+    this.stopGroupMarks = null;
+  }
+
   private renderPage(containerEl: HTMLElement): void {
     this.host = containerEl;
     containerEl.empty();
@@ -2735,6 +2749,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.createPlatformMatrixSection(advanced);
     this.createPayloadKeysSection(advanced);
     this.createAdvancedSection(advanced);
+
+    this.stopGroupMarks?.();
+    this.stopGroupMarks = watchSettingGroups(containerEl);
   }
 
   /** 一段的标题与一句说明 */
@@ -3367,11 +3384,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
       return;
     }
 
-    let fs: typeof import('fs') | undefined;
-    let pathModule: typeof import('path') | undefined;
+    let fs: DesktopFs | undefined;
+    let pathModule: DesktopPath | undefined;
     try {
-      fs = desktopRequire('fs') as typeof import('fs') | undefined;
-      pathModule = desktopRequire('path') as typeof import('path') | undefined;
+      fs = desktopRequire('fs') as DesktopFs | undefined;
+      pathModule = desktopRequire('path') as DesktopPath | undefined;
     } catch {
       // fallthrough
     }

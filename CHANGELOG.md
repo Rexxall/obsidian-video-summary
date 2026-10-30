@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## 2.10.0
+
+Passes the community directory's code checks with no warnings. No change in how the plugin looks
+or works; the 2.9.0 backend package still applies.
+
+- The type checks the directory runs without development packages now find nothing: the cookies
+  folder check, short-link expansion and link deduplication describe the few Node calls they make
+  instead of relying on Node's type package.
+- The stylesheet no longer uses `!important`, `all: unset` or `:has()`. Buttons and fields reset
+  only the properties they need, the plugin marks the first and last row of each settings group
+  itself, and reduced motion turns animations off through a more specific selector. Computed
+  styles of every reset control were compared before and after and are identical.
+- `npm run lint` now runs these checks too (ESLint with type information, and Stylelint), and
+  fails on any warning.
+- The README explains the three places the plugin uses Node or Electron and why.
+
 ## 2.9.1
 
 - The plugin description no longer names Obsidian, as the community directory requires. No

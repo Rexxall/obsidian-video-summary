@@ -4009,6 +4009,7 @@ function thumbnail(parent, options = {}) {
   }
   thumb.createSpan({ cls: "vs-thumb-bar" });
   if (options.duration) {
+    thumb.addClass("has-time");
     thumb.createSpan({ text: options.duration, cls: "vs-thumb-time" });
   }
   return thumb;
@@ -6119,7 +6120,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     this.courseStore = plugin.courseStore;
   }
   onOpen() {
-    this.modalEl.addClass("ap", "ap-modal");
+    this.modalEl.addClass("ap", "ap-modal", "vs-has-own-close");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("batch-processing-modal");
@@ -9615,6 +9616,19 @@ var CacheManager = class {
   }
 };
 
+// utils/desktop.ts
+function desktopRequire(id) {
+  const nodeRequire = window.require;
+  return nodeRequire?.(id);
+}
+function openPathInSystem(path) {
+  const electron = desktopRequire("electron");
+  const openPath = electron?.shell?.openPath;
+  if (!openPath) return false;
+  void openPath(path);
+  return true;
+}
+
 // utils/UrlResolver.ts
 var UrlResolver = class {
   /** URL 是否属于已知短链域名 */
@@ -9658,13 +9672,7 @@ var UrlResolver = class {
     return new Promise((resolve) => {
       let httpModule;
       try {
-        const nodeRequire = window.require;
-        if (typeof nodeRequire !== "function") {
-          resolve(null);
-          return;
-        }
-        const load = nodeRequire;
-        httpModule = url.startsWith("https:") ? load("https") : load("http");
+        httpModule = desktopRequire(url.startsWith("https:") ? "https" : "http");
       } catch {
         resolve(null);
         return;
@@ -14206,19 +14214,6 @@ function cssEscape(value) {
   return value.replace(/["\\]/g, "\\$&");
 }
 
-// utils/desktop.ts
-function desktopRequire(id) {
-  const nodeRequire = window.require;
-  return nodeRequire?.(id);
-}
-function openPathInSystem(path) {
-  const electron = desktopRequire("electron");
-  const openPath = electron?.shell?.openPath;
-  if (!openPath) return false;
-  void openPath(path);
-  return true;
-}
-
 // views/panels/DetailPanel.ts
 function renderDetailPanel(container, ctx) {
   const ref = ctx.state.detail;
@@ -15059,6 +15054,14 @@ var VideoSummaryView = class extends import_obsidian15.ItemView {
     this.resizeObserver.observe(container);
     container.toggleClass("is-narrow", container.clientWidth <= 520);
     container.toggleClass("is-tiny", container.clientWidth <= 260);
+    const markActionsFocus = (event, focused) => {
+      const actions = event.target.closest(".vs-row-actions");
+      if (!actions) return;
+      if (!focused && actions.contains(event.relatedTarget)) return;
+      actions.closest(".vs-row")?.toggleClass("is-actions-focused", focused);
+    };
+    this.registerDomEvent(container, "focusin", (event) => markActionsFocus(event, true));
+    this.registerDomEvent(container, "focusout", (event) => markActionsFocus(event, false));
     this.actionHeaderEl = container.createDiv({ cls: "vs-top" });
     this.panelEl = container.createDiv({ cls: "vs-panels" });
     this.unsubscribe.push(this.plugin.jobs.subscribe(() => this.schedulePanelRender()));
@@ -16418,7 +16421,9 @@ function canonicalUrlIdentity(value) {
     url.protocol = url.protocol.toLowerCase();
     url.hostname = originalHost;
     url.hash = "";
-    const kept = Array.from(url.searchParams.entries()).filter(([key]) => !isTrackingParameter(key)).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+    const pairs = [];
+    url.searchParams.forEach((value2, key) => pairs.push([key, value2]));
+    const kept = pairs.filter(([key]) => !isTrackingParameter(key)).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
       const byKey = leftKey.localeCompare(rightKey);
       return byKey || leftValue.localeCompare(rightValue);
     });
@@ -21567,6 +21572,43 @@ function clone4(value) {
 // main.ts
 var import_obsidian21 = require("obsidian");
 
+// utils/settingGroups.ts
+function markSettingGroups(root) {
+  root.parentElement?.toggleClass("ap-settings-host", root.parentElement.hasClass("setting-items"));
+  const isRow = (el) => !!el && el.hasClass("setting-item") && !el.hasClass("setting-item-heading");
+  const isSkipped = (el) => !el.hasChildNodes() || el.instanceOf(HTMLElement) && el.style.display === "none";
+  const neighbour = (el, step2) => {
+    let next = el[step2];
+    while (next && isSkipped(next)) next = next[step2];
+    return next;
+  };
+  root.querySelectorAll(".setting-item:not(.setting-item-heading)").forEach((row) => {
+    row.toggleClass("ap-group-first", !isRow(neighbour(row, "previousElementSibling")));
+    row.toggleClass("ap-group-last", !isRow(neighbour(row, "nextElementSibling")));
+  });
+}
+function watchSettingGroups(root) {
+  markSettingGroups(root);
+  let frame = 0;
+  const observer = new MutationObserver(() => {
+    if (frame) return;
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      markSettingGroups(root);
+    });
+  });
+  observer.observe(root, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style"]
+  });
+  return () => {
+    observer.disconnect();
+    window.cancelAnimationFrame(frame);
+  };
+}
+
 // core/LegacyData.ts
 var LEGACY_PLUGIN_IDS = ["video-summary-plugin"];
 function salvageSettingsJson(text2) {
@@ -23901,6 +23943,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     super(app, plugin);
     /** Where the page was last drawn: containerEl before Obsidian 1.13, the definition row from 1.13. */
     this.host = null;
+    /** Stops keeping the group corners current once the page is closed. */
+    this.stopGroupMarks = null;
     this.plugin = plugin;
   }
   /**
@@ -23934,6 +23978,10 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   }
   redraw() {
     if (this.host) this.renderPage(this.host);
+  }
+  hide() {
+    this.stopGroupMarks?.();
+    this.stopGroupMarks = null;
   }
   renderPage(containerEl) {
     this.host = containerEl;
@@ -23981,6 +24029,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     this.createPlatformMatrixSection(advanced);
     this.createPayloadKeysSection(advanced);
     this.createAdvancedSection(advanced);
+    this.stopGroupMarks?.();
+    this.stopGroupMarks = watchSettingGroups(containerEl);
   }
   /** 一段的标题与一句说明 */
   group(containerEl, title, desc) {

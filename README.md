@@ -322,6 +322,20 @@ The plugin itself is free and does not require a Video Summary account. Your cho
 Worker, video platform, transcription service, or AI provider may require its own account, API key,
 or usage payment.
 
+### Node and Electron access (desktop only)
+
+The community directory's scan flags file-system and system access. The plugin uses it in exactly
+three places, all on desktop only and all skipped on mobile:
+
+- `fs` and `path`: the cookies folder check in **Settings → Advanced → Cookies** lists matching
+  filenames and reads their size and modification time. It never reads or writes cookie contents.
+- `http` and `https`: short-link expansion sends one GET to the short link (for example `b23.tv`)
+  and reads only the `Location` header of the reply. It does not follow the redirect or read the
+  body.
+- Electron `shell.openPath`: the "open directory" buttons show a folder in Finder or Explorer.
+
+The plugin never starts processes or runs shell commands.
+
 ### Files outside the vault
 
 - If you configure a cookies directory, the desktop plugin lists matching cookie filenames and

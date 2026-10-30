@@ -1130,7 +1130,9 @@ function canonicalUrlIdentity(value: string): string {
     // tracking. Preserve them instead of over-deduplicating unrelated pages.
     url.hostname = originalHost;
     url.hash = '';
-    const kept = Array.from(url.searchParams.entries())
+    const pairs: [string, string][] = [];
+    url.searchParams.forEach((value, key) => pairs.push([key, value]));
+    const kept = pairs
       .filter(([key]) => !isTrackingParameter(key))
       .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
         const byKey = leftKey.localeCompare(rightKey);
