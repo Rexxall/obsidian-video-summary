@@ -43,19 +43,28 @@ export const platformCapabilities = (): PlatformCapability[] => [
     platform: tr('本地音频/视频', 'Local audio/video'),
     status: 'recommended',
     input: 'local_file',
-    requirements: tr('放进后端的 uploads 文件夹，只填文件名', "Put it in the backend's uploads folder; give only the name"),
+    requirements: tr(
+      '放进后端的 uploads 文件夹，只填文件名',
+      "Put it in the backend's uploads folder; give only the name",
+    ),
   },
   {
     platform: 'YouTube',
     status: 'supported',
     input: 'link',
-    requirements: tr('公开视频直接可用；中国大陆需要代理', 'Public videos work; needs a proxy in mainland China'),
+    requirements: tr(
+      '公开视频直接可用；中国大陆需要代理',
+      'Public videos work; needs a proxy in mainland China',
+    ),
   },
   {
     platform: 'Bilibili',
     status: 'recommended',
     input: 'link',
-    requirements: tr('扫码登录后用字幕，不登录改走语音转写', 'Subtitles after QR login; speech-to-text without it'),
+    requirements: tr(
+      '扫码登录后用字幕，不登录改走语音转写',
+      'Subtitles after QR login; speech-to-text without it',
+    ),
   },
   {
     platform: tr('抖音', 'Douyin'),
@@ -73,7 +82,10 @@ export const platformCapabilities = (): PlatformCapability[] => [
     platform: tr('小红书 / Rednote', 'Xiaohongshu / Rednote'),
     status: 'limited',
     input: 'link',
-    requirements: tr('常需 cookies，部分分享链接不稳定', 'Usually needs cookies; some share links fail'),
+    requirements: tr(
+      '常需 cookies，部分分享链接不稳定',
+      'Usually needs cookies; some share links fail',
+    ),
   },
   {
     platform: tr('手动粘贴文稿', 'Pasted transcript'),
