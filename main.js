@@ -1878,89 +1878,43 @@ var platformCapabilities = () => [
     platform: tr("\u672C\u5730\u97F3\u9891/\u89C6\u9891", "Local audio/video"),
     status: "recommended",
     input: "local_file",
-    requirements: tr(
-      "\u628A\u6587\u4EF6\u653E\u8FDB\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads\uFF0C\u53EA\u586B\u5199\u6587\u4EF6\u540D\u3002",
-      "Put the file in the backend's uploads folder and give only its name."
-    ),
-    notes: tr(
-      "\u6700\u7A33\u5B9A\uFF0C\u9002\u5408\u957F\u5F55\u97F3\u3001\u4F1A\u8BAE\u3001\u8BFE\u7A0B\u548C\u4E2A\u4EBA\u7D20\u6750\u3002",
-      "The most reliable; good for long recordings, meetings, lectures and your own material."
-    )
+    requirements: tr("\u653E\u8FDB\u540E\u7AEF\u7684 uploads \u6587\u4EF6\u5939\uFF0C\u53EA\u586B\u6587\u4EF6\u540D", "Put it in the backend's uploads folder; give only the name")
   },
   {
     platform: "YouTube",
     status: "supported",
     input: "link",
-    requirements: tr(
-      "\u516C\u5F00\u89C6\u9891\u901A\u5E38\u53EF\u7528\uFF1B\u53D7\u9650\u89C6\u9891\u53EF\u80FD\u9700\u8981 cookies\u3002\u5728\u4E2D\u56FD\u5927\u9646\u9700\u8981\u4EE3\u7406\u3002",
-      "Public videos usually work; restricted ones may need cookies. Needs a proxy in mainland China."
-    ),
-    notes: tr(
-      "\u5148\u7528\u89C6\u9891\u81EA\u5E26\u7684\u5B57\u5E55\uFF0C\u6CA1\u6709\u5B57\u5E55\u65F6\u518D\u4E0B\u8F7D\u97F3\u9891\u8F6C\u5199\u3002",
-      "Uses the video subtitles first and transcribes the audio when there are none."
-    )
+    requirements: tr("\u516C\u5F00\u89C6\u9891\u76F4\u63A5\u53EF\u7528\uFF1B\u4E2D\u56FD\u5927\u9646\u9700\u8981\u4EE3\u7406", "Public videos work; needs a proxy in mainland China")
   },
   {
     platform: "Bilibili",
     status: "recommended",
     input: "link",
-    requirements: tr(
-      "\u767B\u5F55\u540E\uFF08\u9996\u6B21\u914D\u7F6E\u7B2C \u2463 \u6B65\u626B\u7801\uFF09\u80FD\u7528 UP \u4E3B\u5B57\u5E55\u548C B \u7AD9 AI \u5B57\u5E55\uFF1B\u4E0D\u767B\u5F55\u4F1A\u6539\u8D70\u8BED\u97F3\u8F6C\u5199\u3002",
-      "After logging in (step \u2463 of first-run setup) it uses uploader subtitles and Bilibili AI subtitles; without login it falls back to speech-to-text."
-    ),
-    notes: tr(
-      "\u987A\u5E8F\u662F UP \u4E3B\u5B57\u5E55 \u2192 AI \u5B57\u5E55 \u2192 \u8BED\u97F3\u8F6C\u5199\uFF0C\u5F39\u5E55\u4E0D\u4F1A\u5F53\u6210\u6587\u7A3F\u3002",
-      "Order: uploader subtitles \u2192 AI subtitles \u2192 speech-to-text; danmaku is never used as a transcript."
-    )
+    requirements: tr("\u626B\u7801\u767B\u5F55\u540E\u7528\u5B57\u5E55\uFF0C\u4E0D\u767B\u5F55\u6539\u8D70\u8BED\u97F3\u8F6C\u5199", "Subtitles after QR login; speech-to-text without it")
   },
   {
     platform: tr("\u6296\u97F3", "Douyin"),
     status: "limited",
     input: "link",
-    requirements: tr(
-      "\u7ECF\u5E38\u9700\u8981\u6D4F\u89C8\u5668\u5BFC\u51FA\u7684 cookies\u3002",
-      "Often needs cookies exported from your browser."
-    ),
-    notes: tr(
-      "\u5C3D\u529B\u800C\u4E3A\u3002\u77ED\u94FE\u53EF\u80FD\u8FC7\u671F\u6216\u8DF3\u8F6C\u5931\u8D25\uFF1B\u5FC5\u8981\u65F6\u6539\u7528\u6700\u7EC8\u94FE\u63A5\u6216\u7C98\u8D34\u6587\u7A3F\u3002",
-      "Best effort. Short links can expire or fail to redirect; use the final link or paste the transcript."
-    )
+    requirements: tr("\u5E38\u9700 cookies", "Often needs cookies")
   },
   {
     platform: "TikTok",
     status: "limited",
     input: "link",
-    requirements: tr(
-      "\u7ECF\u5E38\u9700\u8981 cookies\uFF0C\u4E5F\u53EF\u80FD\u53D7\u5730\u533A\u9650\u5236\u3002",
-      "Often needs cookies and may be region-restricted."
-    ),
-    notes: tr(
-      "\u5C3D\u529B\u800C\u4E3A\u3002\u4E0B\u8F7D\u5931\u8D25\u901A\u5E38\u662F\u5E73\u53F0\u8BBF\u95EE\u95EE\u9898\uFF0C\u4E0D\u662F\u7B14\u8BB0\u7684\u95EE\u9898\u3002",
-      "Best effort. Download failures are usually platform access problems, not note problems."
-    )
+    requirements: tr("\u5E38\u9700 cookies\uFF0C\u53EF\u80FD\u6709\u5730\u533A\u9650\u5236", "Often needs cookies; may be region-locked")
   },
   {
     platform: tr("\u5C0F\u7EA2\u4E66 / Rednote", "Xiaohongshu / Rednote"),
     status: "limited",
     input: "link",
-    requirements: tr(
-      "\u901A\u5E38\u9700\u8981 cookies\uFF0C\u90E8\u5206\u5206\u4EAB\u94FE\u63A5\u4E0D\u7A33\u5B9A\u3002",
-      "Usually needs cookies; some share links are unreliable."
-    ),
-    notes: tr(
-      "\u5C3D\u529B\u800C\u4E3A\uFF1B\u5148\u4FDD\u5B58\u6765\u6E90\u4FE1\u606F\u518D\u5904\u7406\u3002",
-      "Best effort; save the source first, then process it."
-    )
+    requirements: tr("\u5E38\u9700 cookies\uFF0C\u90E8\u5206\u5206\u4EAB\u94FE\u63A5\u4E0D\u7A33\u5B9A", "Usually needs cookies; some share links fail")
   },
   {
     platform: tr("\u624B\u52A8\u7C98\u8D34\u6587\u7A3F", "Pasted transcript"),
     status: "local",
     input: "provided_transcript",
-    requirements: tr("\u4E0D\u4F9D\u8D56\u4E0B\u8F7D\u5668\u3002", "No downloader needed."),
-    notes: tr(
-      "\u5E73\u53F0\u4E0B\u8F7D\u53D7\u963B\u4F46\u4F60\u5DF2\u6709\u6587\u5B57\u65F6\uFF0C\u4F18\u5148\u7528\u8FD9\u4E2A\u65B9\u5F0F\u3002",
-      "When a platform blocks downloads but you already have the text, use this."
-    )
+    requirements: tr("\u4E0D\u7528\u4E0B\u8F7D\uFF1B\u5E73\u53F0\u53D7\u963B\u65F6\u7528\u5B83", "No download; use it when a platform blocks")
   }
 ];
 var DEFAULT_SETTINGS = {
@@ -24409,24 +24363,15 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
       tr("\u5404\u5E73\u53F0\u8BF4\u660E", "Platforms"),
       "platform-matrix-section"
     );
-    section3.createEl("p", {
-      text: tr(
-        "\u4E0D\u540C\u5E73\u53F0\u7684\u53EF\u7528\u6027\u4E0D\u4E00\u6837\u3002\u4F18\u5148\u7528\u672C\u5730\u6587\u4EF6\u3001\u516C\u5F00\u7684 YouTube \u6216\u54D4\u54E9\u54D4\u54E9\u89C6\u9891\u3001\u5DF2\u7C98\u8D34\u7684\u6587\u7A3F\uFF1B\u77ED\u89C6\u9891\u5E73\u53F0\u901A\u5E38\u9700\u8981 cookies\u3002",
-        "Platforms differ. Local files, public YouTube or Bilibili videos and pasted transcripts work best; short-video platforms usually need cookies."
-      ),
-      cls: "setting-item-description"
-    });
-    const grid = section3.createDiv({ cls: "platform-matrix-grid" });
+    const list = section3.createDiv({ cls: "platform-matrix-list" });
     platformCapabilities().forEach((item) => {
-      const card = grid.createDiv({ cls: `platform-matrix-card is-${item.status}` });
-      const header = card.createDiv({ cls: "platform-matrix-card-header" });
-      header.createEl("strong", { text: item.platform });
-      header.createSpan({
+      const row = list.createDiv({ cls: `platform-matrix-row is-${item.status}` });
+      row.createEl("strong", { text: item.platform });
+      row.createSpan({ text: item.requirements, cls: "platform-matrix-need" });
+      row.createSpan({
         text: this.getPlatformStatusLabel(item.status),
         cls: "platform-status-label"
       });
-      card.createEl("p", { text: tr(`\u8981\u6C42: ${item.requirements}`, `Needs: ${item.requirements}`) });
-      card.createEl("p", { text: item.notes });
     });
   }
   getPlatformStatusLabel(status) {

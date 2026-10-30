@@ -3605,46 +3605,43 @@ body {
 }
 
 /* 各平台说明 */
-.vs-settings .platform-matrix-grid {
+.vs-settings .platform-matrix-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 8px 16px;
-  margin-top: 8px;
+  grid-template-columns: max-content 1fr auto;
+  column-gap: 12px;
+  margin-top: 4px;
 }
-.vs-settings .platform-matrix-card {
-  padding: 6px 0;
+.vs-settings .platform-matrix-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  padding: 7px 0;
   border-top: 1px solid var(--vs-line);
-}
-.vs-settings .platform-matrix-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-.vs-settings .platform-matrix-card-header strong {
   font-size: var(--font-ui-small);
+}
+.vs-settings .platform-matrix-row:first-child {
+  border-top: 0;
+}
+.vs-settings .platform-matrix-need {
+  min-width: 0;
+  color: var(--vs-mute);
+  font-size: var(--font-ui-smaller);
 }
 .vs-settings .platform-status-label {
   color: var(--vs-ink-2);
   font-size: var(--font-ui-smaller);
 }
-.vs-settings .platform-matrix-card.is-recommended .platform-status-label {
+.vs-settings .platform-matrix-row.is-recommended .platform-status-label {
   color: var(--vs-ok);
 }
-.vs-settings .platform-matrix-card.is-limited .platform-status-label {
+.vs-settings .platform-matrix-row.is-limited .platform-status-label {
   color: var(--vs-warn);
 }
 .vs-settings
-  :is(.platform-matrix-card.is-local, .platform-matrix-card.is-supported)
+  :is(.platform-matrix-row.is-local, .platform-matrix-row.is-supported)
   .platform-status-label {
   color: var(--vs-info);
-}
-.vs-settings .platform-matrix-card p {
-  margin: 2px 0 0;
-  color: var(--vs-mute);
-  font-size: var(--font-ui-smaller);
-  line-height: 1.55;
 }
 
 /* 处理服务档案、模型列表 */

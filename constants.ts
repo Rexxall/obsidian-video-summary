@@ -43,89 +43,43 @@ export const platformCapabilities = (): PlatformCapability[] => [
     platform: tr('本地音频/视频', 'Local audio/video'),
     status: 'recommended',
     input: 'local_file',
-    requirements: tr(
-      '把文件放进后端文件夹的 uploads，只填写文件名。',
-      "Put the file in the backend's uploads folder and give only its name.",
-    ),
-    notes: tr(
-      '最稳定，适合长录音、会议、课程和个人素材。',
-      'The most reliable; good for long recordings, meetings, lectures and your own material.',
-    ),
+    requirements: tr('放进后端的 uploads 文件夹，只填文件名', "Put it in the backend's uploads folder; give only the name"),
   },
   {
     platform: 'YouTube',
     status: 'supported',
     input: 'link',
-    requirements: tr(
-      '公开视频通常可用；受限视频可能需要 cookies。在中国大陆需要代理。',
-      'Public videos usually work; restricted ones may need cookies. Needs a proxy in mainland China.',
-    ),
-    notes: tr(
-      '先用视频自带的字幕，没有字幕时再下载音频转写。',
-      'Uses the video subtitles first and transcribes the audio when there are none.',
-    ),
+    requirements: tr('公开视频直接可用；中国大陆需要代理', 'Public videos work; needs a proxy in mainland China'),
   },
   {
     platform: 'Bilibili',
     status: 'recommended',
     input: 'link',
-    requirements: tr(
-      '登录后（首次配置第 ④ 步扫码）能用 UP 主字幕和 B 站 AI 字幕；不登录会改走语音转写。',
-      'After logging in (step ④ of first-run setup) it uses uploader subtitles and Bilibili AI subtitles; without login it falls back to speech-to-text.',
-    ),
-    notes: tr(
-      '顺序是 UP 主字幕 → AI 字幕 → 语音转写，弹幕不会当成文稿。',
-      'Order: uploader subtitles → AI subtitles → speech-to-text; danmaku is never used as a transcript.',
-    ),
+    requirements: tr('扫码登录后用字幕，不登录改走语音转写', 'Subtitles after QR login; speech-to-text without it'),
   },
   {
     platform: tr('抖音', 'Douyin'),
     status: 'limited',
     input: 'link',
-    requirements: tr(
-      '经常需要浏览器导出的 cookies。',
-      'Often needs cookies exported from your browser.',
-    ),
-    notes: tr(
-      '尽力而为。短链可能过期或跳转失败；必要时改用最终链接或粘贴文稿。',
-      'Best effort. Short links can expire or fail to redirect; use the final link or paste the transcript.',
-    ),
+    requirements: tr('常需 cookies', 'Often needs cookies'),
   },
   {
     platform: 'TikTok',
     status: 'limited',
     input: 'link',
-    requirements: tr(
-      '经常需要 cookies，也可能受地区限制。',
-      'Often needs cookies and may be region-restricted.',
-    ),
-    notes: tr(
-      '尽力而为。下载失败通常是平台访问问题，不是笔记的问题。',
-      'Best effort. Download failures are usually platform access problems, not note problems.',
-    ),
+    requirements: tr('常需 cookies，可能有地区限制', 'Often needs cookies; may be region-locked'),
   },
   {
     platform: tr('小红书 / Rednote', 'Xiaohongshu / Rednote'),
     status: 'limited',
     input: 'link',
-    requirements: tr(
-      '通常需要 cookies，部分分享链接不稳定。',
-      'Usually needs cookies; some share links are unreliable.',
-    ),
-    notes: tr(
-      '尽力而为；先保存来源信息再处理。',
-      'Best effort; save the source first, then process it.',
-    ),
+    requirements: tr('常需 cookies，部分分享链接不稳定', 'Usually needs cookies; some share links fail'),
   },
   {
     platform: tr('手动粘贴文稿', 'Pasted transcript'),
     status: 'local',
     input: 'provided_transcript',
-    requirements: tr('不依赖下载器。', 'No downloader needed.'),
-    notes: tr(
-      '平台下载受阻但你已有文字时，优先用这个方式。',
-      'When a platform blocks downloads but you already have the text, use this.',
-    ),
+    requirements: tr('不用下载；平台受阻时用它', 'No download; use it when a platform blocks'),
   },
 ];
 

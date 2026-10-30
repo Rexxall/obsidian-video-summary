@@ -5,6 +5,7 @@ All notable changes to this project are documented here.
 ## 2.10.2
 
 - Settings show fewer descriptions: rows whose name already says what they do have none, and the section headings stand alone. Notes about cost, side effects and which setting wins remain.
+- The Platforms section shows one line per platform: what it needs and whether it is recommended, works or is limited.
 - The side panel drops the hint line under the input; the placeholder says one link per line.
 - The README is shorter, with Chinese and Japanese versions in their own files.
 - The stylesheet no longer sets the same property twice in one rule. Nothing looks different.

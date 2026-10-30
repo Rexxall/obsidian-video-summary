@@ -3230,25 +3230,15 @@ class VideoSummarySettingTab extends PluginSettingTab {
       tr('各平台说明', 'Platforms'),
       'platform-matrix-section',
     );
-    section.createEl('p', {
-      text: tr(
-        '不同平台的可用性不一样。优先用本地文件、公开的 YouTube 或哔哩哔哩视频、已粘贴的文稿；短视频平台通常需要 cookies。',
-        'Platforms differ. Local files, public YouTube or Bilibili videos and pasted transcripts work best; short-video platforms usually need cookies.',
-      ),
-      cls: 'setting-item-description',
-    });
-
-    const grid = section.createDiv({ cls: 'platform-matrix-grid' });
+    const list = section.createDiv({ cls: 'platform-matrix-list' });
     platformCapabilities().forEach((item) => {
-      const card = grid.createDiv({ cls: `platform-matrix-card is-${item.status}` });
-      const header = card.createDiv({ cls: 'platform-matrix-card-header' });
-      header.createEl('strong', { text: item.platform });
-      header.createSpan({
+      const row = list.createDiv({ cls: `platform-matrix-row is-${item.status}` });
+      row.createEl('strong', { text: item.platform });
+      row.createSpan({ text: item.requirements, cls: 'platform-matrix-need' });
+      row.createSpan({
         text: this.getPlatformStatusLabel(item.status),
         cls: 'platform-status-label',
       });
-      card.createEl('p', { text: tr(`要求: ${item.requirements}`, `Needs: ${item.requirements}`) });
-      card.createEl('p', { text: item.notes });
     });
   }
 

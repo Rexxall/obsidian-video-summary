@@ -420,8 +420,8 @@ export interface PlatformCapability {
   platform: string;
   status: 'recommended' | 'supported' | 'limited' | 'local';
   input: string;
+  /** One line: what the platform needs, or what to expect. */
   requirements: string;
-  notes: string;
 }
 
 export type ProcessingMode = 'summary' | 'transcript-only' | 'info-only';
