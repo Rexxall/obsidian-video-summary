@@ -1,6 +1,6 @@
 {
   "name": "obsidian-video-summary-plugin",
-  "version": "2.10.2",
+  "version": "2.10.3",
   "description": "Turn video links, local recordings and transcripts into notes with a summary, a timestamped transcript and key points, processed by a backend you run.",
   "main": "main.js",
   "scripts": {

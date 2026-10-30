@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## 2.10.2
+## 2.10.3
 
 - Settings show fewer descriptions: rows whose name already says what they do have none, and the section headings stand alone. Notes about cost, side effects and which setting wins remain.
 - The Platforms section shows one line per platform: what it needs and whether it is recommended, works or is limited.
