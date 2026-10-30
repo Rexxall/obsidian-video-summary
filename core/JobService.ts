@@ -588,12 +588,6 @@ export class JobService {
     const localizedMedia = await new MediaAssetLocalizer(
       this.plugin.app.vault.adapter,
       managedMediaRoot,
-      {
-        workerEndpoint:
-          this.plugin.settings.activeBackend === 'codex-worker'
-            ? this.plugin.settings.codexWorkerUrl
-            : undefined,
-      },
     ).localizeResult(result, artifactId);
     result.video_segments = localizedMedia.result.video_segments;
     result.visual_evidence = localizedMedia.result.visual_evidence;
@@ -605,7 +599,7 @@ export class JobService {
       artifact_id: artifactId,
       source_url: source.url,
       source_hash: sourceHash,
-      backend: this.plugin.settings.activeBackend,
+      backend: 'n8n' as const,
       model: this.plugin.settings.aiModel,
       prompt_profile: contentRouting.prompt_profile.id,
       prompt_version: result.artifact?.prompt_version || 'video-knowledge-v3',
@@ -669,7 +663,7 @@ export class JobService {
           segments: saved.segments,
           evidence_claims: saved.claims,
           visual_evidence: saved.visual_evidence,
-          backend: saved.provenance.backend || this.plugin.settings.activeBackend,
+          backend: saved.provenance.backend || 'n8n',
           model: saved.provenance.model || this.plugin.settings.aiModel,
           prompt: saved.provenance.prompt_profile || 'video-content-general-v1',
           version: saved.provenance.prompt_version || 'video-knowledge-v3',

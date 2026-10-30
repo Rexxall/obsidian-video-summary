@@ -279,9 +279,7 @@ export interface VideoKnowledgeArtifact {
 
 export interface VideoSummarySettings {
   // API 配置
-  activeBackend: ProcessingBackend;
   n8nWebhookUrl: string;
-  codexWorkerUrl: string;
   webhookProfiles: WebhookProfile[];
   activeWebhookId: string;
   setupGuideDismissed: boolean;
@@ -364,6 +362,7 @@ export interface PayloadKeys {
   local_file: string;
 }
 
+/** Backend recorded on a result. Notes made before 2.11 may still say codex-worker. */
 export type ProcessingBackend = 'n8n' | 'codex-worker';
 
 export interface QuickProcessingOptions {

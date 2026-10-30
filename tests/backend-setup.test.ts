@@ -9,7 +9,7 @@ const FALLBACK = 'http://127.0.0.1:5678/webhook/obsidian-video-summary';
 function healthReport(overrides: Record<string, unknown> = {}) {
   return {
     ok: true,
-    workflow: { version: '3.0.0' },
+    workflow: { version: '3.1.0' },
     backend: {
       tools: { ytDlp: '2026.10.26', ffmpeg: '8.1.3' },
       cookies: { bilibili: { present: false } },

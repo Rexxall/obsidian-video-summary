@@ -152,6 +152,16 @@ status: pending
 | 本地文件报“must be a supported file name placed directly in the backend uploads folder” | 文件不在 `uploads` 里，或写了路径               | 把文件放进后端的 `uploads`，笔记里只写文件名                  |
 | 笔记里出现“Error: 模型调用失败”                                                         | 模型密钥、余额或模型名有问题                    | 按错误后面的提示改 `.env`                                     |
 
+### 在 n8n 里看是哪一步出的错
+
+浏览器打开连接码里的地址（默认 <http://127.0.0.1:5678>）。第一次打开要建一个 n8n 账号，只存在你这台电脑的后端里。进去后打开 **Video Summary** 工作流：左上角的黄色便签说明整体流程，灰色便签标出每种请求走哪条线。
+
+<img src="docs/screenshots/n8n-workflow.jpg" width="860" alt="n8n 里的 Video Summary 工作流，按请求类型分成几条线">
+
+点顶部的 **Executions**，打开最近一次运行。模型或密钥出错时这次运行仍显示 Success，因为错误要交回插件显示；打开 **AI: Write Note** 节点，右边的输出写着原因。
+
+<img src="docs/screenshots/n8n-error.png" width="760" alt="AI: Write Note 的输出：Authorization failed">
+
 还解决不了：运行 `./vs-backend.sh logs`，把最后几十行（先删掉看起来像密钥的内容）附在 [Issue](https://github.com/Rexxall/obsidian-video-summary/issues) 里。
 
 ## 安全说明

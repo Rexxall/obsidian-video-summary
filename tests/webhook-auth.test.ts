@@ -42,7 +42,6 @@ function createApi(secret = 'test-secret') {
     vault as never,
     '.obsidian/plugins/video-summary/data',
     undefined,
-    'n8n',
     { headerName: 'X-Video-Summary-Token', secret },
   );
 }
@@ -107,14 +106,12 @@ void test('static n8n endpoint probes receive auth while empty secrets remain ba
   try {
     const authenticated = await VideoSummaryAPI.probeEndpoint(
       'https://example.invalid/webhook',
-      'n8n',
       4000,
       undefined,
       { headerName: 'Authorization', secret: 'Bearer fixture' },
     );
     const legacy = await VideoSummaryAPI.probeEndpoint(
       'https://example.invalid/webhook',
-      'n8n',
       4000,
       undefined,
       { headerName: 'X-Video-Summary-Token', secret: '' },
@@ -148,7 +145,6 @@ void test('webhook secrets are redacted from connection diagnostics and invalid 
 
     const invalid = await VideoSummaryAPI.probeEndpoint(
       'https://example.invalid/webhook',
-      'n8n',
       4000,
       undefined,
       { headerName: 'Bad Header', secret: 'test-secret' },

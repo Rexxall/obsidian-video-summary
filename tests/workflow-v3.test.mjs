@@ -4,8 +4,8 @@ import vm from 'node:vm';
 import test from 'node:test';
 
 import {
-  CONTENT_ROUTE_PROMPT_MARKER,
   DEFAULT_WORKFLOW_PATH,
+  NOTE_PROMPT_MARKER,
   MEDIA_RUNNER_PROGRAM,
   PUBLIC_WORKFLOW_VERSION,
   VIDEO_URL_SECURITY_MARKER,
@@ -16,6 +16,7 @@ import {
   validateWorkflow,
 } from '../tools/upgrade-workflow-v3.mjs';
 import { CREDENTIALS, WORKFLOW_IDS, buildSpeechWorkflow } from '../tools/backend-workflow.mjs';
+import { buildNotePrompt } from '../tools/note-prompt.mjs';
 
 function loadWorkflow() {
   return JSON.parse(readFileSync(DEFAULT_WORKFLOW_PATH, 'utf8'));
@@ -27,67 +28,19 @@ function nodeCode(workflow, name) {
   return node.parameters.jsCode;
 }
 
-function materializeN8nPromptExpression(text) {
-  const source = text.startsWith('=') ? text.slice(1) : text;
-  let cursor = 0;
-  let materialized = '';
-
-  while (cursor < source.length) {
-    const open = source.indexOf('{{', cursor);
-    if (open < 0) {
-      materialized += source.slice(cursor);
-      break;
-    }
-    materialized += source.slice(cursor, open);
-
-    let index = open + 2;
-    let braceDepth = 0;
-    let quote = null;
-    let escaped = false;
-    for (; index < source.length; index += 1) {
-      const character = source[index];
-      if (quote) {
-        if (escaped) {
-          escaped = false;
-        } else if (character === '\\') {
-          escaped = true;
-        } else if (character === quote) {
-          quote = null;
-        }
-        continue;
-      }
-      if (character === "'" || character === '"' || character === '`') {
-        quote = character;
-        continue;
-      }
-      if (character === '{') {
-        braceDepth += 1;
-        continue;
-      }
-      if (character === '}' && braceDepth > 0) {
-        braceDepth -= 1;
-        continue;
-      }
-      if (character === '}' && source[index + 1] === '}' && braceDepth === 0) {
-        break;
-      }
-    }
-    assert.ok(index < source.length, 'Unclosed n8n interpolation');
-
-    const expression = source.slice(open + 2, index).trim();
-    if (expression.includes('video_segments')) {
-      materialized += '[]';
-    } else if (expression.includes('body.metadata || {}')) {
-      materialized += '{}';
-    } else if (expression.includes('ai_retry_count')) {
-      materialized += '0';
-    } else {
-      materialized += '""';
-    }
-    cursor = index + 2;
-  }
-
-  return materialized;
+/** Evaluate the AI step's `={{ ... }}` prompt the way n8n does, with stand-ins for $ and $json. */
+function evaluatePromptExpression(text, { transcript, language, metadata = {}, json = {} }) {
+  assert.ok(
+    text.startsWith('={{') && text.trimEnd().endsWith('}}'),
+    'prompt is one n8n expression',
+  );
+  const body = text.trim().slice(3, -2);
+  const nodes = {
+    'Set: Final Transcript for AI': { video_transcript: transcript, video_segments: [] },
+    Webhook: { body: { metadata: { ...metadata, language } } },
+  };
+  const $ = (name) => ({ item: { json: nodes[name] || {} } });
+  return vm.runInNewContext(body, { $, $json: json, JSON, String, Number, Array, Object });
 }
 
 test('workflow upgrade is idempotent and passes structural validation', () => {
@@ -102,10 +55,10 @@ test('workflow upgrade is idempotent and passes structural validation', () => {
 
 test('public workflow security revision is consistently versioned', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
-  assert.equal(PUBLIC_WORKFLOW_VERSION, '3.0.0');
+  assert.equal(PUBLIC_WORKFLOW_VERSION, '3.1.0');
   assert.equal(workflow.version, PUBLIC_WORKFLOW_VERSION);
   assert.equal(workflow.meta.videoSummaryWorkflow.version, PUBLIC_WORKFLOW_VERSION);
-  assert.match(nodeCode(workflow, 'Code: Health Report'), /"version":"3\.0\.0"/);
+  assert.match(nodeCode(workflow, 'Code: Health Report'), /"version":"3\.1\.0"/);
 });
 
 test('public workflow does not embed a private user profile', () => {
@@ -114,39 +67,78 @@ test('public workflow does not embed a private user profile', () => {
   assert.doesNotMatch(serialized, /针对[^\n]{0,80}定制/);
   assert.doesNotMatch(serialized, /我的背景契合度/);
   assert.doesNotMatch(serialized, /结合[^\n|]{0,80}背景分析/);
-  assert.match(serialized, /不得假设用户的教育背景、身份、研究方向或申请目标/);
+  assert.doesNotMatch(
+    serialized,
+    /申请状态::|教育申请|光遗传学|内诺|第二大脑数字管家|导师特征分析/,
+  );
 });
 
-test('active AI prompt expressions remain syntactically executable', () => {
+test('the AI prompt is evaluated, not sent as source code, and follows the request language', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
-  for (const name of ['AI Agent1', 'AI Agent6']) {
-    const node = workflow.nodes.find((candidate) => candidate.name === name);
-    assert.ok(node, `Missing node: ${name}`);
-    const materialized = materializeN8nPromptExpression(node.parameters.text);
-    assert.doesNotThrow(() => new vm.Script(`(function () {\n${materialized}\n})`), name);
+  const agents = workflow.nodes.filter((node) => /\.agent$/.test(node.type));
+  assert.deepEqual(
+    agents.map((node) => node.name),
+    ['AI: Write Note'],
+  );
+  const text = agents[0].parameters.text;
+  const headings = { zh: '> [!summary] 摘要', en: '> [!summary] Summary', ja: '> [!summary] 要約' };
+  for (const [language, heading] of Object.entries(headings)) {
+    const prompt = evaluatePromptExpression(text, { transcript: '[00:01] hello', language });
+    assert.equal(typeof prompt, 'string');
+    assert.match(prompt, new RegExp(NOTE_PROMPT_MARKER));
+    assert.ok(prompt.includes('[00:01] hello'), language);
+    assert.ok(prompt.includes(heading), language);
+    assert.doesNotMatch(
+      prompt,
+      /\$\{|\bconst \w+ =|return userPrompt/,
+      'no unevaluated JavaScript reaches the model',
+    );
   }
+  assert.doesNotMatch(text, /核心摘要|95%/);
 });
 
-test('all active AI prompts carry every durable content route contract', () => {
-  const workflow = upgradeWorkflow(loadWorkflow());
-  for (const name of ['AI Agent1', 'AI Agent6']) {
-    const node = workflow.nodes.find((candidate) => candidate.name === name);
-    assert.ok(node, `Missing node: ${name}`);
-    assert.match(node.parameters.text, new RegExp(CONTENT_ROUTE_PROMPT_MARKER));
-    for (const route of [
-      'course',
-      'interview',
-      'tutorial',
-      'news',
-      'meeting',
-      'review',
-      'general',
-    ]) {
-      assert.match(node.parameters.text, new RegExp(`- ${route}：`), `${name}.${route}`);
-    }
-    assert.match(node.parameters.text, /当前 n8n 路径不接收视频帧/);
-    assert.doesNotMatch(node.parameters.text, /逐帧拉片原案|光影构图/);
+test('the prompt asks for a summary and key points, not a retelling', () => {
+  const short = buildNotePrompt({ transcript: 'x'.repeat(2000), language: 'en' });
+  const long = buildNotePrompt({ transcript: 'x'.repeat(60000), language: 'en' });
+  assert.match(short, /4 to 6 bullets/);
+  assert.match(long, /6 to 10 bullets/);
+  assert.match(long, /about 1,200 words/);
+  assert.match(long, /Do not retell the transcript/);
+  const retry = buildNotePrompt({ transcript: 'x', retryCount: 1, parseError: 'Unexpected token' });
+  assert.match(retry, /could not be parsed: Unexpected token/);
+  const learning = buildNotePrompt({ transcript: 'x', metadata: { generate_learning: true } });
+  assert.match(learning, /- learning:/);
+  assert.doesNotMatch(buildNotePrompt({ transcript: 'x' }), /- learning:/);
+});
+
+test('the prompt carries every content type and the no-frames limit', () => {
+  const prompt = buildNotePrompt({ transcript: 'x', language: 'zh' });
+  for (const route of ['course', 'interview', 'tutorial', 'news', 'meeting', 'review', 'general']) {
+    assert.match(prompt, new RegExp(`- ${route}: `), route);
   }
+  assert.match(prompt, /does not receive video frames/);
+});
+
+test('nodes have descriptive names, one AI step, and sticky notes explain each lane', () => {
+  const workflow = upgradeWorkflow(loadWorkflow());
+  const names = workflow.nodes.map((node) => node.name);
+  for (const name of names) {
+    assert.doesNotMatch(
+      name,
+      /^(AI Agent\d*|Merge|Switch|Respond to Webhook|Stop and Error)$|\D1$/,
+      name,
+    );
+  }
+  assert.ok(
+    workflow.connections['Switch: Retry Note?'].main[1].some(
+      (edge) => edge.node === 'AI: Write Note',
+    ),
+    'a failed parse retries the same AI step',
+  );
+  const stickies = workflow.nodes.filter((node) => node.type === 'n8n-nodes-base.stickyNote');
+  assert.ok(stickies.length >= 6);
+  assert.match(stickies[0].parameters.content, /Executions/);
+  for (const node of workflow.nodes) assert.equal(node.position.length, 2, node.name);
 });
 
 test('transcript subflows call the bundled speech-to-text workflow', () => {
@@ -256,7 +248,7 @@ test('every AI step shares one model and only packaged credentials are reference
   );
   assert.deepEqual(
     workflow.connections['Model: Chat'].ai_languageModel[0].map((edge) => edge.node).sort(),
-    ['AI Agent1', 'AI Agent6'],
+    ['AI: Write Note'],
   );
   assert.equal(models[0].parameters.model.value, '__VS_CHAT_MODEL__');
   assert.ok(
@@ -282,6 +274,7 @@ test('every AI step shares one model and only packaged credentials are reference
     }
   }
   const orphans = workflow.nodes
+    .filter((node) => node.type !== 'n8n-nodes-base.stickyNote')
     .filter((node) => !targets.has(node.name) && !['Webhook', 'Model: Chat'].includes(node.name))
     .map((node) => node.name);
   assert.deepEqual(orphans, []);
@@ -290,7 +283,7 @@ test('every AI step shares one model and only packaged credentials are reference
 test('model errors that retrying cannot fix end the run with an actionable message', () => {
   const workflow = upgradeWorkflow(loadWorkflow());
   const [item] = executeNodeCode(
-    nodeCode(workflow, 'Code: Parse AI JSON Output & Manage Retries'),
+    nodeCode(workflow, 'Code: Parse Note JSON'),
     [{ json: { error: 'Authorization failed - please check your credentials' } }],
     { 'Set: Final Transcript for AI': { video_transcript: 'x' } },
   );
@@ -316,7 +309,7 @@ test('workflow command nodes never interpolate the raw webhook link', () => {
   }
 
   const metadataNode = workflow.nodes.find(
-    (candidate) => candidate.name === 'CMD: Get Video Metadata1',
+    (candidate) => candidate.name === 'CMD: Get Video Metadata',
   );
   assert.match(metadataNode.parameters.command, /\$json\.video_url_token/);
   assert.match(metadataNode.parameters.command, /spawnSync/);
@@ -593,7 +586,7 @@ test('both AI parsers preserve rich output and restore transcript evidence conte
     transcript_source: 'native_subtitle',
   };
 
-  for (const parserName of ['Code: Parse AI JSON Output & Manage Retries']) {
+  for (const parserName of ['Code: Parse Note JSON']) {
     const result = executeNodeCode(
       nodeCode(workflow, parserName),
       [{ json: { output: JSON.stringify(richOutput) } }],
@@ -627,7 +620,7 @@ test('AI parse failure retains evidence context for retry', () => {
     transcript_source: 'native_subtitle',
   };
   const result = executeNodeCode(
-    nodeCode(workflow, 'Code: Parse AI JSON Output & Manage Retries'),
+    nodeCode(workflow, 'Code: Parse Note JSON'),
     [{ json: { output: '{broken json' } }],
     { 'Set: Final Transcript for AI': transcriptContext },
   )[0].json;

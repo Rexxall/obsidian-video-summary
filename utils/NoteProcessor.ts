@@ -344,8 +344,7 @@ export class NoteProcessor {
       '> [!failure] 视频处理失败',
       lines || '> 未知错误',
       '>',
-      '> 处理任务已经发送到 Codex Worker 时，可以打开控制台查看完整阶段日志：',
-      '> http://127.0.0.1:8787/dashboard',
+      '> 出错的步骤可以在 n8n 的 Executions 页面查看：http://127.0.0.1:5678/home/executions',
       '<!-- video-summary-error:end -->',
     ].join('\n');
   }

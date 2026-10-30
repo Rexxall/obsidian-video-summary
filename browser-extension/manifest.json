@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Video Summary Capture",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Capture video links and timestamps from the browser and send them to Obsidian or your Video Summary backend.",
   "permissions": ["activeTab", "clipboardWrite", "contextMenus", "scripting", "storage", "tabs"],
   "host_permissions": ["http://*/*", "https://*/*"],

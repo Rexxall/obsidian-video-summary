@@ -12,8 +12,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -2608,
-        880
+        -2860,
+        760
       ],
       "id": "d6e2dae2-4771-4baf-9272-a23921ab929d",
       "name": "Webhook",
@@ -35,11 +35,11 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.2,
       "position": [
-        1568,
-        880
+        3060,
+        420
       ],
       "id": "d96d3bf5-96c1-4a3c-94a8-eb12e328ba3d",
-      "name": "Respond to Webhook",
+      "name": "Respond: Result",
       "onError": "continueRegularOutput"
     },
     {
@@ -60,11 +60,11 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1584,
-        752
+        -1900,
+        420
       ],
       "id": "2f2413bc-6ded-4675-adf0-17774e24fa43",
-      "name": "Set User Provided Transcript"
+      "name": "Set: Pasted Transcript"
     },
     {
       "parameters": {
@@ -73,8 +73,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1584,
-        1200
+        -1420,
+        820
       ],
       "id": "6fca28d1-9ea6-455c-8231-9ca947c534b5",
       "name": "Code: Detect Platform & Prepare Download"
@@ -86,8 +86,8 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        -1392,
-        1200
+        -460,
+        940
       ],
       "id": "8b43879b-76eb-4f6e-9b03-db32008b7c85",
       "name": "CMD: Download Audio",
@@ -131,8 +131,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        -1184,
-        1200
+        -220,
+        940
       ],
       "id": "902a0a5a-dc44-44fd-8255-5fc11f335098",
       "name": "SubFlow: Transcript"
@@ -173,8 +173,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -656,
-        880
+        1220,
+        420
       ],
       "id": "fb17f3ef-7c34-4dd3-8b3d-89f5521efe68",
       "name": "Set: Final Transcript for AI"
@@ -342,8 +342,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -2384,
-        816
+        -2380,
+        760
       ],
       "id": "67b33251-733f-4444-a47d-f9f8a2256bcb",
       "name": "Switch: Input Type"
@@ -366,8 +366,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -2016,
-        608
+        -1900,
+        60
       ],
       "id": "53e89371-99e5-45cc-8b26-47dee1a3c7d0",
       "name": "Set: Local Audio File Path"
@@ -410,8 +410,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        -1584,
-        576
+        -1420,
+        160
       ],
       "id": "e8e3f0ef-c9f3-46ad-a6e3-cefd7456503e",
       "name": "SubFlow: Transcript from Local File"
@@ -455,8 +455,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -448,
-        832
+        1460,
+        420
       ],
       "id": "cba7884a-747b-4f59-ae49-1958b1174a17",
       "name": "Switch: Operation Mode"
@@ -475,7 +475,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "08a89088-d211-4344-947c-a0863f252a1f",
+                    "id": "retry-done",
                     "leftValue": "={{ $json.trigger_ai_retry }}",
                     "rightValue": "",
                     "operator": {
@@ -488,7 +488,7 @@
                 "combinator": "and"
               },
               "renameOutput": true,
-              "outputKey": "ContinueToEditFields"
+              "outputKey": "Done"
             },
             {
               "conditions": {
@@ -500,33 +500,8 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.trigger_ai_retry === true && ($json.ai_retry_count || 0) < 2 }}",
-                    "rightValue": "",
-                    "operator": {
-                      "type": "boolean",
-                      "operation": "true",
-                      "singleValue": true
-                    },
-                    "id": "b9de7c24-7514-4de5-8f52-05dc1e1d6820"
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "RetryAI"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "06b3193a-5dbd-4ebe-bbc9-aa205b5477e8",
-                    "leftValue": "={{ $json.trigger_ai_retry === true && ($json.ai_retry_count || 0) > 1}}",
+                    "id": "retry-retry",
+                    "leftValue": "={{ $json.trigger_ai_retry }}",
                     "rightValue": "",
                     "operator": {
                       "type": "boolean",
@@ -538,22 +513,23 @@
                 "combinator": "and"
               },
               "renameOutput": true,
-              "outputKey": "Backup"
+              "outputKey": "Retry"
             }
           ]
         },
         "options": {
-          "fallbackOutput": "extra"
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Failed"
         }
       },
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        688,
-        720
+        2340,
+        300
       ],
       "id": "e41c71f9-2585-4a19-910b-790d14c52d53",
-      "name": "Switch: AI Parse Retry?",
+      "name": "Switch: Retry Note?",
       "retryOnFail": false
     },
     {
@@ -563,8 +539,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.1,
       "position": [
-        -864,
-        848
+        980,
+        420
       ],
       "id": "2b54f11f-bbdb-47bd-91b0-47a0860113bf",
       "name": "Merge: Transcript Sources",
@@ -572,16 +548,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const switchContextNode = \"Switch: AI Parse Retry?\";\n  const items = $input.all();\n  const MAX_AI_RETRIES = 3;\n\n  function nodeJson(name) {\n    try {\n      return $(name).item.json || {};\n    } catch (_error) {\n      return {};\n    }\n  }\n\n  function describeModelError(text) {\n    if (\n      /Authorization failed|\\b401\\b|invalid[^.]{0,40}api[ _-]?key|incorrect api key|unauthori[sz]ed/i.test(\n        text,\n      )\n    ) {\n      return '模型密钥无效或没有填写。检查后端 .env 里的 VS_CHAT_API_KEY，改完重新运行启动脚本。';\n    }\n    if (/\\b402\\b|payment required|insufficient[_ ]?(balance|quota)|余额不足|quota/i.test(text)) {\n      return '模型服务商账户余额不足或额度用完，请到服务商控制台充值或换一个密钥。';\n    }\n    if (/model[^.]{0,40}(not exist|not found|does not exist|invalid)|\\b404\\b/i.test(text)) {\n      return '服务商找不到这个模型名。检查 .env 里的 VS_CHAT_MODEL，名称以服务商文档为准。';\n    }\n    return '';\n  }\n\n  const finalTranscriptContext = nodeJson('Set: Final Transcript for AI');\n  const retryContext = nodeJson(switchContextNode);\n\n  for (const item of items) {\n    const originalVideoTranscript =\n      item.json.video_transcript ||\n      finalTranscriptContext.video_transcript ||\n      retryContext.video_transcript ||\n      '';\n    const videoSegments = Array.isArray(item.json.video_segments)\n      ? item.json.video_segments\n      : Array.isArray(finalTranscriptContext.video_segments)\n        ? finalTranscriptContext.video_segments\n        : Array.isArray(retryContext.video_segments)\n          ? retryContext.video_segments\n          : [];\n    const timingQuality =\n      item.json.timing_quality ||\n      finalTranscriptContext.timing_quality ||\n      retryContext.timing_quality ||\n      'none';\n    const transcriptSource =\n      item.json.transcript_source ||\n      finalTranscriptContext.transcript_source ||\n      retryContext.transcript_source ||\n      'unknown';\n\n    const priorRetryCount = item.json.ai_retry_count ?? retryContext.ai_retry_count ?? 0;\n    item.json.ai_retry_count = Number.isFinite(Number(priorRetryCount))\n      ? Number(priorRetryCount)\n      : 0;\n    item.json.trigger_ai_retry = false;\n    item.json.max_ai_retries_for_prompt = MAX_AI_RETRIES;\n    item.json.parsing_error_details = null;\n\n    let parsedDataForNextNode = {\n      summary: 'Error: AI output processing did not complete as expected.',\n      note: 'Error: AI output processing did not complete as expected.',\n    };\n\n    if (item.json.error) {\n      const upstream = String(item.json.error);\n      const fatal = describeModelError(upstream);\n      if (fatal) {\n        // A wrong key or model name fails the same way every time; say so instead of retrying.\n        item.json.parsing_error_details = `模型调用失败：${fatal}`;\n        parsedDataForNextNode = {\n          summary: `Error: 模型调用失败。${fatal}`,\n          note: `Error: 模型调用失败。${fatal}\\n\\n服务商原话：${upstream.slice(0, 300)}`,\n        };\n        delete item.json.error;\n      } else if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n        item.json.ai_retry_count += 1;\n        item.json.trigger_ai_retry = true;\n        item.json.parsing_error_details = `上游错误，第${item.json.ai_retry_count}次重试: ${upstream}`;\n        delete item.json.error;\n      } else {\n        item.json.parsing_error_details = `上游错误，已达最大重试次数: ${upstream}`;\n        parsedDataForNextNode = {\n          summary: `Error: 模型多次调用失败。${upstream.slice(0, 300)}`,\n          note: `Error: 模型多次调用失败。${upstream.slice(0, 300)}`,\n        };\n      }\n    } else {\n      const rawOutput = item.json.output;\n      let parsedJson = null;\n\n      if (rawOutput && typeof rawOutput === 'object' && !Array.isArray(rawOutput)) {\n        parsedJson = rawOutput;\n      } else if (typeof rawOutput === 'string') {\n        let textToParse = rawOutput\n          .replace(/<think>[\\s\\S]*?<\\/think>/gs, '')\n          .replace(/^>\\s*思考中\\s*\\.*([\\r\\n]+|$)/m, '')\n          .trim();\n        const fencedJsonMatch = textToParse.match(/^```(?:json)?\\s*([\\s\\S]+?)\\s*```$/i);\n        if (fencedJsonMatch && fencedJsonMatch[1]) {\n          textToParse = fencedJsonMatch[1].trim();\n        }\n        try {\n          parsedJson = JSON.parse(textToParse);\n        } catch (error) {\n          item.json.parsing_error_details = `JSON解析失败: ${error instanceof Error ? error.message : String(error)}`;\n        }\n      } else {\n        item.json.parsing_error_details = 'AI输出不是对象、字符串或缺失';\n      }\n\n      if (\n        parsedJson &&\n        typeof parsedJson.summary === 'string' &&\n        typeof parsedJson.note === 'string'\n      ) {\n        // Preserve the complete rich object. Downstream normalization validates\n        // optional fields; this parser must not discard them.\n        parsedDataForNextNode = parsedJson;\n        item.json.ai_retry_count = 0;\n      } else if (!item.json.parsing_error_details) {\n        item.json.parsing_error_details = '解析的JSON缺少必要的summary和note字段';\n      }\n\n      if (item.json.parsing_error_details) {\n        if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n          item.json.ai_retry_count += 1;\n          item.json.trigger_ai_retry = true;\n          item.json.parsing_error_details = `${item.json.parsing_error_details}，第${item.json.ai_retry_count}次重试`;\n        } else {\n          item.json.parsing_error_details = `${item.json.parsing_error_details}，已达最大重试次数`;\n        }\n      }\n    }\n\n    item.json.output = parsedDataForNextNode;\n    item.json.video_transcript = originalVideoTranscript;\n    item.json.video_segments = videoSegments;\n    item.json.timing_quality = timingQuality;\n    item.json.transcript_source = transcriptSource;\n  }\n\n  return items;"
+        "jsCode": "const switchContextNode = \"Switch: Retry Note?\";\n  const items = $input.all();\n  const MAX_AI_RETRIES = 3;\n\n  function nodeJson(name) {\n    try {\n      return $(name).item.json || {};\n    } catch (_error) {\n      return {};\n    }\n  }\n\n  function describeModelError(text) {\n    if (\n      /Authorization failed|\\b401\\b|invalid[^.]{0,40}api[ _-]?key|incorrect api key|unauthori[sz]ed/i.test(\n        text,\n      )\n    ) {\n      return '模型密钥无效或没有填写。检查后端 .env 里的 VS_CHAT_API_KEY，改完重新运行启动脚本。';\n    }\n    if (/\\b402\\b|payment required|insufficient[_ ]?(balance|quota)|余额不足|quota/i.test(text)) {\n      return '模型服务商账户余额不足或额度用完，请到服务商控制台充值或换一个密钥。';\n    }\n    if (/model[^.]{0,40}(not exist|not found|does not exist|invalid)|\\b404\\b/i.test(text)) {\n      return '服务商找不到这个模型名。检查 .env 里的 VS_CHAT_MODEL，名称以服务商文档为准。';\n    }\n    return '';\n  }\n\n  const finalTranscriptContext = nodeJson('Set: Final Transcript for AI');\n  const retryContext = nodeJson(switchContextNode);\n\n  for (const item of items) {\n    const originalVideoTranscript =\n      item.json.video_transcript ||\n      finalTranscriptContext.video_transcript ||\n      retryContext.video_transcript ||\n      '';\n    const videoSegments = Array.isArray(item.json.video_segments)\n      ? item.json.video_segments\n      : Array.isArray(finalTranscriptContext.video_segments)\n        ? finalTranscriptContext.video_segments\n        : Array.isArray(retryContext.video_segments)\n          ? retryContext.video_segments\n          : [];\n    const timingQuality =\n      item.json.timing_quality ||\n      finalTranscriptContext.timing_quality ||\n      retryContext.timing_quality ||\n      'none';\n    const transcriptSource =\n      item.json.transcript_source ||\n      finalTranscriptContext.transcript_source ||\n      retryContext.transcript_source ||\n      'unknown';\n\n    const priorRetryCount = item.json.ai_retry_count ?? retryContext.ai_retry_count ?? 0;\n    item.json.ai_retry_count = Number.isFinite(Number(priorRetryCount))\n      ? Number(priorRetryCount)\n      : 0;\n    item.json.trigger_ai_retry = false;\n    item.json.max_ai_retries_for_prompt = MAX_AI_RETRIES;\n    item.json.parsing_error_details = null;\n\n    let parsedDataForNextNode = {\n      summary: 'Error: AI output processing did not complete as expected.',\n      note: 'Error: AI output processing did not complete as expected.',\n    };\n\n    if (item.json.error) {\n      const upstream = String(item.json.error);\n      const fatal = describeModelError(upstream);\n      if (fatal) {\n        // A wrong key or model name fails the same way every time; say so instead of retrying.\n        item.json.parsing_error_details = `模型调用失败：${fatal}`;\n        parsedDataForNextNode = {\n          summary: `Error: 模型调用失败。${fatal}`,\n          note: `Error: 模型调用失败。${fatal}\\n\\n服务商原话：${upstream.slice(0, 300)}`,\n        };\n        delete item.json.error;\n      } else if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n        item.json.ai_retry_count += 1;\n        item.json.trigger_ai_retry = true;\n        item.json.parsing_error_details = `上游错误，第${item.json.ai_retry_count}次重试: ${upstream}`;\n        delete item.json.error;\n      } else {\n        item.json.parsing_error_details = `上游错误，已达最大重试次数: ${upstream}`;\n        parsedDataForNextNode = {\n          summary: `Error: 模型多次调用失败。${upstream.slice(0, 300)}`,\n          note: `Error: 模型多次调用失败。${upstream.slice(0, 300)}`,\n        };\n      }\n    } else {\n      const rawOutput = item.json.output;\n      let parsedJson = null;\n\n      if (rawOutput && typeof rawOutput === 'object' && !Array.isArray(rawOutput)) {\n        parsedJson = rawOutput;\n      } else if (typeof rawOutput === 'string') {\n        let textToParse = rawOutput\n          .replace(/<think>[\\s\\S]*?<\\/think>/gs, '')\n          .replace(/^>\\s*思考中\\s*\\.*([\\r\\n]+|$)/m, '')\n          .trim();\n        const fencedJsonMatch = textToParse.match(/^```(?:json)?\\s*([\\s\\S]+?)\\s*```$/i);\n        if (fencedJsonMatch && fencedJsonMatch[1]) {\n          textToParse = fencedJsonMatch[1].trim();\n        }\n        try {\n          parsedJson = JSON.parse(textToParse);\n        } catch (error) {\n          item.json.parsing_error_details = `JSON解析失败: ${error instanceof Error ? error.message : String(error)}`;\n        }\n      } else {\n        item.json.parsing_error_details = 'AI输出不是对象、字符串或缺失';\n      }\n\n      if (\n        parsedJson &&\n        typeof parsedJson.summary === 'string' &&\n        typeof parsedJson.note === 'string'\n      ) {\n        // Preserve the complete rich object. Downstream normalization validates\n        // optional fields; this parser must not discard them.\n        parsedDataForNextNode = parsedJson;\n        item.json.ai_retry_count = 0;\n      } else if (!item.json.parsing_error_details) {\n        item.json.parsing_error_details = '解析的JSON缺少必要的summary和note字段';\n      }\n\n      if (item.json.parsing_error_details) {\n        if (item.json.ai_retry_count < MAX_AI_RETRIES) {\n          item.json.ai_retry_count += 1;\n          item.json.trigger_ai_retry = true;\n          item.json.parsing_error_details = `${item.json.parsing_error_details}，第${item.json.ai_retry_count}次重试`;\n        } else {\n          item.json.parsing_error_details = `${item.json.parsing_error_details}，已达最大重试次数`;\n        }\n      }\n    }\n\n    item.json.output = parsedDataForNextNode;\n    item.json.video_transcript = originalVideoTranscript;\n    item.json.video_segments = videoSegments;\n    item.json.timing_quality = timingQuality;\n    item.json.transcript_source = transcriptSource;\n  }\n\n  return items;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        496,
-        736
+        2100,
+        300
       ],
       "id": "bfc01339-80b7-4b5c-a325-97134b0de5c2",
-      "name": "Code: Parse AI JSON Output & Manage Retries",
+      "name": "Code: Parse Note JSON",
       "onError": "continueRegularOutput"
     },
     {
@@ -601,8 +577,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -2016,
-        1056
+        -1900,
+        820
       ],
       "id": "c38ee5af-7f91-4c7a-9116-3a77ac5f3ee5",
       "name": "Set: Video Link from Input"
@@ -614,8 +590,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1392,
-        992
+        -1420,
+        1180
       ],
       "id": "4c523001-8ebb-4e4c-b091-eca58107a7a6",
       "name": "Code: Parse Metadata"
@@ -627,11 +603,11 @@
       "type": "n8n-nodes-base.stopAndError",
       "typeVersion": 1,
       "position": [
-        -2032,
-        1312
+        -1900,
+        1400
       ],
       "id": "b89716dc-cd4c-4ff6-9ca8-042c4c0df8f4",
-      "name": "Stop and Error"
+      "name": "Stop: No Link or Transcript"
     },
     {
       "parameters": {
@@ -668,11 +644,11 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -2016,
-        832
+        -1900,
+        580
       ],
       "id": "ed81ff37-fd58-4ef6-9296-e7f4cb25c909",
-      "name": "Set: Given Output"
+      "name": "Set: Note from Request"
     },
     {
       "parameters": {
@@ -712,8 +688,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -1840,
-        1056
+        -1660,
+        820
       ],
       "id": "fd96a269-bfa7-465a-8889-5197ff9338f2",
       "name": "Switch: Info Only?"
@@ -725,11 +701,11 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        -1584,
-        992
+        -1660,
+        1180
       ],
       "id": "230a392c-3a79-46cf-9e1c-a8c83e6fe6c9",
-      "name": "CMD: Get Video Metadata1",
+      "name": "CMD: Get Video Metadata",
       "alwaysOutputData": false,
       "onError": "continueErrorOutput"
     },
@@ -740,11 +716,11 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        1360,
-        848
+        2820,
+        420
       ],
       "id": "ae230cd8-3dd7-42b5-9882-dad5e222352a",
-      "name": "Merge"
+      "name": "Merge: Result"
     },
     {
       "parameters": {
@@ -778,8 +754,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1184,
-        992
+        -1180,
+        1180
       ],
       "id": "bbac6d96-3bff-4ce4-8151-cd0ac716148b",
       "name": "Set: Metadata",
@@ -864,8 +840,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1088,
-        784
+        2580,
+        240
       ],
       "id": "53a858dd-963c-49c9-a3a4-d6364cecab30",
       "name": "Set: Summary"
@@ -894,8 +870,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1088,
-        960
+        2580,
+        440
       ],
       "id": "adedf24d-951d-490c-8782-3453361377f1",
       "name": "Set: Error Transcript",
@@ -937,20 +913,20 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.3,
       "position": [
-        -1840,
-        880
+        -1900,
+        1180
       ],
       "id": "0c78498a-4049-4fbd-8504-55b4348c2f92",
-      "name": "Switch"
+      "name": "Switch: Has Link?"
     },
     {
       "id": "1a907306-5fb9-4f8c-a327-0d1f79b42ba3",
-      "name": "Respond to Webhook: Test",
+      "name": "Respond: Health Report",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.2,
       "position": [
-        -1060,
-        160
+        -700,
+        -620
       ],
       "parameters": {
         "respondWith": "firstIncomingItem",
@@ -1016,8 +992,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -1808,
-        512
+        -1660,
+        60
       ],
       "id": "aa078f19-91a9-418f-92b6-d0c48e43b451",
       "name": "Switch: File Extension"
@@ -1045,8 +1021,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        180,
-        432
+        500,
+        -20
       ],
       "id": "08e242ca-6f39-4c18-894a-6ce1295336b3",
       "name": "Set: Extracted Text"
@@ -1054,43 +1030,20 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「学术科研 / 教育申请」**\n- 顶部属性区：\\`机构:: \\` \\`负责人:: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **研究项目与申请雷达表 (按需生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 适用条件 / 风险 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (根据文稿提取) | (仅根据请求或文稿中明确提供的背景分析；未提供则标记无法评估) |\n  | **申请与项目要求** | (语言、材料、流程和截止日期等) | |\n  | **资金/奖学金** | (奖学金、RA/TA 或其他资助机会等) | |\n- 整理负责人或作者的代表作摘要，以及可用于研究计划或后续沟通的素材，放入 \\`>[!quote]- 📝 核心文献与研究素材\\`。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- 当前 n8n 路径不接收视频帧。只能整理文稿中讲者明确描述的场景、构图、动作、配乐或剪辑信息，不能把讲者描述改写成模型亲眼看见的事实。\n- 可使用表格：| 文稿时间 / 段落 | 讲者明确描述的视听信息 | 讲者给出的解释 |。\n- 文稿没有明确提供的镜头、画面、配乐或动作必须标记为“未提供”，不能补写逐帧分析。\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\n// VIDEO_KNOWLEDGE_V3_EVIDENCE_OUTPUT\nconst knowledgeMetadata = {{ $('Webhook').item.json.body.metadata || {} }};\nconst contentRouterContract = knowledgeMetadata.content_router_contract || null;\nconst rawEvidenceSegments = {{ $('Set: Final Transcript for AI').item.json.video_segments || [] }};\nconst evidenceSegmentCatalog = Array.isArray(rawEvidenceSegments)\n  ? rawEvidenceSegments.map((segment) => ({\n      id: segment.id,\n      start: segment.start,\n      end: segment.end,\n      text: segment.text,\n      source: segment.source || \"speech\",\n      timing_quality: segment.timing_quality || \"none\",\n    }))\n  : [];\nconst processingDepth = knowledgeMetadata.processing_depth || 'evidence';\nconst requestedContentType = knowledgeMetadata.content_type || 'auto';\nconst shouldAssessAttention = knowledgeMetadata.attention_assessment !== false;\nconst shouldGenerateLearning = knowledgeMetadata.generate_learning === true;\nuserPrompt += `\n\n【结构化证据附加输出（VIDEO_KNOWLEDGE_V3）】\n在既有必填字段 video_title、summary、note 之外，输出以下可选 JSON 字段。不要删除既有字段：\n- content_type：只能是 course / interview / tutorial / news / meeting / review / general；请求值为 ${requestedContentType}，auto 时根据文稿判断。\n- evidence_claims：数组。每项为 {\"id\":\"claim-1\",\"claim\":\"可核查陈述\",\"evidence\":[{\"segment_id\":\"下方真实 segment id\",\"source\":\"speech\",\"quote\":\"对应原话\"}],\"start\":秒或null,\"end\":秒或null,\"confidence\":0到1,\"review_state\":\"supported或needs-review或inference\"}。\n- attention：仅当 ${shouldAssessAttention} 为 true 时输出；结构为 {\"action\":\"watch或skim或skip\",\"score\":0到1,\"confidence\":0到1,\"rationale\":\"理由\",\"information_density\":0到1,\"originality\":0到1,\"actionability\":0到1,\"promotional_ratio\":0到1,\"evidence_segment_ids\":[\"真实segment id\"],\"limitations\":[\"限制\"]}。四个核心指标不可省略；没有知识库上下文时不要输出 vault_relevance。\n- learning：仅当 ${shouldGenerateLearning} 为 true 时输出；可含 flashcards、questions、feynman_prompts，并让卡片/题目的 evidence_segment_ids 只引用真实 segment id。\n\n【内容类型路由结构（VIDEO_CONTENT_ROUTE_V1）】\n机器可读路由合同：${JSON.stringify(contentRouterContract)}\n以下结构要求优先于前面的通用排版法则。requestedContentType 不是 auto 时必须按用户指定类型组织；auto 时只能依据标题、作者、章节和文稿判断，证据不足使用 general。\n- course：学习目标 → 概念地图 → 课程结构 → 重点讲解 → 练习与复习。\n- interview：人物与语境 → 对谈主题 → 按说话者归属的观点 → 关键问答 → 未决问题。不得把主持人的问题写成嘉宾主张。\n- tutorial：目标与前置条件 → 材料与配置 → 可复现的顺序步骤 → 验证与排错 → 完成检查表。不得补造文稿没有的步骤。\n- news：事件概览 → 时间线 → 相关方与信源 → 已确认事实/主张/未知事项 → 影响与后续。\n- meeting：会议背景 → 已定事项 → 行动项（事项/负责人/期限/状态）→ 讨论摘要 → 未决事项。\n- review：评测范围与标准 → 对象事实 → 优势 → 不足与权衡 → 有条件的结论与适用人群。\n- general：内容概览 → 关键内容 → 证据与限制 → 可用结论。\ncontent_type 必须与 note 实际采用的结构一致；缺失信息应写“未提供”，不能为了填满结构而虚构。\n\n处理深度：${processingDepth}\n可引用的语音时间段目录（这是字幕证据，不是画面证据）：\n${JSON.stringify(evidenceSegmentCatalog)}\n\n证据红线：\n1. evidence 只能引用上方存在的 segment id；没有可引用 segment 时 evidence_claims 返回空数组。\n2. 无时间信息时不得虚构 0:00、start=0 或 end=0；相应时间字段省略或使用 null。\n3. 当前工作流没有接通视频画面理解。不要输出 visual_evidence，不要声称看见幻灯片、图表、代码界面、人物动作或镜头。\n4. 仅由字幕推断且不能被原话直接支持的内容，review_state 必须为 inference 或 needs-review。\n`;\n\nreturn userPrompt;",
-        "hasOutputParser": true,
+        "text": "={{ (\nfunction buildNotePrompt(input) {\n  const MARKER = 'VIDEO_NOTE_PROMPT_V4';\n  const languages = {\n    zh: {\n      name: 'Simplified Chinese',\n      summary: '摘要',\n      points: '要点',\n      details: '展开细节',\n      missing: '视频里没有提到',\n    },\n    en: {\n      name: 'English',\n      summary: 'Summary',\n      points: 'Key points',\n      details: 'More detail',\n      missing: 'Not in the video',\n    },\n    ja: {\n      name: 'Japanese',\n      summary: '要約',\n      points: '要点',\n      details: '詳しく',\n      missing: '動画では触れられていない',\n    },\n  };\n  const lang = languages[input.language] || languages.zh;\n  const metadata = input.metadata && typeof input.metadata === 'object' ? input.metadata : {};\n  const contentType = metadata.content_type || 'auto';\n  const assessAttention = metadata.attention_assessment !== false;\n  const makeLearning = metadata.generate_learning === true;\n  const segments = Array.isArray(input.segments)\n    ? input.segments.map(function (segment) {\n        return {\n          id: segment.id,\n          start: segment.start,\n          end: segment.end,\n          text: segment.text,\n          source: segment.source || 'speech',\n        };\n      })\n    : [];\n  const transcript = String(input.transcript || '');\n  const long = transcript.length > 12000;\n\n  const lines = [\n    '// ' + MARKER,\n    'Write a note about this video in ' +\n      lang.name +\n      '. Every heading, callout title and table header is in ' +\n      lang.name +\n      ' too.',\n    '',\n    'Title: ' + (input.title || '(none)'),\n    'Author: ' + (input.author || '(none)'),\n    'Requested content type: ' + contentType,\n    '',\n    'Transcript:',\n    '---',\n    transcript,\n    '---',\n    '',\n    'NOTE SHAPE (the \"note\" field, Markdown)',\n    '1. Start with \"> [!summary] ' +\n      lang.summary +\n      '\": 2 to 4 sentences saying what the video is about and what it concludes.',\n    '2. Then \"## ' +\n      lang.points +\n      '\": ' +\n      (long ? '6 to 10' : '4 to 6') +\n      ' bullets, one line each, the points a viewer should remember. Start a bullet with its time, like [12:34], when the transcript has times.',\n    '3. Then the sections for the content type below, as ## headings with short bullets or a table. Put long explanations, quotes and worked examples inside folded callouts (\"> [!note]- ' +\n      lang.details +\n      '\"); keep blank lines inside a callout as \">\".',\n    '4. Do not retell the transcript. The plugin adds the full timestamped transcript under the note, so the note keeps only what is worth rereading. Aim for ' +\n      (long\n        ? 'about 1,200 words (2,000 Chinese or Japanese characters) at most'\n        : 'about a quarter of the transcript length') +\n      '.',\n    '5. Use a table when comparing three or more things. Use ==highlight== for at most five key terms. Put a space between Chinese or Japanese text and Latin words or numbers.',\n    '',\n    'CONTENT TYPES. If the requested type is not auto, use it. Otherwise pick one from the title and transcript; use general when unsure.',\n    '- course: learning goals, key concepts (term and meaning), walkthrough, questions to check understanding. A language lesson also gets a vocabulary table: word, reading, meaning, example sentence from the video.',\n    '- interview: who is talking and why, topics, views by speaker, key questions and answers, open questions. A question from the host is not a claim by the guest.',\n    '- tutorial: goal and prerequisites, setup, numbered steps (commands in code blocks), how to check it worked and fix problems. Do not add steps the video does not show.',\n    '- news: what happened, timeline, who is involved and their sources, what is confirmed versus claimed versus unknown, what comes next.',\n    '- meeting: context, decisions, action items (item, owner, due, status), discussion, open issues.',\n    '- review: what was tested and how, facts about the product, strengths, weaknesses and trade-offs, who it suits.',\n    '- general: overview, main points, evidence and limits, takeaways.',\n    \"The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.\",\n    'Write \"' + lang.missing + '\" where a section has nothing to go on.',\n    '',\n    'JSON FIELDS',\n    '- video_title: a clear title, at most 15 Chinese/Japanese characters or 8 English words, no special symbols.',\n    '- summary: one or two sentences for a list view.',\n    '- note: the Markdown note above, as one JSON string (escape newlines as \\\\n and quotes as \\\\\").',\n    '- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.',\n    '- evidence_claims: up to 8 checkable statements: {\"id\":\"claim-1\",\"claim\":\"...\",\"evidence\":[{\"segment_id\":\"an id from the list below\",\"source\":\"speech\",\"quote\":\"the exact words\"}],\"start\":seconds or null,\"end\":seconds or null,\"confidence\":0 to 1,\"review_state\":\"supported, needs-review or inference\"}. Use only segment ids from the list; with no list, return [].',\n  ];\n  if (assessAttention) {\n    lines.push(\n      '- attention: {\"action\":\"watch, skim or skip\",\"score\":0 to 1,\"confidence\":0 to 1,\"rationale\":\"one sentence\",\"information_density\":0 to 1,\"originality\":0 to 1,\"actionability\":0 to 1,\"promotional_ratio\":0 to 1,\"evidence_segment_ids\":[],\"limitations\":[]}.',\n    );\n  }\n  if (makeLearning) {\n    lines.push(\n      '- learning: {\"flashcards\":[{\"front\":\"...\",\"back\":\"...\",\"evidence_segment_ids\":[]}],\"questions\":[],\"feynman_prompts\":[]}, 3 to 8 cards, ids only from the list.',\n    );\n  }\n  lines.push(\n    '',\n    'Times: never invent 0:00 or start=0 when there is no time; use null.',\n    'A statement inferred from the transcript but not said in it gets review_state inference or needs-review.',\n    '',\n    'Segments you may cite (speech, not images):',\n    JSON.stringify(segments),\n  );\n  if (Number(input.retryCount) > 0 && input.parseError) {\n    lines.push(\n      '',\n      'Your previous reply could not be parsed: ' + String(input.parseError).slice(0, 300),\n      'Reply again with valid JSON only: no code fence, no text before or after, newlines inside strings escaped.',\n    );\n  }\n  return lines.join('\\n');\n}\n)({\n  transcript: $('Set: Final Transcript for AI').item.json.video_transcript,\n  segments: $('Set: Final Transcript for AI').item.json.video_segments,\n  title: $json.video_title || $('Set: Final Transcript for AI').item.json.video_title,\n  author: $json.video_author || $('Set: Final Transcript for AI').item.json.video_author,\n  language: $('Webhook').item.json.body.metadata.language,\n  metadata: $('Webhook').item.json.body.metadata,\n  retryCount: $json.ai_retry_count,\n  parseError: $json.parsing_error_details,\n}) }}",
+        "hasOutputParser": false,
         "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**使用边界**：不得假设用户的教育背景、身份、研究方向或申请目标；仅使用请求元数据和文稿中明确提供的信息。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。"
+          "systemMessage": "You turn video transcripts into notes for Obsidian.\nWrite only what the transcript supports. When something is missing, say it is not in the video instead of filling the gap.\nReply with one JSON object and nothing else."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
-        0,
-        320
+        1740,
+        300
       ],
       "id": "d07fb61f-9a13-4b0b-9fc0-a0956cdf24e7",
-      "name": "AI Agent1",
-      "executeOnce": true,
-      "retryOnFail": false,
-      "maxTries": 2,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "=// 1. 获取文稿与元数据\nconst transcript = {{ $('Set: Final Transcript for AI').item.json.video_transcript }};\nconst title = {{ $json.video_title || \"未命名视频\" }};\nconst author = {{ $json.video_author || \"未知作者\" }};\n\n// 2. 语言设置\nconst languageCode = {{ $('Webhook').item.json.body.metadata.language || 'zh' }};\nconst langMap = { 'zh': '简体中文', 'en': 'English', 'ja': '日本語' };\nconst targetLang = langMap[languageCode] || '简体中文';\n\n// 3. 构建“全量、精排版、高频表格”的 Prompt\nlet userPrompt = `\n【核心任务】：你现在是我的“第二大脑数字管家”。请阅读以下文稿，识别其所属领域。我要你**保留文稿中 95% 以上的信息密度**，用 ${targetLang} 为我重构出一份视觉极度清爽、**重度使用多级标题、表格、加粗、Callouts、且折叠块内部排版精美**的 Obsidian 笔记。\n\n【元数据】：\n- 标题：${title}\n- 作者：${author}\n\n【文稿内容】：\n---\n${transcript}\n---\n\n【🧠 深度构建指令 (输出至 Note 字段)】：\n首先，开头使用 \\`>[!summary] 核心摘要\\` 提供精准的全文定调。\n接着，根据以下【6大领域法则】进行**全景式提取**（绝不遗漏后半段内容）：\n\n**法则 1: 若涉及「学术科研 / 教育申请」**\n- 顶部属性区：\\`机构:: \\` \\`负责人:: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`\n- **研究项目与申请雷达表 (按需生成)**：\n  | 核心评估维度 | 情报详情 (文稿提取) | 适用条件 / 风险 |\n  | :--- | :--- | :--- |\n  | **研究方向与技术栈** | (根据文稿提取) | (仅根据请求或文稿中明确提供的背景分析；未提供则标记无法评估) |\n  | **申请与项目要求** | (语言、材料、流程和截止日期等) | |\n  | **资金/奖学金** | (奖学金、RA/TA 或其他资助机会等) | |\n- 整理负责人或作者的代表作摘要，以及可用于研究计划或后续沟通的素材，放入 \\`>[!quote]- 📝 核心文献与研究素材\\`。\n- 自动生成 \\`- [ ] \\` 下一步行动清单。\n**法则 2: 若涉及「日语 / 英语学习」**\n- **多维词汇语法表**：| ==核心词汇/语法== | 音标/假名 | 详尽释义 | 视频原句提取 |\n- 复杂的文化词源或语法变位放入 \\`>[!info]- 📖 文化与语法详解\\` (内部用无序列表梳理)。\n\n**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**\n- 当前 n8n 路径不接收视频帧。只能整理文稿中讲者明确描述的场景、构图、动作、配乐或剪辑信息，不能把讲者描述改写成模型亲眼看见的事实。\n- 可使用表格：| 文稿时间 / 段落 | 讲者明确描述的视听信息 | 讲者给出的解释 |。\n- 文稿没有明确提供的镜头、画面、配乐或动作必须标记为“未提供”，不能补写逐帧分析。\n**法则 4: 若涉及「AI 等前沿技术」**\n- **痛点方案表**：| 场景痛点 | 对应 AI 工具/方案 | 核心原理 |\n- 操作步骤用 \\`1. 2. 3.\\` 配合 \\`\\`\\` 代码块。\n- 踩坑记录放入 \\`>[!tip]- 💡 底层原理与避坑指南\\` (内部使用 \\`> **【报错复现】**\\` 等子标题)。\n\n**法则 5: 若涉及「文学阅读 / 思想哲学」**\n- 辩证逻辑强制制表：| 核心命题 | 传统观点 | 作者颠覆性观点 | 推导依据 |\n- 震撼金句提取至 \\`>[!quote] 摘录金句\\`。\n- 文末生成 \\`> [!thought] 延伸思考\\`，提出 3 个直击灵魂的追问。\n\n**法则 6: 若涉及「个人提升 / 效率方法」**\n- **行动矩阵表**：| 现状痛点 | 建议行动 (Checklist) | 预期收益 |\n- 作者的真实经历放入 \\`> [!example]- 🌱 真实案例与推导\\` (内部用 \\`> **【背景】**\\`、\\`> **【转折】**\\` 划分)。\n\n---\n【🧱 细节排版规范与避坑 (非常重要)】：\n1. **严格多级标题骨架 (非常关键)**：不要全篇只有表格和 callout！必须提取出清晰的结构：\n   - 使用 \\`## 大章节标题\\` 划分主要模块（其上方必须有空行加 \\`---\\` 分隔）。\n   - 使用 \\`### 子话题\\` 进行深度拆解。\n   - 使用 \\`#### 具体要点\\` 归纳细节知识。\n2. **优先制表与列表**：在相应的 \\`###\\` 或 \\`####\\` 标题下，能用表格总结对比或者美化排列的地方，绝对不要写大段文字！\n3. **折叠块内部必须精排版**：绝对不准在 \\`>\\` 内部输出不分段的文字墙，必须用 \\`> **【括号加粗】**\\` 做子标题，用 \\`> - \\` 列点。\n4. **盘古空格**：中英文混排、\\`**加粗**\\` / \\`==高亮==\\` 的前后，**必须加一个半角空格**。\n5. **Dataview 防乱码**：绝对禁止在行内代码块内以等号开头，不要写 \\`\\\\\\`==文本==\\\\\\`\\`。\n\n🚨 【JSON STRICT MODE 强制警告】：\n1. 你的 Markdown 笔记必须作为一个长字符串放在 \"note\" 字段中。\n2. 该字符串内的**所有换行必须转义为 \\`\\\\n\\`**。注意！如果是折叠块内的空行，必须转义为 \\`\\\\n> \\\\n\\`，以防止 Callout 断裂！\n3. 所有的双引号必须转义为 \\`\\\\\"\\`。\n4. 输出格式必须是纯粹的：\n{\n  \"video_title\": \"15字内高质量学术感标题(无特殊符号)\",\n  \"summary\": \"50-100字的精炼摘要\",\n  \"note\": \"严格转义并遵循上述排版法则的长篇 Markdown 文本\"\n}\n`;\n\n// 4. 错误处理与重试逻辑\nconst aiRetryCount = {{ $json.ai_retry_count || 0 }};\nconst parsingErrorDetails = {{ $json.parsing_error_details || \"\" }};\nif (aiRetryCount > 0 && parsingErrorDetails) {\n  userPrompt += `\\n\\n🚨[JSON FIX MODE] 警告！你上一次生成的 JSON 发生了解析错误: \"${parsingErrorDetails}\". \\n这 100% 是因为你在 'note' 字段中放入了未转义的换行符或引号，或者是你在 JSON 外部包裹了 markdown 语法。请立即修正，确保使用严格转义的合规 JSON 格式，绝不删减字数！`; \n}\n\n// VIDEO_KNOWLEDGE_V3_EVIDENCE_OUTPUT\nconst knowledgeMetadata = {{ $('Webhook').item.json.body.metadata || {} }};\nconst contentRouterContract = knowledgeMetadata.content_router_contract || null;\nconst rawEvidenceSegments = {{ $('Set: Final Transcript for AI').item.json.video_segments || [] }};\nconst evidenceSegmentCatalog = Array.isArray(rawEvidenceSegments)\n  ? rawEvidenceSegments.map((segment) => ({\n      id: segment.id,\n      start: segment.start,\n      end: segment.end,\n      text: segment.text,\n      source: segment.source || \"speech\",\n      timing_quality: segment.timing_quality || \"none\",\n    }))\n  : [];\nconst processingDepth = knowledgeMetadata.processing_depth || 'evidence';\nconst requestedContentType = knowledgeMetadata.content_type || 'auto';\nconst shouldAssessAttention = knowledgeMetadata.attention_assessment !== false;\nconst shouldGenerateLearning = knowledgeMetadata.generate_learning === true;\nuserPrompt += `\n\n【结构化证据附加输出（VIDEO_KNOWLEDGE_V3）】\n在既有必填字段 video_title、summary、note 之外，输出以下可选 JSON 字段。不要删除既有字段：\n- content_type：只能是 course / interview / tutorial / news / meeting / review / general；请求值为 ${requestedContentType}，auto 时根据文稿判断。\n- evidence_claims：数组。每项为 {\"id\":\"claim-1\",\"claim\":\"可核查陈述\",\"evidence\":[{\"segment_id\":\"下方真实 segment id\",\"source\":\"speech\",\"quote\":\"对应原话\"}],\"start\":秒或null,\"end\":秒或null,\"confidence\":0到1,\"review_state\":\"supported或needs-review或inference\"}。\n- attention：仅当 ${shouldAssessAttention} 为 true 时输出；结构为 {\"action\":\"watch或skim或skip\",\"score\":0到1,\"confidence\":0到1,\"rationale\":\"理由\",\"information_density\":0到1,\"originality\":0到1,\"actionability\":0到1,\"promotional_ratio\":0到1,\"evidence_segment_ids\":[\"真实segment id\"],\"limitations\":[\"限制\"]}。四个核心指标不可省略；没有知识库上下文时不要输出 vault_relevance。\n- learning：仅当 ${shouldGenerateLearning} 为 true 时输出；可含 flashcards、questions、feynman_prompts，并让卡片/题目的 evidence_segment_ids 只引用真实 segment id。\n\n【内容类型路由结构（VIDEO_CONTENT_ROUTE_V1）】\n机器可读路由合同：${JSON.stringify(contentRouterContract)}\n以下结构要求优先于前面的通用排版法则。requestedContentType 不是 auto 时必须按用户指定类型组织；auto 时只能依据标题、作者、章节和文稿判断，证据不足使用 general。\n- course：学习目标 → 概念地图 → 课程结构 → 重点讲解 → 练习与复习。\n- interview：人物与语境 → 对谈主题 → 按说话者归属的观点 → 关键问答 → 未决问题。不得把主持人的问题写成嘉宾主张。\n- tutorial：目标与前置条件 → 材料与配置 → 可复现的顺序步骤 → 验证与排错 → 完成检查表。不得补造文稿没有的步骤。\n- news：事件概览 → 时间线 → 相关方与信源 → 已确认事实/主张/未知事项 → 影响与后续。\n- meeting：会议背景 → 已定事项 → 行动项（事项/负责人/期限/状态）→ 讨论摘要 → 未决事项。\n- review：评测范围与标准 → 对象事实 → 优势 → 不足与权衡 → 有条件的结论与适用人群。\n- general：内容概览 → 关键内容 → 证据与限制 → 可用结论。\ncontent_type 必须与 note 实际采用的结构一致；缺失信息应写“未提供”，不能为了填满结构而虚构。\n\n处理深度：${processingDepth}\n可引用的语音时间段目录（这是字幕证据，不是画面证据）：\n${JSON.stringify(evidenceSegmentCatalog)}\n\n证据红线：\n1. evidence 只能引用上方存在的 segment id；没有可引用 segment 时 evidence_claims 返回空数组。\n2. 无时间信息时不得虚构 0:00、start=0 或 end=0；相应时间字段省略或使用 null。\n3. 当前工作流没有接通视频画面理解。不要输出 visual_evidence，不要声称看见幻灯片、图表、代码界面、人物动作或镜头。\n4. 仅由字幕推断且不能被原话直接支持的内容，review_state 必须为 inference 或 needs-review。\n`;\n\nreturn userPrompt;",
-        "hasOutputParser": true,
-        "options": {
-          "systemMessage": "=你是一名**顶级的「第二大脑」数字架构师 (Adaptive Knowledge Architect)**，专门为 Obsidian 用户重构高信噪比且**极度详实**的笔记。\n**使用边界**：不得假设用户的教育背景、身份、研究方向或申请目标；仅使用请求元数据和文稿中明确提供的信息。\n\n### 🌟 核心使命 (Paradigm Shift)\n你的任务是**“全量重构 (Full-Text Restructuring)”**而非“提取摘要”。必须将原文 100% 的推导逻辑、干货和案例保留下来。同时，利用最高效的排版格式，让笔记达到**“干货极其密集，视觉极度清爽”**的完美平衡。\n\n### 🛠️ Obsidian “海量信息收纳”与视觉工具箱 (强制执行)\n你必须严格遵守以下排版优先级：\n\n1. **「万物皆可表可列」原则 (Table-First Principle - 核心视觉焦点)**：\n   - 表格是提升“干货密度”的最优解。**尽可能多地使用 Markdown 表格！**\n   - 触发条件：① 实验室/导师特征分析 ② 多事物对比 ③ 优劣势分析 ④ 时间线或操作步骤。\n   - 不需要表格的地方也不用勉强，可以多级标题、列表、callout、加粗等，或者在主体原则（干货极其密集，视觉极度清爽）下选用最合适的排版。\n2. **严格的多级标题骨架 (Mandatory Heading Hierarchy)**：\n   - **绝对禁止全篇只有单一层级的标题！** 必须根据文稿的内在逻辑，构建宏观骨架。\n   - 必须依次使用：`## 核心大章` -> `### 细分话题` -> `#### 具体知识点`。\n   - 所有表格、列表和折叠块，都必须归属于相应的多级标题之下，形成层次分明的知识树。\n3. **重型冰山折叠块与“内部精排版” (The \"Heavy Iceberg\" Fold & Micro-Formatting)**：\n   - 必须使用折叠块兜底大段详实的原文推导、冗长案例或背景故事，绝不删减字数。\n   - 实际训练、真题练习等重要内容的 callout **默认展开**（使用 `> [!example] ` 而不是 `> [!example]- `）。\n   - **折叠块内部的视觉极其重要，严禁文字墙！** 必须遵循以下内部排版：\n     - 使用加粗括号划分内部层级：例如 `> **【研究背景】**`、`> **【核心推导】**`。\n     - 长篇大论必须拆解为带 `> - ` 的无序列表。\n     - 段落之间必须有呼吸感留白（空行也必须以 `>` 开头以防块断裂）。\n4. **盘古空格与 Dataview 防乱码 (Visual & Formatting)**：\n   - 核心术语用 `==高亮==`，关键转折词用 `**粗体**`。\n   - **盘古空格**：中英文混排、加粗 `**` / 高亮 `==` 标记的前后，**必须加一个半角空格**！\n   - **禁止乱码**：绝对禁止在行内代码块内以等号开头（❌ `\\`==文本==\\`` ），直接写 `==文本==`。\n5. **属性与原生双链 (Dataview & Wikilinks)**：\n   - 遇到学术理论、专业技术，毫不吝啬地添加双链：例如 `[[光遗传学]]`、`[[内诺]]`。\n\n### ⚠️（非常重要！！！） 绝对排版与 JSON 红线 (决定系统是否崩溃)\n1. **分隔线上方空行**：使用分隔线 `---` 时，上一行必须是空行（即 `\\n\\n---`），否则会被错误渲染为大标题。\n2. **双链裸露**：严禁将双链放在反引号内。\n3. **纯净 JSON 输出**：只能且必须输出一个合法的 JSON 对象，绝不包含 ```json。\n4. **严格转义**：所有的换行符必须转义为 `\\n`，双引号转义为 `\\\"`，反斜杠转义为 `\\\\`。",
-          "maxIterations": 2
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.9,
-      "position": [
-        0,
-        0
-      ],
-      "id": "19c34600-7caa-49b2-87ef-6026a7d8089c",
-      "name": "AI Agent6",
+      "name": "AI: Write Note",
       "executeOnce": true,
       "retryOnFail": false,
       "maxTries": 2,
@@ -1103,8 +1056,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1584,
-        432
+        -1420,
+        -20
       ],
       "id": "a312d4e0-6f5d-4508-9d91-e25af316e5f7",
       "name": "Code: Split Files"
@@ -1118,8 +1071,8 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        -1392,
-        1088
+        -1180,
+        820
       ],
       "onError": "continueRegularOutput",
       "alwaysOutputData": true
@@ -1133,8 +1086,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1200,
-        1088
+        -940,
+        820
       ]
     },
     {
@@ -1178,8 +1131,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -1008,
-        1088
+        -700,
+        820
       ]
     },
     {
@@ -1191,8 +1144,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2496,
-        816
+        -2620,
+        760
       ],
       "notesInFlow": true,
       "notes": "Security boundary: validates HTTPS and the exact supported host allowlist before any command node."
@@ -1203,8 +1156,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        -160,
-        560
+        1740,
+        520
       ],
       "parameters": {
         "model": {
@@ -1231,8 +1184,8 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        -2160,
-        160
+        -1900,
+        -620
       ],
       "parameters": {
         "command": "={{ \"node -e '(async function healthProbeProgram() {\\n  const fs = await import('\\\\''node:fs'\\\\'');\\n  const { spawnSync } = await import('\\\\''node:child_process'\\\\'');\\n  const deep = process.argv[1] === '\\\\''deep'\\\\'';\\n\\n  const version = (binary, args) => {\\n    const result = spawnSync(binary, args, { encoding: '\\\\''utf8'\\\\'', timeout: 20000 });\\n    if (result.error || result.status !== 0) return '\\\\'''\\\\'';\\n    return String(result.stdout || '\\\\'''\\\\'')\\n      .split('\\\\''\\\\n'\\\\'')[0]\\n      .trim()\\n      .slice(0, 120);\\n  };\\n  const cookieState = (platform) => {\\n    const path = `/home/node/cookies/${platform}_cookies.txt`;\\n    try {\\n      const stat = fs.statSync(path);\\n      if (!stat.isFile() || stat.size === 0) return { present: false };\\n      const text = fs.readFileSync(path, '\\\\''utf8'\\\\'');\\n      const loginNames = {\\n        bilibili: '\\\\''SESSDATA'\\\\'',\\n        youtube: '\\\\''LOGIN_INFO'\\\\'',\\n        douyin: '\\\\''sessionid'\\\\'',\\n        tiktok: '\\\\''sessionid'\\\\'',\\n        xiaohongshu: '\\\\''web_session'\\\\'',\\n      };\\n      const lines = text.split('\\\\''\\\\n'\\\\'').filter((line) => line && !line.startsWith('\\\\''#'\\\\''));\\n      const loggedIn = lines.some((line) => line.split('\\\\''\\\\t'\\\\'')[5] === loginNames[platform]);\\n      return { present: true, cookies: lines.length, loggedIn, updated: stat.mtime.toISOString() };\\n    } catch {\\n      return { present: false };\\n    }\\n  };\\n  const writable = (dir) => {\\n    try {\\n      fs.accessSync(dir, fs.constants.W_OK);\\n      return true;\\n    } catch {\\n      return false;\\n    }\\n  };\\n\\n  const report = {\\n    tools: {\\n      ytDlp: version('\\\\''yt-dlp'\\\\'', ['\\\\''--version'\\\\'']),\\n      ffmpeg: version('\\\\''ffmpeg'\\\\'', ['\\\\''-hide_banner'\\\\'', '\\\\''-version'\\\\''])\\n        .replace(/^ffmpeg version\\\\s*/, '\\\\'''\\\\'')\\n        .split('\\\\'' '\\\\'')[0],\\n      node: process.version,\\n    },\\n    folders: {\\n      uploads: writable('\\\\''/home/node/uploads'\\\\''),\\n      cookies: writable('\\\\''/home/node/cookies'\\\\''),\\n      work: writable('\\\\''/home/node/files'\\\\''),\\n    },\\n    cookies: Object.fromEntries(\\n      ['\\\\''bilibili'\\\\'', '\\\\''youtube'\\\\'', '\\\\''douyin'\\\\'', '\\\\''tiktok'\\\\'', '\\\\''xiaohongshu'\\\\''].map((name) => [\\n        name,\\n        cookieState(name),\\n      ]),\\n    ),\\n    sample: '\\\\'''\\\\'',\\n  };\\n\\n  if (deep) {\\n    fs.mkdirSync('\\\\''/home/node/files/health'\\\\'', { recursive: true });\\n    const sample = '\\\\''/home/node/files/health/sample.mp3'\\\\'';\\n    const result = spawnSync(\\n      '\\\\''ffmpeg'\\\\'',\\n      [\\n        '\\\\''-nostdin'\\\\'',\\n        '\\\\''-hide_banner'\\\\'',\\n        '\\\\''-loglevel'\\\\'',\\n        '\\\\''error'\\\\'',\\n        '\\\\''-y'\\\\'',\\n        '\\\\''-f'\\\\'',\\n        '\\\\''lavfi'\\\\'',\\n        '\\\\''-i'\\\\'',\\n        '\\\\''sine=frequency=440:duration=1'\\\\'',\\n        '\\\\''-ac'\\\\'',\\n        '\\\\''1'\\\\'',\\n        '\\\\''-ar'\\\\'',\\n        '\\\\''16000'\\\\'',\\n        sample,\\n      ],\\n      { encoding: '\\\\''utf8'\\\\'', timeout: 30000 },\\n    );\\n    report.sample = result.status === 0 ? sample : '\\\\'''\\\\'';\\n    if (result.status !== 0) report.sampleError = String(result.stderr || '\\\\'''\\\\'').slice(0, 300);\\n  }\\n  process.stdout.write(JSON.stringify(report));\\n})().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });' \" + ($('Webhook').item.json.body.metadata?.check === \"deep\" ? \"deep\" : \"basic\") }}"
@@ -1244,8 +1197,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -1940,
-        160
+        -1660,
+        -620
       ],
       "parameters": {
         "rules": {
@@ -1289,8 +1242,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -1720,
-        80
+        -1420,
+        -700
       ],
       "parameters": {
         "method": "GET",
@@ -1322,8 +1275,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        -1500,
-        80
+        -1180,
+        -700
       ],
       "parameters": {
         "workflowId": {
@@ -1368,11 +1321,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1280,
-        160
+        -940,
+        -620
       ],
       "parameters": {
-        "jsCode": "const backendConfig = /* VS_BACKEND_CONFIG */ null;\n  const workflowMeta = {\"name\":\"Video Summary\",\"version\":\"3.0.0\",\"variant\":\"packaged\",\"webhookPath\":\"obsidian-video-summary\",\"models\":[],\"requiredTools\":[\"yt-dlp\",\"ffmpeg\"],\"uploadsPath\":\"/home/node/uploads\"};\n  const config = backendConfig || {\n    chat: { configured: false, model: '', host: '' },\n    speech: { configured: false, model: '', host: '' },\n    vision: { configured: false, model: '', host: '' },\n  };\n\n  let probe = {};\n  try {\n    probe = JSON.parse(String($('CMD: Health Probe').first().json.stdout || '{}'));\n  } catch {\n    probe = { error: 'health probe output was not JSON' };\n  }\n\n  const executed = (name) => {\n    try {\n      return $(name).isExecuted;\n    } catch {\n      return false;\n    }\n  };\n  const describeHttpError = (item) => {\n    const error = item?.json?.error;\n    if (!error) return '';\n    const raw = typeof error === 'string' ? error : error.message || JSON.stringify(error);\n    return String(raw).slice(0, 300);\n  };\n\n  const chat = { ...config.chat, checked: false, ok: null, status: 0, error: '', available: [] };\n  if (executed('Health: Chat Models')) {\n    chat.checked = true;\n    const item = $('Health: Chat Models').first();\n    const status = Number(item.json.statusCode || 0);\n    chat.status = status;\n    const body = item.json.body && typeof item.json.body === 'object' ? item.json.body : item.json;\n    const ids = Array.isArray(body?.data) ? body.data.map((model) => String(model.id || '')) : [];\n    if (status >= 200 && status < 300) {\n      chat.ok = true;\n      chat.modelListed = ids.length === 0 ? null : ids.includes(config.chat.model);\n      chat.available = ids.slice(0, 30);\n    } else {\n      chat.ok = false;\n      chat.error = describeHttpError(item) || `HTTP ${status}`;\n    }\n  }\n\n  const speech = { ...config.speech, checked: false, ok: null, error: '' };\n  if (executed('Health: Speech to Text')) {\n    speech.checked = true;\n    const item = $('Health: Speech to Text').first();\n    if (item.json.error) {\n      speech.ok = false;\n      speech.error = describeHttpError(item);\n    } else {\n      speech.ok = typeof item.json.full_transcript === 'string';\n    }\n  }\n\n  return [\n    {\n      json: {\n        ok: true,\n        workflow: workflowMeta,\n        backend: {\n          tools: probe.tools || {},\n          folders: probe.folders || {},\n          cookies: probe.cookies || {},\n          chat,\n          speech,\n          vision: { ...config.vision },\n          sampleError: probe.sampleError || '',\n        },\n      },\n    },\n  ];"
+        "jsCode": "const backendConfig = /* VS_BACKEND_CONFIG */ null;\n  const workflowMeta = {\"name\":\"Video Summary\",\"version\":\"3.1.0\",\"variant\":\"packaged\",\"webhookPath\":\"obsidian-video-summary\",\"models\":[],\"requiredTools\":[\"yt-dlp\",\"ffmpeg\"],\"uploadsPath\":\"/home/node/uploads\"};\n  const config = backendConfig || {\n    chat: { configured: false, model: '', host: '' },\n    speech: { configured: false, model: '', host: '' },\n    vision: { configured: false, model: '', host: '' },\n  };\n\n  let probe = {};\n  try {\n    probe = JSON.parse(String($('CMD: Health Probe').first().json.stdout || '{}'));\n  } catch {\n    probe = { error: 'health probe output was not JSON' };\n  }\n\n  const executed = (name) => {\n    try {\n      return $(name).isExecuted;\n    } catch {\n      return false;\n    }\n  };\n  const describeHttpError = (item) => {\n    const error = item?.json?.error;\n    if (!error) return '';\n    const raw = typeof error === 'string' ? error : error.message || JSON.stringify(error);\n    return String(raw).slice(0, 300);\n  };\n\n  const chat = { ...config.chat, checked: false, ok: null, status: 0, error: '', available: [] };\n  if (executed('Health: Chat Models')) {\n    chat.checked = true;\n    const item = $('Health: Chat Models').first();\n    const status = Number(item.json.statusCode || 0);\n    chat.status = status;\n    const body = item.json.body && typeof item.json.body === 'object' ? item.json.body : item.json;\n    const ids = Array.isArray(body?.data) ? body.data.map((model) => String(model.id || '')) : [];\n    if (status >= 200 && status < 300) {\n      chat.ok = true;\n      chat.modelListed = ids.length === 0 ? null : ids.includes(config.chat.model);\n      chat.available = ids.slice(0, 30);\n    } else {\n      chat.ok = false;\n      chat.error = describeHttpError(item) || `HTTP ${status}`;\n    }\n  }\n\n  const speech = { ...config.speech, checked: false, ok: null, error: '' };\n  if (executed('Health: Speech to Text')) {\n    speech.checked = true;\n    const item = $('Health: Speech to Text').first();\n    if (item.json.error) {\n      speech.ok = false;\n      speech.error = describeHttpError(item);\n    } else {\n      speech.ok = typeof item.json.full_transcript === 'string';\n    }\n  }\n\n  return [\n    {\n      json: {\n        ok: true,\n        workflow: workflowMeta,\n        backend: {\n          tools: probe.tools || {},\n          folders: probe.folders || {},\n          cookies: probe.cookies || {},\n          chat,\n          speech,\n          vision: { ...config.vision },\n          sampleError: probe.sampleError || '',\n        },\n      },\n    },\n  ];"
       }
     },
     {
@@ -1381,8 +1334,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2160,
-        400
+        -1900,
+        -300
       ],
       "parameters": {
         "jsCode": "const domains = {\"bilibili\":[\"bilibili.com\",\"b23.tv\",\"biligame.com\",\"hdslb.com\"],\"youtube\":[\"youtube.com\",\"google.com\",\"youtu.be\"],\"douyin\":[\"douyin.com\",\"iesdouyin.com\",\"amemv.com\"],\"tiktok\":[\"tiktok.com\"],\"xiaohongshu\":[\"xiaohongshu.com\",\"xhslink.com\",\"xhscdn.com\"]};\n  const body = $input.first().json.body || {};\n  const metadata = body.metadata || {};\n  const platform = String(metadata.platform || '');\n  if (!Object.prototype.hasOwnProperty.call(domains, platform)) {\n    throw new Error('Unsupported cookie platform');\n  }\n  const text = String(metadata.cookies || '');\n  if (!text || text.length > 512 * 1024) {\n    throw new Error('Cookie text is empty or too large');\n  }\n  const allowed = domains[platform];\n  const matchesPlatform = (domain) => {\n    const bare = domain\n      .replace(/^#HttpOnly_/, '')\n      .replace(/^\\./, '')\n      .toLowerCase();\n    return allowed.some((suffix) => bare === suffix || bare.endsWith(`.${suffix}`));\n  };\n  const lines = [];\n  for (const raw of text.split(/\\r?\\n/)) {\n    if (!raw.trim() || (raw.startsWith('#') && !raw.startsWith('#HttpOnly_'))) continue;\n    const fields = raw.split('\\t');\n    if (fields.length !== 7) throw new Error('Cookie text is not in Netscape cookies.txt format');\n    const [domain, includeSubdomains, path, secure, expires, name, value] = fields;\n    if (!matchesPlatform(domain)) continue;\n    if (\n      !/^(TRUE|FALSE)$/.test(includeSubdomains) ||\n      !/^(TRUE|FALSE)$/.test(secure) ||\n      !/^\\d{1,12}$/.test(expires) ||\n      !/^\\/[\\x21-\\x7e]*$/.test(path) ||\n      !/^[\\x21-\\x7e]{1,256}$/.test(name) ||\n      !/^[\\x20-\\x7e]{0,4096}$/.test(value)\n    ) {\n      throw new Error('Cookie text contains an invalid line');\n    }\n    lines.push([domain, includeSubdomains, path, secure, expires, name, value].join('\\t'));\n  }\n  if (lines.length === 0) throw new Error(`No ${platform} cookies were found in the upload`);\n  const content = ['# Netscape HTTP Cookie File', ...lines, ''].join('\\n');\n  return [\n    {\n      json: {\n        platform,\n        count: lines.length,\n        fileName: `/home/node/cookies/${platform}_cookies.txt`,\n      },\n      binary: {\n        data: {\n          data: Buffer.from(content, 'utf8').toString('base64'),\n          mimeType: 'text/plain',\n          fileName: `${platform}_cookies.txt`,\n        },\n      },\n    },\n  ];"
@@ -1390,12 +1343,12 @@
     },
     {
       "id": "370b120e-5070-42fa-870b-120e507012fa",
-      "name": "Write Cookie File",
+      "name": "File: Write Cookies",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        -1940,
-        400
+        -1660,
+        -300
       ],
       "parameters": {
         "operation": "write",
@@ -1406,12 +1359,12 @@
     },
     {
       "id": "58def9f5-3d06-4e71-88de-f9f53d06ae71",
-      "name": "Respond to Webhook: Cookies",
+      "name": "Respond: Cookies Saved",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.2,
       "position": [
-        -1720,
-        400
+        -1420,
+        -300
       ],
       "parameters": {
         "respondWith": "json",
@@ -1421,12 +1374,12 @@
     },
     {
       "id": "93be7cb9-71c9-4025-83be-7cb971c93025",
-      "name": "Read Local Document",
+      "name": "File: Read Local Document",
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        -1360,
-        432
+        -1180,
+        -20
       ],
       "parameters": {
         "fileSelector": "={{ $json.audio_file_path_for_subflow }}",
@@ -1441,8 +1394,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -1140,
-        432
+        -940,
+        -20
       ],
       "parameters": {
         "rules": {
@@ -1486,8 +1439,8 @@
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
       "position": [
-        -920,
-        352
+        -700,
+        -100
       ],
       "parameters": {
         "operation": "pdf",
@@ -1501,8 +1454,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.1,
       "position": [
-        -700,
-        432
+        -460,
+        -20
       ],
       "parameters": {}
     },
@@ -1512,8 +1465,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -480,
-        432
+        -220,
+        -20
       ],
       "parameters": {
         "jsCode": "const visionModel = '__VS_VISION_MODEL__';\n  const texts = [];\n  const images = [];\n  const items = $input.all();\n  for (let index = 0; index < items.length; index += 1) {\n    const item = items[index];\n    if (typeof item.json.text === 'string' && item.json.text.trim()) {\n      texts.push(item.json.text.trim());\n      continue;\n    }\n    const binary = item.binary?.data;\n    if (binary && /^image\\//.test(binary.mimeType || '')) {\n      const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n      images.push({\n        type: 'image_url',\n        image_url: { url: `data:${binary.mimeType};base64,${buffer.toString('base64')}` },\n      });\n    }\n  }\n  if (texts.length === 0 && images.length === 0) {\n    throw new Error(\n      'No text was found in the file. A scanned PDF has no text layer: export its pages as images and send those instead.',\n    );\n  }\n  const request = images.length\n    ? {\n        model: visionModel,\n        messages: [\n          {\n            role: 'user',\n            content: [\n              {\n                type: 'text',\n                text: 'Transcribe all text in these images verbatim, in reading order. Do not add commentary.',\n              },\n              ...images,\n            ],\n          },\n        ],\n      }\n    : null;\n  return [{ json: { document_text: texts.join('\\n\\n'), vision_request: request } }];"
@@ -1525,8 +1478,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -260,
-        432
+        20,
+        -20
       ],
       "parameters": {
         "rules": {
@@ -1570,8 +1523,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -40,
-        352
+        260,
+        -100
       ],
       "parameters": {
         "method": "POST",
@@ -1591,6 +1544,134 @@
           "name": "Video Summary 识图"
         }
       }
+    },
+    {
+      "id": "sticky-note-about-this-workflow",
+      "name": "Note: About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2900,
+        -820
+      ],
+      "parameters": {
+        "content": "## Video Summary backend\nThe Obsidian plugin posts a link, a pasted transcript or a file name to the **Webhook**. This workflow gets a transcript, asks the model for a note and answers with JSON.\n\n- **Keys** live in the backend `.env`. The start script turns them into the credentials under **Overview → Credentials**; you do not paste keys here.\n- **Something failed?** Open **Executions** at the top and the latest run. A model or key problem still shows Success there: open **AI: Write Note** in that run, its output says what went wrong.\n- **Change the note style** in **AI: Write Note**. Updating the backend or changing keys imports the bundled workflow again, so keep your own version in `workflows/video-summary.json` in the backend folder.\n\nObsidian 插件把链接、文稿或文件名发到 Webhook；这里取得文稿、让模型写笔记，再把 JSON 交回去。出错时点上方 Executions 打开最近一次运行，看 AI: Write Note 的输出。",
+        "width": 700,
+        "height": 520,
+        "color": 1
+      }
+    },
+    {
+      "id": "sticky-note-health-check",
+      "name": "Note: Health check",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1940,
+        -800
+      ],
+      "parameters": {
+        "content": "## Health check\nThe plugin's **Full check** lands here. It reports tools, versions and, on a deep check, whether the model and speech keys work.",
+        "width": 1500,
+        "height": 300,
+        "color": 7
+      }
+    },
+    {
+      "id": "sticky-note-cookies",
+      "name": "Note: Cookies",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1940,
+        -440
+      ],
+      "parameters": {
+        "content": "## Cookies\nSaves a cookies.txt the plugin sends (for Bilibili and other sites that need a login) into the backend `cookies/` folder.",
+        "width": 780,
+        "height": 250,
+        "color": 7
+      }
+    },
+    {
+      "id": "sticky-note-local-files",
+      "name": "Note: Local files",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1940,
+        -180
+      ],
+      "parameters": {
+        "content": "## Local files\nFiles in the backend `uploads/` folder. Audio and video go to speech-to-text; PDFs are read as text; images go to the vision model.",
+        "width": 3460,
+        "height": 480,
+        "color": 7
+      }
+    },
+    {
+      "id": "sticky-note-pasted-text",
+      "name": "Note: Pasted text",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1940,
+        340
+      ],
+      "parameters": {
+        "content": "## Pasted text\nA transcript pasted in Obsidian skips downloading. A finished note sent back for reprocessing skips the model too.",
+        "width": 520,
+        "height": 380,
+        "color": 7
+      }
+    },
+    {
+      "id": "sticky-note-video-link",
+      "name": "Note: Video link",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1940,
+        740
+      ],
+      "parameters": {
+        "content": "## Video link\nTries the video's own subtitles first. Without subtitles it downloads the audio and sends it to speech-to-text.",
+        "width": 2020,
+        "height": 360,
+        "color": 7
+      }
+    },
+    {
+      "id": "sticky-note-video-details",
+      "name": "Note: Video details",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1940,
+        1100
+      ],
+      "parameters": {
+        "content": "## Video details\nTitle, author, length and cover from yt-dlp, added to the result.",
+        "width": 1020,
+        "height": 260,
+        "color": 7
+      }
+    },
+    {
+      "id": "sticky-note-write-the-note",
+      "name": "Note: Write the note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        940,
+        140
+      ],
+      "parameters": {
+        "content": "## Write the note\n**AI: Write Note** holds the prompt. If its reply is not valid JSON, **Code: Parse Note JSON** asks it again, up to three times; a wrong key or model name stops at once with a message.",
+        "width": 2400,
+        "height": 540,
+        "color": 7
+      }
     }
   ],
   "connections": {
@@ -1601,17 +1682,6 @@
             "node": "Code: Validate Video URL",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Set User Provided Transcript": {
-      "main": [
-        [
-          {
-            "node": "Merge: Transcript Sources",
-            "type": "main",
-            "index": 2
           }
         ]
       ]
@@ -1661,31 +1731,31 @@
             "index": 0
           },
           {
-            "node": "Switch",
+            "node": "Switch: Has Link?",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Set: Given Output",
+            "node": "Set: Note from Request",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Switch",
+            "node": "Switch: Has Link?",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Set User Provided Transcript",
+            "node": "Set: Pasted Transcript",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Switch",
+            "node": "Switch: Has Link?",
             "type": "main",
             "index": 0
           }
@@ -1697,14 +1767,14 @@
             "index": 0
           },
           {
-            "node": "CMD: Get Video Metadata1",
+            "node": "CMD: Get Video Metadata",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Stop and Error",
+            "node": "Stop: No Link or Transcript",
             "type": "main",
             "index": 0
           }
@@ -1737,46 +1807,14 @@
       "main": [
         [
           {
-            "node": "Merge",
+            "node": "Merge: Result",
             "type": "main",
             "index": 1
           }
         ],
         [
           {
-            "node": "AI Agent1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Switch: AI Parse Retry?": {
-      "main": [
-        [
-          {
-            "node": "Set: Summary",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "AI Agent1",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "AI Agent6",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Set: Error Transcript",
+            "node": "AI: Write Note",
             "type": "main",
             "index": 0
           }
@@ -1788,17 +1826,6 @@
         [
           {
             "node": "Set: Final Transcript for AI",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: Parse AI JSON Output & Manage Retries": {
-      "main": [
-        [
-          {
-            "node": "Switch: AI Parse Retry?",
             "type": "main",
             "index": 0
           }
@@ -1827,17 +1854,6 @@
         ]
       ]
     },
-    "Set: Given Output": {
-      "main": [
-        [
-          {
-            "node": "Code: Parse AI JSON Output & Manage Retries",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Switch: Info Only?": {
       "main": [
         [],
@@ -1850,40 +1866,11 @@
         ]
       ]
     },
-    "CMD: Get Video Metadata1": {
-      "main": [
-        [
-          {
-            "node": "Code: Parse Metadata",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Set: Error Transcript",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Set: Summary": {
       "main": [
         [
           {
-            "node": "Merge",
+            "node": "Merge: Result",
             "type": "main",
             "index": 0
           }
@@ -1894,20 +1881,9 @@
       "main": [
         [
           {
-            "node": "Merge",
+            "node": "Merge: Result",
             "type": "main",
             "index": 3
-          }
-        ]
-      ]
-    },
-    "Switch": {
-      "main": [
-        [
-          {
-            "node": "CMD: Get Video Metadata1",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -1941,35 +1917,13 @@
         ]
       ]
     },
-    "AI Agent1": {
-      "main": [
-        [
-          {
-            "node": "Code: Parse AI JSON Output & Manage Retries",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Set: Metadata": {
       "main": [
         [
           {
-            "node": "Merge",
+            "node": "Merge: Result",
             "type": "main",
             "index": 2
-          }
-        ]
-      ]
-    },
-    "AI Agent6": {
-      "main": [
-        [
-          {
-            "node": "Code: Parse AI JSON Output & Manage Retries",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -2003,16 +1957,11 @@
         ]
       ]
     },
-    "Respond to Webhook": {
-      "main": [
-        []
-      ]
-    },
     "Code: Split Files": {
       "main": [
         [
           {
-            "node": "Read Local Document",
+            "node": "File: Read Local Document",
             "type": "main",
             "index": 0
           }
@@ -2074,12 +2023,7 @@
       "ai_languageModel": [
         [
           {
-            "node": "AI Agent1",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "AI Agent6",
+            "node": "AI: Write Note",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -2141,7 +2085,7 @@
       "main": [
         [
           {
-            "node": "Respond to Webhook: Test",
+            "node": "Respond: Health Report",
             "type": "main",
             "index": 0
           }
@@ -2152,29 +2096,7 @@
       "main": [
         [
           {
-            "node": "Write Cookie File",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Write Cookie File": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook: Cookies",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read Local Document": {
-      "main": [
-        [
-          {
-            "node": "Switch: Document Kind",
+            "node": "File: Write Cookies",
             "type": "main",
             "index": 0
           }
@@ -2260,6 +2182,142 @@
           }
         ]
       ]
+    },
+    "AI: Write Note": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Note JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CMD: Get Video Metadata": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Error Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: Result": {
+      "main": [
+        [
+          {
+            "node": "Respond: Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Has Link?": {
+      "main": [
+        [
+          {
+            "node": "CMD: Get Video Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Pasted Transcript": {
+      "main": [
+        [
+          {
+            "node": "Merge: Transcript Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Set: Note from Request": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Note JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond: Result": {
+      "main": [
+        []
+      ]
+    },
+    "Code: Parse Note JSON": {
+      "main": [
+        [
+          {
+            "node": "Switch: Retry Note?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Retry Note?": {
+      "main": [
+        [
+          {
+            "node": "Set: Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Write Note",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set: Error Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File: Write Cookies": {
+      "main": [
+        [
+          {
+            "node": "Respond: Cookies Saved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File: Read Local Document": {
+      "main": [
+        [
+          {
+            "node": "Switch: Document Kind",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2270,7 +2328,7 @@
   "meta": {
     "videoSummaryWorkflow": {
       "name": "Video Summary",
-      "version": "3.0.0",
+      "version": "3.1.0",
       "variant": "packaged",
       "webhookPath": "obsidian-video-summary",
       "models": [],
@@ -2283,6 +2341,6 @@
     }
   },
   "active": false,
-  "version": "3.0.0",
+  "version": "3.1.0",
   "id": "vsMainWorkflow01"
 }

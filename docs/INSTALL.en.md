@@ -47,3 +47,10 @@ running (open it, rerun the script); port 5678 taken (the script picks the next 
 already has it); "not ready" right after start (wait a minute); wrong key (`./vs-backend.sh keys`);
 YouTube blocked on your network (set `VS_HTTP_PROXY`). The backend listens only on `127.0.0.1`; see
 [backend/SECURITY.md](../backend/SECURITY.md) before exposing it anywhere else.
+
+To see which step failed, open the address in the connection code (by default
+<http://127.0.0.1:5678>) in a browser; the first visit creates an n8n account that stays on your
+computer. Open **Executions**, then the latest run. A model or key problem still shows Success,
+because the error is handed back to the plugin: open **AI: Write Note** and read its output.
+
+<img src="screenshots/n8n-workflow.jpg" width="860" alt="The Video Summary workflow in n8n, one lane per kind of request">

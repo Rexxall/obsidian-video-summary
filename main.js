@@ -224,9 +224,6 @@ function asRecord(value) {
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
-function asString(value) {
-  return typeof value === "string" ? value : void 0;
-}
 function asText(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -1866,7 +1863,7 @@ var SETUP_TRIAL_TRANSCRIPT = "\u4ECA\u5929\u4ECB\u7ECD\u756A\u8304\u5DE5\u4F5C\u
 var LEGACY_N8N_WEBHOOK_URL = "http://localhost:5678/webhook/cyrus";
 var RECOMMENDED_WORKFLOW = {
   name: "Video Summary",
-  version: "3.0.0",
+  version: "3.1.0",
   variant: "packaged",
   webhookPath: "obsidian-video-summary",
   models: [],
@@ -1930,9 +1927,7 @@ var platformCapabilities = () => [
   }
 ];
 var DEFAULT_SETTINGS = {
-  activeBackend: "n8n",
   n8nWebhookUrl: DEFAULT_N8N_WEBHOOK_URL,
-  codexWorkerUrl: "http://127.0.0.1:8787/video-summary/process-sync",
   webhookProfiles: [
     {
       id: "default-webhook",
@@ -2678,8 +2673,7 @@ ${fieldLine}`;
       "> [!failure] \u89C6\u9891\u5904\u7406\u5931\u8D25",
       lines || "> \u672A\u77E5\u9519\u8BEF",
       ">",
-      "> \u5904\u7406\u4EFB\u52A1\u5DF2\u7ECF\u53D1\u9001\u5230 Codex Worker \u65F6\uFF0C\u53EF\u4EE5\u6253\u5F00\u63A7\u5236\u53F0\u67E5\u770B\u5B8C\u6574\u9636\u6BB5\u65E5\u5FD7\uFF1A",
-      "> http://127.0.0.1:8787/dashboard",
+      "> \u51FA\u9519\u7684\u6B65\u9AA4\u53EF\u4EE5\u5728 n8n \u7684 Executions \u9875\u9762\u67E5\u770B\uFF1Ahttp://127.0.0.1:5678/home/executions",
       "<!-- video-summary-error:end -->"
     ].join("\n");
   }
@@ -10026,12 +10020,11 @@ var SHA256_CONSTANTS = new Uint32Array([
 
 // api/VideoSummaryAPI.ts
 var CACHE_ARTIFACT_SCHEMA_VERSION = 3;
-var CACHE_PROMPT_VERSION = "video-knowledge-v3-clean-note-1";
+var CACHE_PROMPT_VERSION = "video-note-prompt-v4";
 var _VideoSummaryAPI = class _VideoSummaryAPI {
-  constructor(webhookUrl, vault, pluginDataPath, payloadKeys, backend, webhookAuth, timeoutMinutes = 30) {
+  constructor(webhookUrl, vault, pluginDataPath, payloadKeys, webhookAuth, timeoutMinutes = 30) {
     this.debugMode = false;
     this.aiModel = BACKEND_DEFAULT_MODEL_LABEL;
-    this.backend = "n8n";
     this.webhookAuth = {
       headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
       secret: ""
@@ -10048,13 +10041,10 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     this.webhookHistory = [];
     this.webhookHistoryLimit = 50;
     this.controllers = /* @__PURE__ */ new Map();
-    this.workerControllers = /* @__PURE__ */ new Set();
-    this.workerCancelUrls = /* @__PURE__ */ new Map();
     this.controllerSequence = 0;
     this.webhookUrl = webhookUrl;
     const normalizedTimeoutMinutes = Number.isFinite(timeoutMinutes) && timeoutMinutes > 0 ? timeoutMinutes : 30;
     this.timeout = normalizedTimeoutMinutes * 60 * 1e3;
-    this.backend = backend || "n8n";
     this.setWebhookAuth(webhookAuth);
     this.cacheManager = new CacheManager(vault, pluginDataPath);
     this.payloadKeys = payloadKeys || {
@@ -10073,15 +10063,11 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   setPayloadKeys(keys) {
     this.payloadKeys = keys;
   }
-  setEndpoint(url, backend = this.backend, webhookAuth) {
+  setEndpoint(url, webhookAuth) {
     this.webhookUrl = url;
-    this.backend = backend;
     if (webhookAuth !== void 0) {
       this.setWebhookAuth(webhookAuth);
     }
-  }
-  setBackend(backend) {
-    this.backend = backend;
   }
   setWebhookAuth(auth) {
     this.webhookAuth = {
@@ -10168,32 +10154,6 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     const payload = this.buildPayload(noteName, input, mode, language);
     const requestTimeoutMs = this.resolveTimeoutMs(timeoutMinutes);
-    if (this.backend === "codex-worker") {
-      try {
-        const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(noteName, payload, onProgress, requestTimeoutMs),
-          cacheFingerprint
-        );
-        this.recordWebhookResult(result, input, mode, language);
-        this.lastWebhookResult = {
-          result,
-          input,
-          mode,
-          language,
-          timestamp: Date.now()
-        };
-        if (useCache) {
-          await this.cacheManager.setByFingerprint(
-            cacheFingerprint,
-            result,
-            this.cacheSourceLabel(input)
-          );
-        }
-        return result;
-      } catch (error) {
-        throw new Error(this.formatUserFacingError(error));
-      }
-    }
     const controller = new AbortController();
     const existingController = this.controllers.get(noteName);
     if (existingController) {
@@ -10270,37 +10230,6 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     const payload = this.buildPayload("temp", input, mode, language);
     const requestTimeoutMs = this.resolveTimeoutMs(timeoutMinutes);
-    if (this.backend === "codex-worker") {
-      try {
-        const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(
-            this.nextControllerKey("simple"),
-            payload,
-            void 0,
-            requestTimeoutMs
-          ),
-          cacheFingerprint
-        );
-        this.recordWebhookResult(result, input, mode, language);
-        this.lastWebhookResult = {
-          result,
-          input,
-          mode,
-          language,
-          timestamp: Date.now()
-        };
-        if (useCache) {
-          await this.cacheManager.setByFingerprint(
-            cacheFingerprint,
-            result,
-            this.cacheSourceLabel(input)
-          );
-        }
-        return result;
-      } catch (error) {
-        throw new Error(this.formatUserFacingError(error));
-      }
-    }
     const controller = new AbortController();
     let timedOut = false;
     const timeoutId = window.setTimeout(() => {
@@ -10369,16 +10298,12 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   onWebhookHistoryChange(listener) {
     this.historyListener = listener;
   }
-  // 取消指定笔记的请求。Worker 同时调用后端 cancel，不只停止本地轮询。
+  // 取消指定笔记的请求。
   async cancelByNoteName(noteName) {
     const controller = this.controllers.get(noteName);
     if (!controller) return;
     controller.abort();
-    if (this.workerControllers.has(controller)) {
-      await this.cancelCodexWorkerJob(controller);
-    } else {
-      this.controllers.delete(noteName);
-    }
+    this.controllers.delete(noteName);
   }
   // 缓存管理方法
   /**
@@ -10446,21 +10371,13 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
   // 取消所有正在进行的请求
   async cancelAll() {
-    const workerCancellations = [];
     for (const [key, controller] of this.controllers.entries()) {
       controller.abort();
-      if (this.workerControllers.has(controller)) {
-        workerCancellations.push(this.cancelCodexWorkerJob(controller));
-      } else {
-        this.controllers.delete(key);
-      }
+      this.controllers.delete(key);
     }
-    await Promise.all(workerCancellations);
+    await Promise.resolve();
   }
   buildPayload(noteName, input, mode, language) {
-    if (this.backend === "codex-worker") {
-      return this.buildCodexWorkerPayload(noteName, input, mode, language);
-    }
     const keys = this.payloadKeys;
     const metadata = {};
     metadata[keys.mode] = mode;
@@ -10486,50 +10403,11 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       // 正文内容
     };
   }
-  buildCodexWorkerPayload(noteName, input, mode, language) {
-    const metadata = {
-      mode,
-      language,
-      ai: this.aiModel,
-      title: noteName,
-      captured_at: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    if (mode === "info-only") {
-      metadata.info_only = true;
-    }
-    if (input.url && !input.skipSourceFetch) {
-      metadata.link = input.url;
-    }
-    if (input.transcript) {
-      metadata.provided_transcript = input.transcript;
-    }
-    if (input.localFile && !input.skipSourceFetch) {
-      metadata.local_file = input.localFile;
-    }
-    if (!input.skipSourceFetch && Array.isArray(input.localFiles) && input.localFiles.length > 0) {
-      metadata.local_files = input.localFiles;
-    }
-    if (input.merge !== void 0) {
-      metadata.merge = input.merge;
-    }
-    if (input.skipSourceFetch) {
-      metadata.skip_source_fetch = true;
-      if (input.sourceUrl) metadata.source_url_for_citation = input.sourceUrl;
-    }
-    this.addAnalysisMetadata(metadata, input);
-    return {
-      source: "obsidian-plugin",
-      action: "process",
-      name: noteName,
-      metadata,
-      content: ""
-    };
-  }
   withAnalysisDefaults(input) {
     const requestedDepth = input.processingDepth || this.analysisDefaults.processingDepth;
     return {
       ...input,
-      processingDepth: this.backend === "n8n" && requestedDepth === "deep-visual" ? "evidence" : requestedDepth,
+      processingDepth: requestedDepth === "deep-visual" ? "evidence" : requestedDepth,
       contentType: input.contentType || this.analysisDefaults.contentType,
       autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
       attentionAssessment: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
@@ -10546,7 +10424,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       mode,
       language,
       model: this.aiModel,
-      backend: this.backend,
+      backend: "n8n",
       schemaVersion: CACHE_ARTIFACT_SCHEMA_VERSION,
       processingDepth,
       requestedContentType: input.contentType || this.analysisDefaults.contentType,
@@ -10636,236 +10514,9 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       this.historyListener(this.webhookHistory.map((item) => ({ ...item })));
     }
   }
-  async processCodexWorkerJob(controllerKey, payload, onProgress, requestTimeoutMs = this.timeout) {
-    const controller = new AbortController();
-    const previousController = this.controllers.get(controllerKey);
-    if (previousController) {
-      previousController.abort();
-      if (this.workerControllers.has(previousController)) {
-        void this.cancelCodexWorkerJob(previousController);
-      }
-    }
-    this.controllers.set(controllerKey, controller);
-    this.workerControllers.add(controller);
-    const timeoutMs = Math.max(1, Math.floor(Number(requestTimeoutMs) || 1));
-    const deadline = Date.now() + timeoutMs;
-    let timedOut = false;
-    const timeoutId = window.setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs);
-    const jobsUrl = this.getCodexWorkerJobsUrl();
-    try {
-      const response = await _VideoSummaryAPI.nativeRequest(
-        {
-          url: jobsUrl,
-          method: "POST",
-          contentType: "application/json",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        },
-        Math.max(1, deadline - Date.now())
-      );
-      if (!_VideoSummaryAPI.isSuccessfulStatus(response.status)) {
-        throw new Error(this.formatNativeHttpError("Codex Worker", response));
-      }
-      const createdJob = asRecord(this.readNativeJsonResponse(response, "Codex Worker \u521B\u5EFA\u4EFB\u52A1"));
-      if (!asText(createdJob.id)) {
-        throw new Error("Codex Worker \u6CA1\u6709\u8FD4\u56DE\u4EFB\u52A1 ID");
-      }
-      const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
-      this.workerCancelUrls.set(controller, this.getCodexWorkerJobCancelUrl(statusUrl));
-      if (controller.signal.aborted) {
-        await this.cancelCodexWorkerJob(controller);
-        throw this.abortError();
-      }
-      let latestJob = createdJob;
-      let lastProgressLogMarker;
-      while (Date.now() < deadline) {
-        await this.sleep(Math.min(1e3, Math.max(1, deadline - Date.now())), controller.signal);
-        const statusResponse = await _VideoSummaryAPI.nativeRequest(
-          { url: statusUrl, method: "GET" },
-          Math.max(1, deadline - Date.now()),
-          controller.signal
-        );
-        if (!_VideoSummaryAPI.isSuccessfulStatus(statusResponse.status)) {
-          throw new Error(
-            this.formatNativeHttpError("Codex Worker job \u72B6\u6001\u8BFB\u53D6\u5931\u8D25", statusResponse)
-          );
-        }
-        latestJob = asRecord(this.readNativeJsonResponse(statusResponse, "Codex Worker job \u72B6\u6001"));
-        if (onProgress) {
-          const latestLog = latestJob.latestLog ?? latestJob.lastLog;
-          const stageLabel = pickString(latestLog, ["stage", "step", "phase"]) || pickString(latestJob, ["stage", "step", "phase", "status"]);
-          const logMarker = progressLogMarker(latestLog);
-          const message = pickString(latestJob, ["message", "detail"]) || (logMarker && logMarker !== lastProgressLogMarker ? formatProgressLog(latestLog) : void 0);
-          if (logMarker) lastProgressLogMarker = logMarker;
-          const progress = pickRatio(latestJob, ["progress", "percent", "percentage"]);
-          if (stageLabel || message || progress !== void 0) {
-            onProgress({ stageLabel, message, progress });
-          }
-        }
-        if (latestJob.status === "success") {
-          const meta = payload.metadata ?? {};
-          return this.parseSummaryResponse(latestJob.result, {
-            url: asString(meta.link),
-            sourceUrl: asString(meta.source_url_for_citation),
-            processingDepth: meta.processing_depth,
-            contentType: meta.content_type,
-            autoRoute: meta.auto_route,
-            attentionAssessment: meta.attention_assessment,
-            generateLearning: meta.generate_learning
-          });
-        }
-        if (latestJob.status === "needs-review" || latestJob.status === "error" || latestJob.status === "cancelled") {
-          throw new Error(this.formatCodexJobError(latestJob));
-        }
-      }
-      timedOut = true;
-      controller.abort();
-      throw this.abortError();
-    } catch (error) {
-      if (controller.signal.aborted || error?.name === "AbortError" || error?.name === "TimeoutError") {
-        await this.cancelCodexWorkerJob(controller);
-        if (timedOut || Date.now() >= deadline || error?.name === "TimeoutError") {
-          throw new Error(
-            `Codex Worker \u4EFB\u52A1\u8D85\u65F6\u3002\u53EF\u5728\u63A7\u5236\u53F0\u67E5\u770B: ${this.getCodexWorkerDashboardUrl()}`
-          );
-        }
-        throw new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88");
-      }
-      throw error;
-    } finally {
-      window.clearTimeout(timeoutId);
-      this.workerCancelUrls.delete(controller);
-      this.workerControllers.delete(controller);
-      if (this.controllers.get(controllerKey) === controller) {
-        this.controllers.delete(controllerKey);
-      }
-    }
-  }
-  getCodexWorkerJobsUrl() {
-    try {
-      const url = new URL(this.webhookUrl);
-      const path = url.pathname.replace(/\/+$/, "");
-      if (path.endsWith("/video-summary/jobs")) {
-        url.pathname = path;
-      } else if (path.endsWith("/video-summary/process-sync")) {
-        url.pathname = path.replace(/\/process-sync$/, "/jobs");
-      } else {
-        url.pathname = "/video-summary/jobs";
-      }
-      url.search = "";
-      url.hash = "";
-      return url.toString();
-    } catch {
-      return "http://127.0.0.1:8787/video-summary/jobs";
-    }
-  }
-  getCodexWorkerJobStatusUrl(jobsUrl, job) {
-    const id = asText(job.id) ?? "";
-    const logsUrl = asString(job.logsUrl);
-    try {
-      const base = new URL(jobsUrl);
-      if (logsUrl && logsUrl.startsWith("/")) {
-        base.pathname = logsUrl.replace(/\/logs$/, "");
-        base.search = "";
-        base.hash = "";
-        return base.toString();
-      }
-      base.pathname = `${base.pathname.replace(/\/+$/, "")}/${encodeURIComponent(id)}`;
-      base.search = "";
-      base.hash = "";
-      return base.toString();
-    } catch {
-      return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(id)}`;
-    }
-  }
-  getCodexWorkerJobCancelUrl(statusUrl) {
-    try {
-      const url = new URL(statusUrl);
-      url.pathname = `${url.pathname.replace(/\/+$/, "")}/cancel`;
-      url.hash = "";
-      return url.toString();
-    } catch {
-      return `${statusUrl.replace(/\/+$/, "")}/cancel`;
-    }
-  }
-  async cancelCodexWorkerJob(controller) {
-    const cancelUrl = this.workerCancelUrls.get(controller);
-    if (!cancelUrl) return;
-    try {
-      const response = await _VideoSummaryAPI.nativeRequest(
-        {
-          url: cancelUrl,
-          method: "POST",
-          contentType: "application/json",
-          headers: { "Content-Type": "application/json" },
-          body: "{}"
-        },
-        4e3
-      );
-      if (!_VideoSummaryAPI.isSuccessfulStatus(response.status) && response.status !== 404) {
-        throw new Error(this.formatNativeHttpError("Codex Worker \u53D6\u6D88\u5931\u8D25", response));
-      }
-    } catch (error) {
-      if (this.debugMode) {
-        console.warn("[VideoSummaryAPI] Codex Worker \u53D6\u6D88\u8BF7\u6C42\u5931\u8D25", error);
-      }
-    }
-  }
-  getCodexWorkerDashboardUrl() {
-    try {
-      const url = new URL(this.webhookUrl);
-      url.pathname = "/dashboard";
-      url.search = "";
-      url.hash = "";
-      return url.toString();
-    } catch {
-      return "http://127.0.0.1:8787/dashboard";
-    }
-  }
-  formatCodexJobError(job) {
-    const error = job.error;
-    const errorRecord = asRecord(error);
-    const errorMessage2 = asString(error) || asString(errorRecord.error) || asString(errorRecord.message) || `Codex Worker \u4EFB\u52A1\u72B6\u6001: ${asText(job.status) || "unknown"}`;
-    const lastDiagnostic = [...asArray(job.logs)].reverse().map(asRecord).find((entry) => {
-      const detail = asRecord(entry.detail);
-      return detail.error || detail.stderr || entry.stage;
-    });
-    const diagnosticText = lastDiagnostic ? `
-\u6700\u540E\u9636\u6BB5: ${asText(lastDiagnostic.stage) ?? ""}
-\u8BCA\u65AD: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}` : "";
-    return tr(
-      `${errorMessage2}${diagnosticText}
-\u63A7\u5236\u53F0: ${this.getCodexWorkerDashboardUrl()}`,
-      `${errorMessage2}${diagnosticText}
-Dashboard: ${this.getCodexWorkerDashboardUrl()}`
-    );
-  }
   truncateError(value, max) {
     if (!value || value.length <= max) return value || "";
     return `${value.slice(0, max)}...`;
-  }
-  sleep(ms, signal) {
-    if (signal?.aborted) return Promise.reject(this.abortError());
-    return new Promise((resolve, reject) => {
-      const timeoutId = window.setTimeout(() => {
-        signal?.removeEventListener("abort", onAbort);
-        resolve();
-      }, ms);
-      const onAbort = () => {
-        window.clearTimeout(timeoutId);
-        signal?.removeEventListener("abort", onAbort);
-        reject(this.abortError());
-      };
-      signal?.addEventListener("abort", onAbort, { once: true });
-    });
-  }
-  abortError() {
-    const error = new Error("Aborted");
-    error.name = "AbortError";
-    return error;
   }
   nextControllerKey(prefix) {
     this.controllerSequence += 1;
@@ -10878,27 +10529,11 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
     }
     return normalizedMinutes * 60 * 1e3;
   }
-  readNativeJsonResponse(response, label) {
-    const text2 = response.text || "";
-    if (!text2.trim()) {
-      throw new Error(`${label}\u8FD4\u56DE\u7A7A\u54CD\u5E94`);
-    }
-    const parsed = this.tryParseJson(text2);
-    if (!parsed) {
-      throw new Error(`${label}\u8FD4\u56DE\u7684\u4E0D\u662F JSON\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text2, 180)}`);
-    }
-    return parsed;
-  }
-  formatNativeHttpError(label, response) {
-    const text2 = response.text || "";
-    const snippet = text2 ? `\u3002\u54CD\u5E94\u7247\u6BB5: ${this.truncateError(text2, 180)}` : "";
-    return `${label}: HTTP ${response.status}${snippet}`;
-  }
   static isSuccessfulStatus(status) {
     return status >= 200 && status < 300;
   }
   /**
-   * n8n webhook calls use the same native layer as the Worker (no browser fetch, no CORS),
+   * n8n webhook calls go through Obsidian's native request layer (no browser fetch, no CORS),
    * wrapped as a Response so the existing error and JSON readers keep working.
    */
   static async webhookRequest(url, headers, body, timeoutMs, signal) {
@@ -11062,7 +10697,7 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
     }
     return normalizeRichProcessingResult(result, payload, {
       sourceUrl: input.sourceUrl || input.url,
-      backend: this.backend,
+      backend: "n8n",
       model: this.aiModel,
       processingDepth: input.processingDepth,
       promptVersion: CACHE_PROMPT_VERSION,
@@ -11162,75 +10797,15 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
   async quickHealthCheck(timeoutMs = 4e3) {
     return _VideoSummaryAPI.probeEndpoint(
       this.webhookUrl,
-      this.backend,
       timeoutMs,
-      this.backend === "n8n" ? this.buildConnectionTestPayload() : void 0,
-      this.backend === "n8n" ? this.webhookAuth : void 0
+      this.buildConnectionTestPayload(),
+      this.webhookAuth
     );
   }
-  /**
-   * 探测任意后端端点是否可用（静态方法，供"另一个后端是否可用"的检查复用）。
-   * - n8n: 保持 fetch POST 测试 payload，仅 2xx 算可用。
-   * - codex-worker: 用 Obsidian requestUrl GET /health，必须是 2xx 且返回有效 worker health JSON。
-   */
-  static async probeEndpoint(url, backend, timeoutMs = 4e3, n8nBody, n8nAuth) {
+  /** 向 n8n 端点 POST 测试 payload，只有 2xx 算可用。 */
+  static async probeEndpoint(url, timeoutMs = 4e3, n8nBody, n8nAuth) {
     if (!url || !url.trim()) {
       return { ok: false, error: tr("\u670D\u52A1 URL \u672A\u914D\u7F6E", "Service URL not set") };
-    }
-    if (backend === "codex-worker") {
-      let probeUrl;
-      try {
-        const parsed = new URL(url);
-        parsed.pathname = "/health";
-        parsed.search = "";
-        parsed.hash = "";
-        probeUrl = parsed.toString();
-      } catch {
-        probeUrl = "http://127.0.0.1:8787/health";
-      }
-      try {
-        const response = await _VideoSummaryAPI.nativeRequest(
-          { url: probeUrl, method: "GET" },
-          timeoutMs
-        );
-        const bodySnippet = (response.text || "").slice(0, 180);
-        if (!_VideoSummaryAPI.isSuccessfulStatus(response.status)) {
-          return {
-            ok: false,
-            status: response.status,
-            bodySnippet,
-            error: `HTTP ${response.status} \u2014 Codex Worker health \u8BF7\u6C42\u5931\u8D25`
-          };
-        }
-        let health;
-        try {
-          health = asRecord(JSON.parse(response.text || ""));
-        } catch {
-          return {
-            ok: false,
-            status: response.status,
-            bodySnippet,
-            error: "Codex Worker /health \u672A\u8FD4\u56DE\u6709\u6548 JSON"
-          };
-        }
-        if (health.ok !== true || health.service !== "codex-video-worker") {
-          return {
-            ok: false,
-            status: response.status,
-            bodySnippet,
-            error: "Codex Worker /health \u54CD\u5E94\u7F3A\u5C11\u6709\u6548\u7684 ok/service \u6807\u8BC6"
-          };
-        }
-        return { ok: true, status: response.status, bodySnippet };
-      } catch (error) {
-        return {
-          ok: false,
-          error: error?.name === "TimeoutError" ? tr(
-            `${timeoutMs}ms \u5185\u65E0\u54CD\u5E94\uFF08\u670D\u52A1\u53EF\u80FD\u672A\u542F\u52A8\uFF09`,
-            `No answer within ${timeoutMs}ms (the service may not be running)`
-          ) : error?.message || String(error)
-        };
-      }
     }
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -11279,29 +10854,6 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
   // 测试连接（返回耗时、响应片段和下一步建议，便于诊断）
   async testConnection() {
     const started = Date.now();
-    if (this.backend === "codex-worker") {
-      const probe = await _VideoSummaryAPI.probeEndpoint(this.webhookUrl, "codex-worker", 4e3);
-      const durationMs = Date.now() - started;
-      if (probe.ok) {
-        return {
-          success: true,
-          durationMs,
-          status: probe.status,
-          bodySnippet: probe.bodySnippet
-        };
-      }
-      const error = this.formatUserFacingError(
-        new Error(probe.error || "Codex Worker \u5065\u5EB7\u68C0\u67E5\u5931\u8D25")
-      );
-      return {
-        success: false,
-        durationMs,
-        status: probe.status,
-        bodySnippet: probe.bodySnippet,
-        error,
-        hint: this.getConnectionHint(error)
-      };
-    }
     try {
       const response = await _VideoSummaryAPI.webhookRequest(
         this.webhookUrl,
@@ -11477,16 +11029,6 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
     }
   }
   buildConnectionTestPayload() {
-    if (this.backend === "codex-worker") {
-      return this.buildPayload(
-        "connection-test",
-        {
-          url: "https://example.com/video"
-        },
-        "info-only",
-        "zh"
-      );
-    }
     return this.buildPayload("test", {}, "transcript-only", "zh");
   }
   tryParseJson(text2) {
@@ -11518,7 +11060,6 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
     };
   }
   getWorkflowCompatibilityWarnings(workflow) {
-    if (this.backend !== "n8n") return [];
     if (!workflow) {
       return [
         tr(
@@ -11616,24 +11157,12 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
       return tr("\u8BF7\u6C42\u5DF2\u53D6\u6D88\u3002", "Request cancelled.");
     }
     if (message.includes("HTTP 404")) {
-      if (this.backend === "codex-worker") {
-        return tr(
-          `Codex Worker \u7AEF\u70B9\u4E0D\u5B58\u5728\u3002\u8BF7\u786E\u8BA4\u540E\u7AEF App \u5DF2\u542F\u52A8\u4E14 URL \u6307\u5411\u6B63\u786E\u7AEF\u53E3\u3002\u5F53\u524D URL: ${this.webhookUrl}`,
-          `Codex Worker endpoint not found. Check that the backend app is running and the URL points at the right port. Current URL: ${this.webhookUrl}`
-        );
-      }
       return tr(
         `\u540E\u7AEF\u8FD8\u6CA1\u51C6\u5907\u597D\uFF0C\u6216\u8005\u5730\u5740\u4E0D\u5BF9\u3002\u7B2C\u4E00\u6B21\u542F\u52A8\u8981\u7B49\u4E00\u5206\u949F\u5DE6\u53F3\uFF1B\u5982\u679C\u4E00\u76F4\u8FD9\u6837\uFF0C\u786E\u8BA4\u8FDE\u63A5\u7801\u91CC\u7684\u7AEF\u53E3\u548C\u542F\u52A8\u811A\u672C\u663E\u793A\u7684\u4E00\u81F4\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`,
         `The backend is not ready yet, or the address is wrong. The first start takes about a minute; if it stays like this, check that the port in the connection code matches the start script. Current address: ${this.webhookUrl}`
       );
     }
     if (message.includes("HTTP 401") || message.includes("HTTP 403")) {
-      if (this.backend === "codex-worker") {
-        return tr(
-          "Codex Worker \u62D2\u7EDD\u8BBF\u95EE\u3002\u8BF7\u68C0\u67E5 Worker \u9274\u6743 token \u4E0E\u672C\u5730\u670D\u52A1\u5B89\u5168\u914D\u7F6E\u3002",
-          "Codex Worker refused access. Check the Worker token and local security settings."
-        );
-      }
       return tr(
         "\u540E\u7AEF\u62D2\u7EDD\u4E86\u8FD9\u4E2A\u8FDE\u63A5\u7801\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend code\uFF0C\u628A\u8FDE\u63A5\u7801\u91CD\u65B0\u7C98\u8D34\u5230\u8BBE\u7F6E\u7684\u201C\u9996\u6B21\u914D\u7F6E\u201D\u3002",
         "The backend rejected this connection code. Run vs-backend code in the backend folder and paste the code again into first-run setup."
@@ -11658,24 +11187,12 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
       );
     }
     if (message.includes("HTTP 500") || message.includes("HTTP 502") || message.includes("HTTP 503")) {
-      if (this.backend === "codex-worker") {
-        return tr(
-          `Codex Worker \u5185\u90E8\u62A5\u9519\u3002\u8BF7\u6253\u5F00 Worker \u63A7\u5236\u53F0\u67E5\u770B\u4EFB\u52A1\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`,
-          `Codex Worker error. Open the Worker dashboard for the job log. Original error: ${message}`
-        );
-      }
       return tr(
         `\u540E\u7AEF\u5904\u7406\u65F6\u51FA\u9519\u3002\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C vs-backend logs \u67E5\u770B\u65E5\u5FD7\u3002\u539F\u59CB\u9519\u8BEF: ${message}`,
         `The backend failed while processing. Run vs-backend logs in the backend folder. Original error: ${message}`
       );
     }
     if (lower.includes("failed to fetch") || lower.includes("load failed") || lower.includes("networkerror") || lower.includes("connection refused")) {
-      if (this.backend === "codex-worker") {
-        return tr(
-          `\u65E0\u6CD5\u8FDE\u63A5 Codex Worker\u3002\u8BF7\u786E\u8BA4\u672C\u5730\u540E\u7AEF App \u5DF2\u542F\u52A8\u3001\u7AEF\u53E3\u53EF\u8BBF\u95EE\u4E14 Worker URL \u6B63\u786E\u3002\u5F53\u524D URL: ${this.webhookUrl}`,
-          `Cannot reach the Codex Worker. Check that the backend app is running, the port is reachable and the Worker URL is right. Current URL: ${this.webhookUrl}`
-        );
-      }
       return tr(
         `\u65E0\u6CD5\u8FDE\u63A5\u540E\u7AEF\u3002\u5148\u6253\u5F00 Docker\uFF0C\u518D\u5728\u540E\u7AEF\u6587\u4EF6\u5939\u8FD0\u884C\u542F\u52A8\u811A\u672C\u3002\u5F53\u524D\u5730\u5740: ${this.webhookUrl}`,
         `Cannot reach the backend. Open Docker, then run the start script in the backend folder. Current address: ${this.webhookUrl}`
@@ -11696,7 +11213,7 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
     if (message.includes("\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u6570\u636E\u4E2D\u6CA1\u6709\u6709\u6548\u5185\u5BB9")) {
       return tr(
         "\u5904\u7406\u670D\u52A1\u5DF2\u54CD\u5E94\uFF0C\u4F46\u6CA1\u6709\u8FD4\u56DE summary\u3001note\u3001video_transcript \u6216\u89C6\u9891\u4FE1\u606F\u5B57\u6BB5\u3002\u8BF7\u68C0\u67E5 n8n \u6700\u540E\u7684 Respond to Webhook \u8F93\u51FA\u3002",
-        "The backend answered without summary, note, video_transcript or video info fields. Check the last Respond to Webhook node in n8n."
+        "The backend answered without summary, note, video_transcript or video info fields. Check the last Respond: Result node in n8n."
       );
     }
     return message || tr(
@@ -11717,12 +11234,6 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
         "Open Docker, then run the start script in the backend folder (macOS: double-click start-mac.command; Windows: double-click start-windows.cmd)."
       );
     }
-    if (/无法连接 Codex Worker|Cannot reach the Codex Worker/.test(message)) {
-      return tr(
-        "\u5148\u542F\u52A8\u672C\u5730\u540E\u7AEF App\uFF0C\u518D\u786E\u8BA4 Worker URL \u4E0E\u7AEF\u53E3\u914D\u7F6E\u3002",
-        "Start the local backend app first, then check the Worker URL and port."
-      );
-    }
     if (/Bilibili 拒绝|B 站拒绝|Bilibili refused/.test(message)) {
       return tr(
         "\u8FD0\u884C vs-backend update \u66F4\u65B0 yt-dlp\uFF1B\u4ECD\u5931\u8D25\u65F6\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u540C\u6B65 B \u7AD9\u767B\u5F55\u3002",
@@ -11731,23 +11242,17 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
     }
     if (/空响应|empty response/.test(message)) {
       return tr(
-        "\u68C0\u67E5 Respond to Webhook: Test \u8282\u70B9\u662F\u5426\u4ECD\u8FDE\u63A5\u5728\u6D4B\u8BD5\u5206\u652F\u4E0A\u3002",
-        "Check that the Respond to Webhook: Test node is still connected to the test branch."
+        "\u68C0\u67E5 Respond: Health Report \u8282\u70B9\u662F\u5426\u4ECD\u8FDE\u63A5\u5728\u6D4B\u8BD5\u5206\u652F\u4E0A\u3002",
+        "Check that the Respond: Health Report node is still connected to the test branch."
       );
     }
     if (/不是 JSON|没有有效内容|not JSON|without summary/.test(message)) {
       return tr(
-        "\u68C0\u67E5\u6700\u540E\u4E00\u4E2A Respond to Webhook \u8282\u70B9\uFF0C\u786E\u4FDD\u8FD4\u56DE JSON\uFF0C\u4E14\u5305\u542B note\u3001summary\u3001video_transcript \u6216 video_title\u3002",
-        "Check the last Respond to Webhook node: it must return JSON with note, summary, video_transcript or video_title."
+        "\u68C0\u67E5\u6700\u540E\u4E00\u4E2A Respond: Result \u8282\u70B9\uFF0C\u786E\u4FDD\u8FD4\u56DE JSON\uFF0C\u4E14\u5305\u542B note\u3001summary\u3001video_transcript \u6216 video_title\u3002",
+        "Check the last Respond: Result node: it must return JSON with note, summary, video_transcript or video_title."
       );
     }
     if (/拒绝访问|refused access|rejected this connection code/.test(message)) {
-      if (this.backend === "codex-worker") {
-        return tr(
-          "\u68C0\u67E5 Worker \u7684\u5171\u4EAB token\uFF1B/health \u5E94\u4FDD\u6301\u53EF\u8BFB\uFF0C\u4EFB\u52A1\u63A5\u53E3\u9700\u4F7F\u7528\u5339\u914D\u7684\u9274\u6743\u914D\u7F6E\u3002",
-          "Check the Worker's shared token; /health should stay readable and job endpoints need matching auth."
-        );
-      }
       return tr(
         "\u5982\u679C\u4F60\u4F7F\u7528\u8FDC\u7A0B n8n\uFF0C\u8BF7\u68C0\u67E5\u767B\u5F55\u3001\u53CD\u5411\u4EE3\u7406\u548C CORS/\u9274\u6743\u914D\u7F6E\u3002",
         "If you use a remote n8n, check login, reverse proxy and CORS/auth settings."
@@ -11772,44 +11277,9 @@ Dashboard: ${this.getCodexWorkerDashboardUrl()}`
     }
   }
 };
-/** Network layer for Worker calls; Obsidian's requestUrl by default, replaceable in tests. */
+/** Network layer for webhook calls; Obsidian's requestUrl by default, replaceable in tests. */
 _VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl3 }) => requestUrl3(request));
 var VideoSummaryAPI = _VideoSummaryAPI;
-function pickString(source, keys) {
-  if (!isRecord(source)) return void 0;
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return void 0;
-}
-function progressLogMarker(log) {
-  if (typeof log === "string") return log.trim() || void 0;
-  if (!isRecord(log)) return void 0;
-  return pickString(log, ["at", "timestamp"]) || formatProgressLog(log);
-}
-function formatProgressLog(log) {
-  if (typeof log === "string") return log.trim() || void 0;
-  if (!isRecord(log)) return void 0;
-  const direct = pickString(log, ["message", "text"]);
-  if (direct) return direct;
-  const detail = log.detail;
-  if (typeof detail === "string") return detail.trim() || void 0;
-  if (!isRecord(detail)) return void 0;
-  const entries2 = Object.entries(detail).filter(([, value]) => value !== void 0 && value !== null && value !== "").slice(0, 4).map(([key, value]) => `${key}: ${asText(value) ?? JSON.stringify(value)}`);
-  return entries2.length > 0 ? entries2.join(" \xB7 ") : void 0;
-}
-function pickRatio(source, keys) {
-  if (!isRecord(source)) return void 0;
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === "number" && Number.isFinite(value)) {
-      const ratio = value > 1 ? value / 100 : value;
-      return Math.min(1, Math.max(0, ratio));
-    }
-  }
-  return void 0;
-}
 
 // views/VideoSummaryView.ts
 var import_obsidian15 = require("obsidian");
@@ -12101,12 +11571,6 @@ function showMoreMenu(ctx, event) {
       onClick: () => run("test-connection")
     },
     {
-      title: tr("Codex \u672C\u5730\u670D\u52A1\u63A7\u5236\u53F0", "Codex local service dashboard"),
-      icon: "gauge",
-      disabled: ctx.plugin.settings.activeBackend !== "codex-worker",
-      onClick: () => run("open-worker-dashboard")
-    },
-    {
       title: tr("\u63D2\u4EF6\u8BBE\u7F6E", "Plugin settings"),
       icon: "settings",
       onClick: () => openSettings(ctx)
@@ -12121,13 +11585,8 @@ function openSettings(ctx) {
   }
 }
 function activeBackendInfo(ctx) {
-  const isWorker = ctx.plugin.settings.activeBackend === "codex-worker";
-  const endpoint = ((isWorker ? ctx.plugin.settings.codexWorkerUrl : ctx.plugin.settings.n8nWebhookUrl) || "").trim();
-  return {
-    key: `${isWorker ? "codex-worker" : "n8n"}:${endpoint}`,
-    label: isWorker ? "Codex Worker" : "n8n",
-    endpoint
-  };
+  const endpoint = (ctx.plugin.settings.n8nWebhookUrl || "").trim();
+  return { key: `n8n:${endpoint}`, label: "n8n", endpoint };
 }
 function freshProbeResult(ctx, backend) {
   const cached = backendProbeCaches.get(ctx.plugin);
@@ -12354,27 +11813,16 @@ function renderOptions(container, ctx) {
   );
   const depthLabels = {
     quick: tr("\u6781\u901F", "Fast"),
-    evidence: tr("\u8BC1\u636E", "Evidence"),
-    "deep-visual": tr("\u6DF1\u5EA6\u89C6\u89C9", "Deep visual")
+    evidence: tr("\u8BC1\u636E", "Evidence")
   };
   segmented(
     row(tr("\u7406\u89E3\u6DF1\u5EA6", "Depth")),
-    ["quick", "evidence", "deep-visual"].map((depth) => ({
+    ["quick", "evidence"].map((depth) => ({
       value: depth,
       label: depthLabels[depth]
     })),
     settings.defaultProcessingDepth,
     fire(async (depth) => {
-      if (depth === "deep-visual" && settings.activeBackend !== "codex-worker") {
-        new import_obsidian10.Notice(
-          tr(
-            "\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002",
-            "Deep visual runs only on the local video service; the n8n backend goes up to evidence."
-          ),
-          7e3
-        );
-        return;
-      }
       settings.defaultProcessingDepth = depth;
       plugin.api.setAnalysisDefaults({ processingDepth: depth });
       await plugin.saveSettings();
@@ -14604,7 +14052,6 @@ function renderKnowledgeSignals(body, ctx, job) {
     }
   }
   if (job.state !== "success" && job.state !== "review") return;
-  const depth = job.input.processingDepth || result.artifact?.processing_depth || "quick";
   const actionRow = body.createDiv({ cls: "vs-signal-actions" });
   if (!result.attention) {
     textButton(
@@ -14613,15 +14060,6 @@ function renderKnowledgeSignals(body, ctx, job) {
       fire(() => queueKnowledgeUpgrade(ctx, job, "quick")),
       "has-icon"
     );
-  }
-  if (depth !== "deep-visual" && !result.visual_evidence?.length) {
-    const upgrade = textButton(
-      actionRow,
-      tr("\u6DF1\u5EA6\u770B\u753B\u9762", "Look at the frames in depth"),
-      fire(() => queueKnowledgeUpgrade(ctx, job, "deep-visual")),
-      "has-icon"
-    );
-    prependIcon(upgrade, "scan-eye");
   }
   if (learningCount > 0 && job.notePath) {
     const review = textButton(
@@ -14650,16 +14088,6 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (actionRow.childElementCount === 0) actionRow.remove();
 }
 async function queueKnowledgeUpgrade(ctx, job, depth) {
-  if (depth === "deep-visual" && ctx.plugin.settings.activeBackend !== "codex-worker") {
-    new import_obsidian14.Notice(
-      tr(
-        "\u5185\u7F6E n8n \u5DE5\u4F5C\u6D41\u5C1A\u672A\u63A5\u901A\u5B89\u5168\u7684\u753B\u9762\u51ED\u636E\u3002\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5207\u6362\u5230\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u3002",
-        "The bundled n8n workflow has no safe frame credential yet. Switch to the local video service in settings first."
-      ),
-      7e3
-    );
-    return;
-  }
   if (!job.notePath) {
     new import_obsidian14.Notice(
       tr("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406", "Save the result as a note before adding processing")
@@ -14682,9 +14110,7 @@ async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian14.Notice(
-    depth === "deep-visual" ? tr("\u5DF2\u63D0\u4EA4\u6DF1\u5EA6\u753B\u9762\u5206\u6790", "Sent for deep visual analysis") : tr("\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD", "Sent for a quick worth-watching check")
-  );
+  new import_obsidian14.Notice(tr("\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD", "Sent for a quick worth-watching check"));
 }
 async function queueLearningUpgrade(ctx, job) {
   if (!job.notePath) {
@@ -18203,10 +17629,7 @@ ${buildInsertionContent(result)}`
     }
     const localizedMedia = await new MediaAssetLocalizer(
       this.plugin.app.vault.adapter,
-      managedMediaRoot,
-      {
-        workerEndpoint: this.plugin.settings.activeBackend === "codex-worker" ? this.plugin.settings.codexWorkerUrl : void 0
-      }
+      managedMediaRoot
     ).localizeResult(result, artifactId);
     result.video_segments = localizedMedia.result.video_segments;
     result.visual_evidence = localizedMedia.result.visual_evidence;
@@ -18217,7 +17640,7 @@ ${buildInsertionContent(result)}`
       artifact_id: artifactId,
       source_url: source.url,
       source_hash: sourceHash,
-      backend: this.plugin.settings.activeBackend,
+      backend: "n8n",
       model: this.plugin.settings.aiModel,
       prompt_profile: contentRouting.prompt_profile.id,
       prompt_version: result.artifact?.prompt_version || "video-knowledge-v3",
@@ -18277,7 +17700,7 @@ ${buildInsertionContent(result)}`
           segments: saved.segments,
           evidence_claims: saved.claims,
           visual_evidence: saved.visual_evidence,
-          backend: saved.provenance.backend || this.plugin.settings.activeBackend,
+          backend: saved.provenance.backend || "n8n",
           model: saved.provenance.model || this.plugin.settings.aiModel,
           prompt: saved.provenance.prompt_profile || "video-content-general-v1",
           version: saved.provenance.prompt_version || "video-knowledge-v3",
@@ -21689,10 +21112,6 @@ var SETTINGS_SEARCH_TERMS = [
   "\u2463 Bilibili login (optional)",
   "Cookies \u76EE\u5F55",
   "Cookies folder",
-  "\u4E3B\u5904\u7406\u540E\u7AEF",
-  "Main backend",
-  "Codex \u672C\u5730\u670D\u52A1\u5730\u5740",
-  "Codex local service address",
   "\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09",
   "Default webhook (n8n or compatible)",
   "\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6",
@@ -21956,13 +21375,6 @@ var VideoSummaryPlugin = class extends import_obsidian20.Plugin {
       name: tr("\u6D4B\u8BD5\u5F53\u524D\u89C6\u9891\u5904\u7406\u540E\u7AEF", "Test the current video backend"),
       callback: () => {
         void this.testProcessingBackendConnection();
-      }
-    });
-    this.addCommand({
-      id: "open-worker-dashboard",
-      name: tr("Codex \u672C\u5730\u670D\u52A1\u63A7\u5236\u53F0", "Codex local service dashboard"),
-      callback: () => {
-        this.openCodexWorkerDashboard();
       }
     });
     this.addCommand({
@@ -22620,7 +22032,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
   async testProcessingBackendConnection() {
     try {
       const result = await this.api.testConnection();
-      const label = this.settings.activeBackend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
+      const label = tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
       if (result.success) {
         new import_obsidian20.Notice(
           tr(
@@ -22656,75 +22068,32 @@ Suggestion: ${result.hint}`) : "";
   /**
    * 处理前的后端自检（preflight）。
    * - 60 秒内的成功结果直接复用，批量处理不会反复 ping。
-   * - 当前后端不可达时探测另一个后端；若可用，弹确认框提议切换并继续。
    * 返回 false 表示应中止本次处理。
    */
   async ensureBackendReady() {
     if (this.settings.preflightCheckEnabled === false) {
       return true;
     }
-    const backend = this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
     const endpoint = this.getActiveProcessingEndpoint();
     const now = Date.now();
-    if (this.lastPreflight && this.lastPreflight.ok && this.lastPreflight.backend === backend && this.lastPreflight.url === endpoint && now - this.lastPreflight.at < 6e4) {
+    if (this.lastPreflight && this.lastPreflight.ok && this.lastPreflight.url === endpoint && now - this.lastPreflight.at < 6e4) {
       return true;
     }
     const result = await this.api.quickHealthCheck();
-    this.lastPreflight = { backend, url: endpoint, ok: result.ok, at: now };
+    this.lastPreflight = { url: endpoint, ok: result.ok, at: now };
     if (result.ok) {
       return true;
     }
-    const label = backend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
-    const otherBackend = backend === "n8n" ? "codex-worker" : "n8n";
-    const otherLabel = otherBackend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
-    const otherUrl = otherBackend === "codex-worker" ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl : this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl;
-    const fallbackWebhookProfile = this.getActiveWebhookProfile();
-    const otherResult = await VideoSummaryAPI.probeEndpoint(
-      otherUrl,
-      otherBackend,
-      4e3,
-      void 0,
-      otherBackend === "n8n" ? {
-        headerName: fallbackWebhookProfile?.headerName,
-        secret: fallbackWebhookProfile?.secret
-      } : void 0
-    );
-    if (otherResult.ok) {
-      const confirmed = await this.showConfirmDialog(
-        tr(`${label} \u4E0D\u53EF\u7528`, `${label} is unavailable`),
-        tr(
-          `\u5F53\u524D\u540E\u7AEF ${label} \u8FDE\u63A5\u5931\u8D25\uFF1A
-${result.error || "\u672A\u77E5\u9519\u8BEF"}
-
-\u68C0\u6D4B\u5230 ${otherLabel} \u53EF\u7528\u3002\u662F\u5426\u5207\u6362\u5230 ${otherLabel} \u5E76\u7EE7\u7EED\uFF1F`,
-          `The current backend ${label} failed to connect:
-${result.error || "unknown error"}
-
-${otherLabel} is available. Switch to ${otherLabel} and continue?`
-        )
-      );
-      if (confirmed) {
-        await this.setActiveBackend(otherBackend);
-        this.lastPreflight = null;
-        new import_obsidian20.Notice(tr(`\u5DF2\u5207\u6362\u5230 ${otherLabel}`, `Switched to ${otherLabel}`));
-        return true;
-      }
-      return false;
-    }
     new import_obsidian20.Notice(
       tr(
-        `\u26A0\uFE0F ${label} \u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
-\uFF08${otherLabel} \u4E5F\u672A\u68C0\u6D4B\u5230\uFF09\u8BF7\u5148\u542F\u52A8\u5904\u7406\u670D\u52A1\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5 URL\u3002`,
-        `\u26A0\uFE0F ${label} unreachable: ${result.error || "unknown error"}
-(${otherLabel} not found either) Start the backend, or check the URL in settings.`
+        `\u26A0\uFE0F \u540E\u7AEF\u4E0D\u53EF\u8FBE\uFF1A${result.error || "\u672A\u77E5\u9519\u8BEF"}
+\u5148\u6253\u5F00 Docker \u5E76\u8FD0\u884C\u542F\u52A8\u811A\u672C\uFF0C\u6216\u5728\u8BBE\u7F6E\u4E2D\u68C0\u67E5\u8FDE\u63A5\u7801\u3002`,
+        `\u26A0\uFE0F Backend unreachable: ${result.error || "unknown error"}
+Open Docker and run the start script, or check the connection code in settings.`
       ),
       8e3
     );
     return false;
-  }
-  openCodexWorkerDashboard() {
-    const dashboardUrl = safeExternalHttpUrl(this.getCodexWorkerDashboardUrl());
-    if (dashboardUrl) window.open(dashboardUrl, "_blank", "noopener,noreferrer");
   }
   async processFile(file) {
     await this.fileProcessor.processFile(file);
@@ -22910,29 +22279,24 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
       await this.writeHistoryFile();
       shouldSave = true;
     }
-    if (!this.settings.activeBackend) {
-      this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
-      shouldSave = true;
-    }
     const settingsRecord = this.settings;
     if ("customAiModels" in settingsRecord) {
       delete settingsRecord.customAiModels;
       shouldSave = true;
     }
+    for (const key of ["activeBackend", "codexWorkerUrl"]) {
+      if (key in settingsRecord) {
+        delete settingsRecord[key];
+        shouldSave = true;
+      }
+    }
     if (/^(?:Gemini|AI-Studio)\b/.test(this.settings.aiModel || "")) {
       this.settings.aiModel = BACKEND_DEFAULT_MODEL_LABEL;
       shouldSave = true;
     }
-    if (this.settings.activeBackend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
+    if (this.settings.defaultProcessingDepth === "deep-visual") {
       this.settings.defaultProcessingDepth = "evidence";
       shouldSave = true;
-      new import_obsidian20.Notice(
-        tr(
-          "\u65E7\u8BBE\u7F6E\u4E2D\u7684\u201C\u6DF1\u5EA6\u89C6\u89C9\u201D\u5DF2\u6309 n8n \u5B9E\u9645\u80FD\u529B\u8FC1\u79FB\u4E3A\u201C\u8BC1\u636E\u201D\u6A21\u5F0F\u3002",
-          '"Deep visual" in the old settings was changed to "Evidence", which is what n8n supports.'
-        ),
-        7e3
-      );
     }
     const normalizedConcurrency = Math.max(
       1,
@@ -22940,10 +22304,6 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
     );
     if (this.settings.batchConcurrency !== normalizedConcurrency) {
       this.settings.batchConcurrency = normalizedConcurrency;
-      shouldSave = true;
-    }
-    if (!this.settings.codexWorkerUrl) {
-      this.settings.codexWorkerUrl = DEFAULT_SETTINGS.codexWorkerUrl;
       shouldSave = true;
     }
     if (this.settings.setupGuideDismissed === void 0) {
@@ -23062,26 +22422,10 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
   }
   // ===== history.json 读写结束 =====
   getActiveProcessingEndpoint() {
-    if (this.settings?.activeBackend === "codex-worker") {
-      return this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
-    }
     return this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
-  }
-  getCodexWorkerDashboardUrl() {
-    const endpoint = this.settings?.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
-    try {
-      const url = new URL(endpoint);
-      url.pathname = "/dashboard";
-      url.search = "";
-      url.hash = "";
-      return url.toString();
-    } catch {
-      return "http://127.0.0.1:8787/dashboard";
-    }
   }
   initializeApiInstance(url) {
     const targetUrl = url ?? this.getActiveProcessingEndpoint();
-    const backend = this.settings?.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
     const activeWebhookProfile = this.getActiveWebhookProfile();
     this.api = new VideoSummaryAPI(
       targetUrl,
@@ -23089,11 +22433,10 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
       // 用插件自身的安装目录，而不是写死某个 vault 的配置目录名（如 .obsidian_mac），保证可移植
       `${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/data`,
       this.settings.payloadKeys,
-      backend,
-      backend === "n8n" ? {
+      {
         headerName: activeWebhookProfile?.headerName,
         secret: activeWebhookProfile?.secret
-      } : void 0,
+      },
       this.settings.timeoutMinutes ?? DEFAULT_SETTINGS.timeoutMinutes
     );
     this.api.setWebhookHistory(this.settings.webhookHistory || []);
@@ -23130,20 +22473,7 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
       return null;
     }
     this.settings.activeWebhookId = profileId;
-    this.settings.activeBackend = "n8n";
     this.settings.n8nWebhookUrl = profile.url;
-    if (this.settings.defaultProcessingDepth === "deep-visual") {
-      this.settings.defaultProcessingDepth = "evidence";
-      if (!options.silent) {
-        new import_obsidian20.Notice(
-          tr(
-            "\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002",
-            'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".'
-          ),
-          7e3
-        );
-      }
-    }
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
@@ -23153,10 +22483,8 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
     }
     return profile;
   }
-  /** True once a connection code (or a Worker URL) is in place; the side panel uses it for its first-run state. */
+  /** True once a connection code is in place; the side panel uses it for its first-run state. */
   isBackendConfigured() {
-    if (this.settings.activeBackend === "codex-worker")
-      return !!this.settings.codexWorkerUrl?.trim();
     const profile = this.getActiveWebhookProfile();
     return !!profile?.url?.trim() && !!profile.secret?.trim();
   }
@@ -23174,21 +22502,6 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
   }
   getActiveWebhookProfile() {
     return this.settings.webhookProfiles.find((p) => p.id === this.settings.activeWebhookId);
-  }
-  async setActiveBackend(backend) {
-    this.settings.activeBackend = backend;
-    if (backend !== "codex-worker" && this.settings.defaultProcessingDepth === "deep-visual") {
-      this.settings.defaultProcessingDepth = "evidence";
-      new import_obsidian20.Notice(
-        tr(
-          "\u5F53\u524D n8n \u540E\u7AEF\u6682\u4E0D\u6267\u884C\u6DF1\u5EA6\u89C6\u89C9\uFF0C\u7406\u89E3\u6DF1\u5EA6\u5DF2\u6539\u4E3A\u201C\u8BC1\u636E\u201D\u3002",
-          'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".'
-        ),
-        7e3
-      );
-    }
-    this.initializeApiInstance();
-    await this.saveSettings();
   }
   extractVideoUrl(content) {
     return VideoUtils.extractVideoUrl(content);
@@ -23486,7 +22799,7 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
       }
       const manifest = await this.reproducibilityStore.load(artifactId);
       const restored = await restoreReprocessPayload(manifest);
-      const depth = restored.processing.depth === "deep-visual" && this.settings.activeBackend !== "codex-worker" ? "evidence" : restored.processing.depth;
+      const depth = restored.processing.depth === "deep-visual" ? "evidence" : restored.processing.depth;
       const job = await this.jobService.submitPreparedFile(
         file,
         {
@@ -23790,16 +23103,14 @@ ${otherLabel} is available. Switch to ${otherLabel} and continue?`
           );
           return;
         }
-        if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== "codex-worker") {
-          new import_obsidian20.Notice(
-            tr(
-              "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u81EA\u5E26\u7684 n8n \u65E0\u6CD5\u8BFB\u53D6\u94FE\u63A5\u91CC\u7684\u4E3B\u673A\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u590D\u5236\u5230\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u518D\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\uFF0C\u6216\u5207\u6362\u5230\u80FD\u8BBF\u95EE\u8BE5\u8DEF\u5F84\u7684\u672C\u673A\u670D\u52A1\u3002",
-              "Captured to the inbox. The bundled n8n cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name, or use a local service that can reach that path."
-            ),
-            9e3
-          );
-          return;
-        }
+        new import_obsidian20.Notice(
+          tr(
+            "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u540E\u7AEF\u8BFB\u4E0D\u5230\u7535\u8111\u4E0A\u7684\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u628A\u6587\u4EF6\u590D\u5236\u5230\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u518D\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\u3002",
+            "Captured to the inbox. The backend cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name."
+          ),
+          9e3
+        );
+        return;
         const confirmed = await this.showConfirmDialog(
           tr("\u5141\u8BB8\u5904\u7406\u672C\u5730\u5A92\u4F53\uFF1F", "Allow processing a local file?"),
           tr(
@@ -24319,7 +23630,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
     profile.headerName = code.headerName;
     profile.secret = code.secret;
     settings.n8nWebhookUrl = code.url;
-    await this.plugin.setActiveBackend("n8n");
+    this.plugin.reinitializeApi();
+    await this.plugin.saveSettings();
   }
   renderConnectionResult(containerEl, result) {
     containerEl.empty();
@@ -24554,33 +23866,8 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
   }
   createApiSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "link", tr("\u5904\u7406\u670D\u52A1", "Backend"));
-    new import_obsidian20.Setting(section3).setName(tr("\u4E3B\u5904\u7406\u540E\u7AEF", "Main backend")).addDropdown(
-      (dropdown) => dropdown.addOption("n8n", tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook")).addOption("codex-worker", tr("Codex \u672C\u5730\u89C6\u9891\u670D\u52A1", "Codex local video service")).setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend).onChange(async (value) => {
-        await this.plugin.setActiveBackend(value);
-        new import_obsidian20.Notice(
-          value === "codex-worker" ? tr("\u5DF2\u5207\u6362\u5230 Codex Video Worker", "Switched to the Codex Video Worker") : tr("\u5DF2\u5207\u6362\u5230 n8n / \u517C\u5BB9 Webhook", "Switched to n8n / compatible webhook")
-        );
-        this.redraw();
-      })
-    );
-    new import_obsidian20.Setting(section3).setName(tr("Codex \u672C\u5730\u670D\u52A1\u5730\u5740", "Codex local service address")).addText(
-      (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl).setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl).onChange(async (value) => {
-        this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
-        if (this.plugin.settings.activeBackend === "codex-worker") {
-          this.plugin.reinitializeApi();
-        }
-        await this.plugin.saveSettings();
-      })
-    ).addButton(
-      (button) => button.setButtonText(tr("\u6253\u5F00\u63A7\u5236\u53F0", "Open dashboard")).onClick(() => {
-        this.plugin.openCodexWorkerDashboard();
-      })
-    );
-    const webhookSetting = new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09", "Default webhook (n8n or compatible)")).setDesc(
-      tr(
-        "\u9009\u8FD9\u91CC\u7684\u9ED8\u8BA4\u9879\u4F1A\u628A\u4E3B\u5904\u7406\u540E\u7AEF\u5207\u56DE n8n \u6216\u517C\u5BB9\u670D\u52A1\u3002",
-        "Choosing the default here switches the main backend back to n8n or a compatible service."
-      )
+    const webhookSetting = new import_obsidian20.Setting(section3).setName(
+      tr("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09", "Default webhook (n8n or compatible)")
     );
     let webhookDropdown = null;
     webhookSetting.addDropdown((dropdown) => {
@@ -24614,7 +23901,7 @@ var VideoSummarySettingTab = class extends import_obsidian20.PluginSettingTab {
         button.setButtonText(tr("\u6D4B\u8BD5\u4E2D...", "Testing..."));
         try {
           const res = await this.plugin.api.testConnection();
-          const label = this.plugin.settings.activeBackend === "codex-worker" ? "Codex Worker" : tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
+          const label = tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
           if (res.success) {
             new import_obsidian20.Notice(
               tr(
@@ -24692,14 +23979,14 @@ Suggestion: ${res.hint}`) : "";
             placeholder: DEFAULT_WEBHOOK_AUTH_HEADER,
             "aria-label": tr("Webhook \u9274\u6743\u8BF7\u6C42\u5934\u540D\u79F0", "Webhook auth header name"),
             title: tr(
-              "\u9644\u5E26\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF1A\u987B\u4E0E n8n Header Auth \u7684 Header \u540D\u79F0\u4E00\u81F4",
+              "\u9644\u5E26\u5DE5\u4F5C\u6D41\u5FC5\u586B\uFF1A\u987B\u4E0E n8n Header Auth \u7684 Header \u540D\u79F0\u4E00\u81F4",
               "Required by the bundled workflow: must match the n8n Header Auth header name"
             )
           }
         });
         headerInput.oninput = async () => {
           profile.headerName = headerInput.value.trim() || DEFAULT_WEBHOOK_AUTH_HEADER;
-          if (profile.id === this.plugin.settings.activeWebhookId && this.plugin.settings.activeBackend === "n8n") {
+          if (profile.id === this.plugin.settings.activeWebhookId) {
             this.plugin.reinitializeApi(profile.url);
           }
           await this.plugin.saveSettings();
@@ -24710,12 +23997,12 @@ Suggestion: ${res.hint}`) : "";
           cls: "webhook-auth-secret-input",
           attr: {
             placeholder: tr(
-              "\u9274\u6743 Secret\uFF08\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF09",
+              "\u9274\u6743 Secret\uFF08\u9644\u5E26\u5DE5\u4F5C\u6D41\u5FC5\u586B\uFF09",
               "Auth secret (required by the bundled workflow)"
             ),
             "aria-label": tr("Webhook \u9274\u6743\u5BC6\u94A5", "Webhook auth secret"),
             title: tr(
-              "\u9644\u5E26\u5DE5\u4F5C\u6D41 2.1.5 \u5FC5\u586B\uFF1B\u53EA\u6709\u53E6\u884C\u90E8\u7F72\u7684\u517C\u5BB9\u65E7\u7AEF\u70B9\u624D\u53EF\u7559\u7A7A\uFF08\u7559\u7A7A\u65F6\u4E0D\u53D1\u9001\u9274\u6743 Header\uFF09",
+              "\u9644\u5E26\u5DE5\u4F5C\u6D41\u5FC5\u586B\uFF1B\u53EA\u6709\u53E6\u884C\u90E8\u7F72\u7684\u517C\u5BB9\u65E7\u7AEF\u70B9\u624D\u53EF\u7559\u7A7A\uFF08\u7559\u7A7A\u65F6\u4E0D\u53D1\u9001\u9274\u6743 Header\uFF09",
               "Required by the bundled workflow; only an older compatible endpoint you deployed yourself may leave it empty (then no auth header is sent)"
             ),
             autocomplete: "off",
@@ -24724,7 +24011,7 @@ Suggestion: ${res.hint}`) : "";
         });
         secretInput.oninput = async () => {
           profile.secret = secretInput.value;
-          if (profile.id === this.plugin.settings.activeWebhookId && this.plugin.settings.activeBackend === "n8n") {
+          if (profile.id === this.plugin.settings.activeWebhookId) {
             this.plugin.reinitializeApi(profile.url);
           }
           await this.plugin.saveSettings();
@@ -24788,27 +24075,13 @@ Suggestion: ${res.hint}`) : "";
       tr("\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F", "Default processing")
     );
     new import_obsidian20.Setting(section3).setName(tr("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6", "Default depth")).setDesc(
-      this.plugin.settings.activeBackend === "codex-worker" ? tr(
-        "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF1B\u6DF1\u5EA6\u89C6\u89C9\u4F1A\u5206\u6790\u5173\u952E\u753B\u9762\u3002",
-        "Quick reads subtitles only; evidence keeps the timeline; deep visual analyses key frames."
-      ) : tr(
-        "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\u3002\u6DF1\u5EA6\u89C6\u89C9\u9700\u8981\u5148\u5207\u6362\u5230 Codex Worker\u3002",
-        "Quick reads subtitles only; evidence keeps the timeline. Deep visual needs the Codex Worker."
+      tr(
+        "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF0C\u7B14\u8BB0\u91CC\u7684\u8981\u70B9\u80FD\u8DF3\u56DE\u539F\u8BDD\u3002",
+        "Quick reads subtitles only; evidence keeps the timeline so key points link back to the quote."
       )
     ).addDropdown(
-      (dropdown) => dropdown.addOption("quick", tr("\u6781\u901F", "Quick")).addOption("evidence", tr("\u8BC1\u636E", "Evidence")).addOption("deep-visual", tr("\u6DF1\u5EA6\u89C6\u89C9", "Deep visual")).setValue(this.plugin.settings.defaultProcessingDepth).onChange(async (value) => {
+      (dropdown) => dropdown.addOption("quick", tr("\u6781\u901F", "Quick")).addOption("evidence", tr("\u8BC1\u636E", "Evidence")).setValue(this.plugin.settings.defaultProcessingDepth).onChange(async (value) => {
         const depth = value;
-        if (depth === "deep-visual" && this.plugin.settings.activeBackend !== "codex-worker") {
-          dropdown.setValue("evidence");
-          new import_obsidian20.Notice(
-            tr(
-              "\u6DF1\u5EA6\u89C6\u89C9\u53EA\u80FD\u7531\u672C\u673A\u89C6\u9891\u5904\u7406\u670D\u52A1\u6267\u884C\uFF1B\u5F53\u524D n8n \u540E\u7AEF\u6700\u591A\u7528\u5230\u8BC1\u636E\u6A21\u5F0F\u3002",
-              "Deep visual runs only on the local video service; the n8n backend goes up to evidence."
-            ),
-            7e3
-          );
-          return;
-        }
         this.plugin.settings.defaultProcessingDepth = depth;
         this.plugin.api.setAnalysisDefaults({ processingDepth: depth });
         await this.plugin.saveSettings();

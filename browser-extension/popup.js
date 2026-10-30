@@ -39,7 +39,6 @@ const els = {
     folder: $('setting-folder'),
     appendPath: $('setting-append'),
     quickAction: $('setting-quick'),
-    codexWorkerUrl: $('setting-codex'),
     n8nWebhookUrl: $('setting-n8n'),
     webhookFormat: $('setting-webhook-format'),
     defaultMode: $('setting-mode'),
@@ -277,7 +276,6 @@ function renderSettings() {
   els.settings.folder.value = s.folder || '';
   els.settings.appendPath.value = s.appendPath || '';
   els.settings.quickAction.value = s.quickAction || 'create-pending-note';
-  els.settings.codexWorkerUrl.value = s.codexWorkerUrl || U.DEFAULT_SETTINGS.codexWorkerUrl;
   els.settings.n8nWebhookUrl.value = '';
   els.settings.n8nWebhookUrl.placeholder = s.n8nToken
     ? `已保存：${s.n8nWebhookUrl}`
@@ -304,7 +302,6 @@ function labelOperation(operation) {
     'process-via-plugin': 'Obsidian 插件',
     'create-pending-rest': '待处理笔记（REST）',
     'append-link': '链接清单',
-    'send-to-codex-worker': 'Worker',
     'send-to-n8n': 'n8n',
     queue: '队列',
   };
@@ -313,8 +310,7 @@ function labelOperation(operation) {
 
 /** 主按钮写清这一下会做什么 */
 function quickButtonLabel(operation) {
-  if (['process-via-plugin', 'send-to-n8n', 'send-to-codex-worker'].includes(operation))
-    return '送去总结';
+  if (['process-via-plugin', 'send-to-n8n'].includes(operation)) return '送去总结';
   if (operation === 'append-link') return '追加到链接清单';
   if (operation === 'queue') return '加入队列';
   return '建一篇待处理笔记';
@@ -409,7 +405,6 @@ async function saveSettings() {
     folder: els.settings.folder.value.trim(),
     appendPath: els.settings.appendPath.value.trim(),
     quickAction: els.settings.quickAction.value,
-    codexWorkerUrl: els.settings.codexWorkerUrl.value.trim(),
     n8nWebhookUrl: state.settings.n8nWebhookUrl,
     n8nToken: state.settings.n8nToken || '',
     ...backendFromInput(els.settings.n8nWebhookUrl.value),
@@ -459,9 +454,6 @@ function bindEvents() {
   $('btn-current-copy').addEventListener('click', () =>
     send('COPY_TIMESTAMP_LINK').then((r) => setStatus(`已复制：${r.text}`, 'success')),
   );
-  $('btn-current-codex').addEventListener('click', () =>
-    transferItems([currentItem()], 'send-to-codex-worker'),
-  );
   $('btn-current-n8n').addEventListener('click', () =>
     transferItems([currentItem()], 'send-to-n8n'),
   );
@@ -473,9 +465,6 @@ function bindEvents() {
   );
   $('btn-batch-append').addEventListener('click', () =>
     transferItems(selectedBatchItems(), 'append-link'),
-  );
-  $('btn-batch-codex').addEventListener('click', () =>
-    transferItems(selectedBatchItems(), 'send-to-codex-worker'),
   );
   $('btn-batch-n8n').addEventListener('click', () =>
     transferItems(selectedBatchItems(), 'send-to-n8n'),
@@ -492,9 +481,6 @@ function bindEvents() {
   );
   $('btn-queue-append').addEventListener('click', () =>
     transferItems(selectedQueueItems(), 'append-link'),
-  );
-  $('btn-queue-codex').addEventListener('click', () =>
-    transferItems(selectedQueueItems(), 'send-to-codex-worker'),
   );
   $('btn-queue-n8n').addEventListener('click', () =>
     transferItems(selectedQueueItems(), 'send-to-n8n'),

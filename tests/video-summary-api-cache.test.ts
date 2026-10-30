@@ -73,7 +73,6 @@ void test('API uses one exact fingerprint for lookup, storage, and returned prov
       vault as never,
       '.obsidian/plugins/video-summary/data',
       undefined,
-      'n8n',
     );
     api.setAiModel('Gemini 3.1');
     api.setAnalysisDefaults({
@@ -147,7 +146,6 @@ void test('reproducible reprocessing sends stored transcript without any source 
       vault as never,
       '.obsidian/plugins/video-summary/data',
       undefined,
-      'n8n',
     );
 
     await api.processVideoSimple(
@@ -228,104 +226,6 @@ void test('reproducible reprocessing sends stored transcript without any source 
   }
 });
 
-void test('cancelling a Codex Worker task aborts its task-level wait immediately', async () => {
-  const originalFetch = globalThis.fetch;
-  let signalFetchStarted = () => {};
-  const fetchStarted = new Promise<void>((resolve) => {
-    signalFetchStarted = resolve;
-  });
-  const calls: string[] = [];
-  const restoreTransport = useFetchTransport();
-  globalThis.fetch = async (input, init) => {
-    calls.push(`${init?.method || 'GET'} ${requestUrlOf(input)}`);
-    signalFetchStarted();
-    return new Response(JSON.stringify({ id: 'worker-cancel-fixture', status: 'queued' }), {
-      status: 202,
-      headers: { 'content-type': 'application/json' },
-    });
-  };
-
-  try {
-    const adapter = new MemoryAdapter();
-    const vault = { configDir: '.obsidian', adapter };
-    const api = new VideoSummaryAPI(
-      'http://127.0.0.1:8787/video-summary/jobs',
-      vault as never,
-      '.obsidian/plugins/video-summary/data',
-      undefined,
-      'codex-worker',
-    );
-    const processing = api.processVideo(
-      'cancel-me',
-      { transcript: 'cancel fixture transcript' },
-      'summary',
-      'zh',
-      false,
-    );
-    const rejected = assert.rejects(processing, /请求已取消/);
-    await fetchStarted;
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-
-    const cancelledAt = Date.now();
-    void api.cancelByNoteName('cancel-me');
-    await rejected;
-
-    await new Promise<void>((resolve) => setTimeout(resolve, 20));
-    assert.equal(
-      calls.filter((call) => call.startsWith('GET')).length,
-      0,
-      'cancellation should interrupt the poll sleep before a status request',
-    );
-    assert.ok(
-      calls.some((call) => call.startsWith('POST') && call.includes('cancel')),
-      'the job is cancelled on the Worker too',
-    );
-    assert.ok(Date.now() - cancelledAt < 250, 'cancellation should not wait for the poll interval');
-  } finally {
-    globalThis.fetch = originalFetch;
-    restoreTransport();
-  }
-});
-
-void test('Codex Worker deadline stops waiting on a hanging request instead of overrunning the timeout', async () => {
-  const originalFetch = globalThis.fetch;
-  const restoreTransport = useFetchTransport();
-  globalThis.fetch = async () => new Promise<Response>(() => {});
-
-  try {
-    const adapter = new MemoryAdapter();
-    const vault = { configDir: '.obsidian', adapter };
-    const api = new VideoSummaryAPI(
-      'http://127.0.0.1:8787/video-summary/jobs',
-      vault as never,
-      '.obsidian/plugins/video-summary/data',
-      undefined,
-      'codex-worker',
-    );
-    (api as unknown as { timeout: number }).timeout = 30;
-
-    const startedAt = Date.now();
-    await assert.rejects(
-      api.processVideo(
-        'timeout-me',
-        { transcript: 'timeout fixture transcript' },
-        'summary',
-        'zh',
-        false,
-      ),
-      /Codex Worker 任务超时/,
-    );
-
-    assert.ok(
-      Date.now() - startedAt < 500,
-      'a hanging fetch must be bounded by the total deadline',
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-    restoreTransport();
-  }
-});
-
 void test('batch processing waits for asynchronous artifact and note post-processing callbacks', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
@@ -346,7 +246,6 @@ void test('batch processing waits for asynchronous artifact and note post-proces
       vault as never,
       '.obsidian/plugins/video-summary/data',
       undefined,
-      'n8n',
     );
     let releaseCallback = () => {};
     let signalEntered = () => {};
@@ -394,8 +293,3 @@ void test('batch processing waits for asynchronous artifact and note post-proces
     globalThis.fetch = originalFetch;
   }
 });
-
-function requestUrlOf(input: string | URL | Request): string {
-  if (typeof input === 'string') return input;
-  return input instanceof URL ? input.href : input.url;
-}

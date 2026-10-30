@@ -24,3 +24,7 @@ Video Summary は、Obsidian プラグインと、自分のパソコンの Docke
 `./vs-backend.sh`（Windows は `.\vs-backend.ps1`）に何も付けないと起動（`.env` の変更もこれで反映）、ほかに `check`、`code`、`keys`、`logs`、`stop`、`update`（サイトの取得が失敗し始めたら yt-dlp を更新）があります。
 
 モデルを変えるときは `.env` の `VS_CHAT_BASE_URL`、`VS_CHAT_MODEL`、`VS_CHAT_API_KEY` を書き換え、起動スクリプトをもう一度実行します。バックエンドは `127.0.0.1` だけで待ち受けます。外部に公開する前に [backend/SECURITY.md](../backend/SECURITY.md) を読んでください。
+
+どの手順で失敗したかは、接続コードのアドレス（既定は <http://127.0.0.1:5678>）をブラウザで開いて確認できます。初回は n8n のアカウントを作ります（このパソコンのバックエンドにだけ保存されます）。上部の **Executions** で最新の実行を開き、**AI: Write Note** の出力を見てください。モデルやキーのエラーでも実行は Success と表示されます。
+
+<img src="screenshots/n8n-workflow.jpg" width="860" alt="n8n の Video Summary ワークフロー">

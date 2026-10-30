@@ -43,8 +43,7 @@ Before publishing a workflow export or release, confirm that it does not contain
 Treat every webhook field, video URL, filename, redirect, subtitle, and model response as untrusted
 input. Never interpolate request data into a shell command. Use fixed executables with argument
 arrays, strict URL host allowlists, and path confinement below an explicit upload or media root.
-The plugin localizes Worker images only from the active configured Worker's exact loopback origin
-and fixed asset path, with redirects disabled; other backend-provided asset URLs remain inert.
+Asset URLs in a backend reply are never fetched.
 
 The bundled Docker setup is intended for one-user local use, publishes n8n only on `127.0.0.1`, and
 still requires Header Auth to prevent untrusted local applications from triggering work. Do not

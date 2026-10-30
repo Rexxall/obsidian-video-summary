@@ -1,5 +1,4 @@
 import {
-  ProcessingBackend,
   ProcessingMode,
   SupportedLanguage,
   VideoInput,
@@ -32,10 +31,10 @@ import {
 } from '../core/ArtifactFingerprint';
 
 import { errorMessage } from '../utils/errors';
-import { asArray, asRecord, asString, asText, isRecord, type JsonRecord } from '../utils/json';
+import { asRecord, asText, isRecord, type JsonRecord } from '../utils/json';
 import { tr } from '../utils/i18n';
 const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
-const CACHE_PROMPT_VERSION = 'video-knowledge-v3-clean-note-1';
+const CACHE_PROMPT_VERSION = 'video-note-prompt-v4';
 
 export interface EndpointProbeResult {
   ok: boolean;
@@ -45,8 +44,7 @@ export interface EndpointProbeResult {
 }
 
 /**
- * 处理进度回调。只有会轮询任务状态的后端（codex-worker）能上报阶段；
- * n8n 是一次性 POST，拿不到中间态，此时回调不会被调用，界面只显示计时。
+ * 处理进度回调。n8n 是一次性 POST，拿不到中间态；目前只在命中缓存时调用，平时界面只显示计时。
  */
 export type ProcessProgressReporter = (progress: {
   stageLabel?: string;
@@ -59,7 +57,6 @@ export class VideoSummaryAPI {
   private timeout: number;
   private debugMode: boolean = false;
   private aiModel: string = BACKEND_DEFAULT_MODEL_LABEL;
-  private backend: ProcessingBackend = 'n8n';
   private webhookAuth: WebhookAuthConfig = {
     headerName: DEFAULT_WEBHOOK_AUTH_HEADER,
     secret: '',
@@ -95,15 +92,12 @@ export class VideoSummaryAPI {
   private webhookHistoryLimit = 50;
   private historyListener?: (history: WebhookHistoryEntry[]) => void;
   private controllers: Map<string, AbortController> = new Map();
-  private workerControllers: Set<AbortController> = new Set();
-  private workerCancelUrls: Map<AbortController, string> = new Map();
   private controllerSequence = 0;
   constructor(
     webhookUrl: string,
     vault: Vault,
     pluginDataPath?: string,
     payloadKeys?: PayloadKeys,
-    backend?: ProcessingBackend,
     webhookAuth?: Partial<WebhookAuthConfig>,
     timeoutMinutes: number = 30,
   ) {
@@ -111,7 +105,6 @@ export class VideoSummaryAPI {
     const normalizedTimeoutMinutes =
       Number.isFinite(timeoutMinutes) && timeoutMinutes > 0 ? timeoutMinutes : 30;
     this.timeout = normalizedTimeoutMinutes * 60 * 1000;
-    this.backend = backend || 'n8n';
     this.setWebhookAuth(webhookAuth);
     this.cacheManager = new CacheManager(vault, pluginDataPath);
     this.payloadKeys = payloadKeys || {
@@ -129,20 +122,11 @@ export class VideoSummaryAPI {
     this.payloadKeys = keys;
   }
 
-  setEndpoint(
-    url: string,
-    backend: ProcessingBackend = this.backend,
-    webhookAuth?: Partial<WebhookAuthConfig>,
-  ) {
+  setEndpoint(url: string, webhookAuth?: Partial<WebhookAuthConfig>) {
     this.webhookUrl = url;
-    this.backend = backend;
     if (webhookAuth !== undefined) {
       this.setWebhookAuth(webhookAuth);
     }
-  }
-
-  setBackend(backend: ProcessingBackend) {
-    this.backend = backend;
   }
 
   setWebhookAuth(auth?: Partial<WebhookAuthConfig>) {
@@ -253,36 +237,6 @@ export class VideoSummaryAPI {
     const payload = this.buildPayload(noteName, input, mode, language);
     const requestTimeoutMs = this.resolveTimeoutMs(timeoutMinutes);
 
-    if (this.backend === 'codex-worker') {
-      try {
-        const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(noteName, payload, onProgress, requestTimeoutMs),
-          cacheFingerprint,
-        );
-        this.recordWebhookResult(result, input, mode, language);
-
-        this.lastWebhookResult = {
-          result,
-          input,
-          mode,
-          language,
-          timestamp: Date.now(),
-        };
-
-        if (useCache) {
-          await this.cacheManager.setByFingerprint(
-            cacheFingerprint,
-            result,
-            this.cacheSourceLabel(input),
-          );
-        }
-
-        return result;
-      } catch (error) {
-        throw new Error(this.formatUserFacingError(error));
-      }
-    }
-
     // 创建并注册中止控制器（同名任务仅允许一个并行请求）
     const controller = new AbortController();
     const existingController = this.controllers.get(noteName);
@@ -385,41 +339,6 @@ export class VideoSummaryAPI {
     const payload = this.buildPayload('temp', input, mode, language);
     const requestTimeoutMs = this.resolveTimeoutMs(timeoutMinutes);
 
-    if (this.backend === 'codex-worker') {
-      try {
-        const result = this.withCacheFingerprint(
-          await this.processCodexWorkerJob(
-            this.nextControllerKey('simple'),
-            payload,
-            undefined,
-            requestTimeoutMs,
-          ),
-          cacheFingerprint,
-        );
-        this.recordWebhookResult(result, input, mode, language);
-
-        this.lastWebhookResult = {
-          result,
-          input,
-          mode,
-          language,
-          timestamp: Date.now(),
-        };
-
-        if (useCache) {
-          await this.cacheManager.setByFingerprint(
-            cacheFingerprint,
-            result,
-            this.cacheSourceLabel(input),
-          );
-        }
-
-        return result;
-      } catch (error) {
-        throw new Error(this.formatUserFacingError(error));
-      }
-    }
-
     // 此方法的 n8n 路径以前完全没有超时控制，挂起会永久阻塞；补上 AbortController + 超时
     const controller = new AbortController();
     let timedOut = false;
@@ -513,17 +432,13 @@ export class VideoSummaryAPI {
     this.historyListener = listener;
   }
 
-  // 取消指定笔记的请求。Worker 同时调用后端 cancel，不只停止本地轮询。
+  // 取消指定笔记的请求。
   async cancelByNoteName(noteName: string): Promise<void> {
     const controller = this.controllers.get(noteName);
     if (!controller) return;
 
     controller.abort();
-    if (this.workerControllers.has(controller)) {
-      await this.cancelCodexWorkerJob(controller);
-    } else {
-      this.controllers.delete(noteName);
-    }
+    this.controllers.delete(noteName);
   }
 
   // 缓存管理方法
@@ -610,16 +525,11 @@ export class VideoSummaryAPI {
 
   // 取消所有正在进行的请求
   async cancelAll(): Promise<void> {
-    const workerCancellations: Promise<void>[] = [];
     for (const [key, controller] of this.controllers.entries()) {
       controller.abort();
-      if (this.workerControllers.has(controller)) {
-        workerCancellations.push(this.cancelCodexWorkerJob(controller));
-      } else {
-        this.controllers.delete(key);
-      }
+      this.controllers.delete(key);
     }
-    await Promise.all(workerCancellations);
+    await Promise.resolve();
   }
 
   private buildPayload(
@@ -628,10 +538,6 @@ export class VideoSummaryAPI {
     mode: ProcessingMode,
     language: SupportedLanguage,
   ) {
-    if (this.backend === 'codex-worker') {
-      return this.buildCodexWorkerPayload(noteName, input, mode, language);
-    }
-
     const keys = this.payloadKeys;
     const metadata: JsonRecord = {};
     metadata[keys.mode] = mode;
@@ -661,59 +567,11 @@ export class VideoSummaryAPI {
     };
   }
 
-  private buildCodexWorkerPayload(
-    noteName: string,
-    input: VideoInput,
-    mode: ProcessingMode,
-    language: SupportedLanguage,
-  ) {
-    const metadata: JsonRecord = {
-      mode,
-      language,
-      ai: this.aiModel,
-      title: noteName,
-      captured_at: new Date().toISOString(),
-    };
-
-    if (mode === 'info-only') {
-      metadata.info_only = true;
-    }
-    if (input.url && !input.skipSourceFetch) {
-      metadata.link = input.url;
-    }
-    if (input.transcript) {
-      metadata.provided_transcript = input.transcript;
-    }
-    if (input.localFile && !input.skipSourceFetch) {
-      metadata.local_file = input.localFile;
-    }
-    if (!input.skipSourceFetch && Array.isArray(input.localFiles) && input.localFiles.length > 0) {
-      metadata.local_files = input.localFiles;
-    }
-    if (input.merge !== undefined) {
-      metadata.merge = input.merge;
-    }
-    if (input.skipSourceFetch) {
-      metadata.skip_source_fetch = true;
-      if (input.sourceUrl) metadata.source_url_for_citation = input.sourceUrl;
-    }
-    this.addAnalysisMetadata(metadata, input);
-
-    return {
-      source: 'obsidian-plugin',
-      action: 'process',
-      name: noteName,
-      metadata,
-      content: '',
-    };
-  }
-
   private withAnalysisDefaults(input: VideoInput): VideoInput {
     const requestedDepth = input.processingDepth || this.analysisDefaults.processingDepth;
     return {
       ...input,
-      processingDepth:
-        this.backend === 'n8n' && requestedDepth === 'deep-visual' ? 'evidence' : requestedDepth,
+      processingDepth: requestedDepth === 'deep-visual' ? 'evidence' : requestedDepth,
       contentType: input.contentType || this.analysisDefaults.contentType,
       autoRoute: input.autoRoute ?? this.analysisDefaults.autoRoute,
       attentionAssessment: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
@@ -736,7 +594,7 @@ export class VideoSummaryAPI {
       mode,
       language,
       model: this.aiModel,
-      backend: this.backend,
+      backend: 'n8n',
       schemaVersion: CACHE_ARTIFACT_SCHEMA_VERSION,
       processingDepth,
       requestedContentType: input.contentType || this.analysisDefaults.contentType,
@@ -847,282 +705,9 @@ export class VideoSummaryAPI {
     }
   }
 
-  private async processCodexWorkerJob(
-    controllerKey: string,
-    payload: { metadata?: JsonRecord },
-    onProgress?: ProcessProgressReporter,
-    requestTimeoutMs: number = this.timeout,
-  ): Promise<ProcessingResult> {
-    const controller = new AbortController();
-    const previousController = this.controllers.get(controllerKey);
-    if (previousController) {
-      previousController.abort();
-      if (this.workerControllers.has(previousController)) {
-        void this.cancelCodexWorkerJob(previousController);
-      }
-    }
-    this.controllers.set(controllerKey, controller);
-    this.workerControllers.add(controller);
-
-    const timeoutMs = Math.max(1, Math.floor(Number(requestTimeoutMs) || 1));
-    const deadline = Date.now() + timeoutMs;
-    let timedOut = false;
-    const timeoutId = window.setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs);
-    const jobsUrl = this.getCodexWorkerJobsUrl();
-    try {
-      // requestUrl 由 Obsidian 原生网络层发送，不携带 Electron/browser Origin，
-      // 因此不会被 loopback worker 的 Origin 守卫误拒。
-      const response = await VideoSummaryAPI.nativeRequest(
-        {
-          url: jobsUrl,
-          method: 'POST',
-          contentType: 'application/json',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        },
-        Math.max(1, deadline - Date.now()),
-      );
-
-      if (!VideoSummaryAPI.isSuccessfulStatus(response.status)) {
-        throw new Error(this.formatNativeHttpError('Codex Worker', response));
-      }
-
-      const createdJob = asRecord(this.readNativeJsonResponse(response, 'Codex Worker 创建任务'));
-      if (!asText(createdJob.id)) {
-        throw new Error('Codex Worker 没有返回任务 ID');
-      }
-
-      const statusUrl = this.getCodexWorkerJobStatusUrl(jobsUrl, createdJob);
-      this.workerCancelUrls.set(controller, this.getCodexWorkerJobCancelUrl(statusUrl));
-
-      // 如果用户在创建请求返回前就点了取消，拿到 job ID 后立即补发 cancel。
-      if (controller.signal.aborted) {
-        await this.cancelCodexWorkerJob(controller);
-        throw this.abortError();
-      }
-
-      let latestJob = createdJob;
-      let lastProgressLogMarker: string | undefined;
-      while (Date.now() < deadline) {
-        await this.sleep(Math.min(1000, Math.max(1, deadline - Date.now())), controller.signal);
-        const statusResponse = await VideoSummaryAPI.nativeRequest(
-          { url: statusUrl, method: 'GET' },
-          Math.max(1, deadline - Date.now()),
-          controller.signal,
-        );
-        if (!VideoSummaryAPI.isSuccessfulStatus(statusResponse.status)) {
-          throw new Error(
-            this.formatNativeHttpError('Codex Worker job 状态读取失败', statusResponse),
-          );
-        }
-
-        latestJob = asRecord(this.readNativeJsonResponse(statusResponse, 'Codex Worker job 状态'));
-        if (onProgress) {
-          const latestLog = latestJob.latestLog ?? latestJob.lastLog;
-          const stageLabel =
-            pickString(latestLog, ['stage', 'step', 'phase']) ||
-            pickString(latestJob, ['stage', 'step', 'phase', 'status']);
-          const logMarker = progressLogMarker(latestLog);
-          const message =
-            pickString(latestJob, ['message', 'detail']) ||
-            (logMarker && logMarker !== lastProgressLogMarker
-              ? formatProgressLog(latestLog)
-              : undefined);
-          if (logMarker) lastProgressLogMarker = logMarker;
-          const progress = pickRatio(latestJob, ['progress', 'percent', 'percentage']);
-          if (stageLabel || message || progress !== undefined) {
-            onProgress({ stageLabel, message, progress });
-          }
-        }
-        if (latestJob.status === 'success') {
-          const meta = payload.metadata ?? {};
-          return this.parseSummaryResponse(latestJob.result, {
-            url: asString(meta.link),
-            sourceUrl: asString(meta.source_url_for_citation),
-            processingDepth: meta.processing_depth as VideoInput['processingDepth'],
-            contentType: meta.content_type as VideoInput['contentType'],
-            autoRoute: meta.auto_route as VideoInput['autoRoute'],
-            attentionAssessment: meta.attention_assessment as VideoInput['attentionAssessment'],
-            generateLearning: meta.generate_learning as VideoInput['generateLearning'],
-          });
-        }
-        if (
-          latestJob.status === 'needs-review' ||
-          latestJob.status === 'error' ||
-          latestJob.status === 'cancelled'
-        ) {
-          throw new Error(this.formatCodexJobError(latestJob));
-        }
-      }
-
-      timedOut = true;
-      controller.abort();
-      throw this.abortError();
-    } catch (error) {
-      if (
-        controller.signal.aborted ||
-        (error as Error)?.name === 'AbortError' ||
-        (error as Error)?.name === 'TimeoutError'
-      ) {
-        await this.cancelCodexWorkerJob(controller);
-        if (timedOut || Date.now() >= deadline || (error as Error)?.name === 'TimeoutError') {
-          throw new Error(
-            `Codex Worker 任务超时。可在控制台查看: ${this.getCodexWorkerDashboardUrl()}`,
-          );
-        }
-        throw new Error('请求被取消');
-      }
-      throw error;
-    } finally {
-      window.clearTimeout(timeoutId);
-      this.workerCancelUrls.delete(controller);
-      this.workerControllers.delete(controller);
-      if (this.controllers.get(controllerKey) === controller) {
-        this.controllers.delete(controllerKey);
-      }
-    }
-  }
-
-  private getCodexWorkerJobsUrl(): string {
-    try {
-      const url = new URL(this.webhookUrl);
-      const path = url.pathname.replace(/\/+$/, '');
-      if (path.endsWith('/video-summary/jobs')) {
-        url.pathname = path;
-      } else if (path.endsWith('/video-summary/process-sync')) {
-        url.pathname = path.replace(/\/process-sync$/, '/jobs');
-      } else {
-        url.pathname = '/video-summary/jobs';
-      }
-      url.search = '';
-      url.hash = '';
-      return url.toString();
-    } catch {
-      return 'http://127.0.0.1:8787/video-summary/jobs';
-    }
-  }
-
-  private getCodexWorkerJobStatusUrl(jobsUrl: string, job: JsonRecord): string {
-    const id = asText(job.id) ?? '';
-    const logsUrl = asString(job.logsUrl);
-    try {
-      const base = new URL(jobsUrl);
-      if (logsUrl && logsUrl.startsWith('/')) {
-        base.pathname = logsUrl.replace(/\/logs$/, '');
-        base.search = '';
-        base.hash = '';
-        return base.toString();
-      }
-      base.pathname = `${base.pathname.replace(/\/+$/, '')}/${encodeURIComponent(id)}`;
-      base.search = '';
-      base.hash = '';
-      return base.toString();
-    } catch {
-      return `http://127.0.0.1:8787/video-summary/jobs/${encodeURIComponent(id)}`;
-    }
-  }
-
-  private getCodexWorkerJobCancelUrl(statusUrl: string): string {
-    try {
-      const url = new URL(statusUrl);
-      url.pathname = `${url.pathname.replace(/\/+$/, '')}/cancel`;
-      url.hash = '';
-      return url.toString();
-    } catch {
-      return `${statusUrl.replace(/\/+$/, '')}/cancel`;
-    }
-  }
-
-  private async cancelCodexWorkerJob(controller: AbortController): Promise<void> {
-    const cancelUrl = this.workerCancelUrls.get(controller);
-    if (!cancelUrl) return;
-
-    try {
-      const response = await VideoSummaryAPI.nativeRequest(
-        {
-          url: cancelUrl,
-          method: 'POST',
-          contentType: 'application/json',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-        },
-        4000,
-      );
-      if (!VideoSummaryAPI.isSuccessfulStatus(response.status) && response.status !== 404) {
-        throw new Error(this.formatNativeHttpError('Codex Worker 取消失败', response));
-      }
-    } catch (error) {
-      // 本地任务已停止轮询；后端 cancel 失败不应让 UI 的取消操作变成新错误。
-      if (this.debugMode) {
-        console.warn('[VideoSummaryAPI] Codex Worker 取消请求失败', error);
-      }
-    }
-  }
-
-  private getCodexWorkerDashboardUrl(): string {
-    try {
-      const url = new URL(this.webhookUrl);
-      url.pathname = '/dashboard';
-      url.search = '';
-      url.hash = '';
-      return url.toString();
-    } catch {
-      return 'http://127.0.0.1:8787/dashboard';
-    }
-  }
-
-  private formatCodexJobError(job: JsonRecord): string {
-    const error = job.error;
-    const errorRecord = asRecord(error);
-    const errorMessage =
-      asString(error) ||
-      asString(errorRecord.error) ||
-      asString(errorRecord.message) ||
-      `Codex Worker 任务状态: ${asText(job.status) || 'unknown'}`;
-    const lastDiagnostic = [...asArray(job.logs)]
-      .reverse()
-      .map(asRecord)
-      .find((entry) => {
-        const detail = asRecord(entry.detail);
-        return detail.error || detail.stderr || entry.stage;
-      });
-    const diagnosticText = lastDiagnostic
-      ? `\n最后阶段: ${asText(lastDiagnostic.stage) ?? ''}\n诊断: ${this.truncateError(JSON.stringify(lastDiagnostic.detail || {}, null, 2), 900)}`
-      : '';
-    return tr(
-      `${errorMessage}${diagnosticText}\n控制台: ${this.getCodexWorkerDashboardUrl()}`,
-      `${errorMessage}${diagnosticText}\nDashboard: ${this.getCodexWorkerDashboardUrl()}`,
-    );
-  }
-
   private truncateError(value: string, max: number): string {
     if (!value || value.length <= max) return value || '';
     return `${value.slice(0, max)}...`;
-  }
-
-  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
-    if (signal?.aborted) return Promise.reject(this.abortError());
-    return new Promise((resolve, reject) => {
-      const timeoutId = window.setTimeout(() => {
-        signal?.removeEventListener('abort', onAbort);
-        resolve();
-      }, ms);
-      const onAbort = () => {
-        window.clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', onAbort);
-        reject(this.abortError());
-      };
-      signal?.addEventListener('abort', onAbort, { once: true });
-    });
-  }
-
-  private abortError(): Error {
-    const error = new Error('Aborted');
-    error.name = 'AbortError';
-    return error;
   }
 
   private nextControllerKey(prefix: string): string {
@@ -1138,34 +723,16 @@ export class VideoSummaryAPI {
     return normalizedMinutes * 60 * 1000;
   }
 
-  private readNativeJsonResponse(response: RequestUrlResponse, label: string): unknown {
-    const text = response.text || '';
-    if (!text.trim()) {
-      throw new Error(`${label}返回空响应`);
-    }
-    const parsed = this.tryParseJson(text);
-    if (!parsed) {
-      throw new Error(`${label}返回的不是 JSON。响应片段: ${this.truncateError(text, 180)}`);
-    }
-    return parsed;
-  }
-
-  private formatNativeHttpError(label: string, response: RequestUrlResponse): string {
-    const text = response.text || '';
-    const snippet = text ? `。响应片段: ${this.truncateError(text, 180)}` : '';
-    return `${label}: HTTP ${response.status}${snippet}`;
-  }
-
   private static isSuccessfulStatus(status: number): boolean {
     return status >= 200 && status < 300;
   }
 
-  /** Network layer for Worker calls; Obsidian's requestUrl by default, replaceable in tests. */
+  /** Network layer for webhook calls; Obsidian's requestUrl by default, replaceable in tests. */
   static transport: (request: RequestUrlParam) => Promise<RequestUrlResponse> = (request) =>
     import('obsidian').then(({ requestUrl }) => requestUrl(request));
 
   /**
-   * n8n webhook calls use the same native layer as the Worker (no browser fetch, no CORS),
+   * n8n webhook calls go through Obsidian's native request layer (no browser fetch, no CORS),
    * wrapped as a Response so the existing error and JSON readers keep working.
    */
   private static async webhookRequest(
@@ -1364,7 +931,7 @@ export class VideoSummaryAPI {
 
     return normalizeRichProcessingResult(result, payload, {
       sourceUrl: input.sourceUrl || input.url,
-      backend: this.backend,
+      backend: 'n8n',
       model: this.aiModel,
       processingDepth: input.processingDepth,
       promptVersion: CACHE_PROMPT_VERSION,
@@ -1503,88 +1070,21 @@ export class VideoSummaryAPI {
   async quickHealthCheck(timeoutMs = 4000): Promise<EndpointProbeResult> {
     return VideoSummaryAPI.probeEndpoint(
       this.webhookUrl,
-      this.backend,
       timeoutMs,
-      this.backend === 'n8n' ? this.buildConnectionTestPayload() : undefined,
-      this.backend === 'n8n' ? this.webhookAuth : undefined,
+      this.buildConnectionTestPayload(),
+      this.webhookAuth,
     );
   }
 
-  /**
-   * 探测任意后端端点是否可用（静态方法，供"另一个后端是否可用"的检查复用）。
-   * - n8n: 保持 fetch POST 测试 payload，仅 2xx 算可用。
-   * - codex-worker: 用 Obsidian requestUrl GET /health，必须是 2xx 且返回有效 worker health JSON。
-   */
+  /** 向 n8n 端点 POST 测试 payload，只有 2xx 算可用。 */
   static async probeEndpoint(
     url: string,
-    backend: ProcessingBackend,
     timeoutMs = 4000,
     n8nBody?: unknown,
     n8nAuth?: Partial<WebhookAuthConfig>,
   ): Promise<EndpointProbeResult> {
     if (!url || !url.trim()) {
       return { ok: false, error: tr('服务 URL 未配置', 'Service URL not set') };
-    }
-
-    if (backend === 'codex-worker') {
-      let probeUrl: string;
-      try {
-        const parsed = new URL(url);
-        parsed.pathname = '/health';
-        parsed.search = '';
-        parsed.hash = '';
-        probeUrl = parsed.toString();
-      } catch {
-        probeUrl = 'http://127.0.0.1:8787/health';
-      }
-
-      try {
-        const response = await VideoSummaryAPI.nativeRequest(
-          { url: probeUrl, method: 'GET' },
-          timeoutMs,
-        );
-        const bodySnippet = (response.text || '').slice(0, 180);
-        if (!VideoSummaryAPI.isSuccessfulStatus(response.status)) {
-          return {
-            ok: false,
-            status: response.status,
-            bodySnippet,
-            error: `HTTP ${response.status} — Codex Worker health 请求失败`,
-          };
-        }
-
-        let health: JsonRecord;
-        try {
-          health = asRecord(JSON.parse(response.text || ''));
-        } catch {
-          return {
-            ok: false,
-            status: response.status,
-            bodySnippet,
-            error: 'Codex Worker /health 未返回有效 JSON',
-          };
-        }
-        if (health.ok !== true || health.service !== 'codex-video-worker') {
-          return {
-            ok: false,
-            status: response.status,
-            bodySnippet,
-            error: 'Codex Worker /health 响应缺少有效的 ok/service 标识',
-          };
-        }
-        return { ok: true, status: response.status, bodySnippet };
-      } catch (error) {
-        return {
-          ok: false,
-          error:
-            (error as Error)?.name === 'TimeoutError'
-              ? tr(
-                  `${timeoutMs}ms 内无响应（服务可能未启动）`,
-                  `No answer within ${timeoutMs}ms (the service may not be running)`,
-                )
-              : (error as Error)?.message || String(error),
-        };
-      }
     }
 
     const controller = new AbortController();
@@ -1638,30 +1138,6 @@ export class VideoSummaryAPI {
   // 测试连接（返回耗时、响应片段和下一步建议，便于诊断）
   async testConnection(): Promise<ConnectionTestResult> {
     const started = Date.now();
-
-    if (this.backend === 'codex-worker') {
-      const probe = await VideoSummaryAPI.probeEndpoint(this.webhookUrl, 'codex-worker', 4000);
-      const durationMs = Date.now() - started;
-      if (probe.ok) {
-        return {
-          success: true,
-          durationMs,
-          status: probe.status,
-          bodySnippet: probe.bodySnippet,
-        };
-      }
-      const error = this.formatUserFacingError(
-        new Error(probe.error || 'Codex Worker 健康检查失败'),
-      );
-      return {
-        success: false,
-        durationMs,
-        status: probe.status,
-        bodySnippet: probe.bodySnippet,
-        error,
-        hint: this.getConnectionHint(error),
-      };
-    }
 
     try {
       const response = await VideoSummaryAPI.webhookRequest(
@@ -1859,17 +1335,6 @@ export class VideoSummaryAPI {
   }
 
   private buildConnectionTestPayload() {
-    if (this.backend === 'codex-worker') {
-      return this.buildPayload(
-        'connection-test',
-        {
-          url: 'https://example.com/video',
-        },
-        'info-only',
-        'zh',
-      );
-    }
-
     return this.buildPayload('test', {}, 'transcript-only', 'zh');
   }
 
@@ -1907,8 +1372,6 @@ export class VideoSummaryAPI {
   }
 
   private getWorkflowCompatibilityWarnings(workflow?: WorkflowHealthInfo): string[] {
-    if (this.backend !== 'n8n') return [];
-
     if (!workflow) {
       return [
         tr(
@@ -2020,12 +1483,6 @@ export class VideoSummaryAPI {
     }
 
     if (message.includes('HTTP 404')) {
-      if (this.backend === 'codex-worker') {
-        return tr(
-          `Codex Worker 端点不存在。请确认后端 App 已启动且 URL 指向正确端口。当前 URL: ${this.webhookUrl}`,
-          `Codex Worker endpoint not found. Check that the backend app is running and the URL points at the right port. Current URL: ${this.webhookUrl}`,
-        );
-      }
       return tr(
         `后端还没准备好，或者地址不对。第一次启动要等一分钟左右；如果一直这样，确认连接码里的端口和启动脚本显示的一致。当前地址: ${this.webhookUrl}`,
         `The backend is not ready yet, or the address is wrong. The first start takes about a minute; if it stays like this, check that the port in the connection code matches the start script. Current address: ${this.webhookUrl}`,
@@ -2033,12 +1490,6 @@ export class VideoSummaryAPI {
     }
 
     if (message.includes('HTTP 401') || message.includes('HTTP 403')) {
-      if (this.backend === 'codex-worker') {
-        return tr(
-          'Codex Worker 拒绝访问。请检查 Worker 鉴权 token 与本地服务安全配置。',
-          'Codex Worker refused access. Check the Worker token and local security settings.',
-        );
-      }
       return tr(
         '后端拒绝了这个连接码。在后端文件夹运行 vs-backend code，把连接码重新粘贴到设置的“首次配置”。',
         'The backend rejected this connection code. Run vs-backend code in the backend folder and paste the code again into first-run setup.',
@@ -2074,12 +1525,6 @@ export class VideoSummaryAPI {
       message.includes('HTTP 502') ||
       message.includes('HTTP 503')
     ) {
-      if (this.backend === 'codex-worker') {
-        return tr(
-          `Codex Worker 内部报错。请打开 Worker 控制台查看任务日志。原始错误: ${message}`,
-          `Codex Worker error. Open the Worker dashboard for the job log. Original error: ${message}`,
-        );
-      }
       return tr(
         `后端处理时出错。在后端文件夹运行 vs-backend logs 查看日志。原始错误: ${message}`,
         `The backend failed while processing. Run vs-backend logs in the backend folder. Original error: ${message}`,
@@ -2092,12 +1537,6 @@ export class VideoSummaryAPI {
       lower.includes('networkerror') ||
       lower.includes('connection refused')
     ) {
-      if (this.backend === 'codex-worker') {
-        return tr(
-          `无法连接 Codex Worker。请确认本地后端 App 已启动、端口可访问且 Worker URL 正确。当前 URL: ${this.webhookUrl}`,
-          `Cannot reach the Codex Worker. Check that the backend app is running, the port is reachable and the Worker URL is right. Current URL: ${this.webhookUrl}`,
-        );
-      }
       return tr(
         `无法连接后端。先打开 Docker，再在后端文件夹运行启动脚本。当前地址: ${this.webhookUrl}`,
         `Cannot reach the backend. Open Docker, then run the start script in the backend folder. Current address: ${this.webhookUrl}`,
@@ -2121,7 +1560,7 @@ export class VideoSummaryAPI {
     if (message.includes('服务器返回的数据中没有有效内容')) {
       return tr(
         '处理服务已响应，但没有返回 summary、note、video_transcript 或视频信息字段。请检查 n8n 最后的 Respond to Webhook 输出。',
-        'The backend answered without summary, note, video_transcript or video info fields. Check the last Respond to Webhook node in n8n.',
+        'The backend answered without summary, note, video_transcript or video info fields. Check the last Respond: Result node in n8n.',
       );
     }
 
@@ -2149,13 +1588,6 @@ export class VideoSummaryAPI {
       );
     }
 
-    if (/无法连接 Codex Worker|Cannot reach the Codex Worker/.test(message)) {
-      return tr(
-        '先启动本地后端 App，再确认 Worker URL 与端口配置。',
-        'Start the local backend app first, then check the Worker URL and port.',
-      );
-    }
-
     if (/Bilibili 拒绝|B 站拒绝|Bilibili refused/.test(message)) {
       return tr(
         '运行 vs-backend update 更新 yt-dlp；仍失败时用浏览器扩展同步 B 站登录。',
@@ -2165,25 +1597,19 @@ export class VideoSummaryAPI {
 
     if (/空响应|empty response/.test(message)) {
       return tr(
-        '检查 Respond to Webhook: Test 节点是否仍连接在测试分支上。',
-        'Check that the Respond to Webhook: Test node is still connected to the test branch.',
+        '检查 Respond: Health Report 节点是否仍连接在测试分支上。',
+        'Check that the Respond: Health Report node is still connected to the test branch.',
       );
     }
 
     if (/不是 JSON|没有有效内容|not JSON|without summary/.test(message)) {
       return tr(
-        '检查最后一个 Respond to Webhook 节点，确保返回 JSON，且包含 note、summary、video_transcript 或 video_title。',
-        'Check the last Respond to Webhook node: it must return JSON with note, summary, video_transcript or video_title.',
+        '检查最后一个 Respond: Result 节点，确保返回 JSON，且包含 note、summary、video_transcript 或 video_title。',
+        'Check the last Respond: Result node: it must return JSON with note, summary, video_transcript or video_title.',
       );
     }
 
     if (/拒绝访问|refused access|rejected this connection code/.test(message)) {
-      if (this.backend === 'codex-worker') {
-        return tr(
-          '检查 Worker 的共享 token；/health 应保持可读，任务接口需使用匹配的鉴权配置。',
-          "Check the Worker's shared token; /health should stay readable and job endpoints need matching auth.",
-        );
-      }
       return tr(
         '如果你使用远程 n8n，请检查登录、反向代理和 CORS/鉴权配置。',
         'If you use a remote n8n, check login, reverse proxy and CORS/auth settings.',
@@ -2209,51 +1635,4 @@ export class VideoSummaryAPI {
       return String(error);
     }
   }
-}
-
-/** 从后端返回的 job JSON 里挑第一个非空字符串字段 */
-function pickString(source: unknown, keys: string[]): string | undefined {
-  if (!isRecord(source)) return undefined;
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return undefined;
-}
-
-/** 读取 worker 的 latestLog（也兼容旧 lastLog），避免每秒重复写入同一条日志。 */
-function progressLogMarker(log: unknown): string | undefined {
-  if (typeof log === 'string') return log.trim() || undefined;
-  if (!isRecord(log)) return undefined;
-  return pickString(log, ['at', 'timestamp']) || formatProgressLog(log);
-}
-
-function formatProgressLog(log: unknown): string | undefined {
-  if (typeof log === 'string') return log.trim() || undefined;
-  if (!isRecord(log)) return undefined;
-
-  const direct = pickString(log, ['message', 'text']);
-  if (direct) return direct;
-  const detail = log.detail;
-  if (typeof detail === 'string') return detail.trim() || undefined;
-  if (!isRecord(detail)) return undefined;
-
-  const entries = Object.entries(detail)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .slice(0, 4)
-    .map(([key, value]) => `${key}: ${asText(value) ?? JSON.stringify(value)}`);
-  return entries.length > 0 ? entries.join(' · ') : undefined;
-}
-
-/** 把 0-1 或 0-100 的进度字段统一成 0-1 */
-function pickRatio(source: unknown, keys: string[]): number | undefined {
-  if (!isRecord(source)) return undefined;
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      const ratio = value > 1 ? value / 100 : value;
-      return Math.min(1, Math.max(0, ratio));
-    }
-  }
-  return undefined;
 }

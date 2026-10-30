@@ -12,6 +12,8 @@ import {
   applyBackendLayout,
   buildSpeechWorkflow,
 } from './backend-workflow.mjs';
+import { NOTE_PROMPT_MARKER } from './note-prompt.mjs';
+import { applyCanvasLayout, applyNoteStep, renameLegacyNodes } from './workflow-canvas.mjs';
 
 const DEFAULT_WORKFLOW_PATH = fileURLToPath(
   new URL('../backend/workflows/video-summary.json', import.meta.url),
@@ -22,8 +24,6 @@ const DEFAULT_SPEECH_WORKFLOW_PATH = fileURLToPath(
 
 const ACTIVE_AI_AGENT_NAMES = ACTIVE_AGENT_NAMES;
 
-const RICH_PROMPT_MARKER = 'VIDEO_KNOWLEDGE_V3_EVIDENCE_OUTPUT';
-const CONTENT_ROUTE_PROMPT_MARKER = 'VIDEO_CONTENT_ROUTE_V1';
 const VIDEO_URL_SECURITY_MARKER = 'VIDEO_URL_SECURITY_V2';
 const PUBLIC_WORKFLOW_VERSION = BACKEND_WORKFLOW_VERSION;
 const URL_GLOBAL_LINE = "const URL = globalThis.URL || require('url').URL;";
@@ -45,84 +45,18 @@ const TRANSCRIPT_SUBFLOW_NODE_NAMES = [
   'SubFlow: Transcript',
   'SubFlow: Transcript from Local File',
 ];
+/** Traces of the author's own prompt (study-abroad applications, personal examples). */
 const PRIVATE_PROFILE_PATTERNS = [
   /\*\*用户画像\*\*/,
   /针对[^\n]{0,80}定制/,
   /我的背景契合度/,
   /结合[^\n|]{0,80}背景分析/,
+  /申请状态::/,
+  /教育申请/,
+  /光遗传学|内诺/,
+  /第二大脑数字管家/,
+  /导师特征分析/,
 ];
-
-const PUBLIC_ACADEMIC_RULE = [
-  '**法则 1: 若涉及「学术科研 / 教育申请」**',
-  '- 顶部属性区：\\`机构:: \\` \\`负责人:: \\` \\`研究方向:: \\` \\`截止日期:: \\` \\`申请状态:: \\`',
-  '- **研究项目与申请雷达表 (按需生成)**：',
-  '  | 核心评估维度 | 情报详情 (文稿提取) | 适用条件 / 风险 |',
-  '  | :--- | :--- | :--- |',
-  '  | **研究方向与技术栈** | (根据文稿提取) | (仅根据请求或文稿中明确提供的背景分析；未提供则标记无法评估) |',
-  '  | **申请与项目要求** | (语言、材料、流程和截止日期等) | |',
-  '  | **资金/奖学金** | (奖学金、RA/TA 或其他资助机会等) | |',
-  '- 整理负责人或作者的代表作摘要，以及可用于研究计划或后续沟通的素材，放入 \\`>[!quote]- 📝 核心文献与研究素材\\`。',
-  '- 自动生成 \\`- [ ] \\` 下一步行动清单。',
-].join('\n');
-
-const PUBLIC_MEDIA_ANALYSIS_RULE = [
-  '**法则 3: 若涉及「动漫 / 影视 / 音乐解析」**',
-  '- 当前 n8n 路径不接收视频帧。只能整理文稿中讲者明确描述的场景、构图、动作、配乐或剪辑信息，不能把讲者描述改写成模型亲眼看见的事实。',
-  '- 可使用表格：| 文稿时间 / 段落 | 讲者明确描述的视听信息 | 讲者给出的解释 |。',
-  '- 文稿没有明确提供的镜头、画面、配乐或动作必须标记为“未提供”，不能补写逐帧分析。',
-].join('\n');
-
-const RICH_PROMPT_BLOCK = [
-  `// ${RICH_PROMPT_MARKER}`,
-  "const knowledgeMetadata = {{ $('Webhook').item.json.body.metadata || {} }};",
-  'const contentRouterContract = knowledgeMetadata.content_router_contract || null;',
-  "const rawEvidenceSegments = {{ $('Set: Final Transcript for AI').item.json.video_segments || [] }};",
-  'const evidenceSegmentCatalog = Array.isArray(rawEvidenceSegments)',
-  '  ? rawEvidenceSegments.map((segment) => ({',
-  '      id: segment.id,',
-  '      start: segment.start,',
-  '      end: segment.end,',
-  '      text: segment.text,',
-  '      source: segment.source || "speech",',
-  '      timing_quality: segment.timing_quality || "none",',
-  '    }))',
-  '  : [];',
-  "const processingDepth = knowledgeMetadata.processing_depth || 'evidence';",
-  "const requestedContentType = knowledgeMetadata.content_type || 'auto';",
-  'const shouldAssessAttention = knowledgeMetadata.attention_assessment !== false;',
-  'const shouldGenerateLearning = knowledgeMetadata.generate_learning === true;',
-  'userPrompt += `',
-  '',
-  '【结构化证据附加输出（VIDEO_KNOWLEDGE_V3）】',
-  '在既有必填字段 video_title、summary、note 之外，输出以下可选 JSON 字段。不要删除既有字段：',
-  '- content_type：只能是 course / interview / tutorial / news / meeting / review / general；请求值为 ${requestedContentType}，auto 时根据文稿判断。',
-  '- evidence_claims：数组。每项为 {"id":"claim-1","claim":"可核查陈述","evidence":[{"segment_id":"下方真实 segment id","source":"speech","quote":"对应原话"}],"start":秒或null,"end":秒或null,"confidence":0到1,"review_state":"supported或needs-review或inference"}。',
-  '- attention：仅当 ${shouldAssessAttention} 为 true 时输出；结构为 {"action":"watch或skim或skip","score":0到1,"confidence":0到1,"rationale":"理由","information_density":0到1,"originality":0到1,"actionability":0到1,"promotional_ratio":0到1,"evidence_segment_ids":["真实segment id"],"limitations":["限制"]}。四个核心指标不可省略；没有知识库上下文时不要输出 vault_relevance。',
-  '- learning：仅当 ${shouldGenerateLearning} 为 true 时输出；可含 flashcards、questions、feynman_prompts，并让卡片/题目的 evidence_segment_ids 只引用真实 segment id。',
-  '',
-  `【内容类型路由结构（${CONTENT_ROUTE_PROMPT_MARKER}）】`,
-  '机器可读路由合同：${JSON.stringify(contentRouterContract)}',
-  '以下结构要求优先于前面的通用排版法则。requestedContentType 不是 auto 时必须按用户指定类型组织；auto 时只能依据标题、作者、章节和文稿判断，证据不足使用 general。',
-  '- course：学习目标 → 概念地图 → 课程结构 → 重点讲解 → 练习与复习。',
-  '- interview：人物与语境 → 对谈主题 → 按说话者归属的观点 → 关键问答 → 未决问题。不得把主持人的问题写成嘉宾主张。',
-  '- tutorial：目标与前置条件 → 材料与配置 → 可复现的顺序步骤 → 验证与排错 → 完成检查表。不得补造文稿没有的步骤。',
-  '- news：事件概览 → 时间线 → 相关方与信源 → 已确认事实/主张/未知事项 → 影响与后续。',
-  '- meeting：会议背景 → 已定事项 → 行动项（事项/负责人/期限/状态）→ 讨论摘要 → 未决事项。',
-  '- review：评测范围与标准 → 对象事实 → 优势 → 不足与权衡 → 有条件的结论与适用人群。',
-  '- general：内容概览 → 关键内容 → 证据与限制 → 可用结论。',
-  'content_type 必须与 note 实际采用的结构一致；缺失信息应写“未提供”，不能为了填满结构而虚构。',
-  '',
-  '处理深度：${processingDepth}',
-  '可引用的语音时间段目录（这是字幕证据，不是画面证据）：',
-  '${JSON.stringify(evidenceSegmentCatalog)}',
-  '',
-  '证据红线：',
-  '1. evidence 只能引用上方存在的 segment id；没有可引用 segment 时 evidence_claims 返回空数组。',
-  '2. 无时间信息时不得虚构 0:00、start=0 或 end=0；相应时间字段省略或使用 null。',
-  '3. 当前工作流没有接通视频画面理解。不要输出 visual_evidence，不要声称看见幻灯片、图表、代码界面、人物动作或镜头。',
-  '4. 仅由字幕推断且不能被原话直接支持的内容，review_state 必须为 inference 或 needs-review。',
-  '`;',
-].join('\n');
 
 function functionBody(fn) {
   const source = fn.toString();
@@ -1429,28 +1363,9 @@ function upsertAssignment(node, assignment) {
   }
 }
 
-function insertRichPrompt(text) {
-  const returnIndex = text.lastIndexOf('return userPrompt;');
-  if (returnIndex < 0) {
-    throw new Error('AI Agent prompt does not end with return userPrompt;');
-  }
-  const markerIndex = text.indexOf(`// ${RICH_PROMPT_MARKER}`);
-  const prefix = markerIndex >= 0 ? text.slice(0, markerIndex) : text.slice(0, returnIndex);
-  return `${prefix}${RICH_PROMPT_BLOCK}\n\n${text.slice(returnIndex)}`;
-}
-
-function sanitizePublicPrompt(text) {
-  return text
-    .replace(
-      /\*\*用户画像\*\*：[^\n]*(?:\n|$)/g,
-      '**使用边界**：不得假设用户的教育背景、身份、研究方向或申请目标；仅使用请求元数据和文稿中明确提供的信息。\n',
-    )
-    .replace(/\*\*法则 1:[\s\S]*?(?=\n\*\*法则 2:)/g, PUBLIC_ACADEMIC_RULE)
-    .replace(/\*\*法则 3:[\s\S]*?(?=\n\*\*法则 4:)/g, PUBLIC_MEDIA_ANALYSIS_RULE);
-}
-
 export function upgradeWorkflow(workflow) {
   const upgraded = structuredClone(workflow);
+  renameLegacyNodes(upgraded);
 
   upgraded.version = PUBLIC_WORKFLOW_VERSION;
   if (!upgraded.meta?.videoSummaryWorkflow) {
@@ -1470,7 +1385,7 @@ export function upgradeWorkflow(workflow) {
 
   getNode(upgraded, 'Code: Detect Platform & Prepare Download').parameters.jsCode =
     buildPrepareDownloadCode();
-  getNode(upgraded, 'CMD: Get Video Metadata1').parameters.command =
+  getNode(upgraded, 'CMD: Get Video Metadata').parameters.command =
     buildMetadataCommandExpression();
 
   const parseMetadata = getNode(upgraded, 'Code: Parse Metadata');
@@ -1478,17 +1393,6 @@ export function upgradeWorkflow(workflow) {
     "const link = $('Webhook').item.json.body.metadata.link;",
     "const link = $('Code: Validate Video URL').item.json.validated_video_url;",
   );
-
-  for (const node of upgraded.nodes) {
-    if (typeof node.parameters?.text === 'string') {
-      node.parameters.text = sanitizePublicPrompt(node.parameters.text);
-    }
-    if (typeof node.parameters?.options?.systemMessage === 'string') {
-      node.parameters.options.systemMessage = sanitizePublicPrompt(
-        node.parameters.options.systemMessage,
-      );
-    }
-  }
 
   const localAudioPath = getNode(upgraded, 'Set: Local Audio File Path');
   upsertAssignment(localAudioPath, {
@@ -1532,8 +1436,8 @@ export function upgradeWorkflow(workflow) {
     type: 'string',
   });
 
-  getNode(upgraded, 'Code: Parse AI JSON Output & Manage Retries').parameters.jsCode =
-    buildAiParserCode('Switch: AI Parse Retry?');
+  getNode(upgraded, 'Code: Parse Note JSON').parameters.jsCode =
+    buildAiParserCode('Switch: Retry Note?');
 
   const summary = getNode(upgraded, 'Set: Summary');
   summary.parameters.includeOtherFields = false;
@@ -1589,13 +1493,7 @@ export function upgradeWorkflow(workflow) {
     type: 'object',
   });
 
-  for (const name of ACTIVE_AI_AGENT_NAMES) {
-    const agent = getNode(upgraded, name);
-    if (agent.disabled) {
-      throw new Error(`Expected active AI Agent is disabled: ${name}`);
-    }
-    agent.parameters.text = insertRichPrompt(agent.parameters.text);
-  }
+  applyNoteStep(upgraded);
 
   // n8n 2.x Code nodes run in a sandbox without the URL global; the url builtin is allowed in
   // compose.yaml (NODE_FUNCTION_ALLOW_BUILTIN=url).
@@ -1606,6 +1504,7 @@ export function upgradeWorkflow(workflow) {
     }
   }
 
+  applyCanvasLayout(upgraded);
   return upgraded;
 }
 
@@ -1696,7 +1595,7 @@ export function validateWorkflow(workflow) {
       }
     }
 
-    const metadataCommand = getNode(workflow, 'CMD: Get Video Metadata1').parameters.command;
+    const metadataCommand = getNode(workflow, 'CMD: Get Video Metadata').parameters.command;
     if (
       !metadataCommand.includes('$json.video_url_token') ||
       !metadataCommand.includes('spawnSync') ||
@@ -1738,7 +1637,7 @@ export function validateWorkflow(workflow) {
       }
     }
 
-    for (const parserName of ['Code: Parse AI JSON Output & Manage Retries']) {
+    for (const parserName of ['Code: Parse Note JSON']) {
       const parser = getNode(workflow, parserName);
       if (!parser.parameters.jsCode.includes('parsedDataForNextNode = parsedJson')) {
         errors.push(`${parserName} does not preserve the complete rich output.`);
@@ -1771,18 +1670,18 @@ export function validateWorkflow(workflow) {
 
     for (const name of ACTIVE_AI_AGENT_NAMES) {
       const agent = getNode(workflow, name);
-      if (!agent.parameters.text.includes(RICH_PROMPT_MARKER)) {
-        errors.push(`${name} is missing the rich evidence prompt.`);
+      if (
+        !agent.parameters.text.startsWith('={{') ||
+        !agent.parameters.text.includes(NOTE_PROMPT_MARKER)
+      ) {
+        errors.push(`${name} must build its prompt with the note-prompt expression.`);
       }
-      if (!agent.parameters.text.includes(CONTENT_ROUTE_PROMPT_MARKER)) {
-        errors.push(`${name} is missing the content-route prompt.`);
-      }
-      if (!agent.parameters.text.includes('当前工作流没有接通视频画面理解')) {
+      if (!agent.parameters.text.includes('does not receive video frames')) {
         errors.push(`${name} does not disclose the visual-understanding limit.`);
       }
-      if (!agent.parameters.text.includes('当前 n8n 路径不接收视频帧')) {
-        errors.push(`${name} still has an ungrounded visual-analysis template.`);
-      }
+    }
+    if (!hasConnection(workflow, 'Switch: Retry Note?', ACTIVE_AI_AGENT_NAMES[0])) {
+      errors.push('A failed parse does not loop back to the AI step.');
     }
 
     for (const name of TRANSCRIPT_SUBFLOW_NODE_NAMES) {
@@ -1826,7 +1725,7 @@ export function validateWorkflow(workflow) {
       ['Code: Parse Native Subtitles', 'Switch: Native Transcript Found'],
       ['Merge: Transcript Sources', 'Set: Final Transcript for AI'],
       ['Set: Final Transcript for AI', 'Switch: Operation Mode'],
-      ['Set: Summary', 'Merge'],
+      ['Set: Summary', 'Merge: Result'],
     ];
     for (const [from, to] of requiredEdges) {
       if (!hasConnection(workflow, from, to)) {
@@ -1913,12 +1812,11 @@ if (isDirectRun) {
 }
 
 export {
-  CONTENT_ROUTE_PROMPT_MARKER,
   DEFAULT_SPEECH_WORKFLOW_PATH,
   DEFAULT_WORKFLOW_PATH,
   MEDIA_RUNNER_PROGRAM,
+  NOTE_PROMPT_MARKER,
   PUBLIC_WORKFLOW_VERSION,
-  RICH_PROMPT_MARKER,
   VIDEO_URL_SECURITY_MARKER,
   stableSegmentId,
 };

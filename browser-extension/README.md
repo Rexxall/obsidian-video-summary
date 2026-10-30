@@ -9,7 +9,7 @@ A browser extension that sends the video you are watching to Obsidian or to your
 - **Scan a page** for YouTube, Bilibili, Douyin, TikTok, Xiaohongshu and other video links, pick several, and send them together.
 - **Queue** videos from the toolbar, a shortcut or the right-click menu, and send the queue later.
 - **Copy a timestamped Markdown link** to the moment you are watching.
-- **Send to a backend:** the n8n webhook or a compatible Worker, using the same request format as the Obsidian plugin.
+- **Send to a backend:** the n8n webhook, using the same request format as the Obsidian plugin.
 - **Backend connection code:** paste the code the backend's start script prints into Settings → 后端连接码; it sets the address and the password header. The password stays on this computer and is not synced.
 - **Sync Bilibili login:** Settings → B 站登录 → 同步到后端 sends this browser's bilibili.com cookies to your own backend so it can fetch subtitles and Bilibili's AI subtitles. Chrome asks for cookie access the first time; nothing is sent anywhere else.
 

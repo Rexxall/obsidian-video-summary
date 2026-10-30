@@ -37,6 +37,11 @@ async function getSettings() {
     await chrome.storage.sync.remove(LOCAL_ONLY_SETTINGS);
     delete stored.obsidianRestToken;
   }
+  // The local Codex Worker route was removed; send those captures to n8n instead.
+  if (stored.quickAction === 'send-to-codex-worker') {
+    stored.quickAction = 'send-to-n8n';
+    await chrome.storage.sync.set({ quickAction: 'send-to-n8n' });
+  }
   return { ...U.DEFAULT_SETTINGS, ...stored, ...local };
 }
 
@@ -241,65 +246,6 @@ async function postJson(url, payload, headers = {}) {
   return body;
 }
 
-async function getJson(url) {
-  const response = await self.fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-  });
-  const text = await response.text();
-  let body = text;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    // Plain text response is fine.
-  }
-  if (!response.ok) {
-    throw new Error(
-      `HTTP ${response.status}: ${typeof body === 'string' ? body : JSON.stringify(body)}`,
-    );
-  }
-  return body;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => self.setTimeout(resolve, ms));
-}
-
-function buildJobStatusUrl(endpointUrl, job) {
-  const endpoint = new URL(endpointUrl);
-  if (job?.logsUrl && String(job.logsUrl).startsWith('/')) {
-    const statusPath = String(job.logsUrl).replace(/\/logs$/, '');
-    return `${endpoint.origin}${statusPath}`;
-  }
-  const base = endpoint.pathname.endsWith('/jobs')
-    ? endpoint.pathname
-    : endpoint.pathname.replace(/\/process-sync$/, '/jobs').replace(/\/$/, '');
-  return `${endpoint.origin}${base}/${encodeURIComponent(job.id)}`;
-}
-
-async function waitForCodexJob(endpointUrl, initialJob, options = {}) {
-  if (!initialJob?.id) return initialJob;
-  const timeoutMs = options.timeoutMs || 90000;
-  const intervalMs = options.intervalMs || 1000;
-  const started = Date.now();
-  const statusUrl = buildJobStatusUrl(endpointUrl, initialJob);
-  let latest = initialJob;
-
-  while (Date.now() - started < timeoutMs) {
-    latest = await getJson(statusUrl);
-    if (['success', 'error', 'needs-review', 'cancelled'].includes(latest?.status)) {
-      return latest;
-    }
-    await wait(intervalMs);
-  }
-
-  return {
-    ...latest,
-    status: 'needs-review',
-    error: latest?.error || { error: 'The Worker job is still running.' },
-  };
-}
-
 async function putObsidianRestNote(settings, item) {
   if (!settings.obsidianRestToken) throw new Error('Obsidian REST token is not configured.');
   const protocol = settings.obsidianRestProtocol || 'https';
@@ -353,41 +299,6 @@ async function transferOne(rawItem, operation, settings) {
     await openObsidianUri(uri);
     await addHistory({ operation, title: item.title, url: item.url, status: 'success' });
     return { operation, status: 'success', title: item.title };
-  }
-
-  if (operation === 'send-to-codex-worker') {
-    const payload = U.buildUnifiedPayload(item, settings, actionForPayload);
-    const response = await postJson(settings.codexWorkerUrl, payload);
-    const finalJob = await waitForCodexJob(settings.codexWorkerUrl, response);
-    const finalStatus =
-      finalJob?.status === 'success'
-        ? 'success'
-        : finalJob?.status === 'needs-review'
-          ? 'needs-review'
-          : finalJob?.error
-            ? 'error'
-            : 'success';
-    const errorMessage =
-      typeof finalJob?.error === 'string'
-        ? finalJob.error
-        : finalJob?.error?.error || finalJob?.error?.message || '';
-    await addHistory({
-      operation,
-      title: item.title,
-      url: item.url,
-      status: finalStatus,
-      jobId: finalJob?.id || response?.id || '',
-      jobStatus: finalJob?.status || '',
-      error: errorMessage,
-    });
-    return {
-      operation,
-      status: finalStatus,
-      title: item.title,
-      response,
-      job: finalJob,
-      error: errorMessage,
-    };
   }
 
   if (operation === 'send-to-n8n') {

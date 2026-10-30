@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## 2.11.0
+
+- **Notes are shorter and follow your language.** The backend prompt was rewritten: a summary, then the key points with their times, then short sections for the kind of video (course, interview, tutorial, news, meeting, review or general), with longer passages folded. English and Japanese requests now get English and Japanese headings; before, the prompt reached the model as unevaluated code and the language setting was not applied.
+- The prompt no longer carries the author's own rules and examples (study-abroad fields, personal topics).
+- **The n8n workflow explains itself.** Nodes are named for what they do, the separate retry copy of the AI step is gone (a retry goes back to the same step), the canvas is laid out one lane per kind of request, and sticky notes say what each lane does and where to look when something fails. Workflow version 3.1.0.
+- **Removed the "Codex local video service" backend**, its settings, its dashboard command and the browser extension's "Send to Worker". Settings that pointed at it switch to n8n. "Deep visual" is gone with it; the bundled backend reads what is said, not the picture.
+- The install guide and the backend notes show the workflow, the credentials page and where a failed run's reason is.
+
+Update the backend too: unzip `video-summary-backend-2.11.0.zip` over the old backend folder (your `.env` stays) and run the start script.
+
 ## 2.10.3
 
 - Settings show fewer descriptions: rows whose name already says what they do have none, and the section headings stand alone. Notes about cost, side effects and which setting wins remain.

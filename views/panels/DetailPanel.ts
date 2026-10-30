@@ -537,7 +537,6 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
   }
 
   if (job.state !== 'success' && job.state !== 'review') return;
-  const depth = job.input.processingDepth || result.artifact?.processing_depth || 'quick';
   const actionRow = body.createDiv({ cls: 'vs-signal-actions' });
   if (!result.attention) {
     textButton(
@@ -546,15 +545,6 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
       fire(() => queueKnowledgeUpgrade(ctx, job, 'quick')),
       'has-icon',
     );
-  }
-  if (depth !== 'deep-visual' && !result.visual_evidence?.length) {
-    const upgrade = textButton(
-      actionRow,
-      tr('深度看画面', 'Look at the frames in depth'),
-      fire(() => queueKnowledgeUpgrade(ctx, job, 'deep-visual')),
-      'has-icon',
-    );
-    prependIcon(upgrade, 'scan-eye');
   }
   if (learningCount > 0 && job.notePath) {
     const review = textButton(
@@ -583,17 +573,7 @@ function renderKnowledgeSignals(body: HTMLElement, ctx: ViewContext, job: Job) {
   if (actionRow.childElementCount === 0) actionRow.remove();
 }
 
-async function queueKnowledgeUpgrade(ctx: ViewContext, job: Job, depth: 'quick' | 'deep-visual') {
-  if (depth === 'deep-visual' && ctx.plugin.settings.activeBackend !== 'codex-worker') {
-    new Notice(
-      tr(
-        '内置 n8n 工作流尚未接通安全的画面凭据。请先在设置中切换到本机视频处理服务。',
-        'The bundled n8n workflow has no safe frame credential yet. Switch to the local video service in settings first.',
-      ),
-      7000,
-    );
-    return;
-  }
+async function queueKnowledgeUpgrade(ctx: ViewContext, job: Job, depth: 'quick') {
   if (!job.notePath) {
     new Notice(
       tr('先把结果保存为笔记，才能追加处理', 'Save the result as a note before adding processing'),
@@ -616,11 +596,7 @@ async function queueKnowledgeUpgrade(ctx: ViewContext, job: Job, depth: 'quick' 
   if (!queued) return;
   ctx.state.tab = 'jobs';
   ctx.closeDetail();
-  new Notice(
-    depth === 'deep-visual'
-      ? tr('已提交深度画面分析', 'Sent for deep visual analysis')
-      : tr('已提交快速观看判断', 'Sent for a quick worth-watching check'),
-  );
+  new Notice(tr('已提交快速观看判断', 'Sent for a quick worth-watching check'));
 }
 
 async function queueLearningUpgrade(ctx: ViewContext, job: Job) {

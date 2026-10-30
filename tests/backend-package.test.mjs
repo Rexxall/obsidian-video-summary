@@ -187,7 +187,7 @@ test('health report explains what is configured without leaking anything secret'
   );
   const probe = { json: { stdout: JSON.stringify({ tools: { ytDlp: '2026.10.26' } }) } };
   const [basic] = runCode(code, [probe], { 'CMD: Health Probe': [probe] });
-  assert.equal(basic.json.workflow.version, '3.0.0');
+  assert.equal(basic.json.workflow.version, '3.1.0');
   assert.equal(basic.json.backend.chat.checked, false);
 
   const [deep] = runCode(code, [probe], {

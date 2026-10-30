@@ -40,7 +40,7 @@ Bilibili login is optional and free: scan a QR code in the setup wizard to let t
 - **Across videos:** one search over transcripts and evidence, a claim matrix for two or more videos, and playlists compiled into a course without calling the model.
 - **Side panel:** the open note, the input, jobs with their stage, elapsed time, cancel and retry, and a library of every video note. Turn on preview to confirm each result before it touches a note.
 
-The bundled n8n workflow covers transcripts and evidence mode. Frame analysis (`deep-visual`) needs a separately deployed compatible Worker; see the [backend capability matrix](docs/BACKEND_CAPABILITY_MATRIX.md).
+The note reads only what is said, not the picture. What the backend does, what the n8n workflow looks like and where to find errors: [backend capability matrix](docs/BACKEND_CAPABILITY_MATRIX.md).
 
 ## Screens
 
@@ -100,11 +100,11 @@ Settings cover the backend and webhook profiles (each with its own Header Auth s
 
 The plugin does not include client-side telemetry, analytics, advertising or a self-update mechanism, and sends nothing to the plugin author.
 
-**Network use.** Besides your backend, the plugin contacts video platforms directly for playlist import, video details, short-link expansion, covers and the embedded YouTube or Bilibili player; those hosts see your IP address. Covers load only over HTTPS from known platform media hosts. Images from a compatible Worker are downloaded only from its exact loopback address, never through redirects, and are checked before they are written into the vault. Markdown written by the model has its images, embeds and active HTML neutralised before it is shown or saved.
+**Network use.** Besides your backend, the plugin contacts video platforms directly for playlist import, video details, short-link expansion, covers and the embedded YouTube or Bilibili player; those hosts see your IP address. Covers load only over HTTPS from known platform media hosts. Markdown written by the model has its images, embeds and active HTML neutralised before it is shown or saved.
 
 **Node and Electron access** (desktop only). `fs` and `path` list the files in the cookies folder and read their size and age, never their contents. `http` and `https` send one request to a short link and read only its `Location` header. Electron's `shell.openPath` shows a folder in Finder or Explorer. The plugin never starts processes or runs shell commands.
 
-**Files outside the vault.** A local-media input is sent to the backend as a file name; the bundled backend reads only files placed directly in its `uploads/` folder, and the Reader plays only files inside the vault. Evidence, learning progress, reproducibility records and course manifests are kept under the plugin's `data/` folder; back it up if you want them to survive a reinstall, and remove it before sharing a vault. Worker images go to `<output folder>/_video-summary-assets`. The webhook secret is stored unencrypted in the plugin's `data.json`; rotate it if that file is exposed.
+**Files outside the vault.** A local-media input is sent to the backend as a file name; the bundled backend reads only files placed directly in its `uploads/` folder, and the Reader plays only files inside the vault. Evidence, learning progress, reproducibility records and course manifests are kept under the plugin's `data/` folder; back it up if you want them to survive a reinstall, and remove it before sharing a vault. The webhook secret is stored unencrypted in the plugin's `data.json`; rotate it if that file is exposed.
 
 ## Browser extension
 

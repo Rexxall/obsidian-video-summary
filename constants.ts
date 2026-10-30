@@ -29,7 +29,7 @@ export const SETUP_TRIAL_TRANSCRIPT =
 export const LEGACY_N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/cyrus';
 export const RECOMMENDED_WORKFLOW: Required<WorkflowHealthInfo> = {
   name: 'Video Summary',
-  version: '3.0.0',
+  version: '3.1.0',
   variant: 'packaged',
   webhookPath: 'obsidian-video-summary',
   models: [],
@@ -96,9 +96,7 @@ export const platformCapabilities = (): PlatformCapability[] => [
 ];
 
 export const DEFAULT_SETTINGS: VideoSummarySettings = {
-  activeBackend: 'n8n',
   n8nWebhookUrl: DEFAULT_N8N_WEBHOOK_URL,
-  codexWorkerUrl: 'http://127.0.0.1:8787/video-summary/process-sync',
   webhookProfiles: [
     {
       id: 'default-webhook',

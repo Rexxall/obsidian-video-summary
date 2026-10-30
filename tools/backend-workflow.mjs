@@ -7,7 +7,7 @@
  * provider URLs, keys) are written by backend/init/configure.mjs when the container starts.
  */
 
-export const BACKEND_WORKFLOW_VERSION = '3.0.0';
+export const BACKEND_WORKFLOW_VERSION = '3.1.0';
 
 export const WORKFLOW_IDS = {
   main: 'vsMainWorkflow01',
@@ -41,11 +41,11 @@ export const NODE_NAMES = {
   healthModels: 'Health: Chat Models',
   healthSpeech: 'Health: Speech to Text',
   healthReport: 'Code: Health Report',
-  testResponse: 'Respond to Webhook: Test',
+  testResponse: 'Respond: Health Report',
   cookiePrepare: 'Code: Prepare Cookie File',
-  cookieWrite: 'Write Cookie File',
-  cookieResponse: 'Respond to Webhook: Cookies',
-  readDocument: 'Read Local Document',
+  cookieWrite: 'File: Write Cookies',
+  cookieResponse: 'Respond: Cookies Saved',
+  readDocument: 'File: Read Local Document',
   documentKind: 'Switch: Document Kind',
   pdfText: 'Extract PDF Text',
   documentsMerge: 'Merge: Documents',
@@ -85,7 +85,7 @@ const REMOVED_NODES = [
   'Read Binary File',
 ];
 
-export const ACTIVE_AGENT_NAMES = ['AI Agent1', 'AI Agent6'];
+export const ACTIVE_AGENT_NAMES = ['AI: Write Note'];
 
 export const COOKIE_PLATFORMS = {
   bilibili: ['bilibili.com', 'b23.tv', 'biligame.com', 'hdslb.com'],
@@ -785,7 +785,7 @@ export function applyBackendLayout(workflow) {
     },
     options: { fallbackOutput: 'extra', renameFallbackOutput: 'Summarize' },
   };
-  connect(workflow, 'Switch: Operation Mode', [[['Merge', 1]], ['AI Agent1']]);
+  connect(workflow, 'Switch: Operation Mode', [[['Merge: Result', 1]], ['AI: Write Note']]);
 
   const webhook = requireNode(workflow, 'Webhook');
   webhook.parameters.authentication = 'headerAuth';

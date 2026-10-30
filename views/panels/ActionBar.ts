@@ -305,12 +305,6 @@ function showMoreMenu(ctx: ViewContext, event: MouseEvent) {
       onClick: () => run('test-connection'),
     },
     {
-      title: tr('Codex 本地服务控制台', 'Codex local service dashboard'),
-      icon: 'gauge',
-      disabled: ctx.plugin.settings.activeBackend !== 'codex-worker',
-      onClick: () => run('open-worker-dashboard'),
-    },
-    {
       title: tr('插件设置', 'Plugin settings'),
       icon: 'settings',
       onClick: () => openSettings(ctx),
@@ -329,15 +323,8 @@ export function openSettings(ctx: ViewContext) {
 }
 
 function activeBackendInfo(ctx: ViewContext): BackendInfo {
-  const isWorker = ctx.plugin.settings.activeBackend === 'codex-worker';
-  const endpoint = (
-    (isWorker ? ctx.plugin.settings.codexWorkerUrl : ctx.plugin.settings.n8nWebhookUrl) || ''
-  ).trim();
-  return {
-    key: `${isWorker ? 'codex-worker' : 'n8n'}:${endpoint}`,
-    label: isWorker ? 'Codex Worker' : 'n8n',
-    endpoint,
-  };
+  const endpoint = (ctx.plugin.settings.n8nWebhookUrl || '').trim();
+  return { key: `n8n:${endpoint}`, label: 'n8n', endpoint };
 }
 
 function freshProbeResult(ctx: ViewContext, backend: BackendInfo): BackendProbeResult | undefined {
@@ -616,29 +603,18 @@ function renderOptions(container: HTMLElement, ctx: ViewContext) {
     }),
   );
 
-  const depthLabels: Record<ProcessingDepth, string> = {
+  const depthLabels: Record<'quick' | 'evidence', string> = {
     quick: tr('极速', 'Fast'),
     evidence: tr('证据', 'Evidence'),
-    'deep-visual': tr('深度视觉', 'Deep visual'),
   };
   segmented<ProcessingDepth>(
     row(tr('理解深度', 'Depth')),
-    (['quick', 'evidence', 'deep-visual'] as ProcessingDepth[]).map((depth) => ({
+    (['quick', 'evidence'] as const).map((depth) => ({
       value: depth,
       label: depthLabels[depth],
     })),
     settings.defaultProcessingDepth,
     fire(async (depth) => {
-      if (depth === 'deep-visual' && settings.activeBackend !== 'codex-worker') {
-        new Notice(
-          tr(
-            '深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。',
-            'Deep visual runs only on the local video service; the n8n backend goes up to evidence.',
-          ),
-          7000,
-        );
-        return;
-      }
       settings.defaultProcessingDepth = depth;
       plugin.api.setAnalysisDefaults({ processingDepth: depth });
       await plugin.saveSettings();

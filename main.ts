@@ -22,7 +22,6 @@ import {
   VideoSummarySettings,
   ProcessingMode,
   WebhookProfile,
-  ProcessingBackend,
   ConnectionTestResult,
   PlatformCapability,
   ProcessingDepth,
@@ -129,7 +128,6 @@ export default class VideoSummaryPlugin extends Plugin {
 
   // preflight 结果缓存（60s 内不重复 ping）
   private lastPreflight: {
-    backend: ProcessingBackend;
     url: string;
     ok: boolean;
     at: number;
@@ -348,14 +346,6 @@ export default class VideoSummaryPlugin extends Plugin {
       name: tr('测试当前视频处理后端', 'Test the current video backend'),
       callback: () => {
         void this.testProcessingBackendConnection();
-      },
-    });
-
-    this.addCommand({
-      id: 'open-worker-dashboard',
-      name: tr('Codex 本地服务控制台', 'Codex local service dashboard'),
-      callback: () => {
-        this.openCodexWorkerDashboard();
       },
     });
 
@@ -1170,10 +1160,7 @@ export default class VideoSummaryPlugin extends Plugin {
   private async testProcessingBackendConnection() {
     try {
       const result = await this.api.testConnection();
-      const label =
-        this.settings.activeBackend === 'codex-worker'
-          ? 'Codex Worker'
-          : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
+      const label = tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
 
       if (result.success) {
         new Notice(
@@ -1212,7 +1199,6 @@ export default class VideoSummaryPlugin extends Plugin {
   /**
    * 处理前的后端自检（preflight）。
    * - 60 秒内的成功结果直接复用，批量处理不会反复 ping。
-   * - 当前后端不可达时探测另一个后端；若可用，弹确认框提议切换并继续。
    * 返回 false 表示应中止本次处理。
    */
   async ensureBackendReady(): Promise<boolean> {
@@ -1220,14 +1206,12 @@ export default class VideoSummaryPlugin extends Plugin {
       return true;
     }
 
-    const backend = this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
     const endpoint = this.getActiveProcessingEndpoint();
     const now = Date.now();
 
     if (
       this.lastPreflight &&
       this.lastPreflight.ok &&
-      this.lastPreflight.backend === backend &&
       this.lastPreflight.url === endpoint &&
       now - this.lastPreflight.at < 60_000
     ) {
@@ -1235,70 +1219,19 @@ export default class VideoSummaryPlugin extends Plugin {
     }
 
     const result = await this.api.quickHealthCheck();
-    this.lastPreflight = { backend, url: endpoint, ok: result.ok, at: now };
+    this.lastPreflight = { url: endpoint, ok: result.ok, at: now };
     if (result.ok) {
       return true;
     }
 
-    const label =
-      backend === 'codex-worker'
-        ? 'Codex Worker'
-        : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
-
-    const otherBackend: ProcessingBackend = backend === 'n8n' ? 'codex-worker' : 'n8n';
-    const otherLabel =
-      otherBackend === 'codex-worker'
-        ? 'Codex Worker'
-        : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
-    const otherUrl =
-      otherBackend === 'codex-worker'
-        ? this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl
-        : this.settings.n8nWebhookUrl || DEFAULT_SETTINGS.n8nWebhookUrl;
-
-    const fallbackWebhookProfile = this.getActiveWebhookProfile();
-    const otherResult = await VideoSummaryAPI.probeEndpoint(
-      otherUrl,
-      otherBackend,
-      4000,
-      undefined,
-      otherBackend === 'n8n'
-        ? {
-            headerName: fallbackWebhookProfile?.headerName,
-            secret: fallbackWebhookProfile?.secret,
-          }
-        : undefined,
-    );
-
-    if (otherResult.ok) {
-      const confirmed = await this.showConfirmDialog(
-        tr(`${label} 不可用`, `${label} is unavailable`),
-        tr(
-          `当前后端 ${label} 连接失败：\n${result.error || '未知错误'}\n\n检测到 ${otherLabel} 可用。是否切换到 ${otherLabel} 并继续？`,
-          `The current backend ${label} failed to connect:\n${result.error || 'unknown error'}\n\n${otherLabel} is available. Switch to ${otherLabel} and continue?`,
-        ),
-      );
-      if (confirmed) {
-        await this.setActiveBackend(otherBackend);
-        this.lastPreflight = null;
-        new Notice(tr(`已切换到 ${otherLabel}`, `Switched to ${otherLabel}`));
-        return true;
-      }
-      return false;
-    }
-
     new Notice(
       tr(
-        `⚠️ ${label} 不可达：${result.error || '未知错误'}\n（${otherLabel} 也未检测到）请先启动处理服务，或在设置中检查 URL。`,
-        `⚠️ ${label} unreachable: ${result.error || 'unknown error'}\n(${otherLabel} not found either) Start the backend, or check the URL in settings.`,
+        `⚠️ 后端不可达：${result.error || '未知错误'}\n先打开 Docker 并运行启动脚本，或在设置中检查连接码。`,
+        `⚠️ Backend unreachable: ${result.error || 'unknown error'}\nOpen Docker and run the start script, or check the connection code in settings.`,
       ),
       8000,
     );
     return false;
-  }
-
-  openCodexWorkerDashboard() {
-    const dashboardUrl = safeExternalHttpUrl(this.getCodexWorkerDashboardUrl());
-    if (dashboardUrl) window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
   }
 
   private async processFile(file: TFile) {
@@ -1512,33 +1445,26 @@ export default class VideoSummaryPlugin extends Plugin {
     }
     // ===== history 拆分存储结束 =====
 
-    if (!this.settings.activeBackend) {
-      this.settings.activeBackend = DEFAULT_SETTINGS.activeBackend;
-      shouldSave = true;
-    }
     // 3.0 后端只有一个模型，由 .env 决定；旧版的模型标签列表不再起作用
     const settingsRecord = this.settings as unknown as JsonRecord;
     if ('customAiModels' in settingsRecord) {
       delete settingsRecord.customAiModels;
       shouldSave = true;
     }
+    // 2.11 起只有 n8n 后端；选过 Codex 本地服务的设置回到 n8n
+    for (const key of ['activeBackend', 'codexWorkerUrl']) {
+      if (key in settingsRecord) {
+        delete settingsRecord[key];
+        shouldSave = true;
+      }
+    }
     if (/^(?:Gemini|AI-Studio)\b/.test(this.settings.aiModel || '')) {
       this.settings.aiModel = BACKEND_DEFAULT_MODEL_LABEL;
       shouldSave = true;
     }
-    if (
-      this.settings.activeBackend !== 'codex-worker' &&
-      this.settings.defaultProcessingDepth === 'deep-visual'
-    ) {
+    if (this.settings.defaultProcessingDepth === 'deep-visual') {
       this.settings.defaultProcessingDepth = 'evidence';
       shouldSave = true;
-      new Notice(
-        tr(
-          '旧设置中的“深度视觉”已按 n8n 实际能力迁移为“证据”模式。',
-          '"Deep visual" in the old settings was changed to "Evidence", which is what n8n supports.',
-        ),
-        7000,
-      );
     }
     const normalizedConcurrency = Math.max(
       1,
@@ -1546,11 +1472,6 @@ export default class VideoSummaryPlugin extends Plugin {
     );
     if (this.settings.batchConcurrency !== normalizedConcurrency) {
       this.settings.batchConcurrency = normalizedConcurrency;
-      shouldSave = true;
-    }
-
-    if (!this.settings.codexWorkerUrl) {
-      this.settings.codexWorkerUrl = DEFAULT_SETTINGS.codexWorkerUrl;
       shouldSave = true;
     }
 
@@ -1700,28 +1621,11 @@ export default class VideoSummaryPlugin extends Plugin {
   // ===== history.json 读写结束 =====
 
   private getActiveProcessingEndpoint(): string {
-    if (this.settings?.activeBackend === 'codex-worker') {
-      return this.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
-    }
     return this.settings?.n8nWebhookUrl ?? DEFAULT_SETTINGS.n8nWebhookUrl;
-  }
-
-  getCodexWorkerDashboardUrl(): string {
-    const endpoint = this.settings?.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl;
-    try {
-      const url = new URL(endpoint);
-      url.pathname = '/dashboard';
-      url.search = '';
-      url.hash = '';
-      return url.toString();
-    } catch {
-      return 'http://127.0.0.1:8787/dashboard';
-    }
   }
 
   private initializeApiInstance(url?: string) {
     const targetUrl = url ?? this.getActiveProcessingEndpoint();
-    const backend = this.settings?.activeBackend ?? DEFAULT_SETTINGS.activeBackend;
     const activeWebhookProfile = this.getActiveWebhookProfile();
     this.api = new VideoSummaryAPI(
       targetUrl,
@@ -1729,13 +1633,10 @@ export default class VideoSummaryPlugin extends Plugin {
       // 用插件自身的安装目录，而不是写死某个 vault 的配置目录名（如 .obsidian_mac），保证可移植
       `${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/data`,
       this.settings.payloadKeys,
-      backend,
-      backend === 'n8n'
-        ? {
-            headerName: activeWebhookProfile?.headerName,
-            secret: activeWebhookProfile?.secret,
-          }
-        : undefined,
+      {
+        headerName: activeWebhookProfile?.headerName,
+        secret: activeWebhookProfile?.secret,
+      },
       this.settings.timeoutMinutes ?? DEFAULT_SETTINGS.timeoutMinutes,
     );
     this.api.setWebhookHistory(this.settings.webhookHistory || []);
@@ -1779,20 +1680,7 @@ export default class VideoSummaryPlugin extends Plugin {
     }
 
     this.settings.activeWebhookId = profileId;
-    this.settings.activeBackend = 'n8n';
     this.settings.n8nWebhookUrl = profile.url;
-    if (this.settings.defaultProcessingDepth === 'deep-visual') {
-      this.settings.defaultProcessingDepth = 'evidence';
-      if (!options.silent) {
-        new Notice(
-          tr(
-            '当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。',
-            'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".',
-          ),
-          7000,
-        );
-      }
-    }
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
 
@@ -1805,10 +1693,8 @@ export default class VideoSummaryPlugin extends Plugin {
     return profile;
   }
 
-  /** True once a connection code (or a Worker URL) is in place; the side panel uses it for its first-run state. */
+  /** True once a connection code is in place; the side panel uses it for its first-run state. */
   isBackendConfigured(): boolean {
-    if (this.settings.activeBackend === 'codex-worker')
-      return !!this.settings.codexWorkerUrl?.trim();
     const profile = this.getActiveWebhookProfile();
     return !!profile?.url?.trim() && !!profile.secret?.trim();
   }
@@ -1831,22 +1717,6 @@ export default class VideoSummaryPlugin extends Plugin {
 
   getActiveWebhookProfile(): WebhookProfile | undefined {
     return this.settings.webhookProfiles.find((p) => p.id === this.settings.activeWebhookId);
-  }
-
-  async setActiveBackend(backend: ProcessingBackend) {
-    this.settings.activeBackend = backend;
-    if (backend !== 'codex-worker' && this.settings.defaultProcessingDepth === 'deep-visual') {
-      this.settings.defaultProcessingDepth = 'evidence';
-      new Notice(
-        tr(
-          '当前 n8n 后端暂不执行深度视觉，理解深度已改为“证据”。',
-          'The n8n backend cannot do deep visual analysis; depth is set to "Evidence".',
-        ),
-        7000,
-      );
-    }
-    this.initializeApiInstance();
-    await this.saveSettings();
   }
 
   private extractVideoUrl(content: string): string | null {
@@ -2203,10 +2073,7 @@ export default class VideoSummaryPlugin extends Plugin {
       const manifest = await this.reproducibilityStore.load(artifactId);
       const restored = await restoreReprocessPayload(manifest);
       const depth =
-        restored.processing.depth === 'deep-visual' &&
-        this.settings.activeBackend !== 'codex-worker'
-          ? 'evidence'
-          : restored.processing.depth;
+        restored.processing.depth === 'deep-visual' ? 'evidence' : restored.processing.depth;
       const job = await this.jobService.submitPreparedFile(
         file,
         {
@@ -2550,16 +2417,14 @@ export default class VideoSummaryPlugin extends Plugin {
           );
           return;
         }
-        if ((this.settings.activeBackend ?? DEFAULT_SETTINGS.activeBackend) !== 'codex-worker') {
-          new Notice(
-            tr(
-              '已捕获到收件箱；自带的 n8n 无法读取链接里的主机绝对路径。请先复制到后端文件夹的 uploads 里，再用文件名提交，或切换到能访问该路径的本机服务。',
-              "Captured to the inbox. The bundled n8n cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name, or use a local service that can reach that path.",
-            ),
-            9000,
-          );
-          return;
-        }
+        new Notice(
+          tr(
+            '已捕获到收件箱；后端读不到电脑上的绝对路径。请先把文件复制到后端文件夹的 uploads 里，再用文件名提交。',
+            "Captured to the inbox. The backend cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name.",
+          ),
+          9000,
+        );
+        return;
         const confirmed = await this.showConfirmDialog(
           tr('允许处理本地媒体？', 'Allow processing a local file?'),
           tr(
@@ -3155,7 +3020,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
     profile.headerName = code.headerName;
     profile.secret = code.secret;
     settings.n8nWebhookUrl = code.url;
-    await this.plugin.setActiveBackend('n8n');
+    this.plugin.reinitializeApi();
+    await this.plugin.saveSettings();
   }
 
   private renderConnectionResult(containerEl: HTMLElement, result: ConnectionTestResult) {
@@ -3437,50 +3303,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
   private createApiSection(containerEl: HTMLElement) {
     const { section } = this.sectionCard(containerEl, 'link', tr('处理服务', 'Backend'));
 
-    new Setting(section).setName(tr('主处理后端', 'Main backend')).addDropdown((dropdown) =>
-      dropdown
-        .addOption('n8n', tr('兼容 n8n 的 webhook', 'n8n-compatible webhook'))
-        .addOption('codex-worker', tr('Codex 本地视频服务', 'Codex local video service'))
-        .setValue(this.plugin.settings.activeBackend || DEFAULT_SETTINGS.activeBackend)
-        .onChange(async (value) => {
-          await this.plugin.setActiveBackend(value as ProcessingBackend);
-          new Notice(
-            value === 'codex-worker'
-              ? tr('已切换到 Codex Video Worker', 'Switched to the Codex Video Worker')
-              : tr('已切换到 n8n / 兼容 Webhook', 'Switched to n8n / compatible webhook'),
-          );
-          this.redraw();
-        }),
+    const webhookSetting = new Setting(section).setName(
+      tr('默认 webhook（n8n 或兼容服务）', 'Default webhook (n8n or compatible)'),
     );
-
-    new Setting(section)
-      .setName(tr('Codex 本地服务地址', 'Codex local service address'))
-      .addText((text) =>
-        text
-          .setPlaceholder(DEFAULT_SETTINGS.codexWorkerUrl)
-          .setValue(this.plugin.settings.codexWorkerUrl || DEFAULT_SETTINGS.codexWorkerUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.codexWorkerUrl = value.trim() || DEFAULT_SETTINGS.codexWorkerUrl;
-            if (this.plugin.settings.activeBackend === 'codex-worker') {
-              this.plugin.reinitializeApi();
-            }
-            await this.plugin.saveSettings();
-          }),
-      )
-      .addButton((button) =>
-        button.setButtonText(tr('打开控制台', 'Open dashboard')).onClick(() => {
-          this.plugin.openCodexWorkerDashboard();
-        }),
-      );
-
-    const webhookSetting = new Setting(section)
-      .setName(tr('默认 webhook（n8n 或兼容服务）', 'Default webhook (n8n or compatible)'))
-      .setDesc(
-        tr(
-          '选这里的默认项会把主处理后端切回 n8n 或兼容服务。',
-          'Choosing the default here switches the main backend back to n8n or a compatible service.',
-        ),
-      );
 
     let webhookDropdown: DropdownComponent | null = null;
 
@@ -3520,10 +3345,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
         button.setButtonText(tr('测试中...', 'Testing...'));
         try {
           const res = await this.plugin.api.testConnection();
-          const label =
-            this.plugin.settings.activeBackend === 'codex-worker'
-              ? 'Codex Worker'
-              : tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
+          const label = tr('兼容 n8n 的 webhook', 'n8n-compatible webhook');
           if (res.success) {
             new Notice(
               tr(
@@ -3606,17 +3428,14 @@ class VideoSummarySettingTab extends PluginSettingTab {
             placeholder: DEFAULT_WEBHOOK_AUTH_HEADER,
             'aria-label': tr('Webhook 鉴权请求头名称', 'Webhook auth header name'),
             title: tr(
-              '附带工作流 2.1.5 必填：须与 n8n Header Auth 的 Header 名称一致',
+              '附带工作流必填：须与 n8n Header Auth 的 Header 名称一致',
               'Required by the bundled workflow: must match the n8n Header Auth header name',
             ),
           },
         });
         headerInput.oninput = async () => {
           profile.headerName = headerInput.value.trim() || DEFAULT_WEBHOOK_AUTH_HEADER;
-          if (
-            profile.id === this.plugin.settings.activeWebhookId &&
-            this.plugin.settings.activeBackend === 'n8n'
-          ) {
+          if (profile.id === this.plugin.settings.activeWebhookId) {
             this.plugin.reinitializeApi(profile.url);
           }
           await this.plugin.saveSettings();
@@ -3628,12 +3447,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
           cls: 'webhook-auth-secret-input',
           attr: {
             placeholder: tr(
-              '鉴权 Secret（工作流 2.1.5 必填）',
+              '鉴权 Secret（附带工作流必填）',
               'Auth secret (required by the bundled workflow)',
             ),
             'aria-label': tr('Webhook 鉴权密钥', 'Webhook auth secret'),
             title: tr(
-              '附带工作流 2.1.5 必填；只有另行部署的兼容旧端点才可留空（留空时不发送鉴权 Header）',
+              '附带工作流必填；只有另行部署的兼容旧端点才可留空（留空时不发送鉴权 Header）',
               'Required by the bundled workflow; only an older compatible endpoint you deployed yourself may leave it empty (then no auth header is sent)',
             ),
             autocomplete: 'off',
@@ -3642,10 +3461,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
         });
         secretInput.oninput = async () => {
           profile.secret = secretInput.value;
-          if (
-            profile.id === this.plugin.settings.activeWebhookId &&
-            this.plugin.settings.activeBackend === 'n8n'
-          ) {
+          if (profile.id === this.plugin.settings.activeWebhookId) {
             this.plugin.reinitializeApi(profile.url);
           }
           await this.plugin.saveSettings();
@@ -3723,35 +3539,18 @@ class VideoSummarySettingTab extends PluginSettingTab {
     new Setting(section)
       .setName(tr('默认理解深度', 'Default depth'))
       .setDesc(
-        this.plugin.settings.activeBackend === 'codex-worker'
-          ? tr(
-              '极速只读字幕；证据模式保留时间轴；深度视觉会分析关键画面。',
-              'Quick reads subtitles only; evidence keeps the timeline; deep visual analyses key frames.',
-            )
-          : tr(
-              '极速只读字幕；证据模式保留时间轴。深度视觉需要先切换到 Codex Worker。',
-              'Quick reads subtitles only; evidence keeps the timeline. Deep visual needs the Codex Worker.',
-            ),
+        tr(
+          '极速只读字幕；证据模式保留时间轴，笔记里的要点能跳回原话。',
+          'Quick reads subtitles only; evidence keeps the timeline so key points link back to the quote.',
+        ),
       )
       .addDropdown((dropdown) =>
         dropdown
           .addOption('quick', tr('极速', 'Quick'))
           .addOption('evidence', tr('证据', 'Evidence'))
-          .addOption('deep-visual', tr('深度视觉', 'Deep visual'))
           .setValue(this.plugin.settings.defaultProcessingDepth)
           .onChange(async (value) => {
             const depth = value as ProcessingDepth;
-            if (depth === 'deep-visual' && this.plugin.settings.activeBackend !== 'codex-worker') {
-              dropdown.setValue('evidence');
-              new Notice(
-                tr(
-                  '深度视觉只能由本机视频处理服务执行；当前 n8n 后端最多用到证据模式。',
-                  'Deep visual runs only on the local video service; the n8n backend goes up to evidence.',
-                ),
-                7000,
-              );
-              return;
-            }
             this.plugin.settings.defaultProcessingDepth = depth;
             this.plugin.api.setAnalysisDefaults({ processingDepth: depth });
             await this.plugin.saveSettings();

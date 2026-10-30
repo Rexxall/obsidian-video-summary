@@ -1,7 +1,7 @@
 {
   "id": "video-summary",
   "name": "Video Summary",
-  "version": "2.10.3",
+  "version": "2.11.0",
   "minAppVersion": "1.8.7",
   "description": "Turn video links, local recordings and transcripts into notes with a summary, a timestamped transcript and key points, processed by a backend you run.",
   "author": "Rexxall",

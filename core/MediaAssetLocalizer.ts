@@ -99,7 +99,7 @@ export class MediaAssetLocalizer {
           candidate.path = undefined;
         }
       } else if (asset.path) {
-        // Codex Worker includes its absolute scratch path alongside a signed
+        // A compatible Worker includes its absolute scratch path alongside a signed
         // loopback asset URL. We never read that path; a safe URL is enough to
         // localize it without surfacing a misleading warning to the user.
         const fallbackUrl = String(asset.url || '').trim();

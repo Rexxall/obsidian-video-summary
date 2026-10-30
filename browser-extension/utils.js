@@ -14,7 +14,6 @@
     obsidianRestProtocol: 'https',
     obsidianRestPort: 27123,
     obsidianRestToken: '',
-    codexWorkerUrl: 'http://127.0.0.1:8787/video-summary/jobs',
     n8nWebhookUrl: 'http://127.0.0.1:5678/webhook/obsidian-video-summary',
     n8nToken: '',
     webhookFormat: 'unified',

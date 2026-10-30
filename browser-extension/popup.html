@@ -500,7 +500,6 @@
             <button id="btn-current-rest">经 REST 建笔记</button>
             <button id="btn-current-append">追加到链接清单</button>
             <button id="btn-current-n8n">直接发给 n8n</button>
-            <button id="btn-current-codex">发给 Worker</button>
           </div>
         </details>
 
@@ -533,7 +532,6 @@
           <div class="actions">
             <button id="btn-batch-append">追加到链接清单</button>
             <button id="btn-batch-n8n">直接发给 n8n</button>
-            <button id="btn-batch-codex">发给 Worker</button>
           </div>
         </details>
       </section>
@@ -557,7 +555,6 @@
           <div class="actions">
             <button id="btn-queue-append">追加到链接清单</button>
             <button id="btn-queue-n8n">直接发给 n8n</button>
-            <button id="btn-queue-codex">发给 Worker</button>
           </div>
         </details>
       </section>
@@ -583,7 +580,6 @@
             <option value="create-pending-note">只建待处理笔记（URI）</option>
             <option value="create-pending-rest">只建待处理笔记（REST）</option>
             <option value="send-to-n8n">直接发给 n8n</option>
-            <option value="send-to-codex-worker">发给 Worker</option>
             <option value="append-link">追加时间戳链接</option>
             <option value="queue">加入队列</option>
           </select>
@@ -639,10 +635,6 @@
             <option value="unified">统一格式</option>
             <option value="legacy">旧版 Bridge</option>
           </select>
-        </div>
-        <div class="field">
-          <label for="setting-codex">Worker 地址</label>
-          <input id="setting-codex" />
         </div>
         <div class="field">
           <label for="setting-rest-protocol">REST 协议</label>
