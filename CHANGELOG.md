@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## 2.11.1 (unreleased)
+## 2.11.1
 
 - **TikTok videos with captions skip transcription.** The backend reads the video's own caption with its timing and downloads the audio only when there is none.
 - When Douyin or Xiaohongshu can't be read, or YouTube asks to confirm you are not a bot, the message says what to do instead: paste the text, save a screenshot, or download the video yourself and drop it into the side panel.
