@@ -566,44 +566,103 @@ async function mediaCommandRunner() {
     if (normalized.startsWith('ja') || normalized === 'jp' || normalized.startsWith('jpn'))
       return 'ja';
     if (normalized.startsWith('en')) return 'en';
-    return normalized.split('-')[0] || '';
-  }
-
-  // Bilibili: uploader subtitles first, then Bilibili's own AI subtitles (ai-zh and other ai-*,
-  // which need a logged-in cookie). Danmaku is not a transcript. Returns one exact track name.
-  function selectBilibiliSubtitle(info) {
-    const tracks = Object.keys(info.subtitles || {}).filter(
-      (key) => key && key !== 'danmaku' && key !== 'live_chat',
-    );
-    const rank = (key) => {
-      const lower = key.toLowerCase();
-      if (!lower.startsWith('ai-') && lower.startsWith('zh')) return 0;
-      if (lower === 'ai-zh') return 1;
-      if (lower.startsWith('ai-')) return 3;
-      return 2;
+    const head = normalized.split('-')[0] || '';
+    const threeLetter = {
+      spa: 'es',
+      fra: 'fr',
+      deu: 'de',
+      kor: 'ko',
+      rus: 'ru',
+      por: 'pt',
+      ita: 'it',
+      vie: 'vi',
+      tha: 'th',
+      ind: 'id',
+      ara: 'ar',
     };
-    return tracks.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))[0] || '';
+    return threeLetter[head] || head;
   }
 
-  // TikTok: the creator's or TikTok's own captions (subtitleInfos on the video page), Chinese first,
-  // then English, then whatever there is. Returns one exact track name.
-  function selectTikTokSubtitle(info) {
+  // A rough guess at a title's language from its script, for sites that do not say which
+  // subtitle track is the original.
+  function scriptLanguage(text) {
+    const value = String(text || '');
+    if (/[\u3040-\u30ff]/.test(value)) return 'ja';
+    if (/[\uac00-\ud7af]/.test(value)) return 'ko';
+    if (/[\u4e00-\u9fff]/.test(value)) return 'zh';
+    if (/[A-Za-z]/.test(value)) return 'en';
+    return '';
+  }
+
+  // Subtitles stay in the language spoken in the video; a translation could change what was said,
+  // and the summary step translates anyway. Each selector returns one exact track name, or '' to
+  // send the audio to speech-to-text in its own language.
+
+  // Bilibili: uploader subtitles before Bilibili's AI ones (which need a logged-in cookie).
+  // Bilibili does not say which AI track is a translation, so among several only the one in the
+  // title's language counts; a lone track is the original. Danmaku is not a transcript.
+  function selectBilibiliSubtitle(info) {
+    const tracks = Object.keys(info.subtitles || {})
+      .filter((key) => key && key !== 'danmaku' && key !== 'live_chat')
+      .sort();
+    const spoken = scriptLanguage(info.title);
+    const base = (key) => languageBase(key.replace(/^ai-/i, ''));
+    const uploader = tracks.filter((key) => !/^ai-/i.test(key));
+    const ai = tracks.filter((key) => /^ai-/i.test(key));
+    return (
+      uploader.find((key) => base(key) === spoken) ||
+      ai.find((key) => base(key) === spoken) ||
+      (uploader.length === 1 ? uploader[0] : '') ||
+      (uploader.length === 0 && ai.length === 1 ? ai[0] : '')
+    );
+  }
+
+  // TikTok: its page marks machine-translated captions (Source "MT") and gives the video's text
+  // language; yt-dlp keeps neither, so they are read from the page. Without the page a lone track
+  // is the original (translations only come next to one); with several, the audio is transcribed.
+  async function tiktokCaptionInfo(link) {
+    try {
+      const response = await fetch(link, {
+        headers: {
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok || !/(^|\.)tiktok\.com$/.test(new URL(response.url).hostname)) return null;
+      const html = (await response.text()).slice(0, 4 * 1024 * 1024);
+      const match = html.match(
+        /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/,
+      );
+      if (!match) return null;
+      const item = JSON.parse(match[1])?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo
+        ?.itemStruct;
+      if (!item) return null;
+      return {
+        captions: Array.isArray(item.video?.subtitleInfos) ? item.video.subtitleInfos : [],
+        textLanguage: String(item.textLanguage || ''),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function selectTikTokSubtitle(info, page) {
     const tracks = [
       ...Object.keys(info.subtitles || {}),
       ...Object.keys(info.automatic_captions || {}),
     ].filter((key) => key && key !== 'live_chat');
-    const rank = (key) => {
-      const lower = key.toLowerCase();
-      if (/^(zh|cmn|zho|yue)/.test(lower)) return 0;
-      if (lower.startsWith('en')) return 1;
-      return 2;
-    };
-    return tracks.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))[0] || '';
+    if (!page) return tracks.length === 1 ? tracks[0] : '';
+    const original = page.captions
+      .filter((caption) => String(caption?.Source || '').toUpperCase() !== 'MT')
+      .map((caption) => String(caption?.LanguageCodeName || ''))
+      .filter((name) => tracks.includes(name));
+    const spoken = languageBase(page.textLanguage);
+    return original.find((name) => spoken && languageBase(name) === spoken) || original[0] || '';
   }
 
   function selectSubtitleLanguages(info) {
     if (validated.platform === 'bilibili') return selectBilibiliSubtitle(info);
-    if (validated.platform === 'tiktok') return selectTikTokSubtitle(info);
     const keys = (object) => Object.keys(object || {}).filter((key) => key && key !== 'live_chat');
     const manual = keys(info.subtitles);
     const automatic = keys(info.automatic_captions);
@@ -774,7 +833,10 @@ async function mediaCommandRunner() {
     process.stdout.write('__NATIVE_SUBTITLE_UNCERTAIN_ORIGINAL_LANGUAGE__=1\n');
     return;
   }
-  const languages = selectSubtitleLanguages(info);
+  const languages =
+    validated.platform === 'tiktok'
+      ? selectTikTokSubtitle(info, await tiktokCaptionInfo(link))
+      : selectSubtitleLanguages(info);
   if (!languages) {
     process.stdout.write('__NATIVE_SUBTITLE_UNCERTAIN_ORIGINAL_LANGUAGE__=1\n');
     return;

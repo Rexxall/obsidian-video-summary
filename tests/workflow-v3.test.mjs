@@ -126,6 +126,7 @@ test('the prompt carries every content type and the no-frames limit', () => {
     assert.match(prompt, new RegExp(`- ${route}: `), route);
   }
   assert.match(prompt, /does not receive video frames/);
+  assert.match(prompt, /quote is copied from the transcript in its own language, never translated/);
 });
 
 test('nodes have descriptive names, one AI step, and sticky notes explain each lane', () => {

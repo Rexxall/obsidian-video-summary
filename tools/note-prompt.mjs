@@ -123,7 +123,7 @@ export function buildNotePrompt(input) {
     '- summary: one or two sentences for a list view.',
     '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
     '- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.',
-    '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return [].',
+    '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return []. A quote is copied from the transcript in its own language, never translated; the claim is in the language of the note.',
   ];
   if (assessAttention) {
     lines.push(

@@ -133,33 +133,68 @@ test('credentials use the ids the workflows reference', () => {
   assert.equal(speech.data.value, 'Bearer not-configured');
 });
 
-test('Bilibili prefers uploader subtitles, then its AI subtitles, and never danmaku', () => {
-  const source = MEDIA_RUNNER_PROGRAM.match(
-    /function selectBilibiliSubtitle\(info\) \{[\s\S]*?\n {2}\}\n/,
-  );
-  assert.ok(source, 'selectBilibiliSubtitle not found in the media runner');
-  const select = vm.runInNewContext(`(${source[0]})`);
-  const pick = (...keys) =>
-    select({ subtitles: Object.fromEntries(keys.map((key) => [key, [{ ext: 'srt' }]])) });
-  assert.equal(pick('danmaku', 'ai-zh', 'zh-Hans'), 'zh-Hans');
-  assert.equal(pick('danmaku', 'ai-en', 'ai-zh'), 'ai-zh');
-  assert.equal(pick('danmaku', 'ai-en'), 'ai-en');
-  assert.equal(pick('danmaku'), '');
+/** Pull named helper functions out of the media runner and run them in a fresh context. */
+function runnerFunctions(...names) {
+  const source = names
+    .map((name) => {
+      const match = MEDIA_RUNNER_PROGRAM.match(
+        new RegExp(`(async )?function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n {2}\\}\\n`),
+      );
+      assert.ok(match, `${name} not found in the media runner`);
+      return match[0];
+    })
+    .join('\n');
+  return vm.runInNewContext(`${source}\n({ ${names.join(', ')} })`);
+}
+
+const SELECTOR_HELPERS = ['normalizeLanguage', 'languageBase', 'scriptLanguage'];
+
+test('Bilibili uses the subtitle in the spoken language, never danmaku or a translation', () => {
+  const { selectBilibiliSubtitle } = runnerFunctions(...SELECTOR_HELPERS, 'selectBilibiliSubtitle');
+  const pick = (title, ...keys) =>
+    selectBilibiliSubtitle({
+      title,
+      subtitles: Object.fromEntries(keys.map((key) => [key, [{ ext: 'srt' }]])),
+    });
+  assert.equal(pick('三遍读论文', 'danmaku', 'ai-zh', 'zh-Hans'), 'zh-Hans');
+  assert.equal(pick('三遍读论文', 'danmaku', 'ai-en', 'ai-zh'), 'ai-zh');
+  assert.equal(pick('How to read a paper', 'danmaku', 'ai-en', 'ai-zh'), 'ai-en');
+  assert.equal(pick('三遍读论文', 'danmaku', 'ai-en'), 'ai-en', 'a lone AI track is the original');
+  assert.equal(pick('', 'danmaku', 'ai-en', 'ai-ja'), '', 'unknown original: transcribe instead');
+  assert.equal(pick('三遍读论文', 'danmaku'), '');
 });
 
-test('TikTok uses its own captions, Chinese first, then English, before any transcription', () => {
-  const source = MEDIA_RUNNER_PROGRAM.match(
-    /function selectTikTokSubtitle\(info\) \{[\s\S]*?\n {2}\}\n/,
+test('TikTok uses the original caption, never a machine translation, before transcribing', () => {
+  const { selectTikTokSubtitle } = runnerFunctions(...SELECTOR_HELPERS, 'selectTikTokSubtitle');
+  const info = (...keys) => ({
+    subtitles: Object.fromEntries(keys.map((key) => [key, [{ ext: 'vtt' }]])),
+  });
+  const page = (textLanguage, ...captions) => ({
+    textLanguage,
+    captions: captions.map(([LanguageCodeName, Source]) => ({ LanguageCodeName, Source })),
+  });
+  assert.equal(
+    selectTikTokSubtitle(
+      info('eng-US', 'cmn-Hans-CN'),
+      page('en', ['eng-US', 'ASR'], ['cmn-Hans-CN', 'MT']),
+    ),
+    'eng-US',
   );
-  assert.ok(source, 'selectTikTokSubtitle not found in the media runner');
-  const select = vm.runInNewContext(`(${source[0]})`);
-  const pick = (...keys) =>
-    select({ subtitles: Object.fromEntries(keys.map((key) => [key, [{ ext: 'vtt' }]])) });
-  assert.equal(pick('eng-US'), 'eng-US');
-  assert.equal(pick('eng-US', 'cmn-Hans-CN'), 'cmn-Hans-CN');
-  assert.equal(pick('jpn-JP', 'eng-US'), 'eng-US');
-  assert.equal(pick('spa-ES'), 'spa-ES');
-  assert.equal(pick(), '');
+  assert.equal(
+    selectTikTokSubtitle(info('jpn-JP', 'eng-US'), page('ja', ['eng-US', 'MT'], ['jpn-JP', 'ASR'])),
+    'jpn-JP',
+  );
+  assert.equal(
+    selectTikTokSubtitle(info('eng-US'), page('en', ['eng-US', 'MT'])),
+    '',
+    'only a translation: transcribe the audio instead',
+  );
+  assert.equal(
+    selectTikTokSubtitle(info('eng-US'), null),
+    'eng-US',
+    'a lone track is the original',
+  );
+  assert.equal(selectTikTokSubtitle(info('eng-US', 'cmn-Hans-CN'), null), '');
   assert.match(
     MEDIA_RUNNER_PROGRAM,
     /\['youtube', 'bilibili', 'tiktok'\]\.includes\(validated\.platform\)/,
