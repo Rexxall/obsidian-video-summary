@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## 2.11.1 (unreleased)
+
+- **TikTok videos with captions skip transcription.** The backend reads the video's own caption with its timing and downloads the audio only when there is none.
+- When Douyin or Xiaohongshu can't be read, or YouTube asks to confirm you are not a bot, the message says what to do instead: paste the text, save a screenshot, or download the video yourself and drop it into the side panel.
+- **Subtitles stay in the original language.** On TikTok, YouTube and Bilibili the backend takes the subtitle in the language spoken in the video, never a translation (TikTok marks machine translations; on Bilibili, among several AI subtitles only the one in the title's language counts). Without one, the audio is transcribed in its own language. The note is still written in your language, and evidence quotes keep the original words.
+
+Update the backend too: unzip `video-summary-backend-2.11.1.zip` over the old backend folder (your `.env` stays) and run `./vs-backend.sh update` (Windows: `.\vs-backend.ps1 update`).
+
 ## 2.11.0
 
 - **Notes are shorter and follow your language.** The backend prompt was rewritten: a summary, then the key points with their times, then short sections for the kind of video (course, interview, tutorial, news, meeting, review or general), with longer passages folded. English and Japanese requests now get English and Japanese headings; before, the prompt reached the model as unevaluated code and the language setting was not applied.
@@ -11,9 +19,6 @@ All notable changes to this project are documented here.
 - **The backend downloads instead of building.** Each release publishes a ready-made backend image for Intel/AMD and Apple Silicon/ARM computers (about 550 MB) to `ghcr.io/rexxall/video-summary-backend`, with build provenance. The start script pulls it; if the download fails, for example on a network that cannot reach GitHub, it builds the image locally as before. The first start takes about 10 minutes instead of 20.
 - **The install guide starts with four steps, each with a screenshot:** the start script asking for keys, the connection code, the full check, the trial run and the first note. Costs, platforms and troubleshooting come after. English and Japanese guides follow the same shape.
 - The trial run in first-run setup summarizes in your note language; it used to answer in Chinese.
-- **TikTok videos with captions skip transcription.** The backend reads the video's own caption with its timing and downloads the audio only when there is none.
-- When Douyin or Xiaohongshu can't be read, or YouTube asks to confirm you are not a bot, the message says what to do instead: paste the text, save a screenshot, or download the video yourself and drop it into the side panel.
-- **Subtitles stay in the original language.** On TikTok, YouTube and Bilibili the backend takes the subtitle in the language spoken in the video, never a translation (TikTok marks machine translations; on Bilibili, among several AI subtitles only the one in the title's language counts). Without one, the audio is transcribed in its own language. The note is still written in your language, and evidence quotes keep the original words.
 - The install guide and the backend notes show the n8n workflow, the credentials page and where a failed run's reason is.
 
 Update the backend too: unzip `video-summary-backend-2.11.0.zip` over the old backend folder (your `.env` stays) and run `./vs-backend.sh update` (Windows: `.\vs-backend.ps1 update`).
