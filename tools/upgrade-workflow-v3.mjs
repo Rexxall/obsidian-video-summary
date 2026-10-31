@@ -561,8 +561,10 @@ async function mediaCommandRunner() {
 
   function languageBase(code) {
     const normalized = normalizeLanguage(code).toLowerCase();
-    if (normalized.startsWith('zh')) return 'zh';
-    if (normalized.startsWith('ja') || normalized === 'jp') return 'ja';
+    // TikTok names tracks with three-letter codes: eng-US, cmn-Hans-CN, jpn-JP.
+    if (/^(zh|cmn|zho|yue)/.test(normalized)) return 'zh';
+    if (normalized.startsWith('ja') || normalized === 'jp' || normalized.startsWith('jpn'))
+      return 'ja';
     if (normalized.startsWith('en')) return 'en';
     return normalized.split('-')[0] || '';
   }
@@ -583,8 +585,25 @@ async function mediaCommandRunner() {
     return tracks.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))[0] || '';
   }
 
+  // TikTok: the creator's or TikTok's own captions (subtitleInfos on the video page), Chinese first,
+  // then English, then whatever there is. Returns one exact track name.
+  function selectTikTokSubtitle(info) {
+    const tracks = [
+      ...Object.keys(info.subtitles || {}),
+      ...Object.keys(info.automatic_captions || {}),
+    ].filter((key) => key && key !== 'live_chat');
+    const rank = (key) => {
+      const lower = key.toLowerCase();
+      if (/^(zh|cmn|zho|yue)/.test(lower)) return 0;
+      if (lower.startsWith('en')) return 1;
+      return 2;
+    };
+    return tracks.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))[0] || '';
+  }
+
   function selectSubtitleLanguages(info) {
     if (validated.platform === 'bilibili') return selectBilibiliSubtitle(info);
+    if (validated.platform === 'tiktok') return selectTikTokSubtitle(info);
     const keys = (object) => Object.keys(object || {}).filter((key) => key && key !== 'live_chat');
     const manual = keys(info.subtitles);
     const automatic = keys(info.automatic_captions);
@@ -719,7 +738,7 @@ async function mediaCommandRunner() {
     return;
   }
 
-  if (!['youtube', 'bilibili'].includes(validated.platform)) {
+  if (!['youtube', 'bilibili', 'tiktok'].includes(validated.platform)) {
     process.stdout.write(`__NATIVE_SUBTITLE_SKIPPED__=${validated.platform}\n`);
     return;
   }

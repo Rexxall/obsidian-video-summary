@@ -11,6 +11,7 @@ All notable changes to this project are documented here.
 - **The backend downloads instead of building.** Each release publishes a ready-made backend image for Intel/AMD and Apple Silicon/ARM computers (about 550 MB) to `ghcr.io/rexxall/video-summary-backend`, with build provenance. The start script pulls it; if the download fails, for example on a network that cannot reach GitHub, it builds the image locally as before. The first start takes about 10 minutes instead of 20.
 - **The install guide starts with four steps, each with a screenshot:** the start script asking for keys, the connection code, the full check, the trial run and the first note. Costs, platforms and troubleshooting come after. English and Japanese guides follow the same shape.
 - The trial run in first-run setup summarizes in your note language; it used to answer in Chinese.
+- **TikTok videos with captions skip transcription.** The backend reads the video's own captions first (Chinese, then English, then any other language) with their timing, and downloads the audio only when there are none.
 - The install guide and the backend notes show the n8n workflow, the credentials page and where a failed run's reason is.
 
 Update the backend too: unzip `video-summary-backend-2.11.0.zip` over the old backend folder (your `.env` stays) and run `./vs-backend.sh update` (Windows: `.\vs-backend.ps1 update`).

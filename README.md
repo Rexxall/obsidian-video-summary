@@ -32,7 +32,7 @@ Bilibili login is optional and free: scan a QR code in the setup wizard to let t
 ## What it does
 
 - **Input:** one link, several links (one per line), a file in the backend's `uploads/` folder, a pasted transcript, or a note with a `link` property. The `obsidian://video-summary` URI and the [browser extension](#browser-extension) capture a link from outside Obsidian.
-- **Transcript:** a pasted transcript first, then the video's own subtitles (Bilibili: uploader subtitles, then Bilibili AI subtitles; danmaku are never used), then speech-to-text. YouTube and Bilibili work best; Douyin, TikTok and Xiaohongshu usually need cookies. Details: [platform matrix](docs/PLATFORM_CAPABILITY_MATRIX.md).
+- **Transcript:** a pasted transcript first, then the video's own subtitles (Bilibili: uploader subtitles, then Bilibili AI subtitles; danmaku are never used; TikTok: its captions), then speech-to-text. YouTube and Bilibili work best; Douyin, TikTok and Xiaohongshu often need cookies. Details: [platform matrix](docs/PLATFORM_CAPABILITY_MATRIX.md).
 - **Note:** summary, key points and a timestamped transcript, shaped for the kind of video (course, interview, tutorial, news, meeting, review). Reprocessing replaces only the plugin's own blocks; if you edit the note while it runs, the plugin stops instead of overwriting.
 - **Evidence mode:** timed segments, claims with their source and confidence, and a watch, skim or skip verdict with the best ranges.
 - **Reader:** the video beside its transcript, click a line to seek, keep highlights. Local media and YouTube follow playback; Bilibili seeks on click.

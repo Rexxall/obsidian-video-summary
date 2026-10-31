@@ -147,6 +147,25 @@ test('Bilibili prefers uploader subtitles, then its AI subtitles, and never danm
   assert.equal(pick('danmaku'), '');
 });
 
+test('TikTok uses its own captions, Chinese first, then English, before any transcription', () => {
+  const source = MEDIA_RUNNER_PROGRAM.match(
+    /function selectTikTokSubtitle\(info\) \{[\s\S]*?\n {2}\}\n/,
+  );
+  assert.ok(source, 'selectTikTokSubtitle not found in the media runner');
+  const select = vm.runInNewContext(`(${source[0]})`);
+  const pick = (...keys) =>
+    select({ subtitles: Object.fromEntries(keys.map((key) => [key, [{ ext: 'vtt' }]])) });
+  assert.equal(pick('eng-US'), 'eng-US');
+  assert.equal(pick('eng-US', 'cmn-Hans-CN'), 'cmn-Hans-CN');
+  assert.equal(pick('jpn-JP', 'eng-US'), 'eng-US');
+  assert.equal(pick('spa-ES'), 'spa-ES');
+  assert.equal(pick(), '');
+  assert.match(
+    MEDIA_RUNNER_PROGRAM,
+    /\['youtube', 'bilibili', 'tiktok'\]\.includes\(validated\.platform\)/,
+  );
+});
+
 test('cookie upload keeps only lines for the chosen platform and rejects other formats', () => {
   const code = codeOf(mainWorkflow(), 'Code: Prepare Cookie File');
   const upload = (platform, cookies) =>

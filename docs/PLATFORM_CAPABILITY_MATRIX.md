@@ -55,6 +55,10 @@ the backend's `cookies/bilibili_cookies.txt` (or use the scan login in the setup
 These platforms are best-effort. Short links can expire or redirect, and many videos need cookies.
 If a link fails, try the final resolved URL or paste a transcript instead.
 
+TikTok videos often carry their own captions (creator or TikTok auto captions). The backend uses
+them first, with their timing, Chinese first, then English, then any other language, and downloads
+the audio for speech-to-text only when a video has none. Douyin always goes to speech-to-text.
+
 ### Xiaohongshu / Rednote
 
 Treat this as best-effort. Shared links may be unstable and cookie-sensitive. Keep source metadata

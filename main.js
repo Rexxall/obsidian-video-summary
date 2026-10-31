@@ -1911,7 +1911,10 @@ var platformCapabilities = () => [
     platform: "TikTok",
     status: "limited",
     input: "link",
-    requirements: tr("\u5E38\u9700 cookies\uFF0C\u53EF\u80FD\u6709\u5730\u533A\u9650\u5236", "Often needs cookies; may be region-locked")
+    requirements: tr(
+      "\u6709\u5B57\u5E55\u5C31\u76F4\u63A5\u7528\uFF0C\u6CA1\u6709\u518D\u8F6C\u5199\uFF1B\u53EF\u80FD\u6709\u5730\u533A\u9650\u5236",
+      "Uses its captions when it has them; may be region-locked"
+    )
   },
   {
     platform: tr("\u5C0F\u7EA2\u4E66 / Rednote", "Xiaohongshu / Rednote"),

@@ -79,7 +79,10 @@ export const platformCapabilities = (): PlatformCapability[] => [
     platform: 'TikTok',
     status: 'limited',
     input: 'link',
-    requirements: tr('常需 cookies，可能有地区限制', 'Often needs cookies; may be region-locked'),
+    requirements: tr(
+      '有字幕就直接用，没有再转写；可能有地区限制',
+      'Uses its captions when it has them; may be region-locked',
+    ),
   },
   {
     platform: tr('小红书 / Rednote', 'Xiaohongshu / Rednote'),
