@@ -1,0 +1,57 @@
+name: yt-dlp update
+
+# Video sites change often and yt-dlp follows them. Every two weeks, compare the version pinned in
+# the backend image with the newest release on PyPI and, when it is newer, open a pull request
+# that changes the pin. Merging it and tagging a patch release publishes the new backend image.
+
+on:
+  schedule:
+    - cron: '0 3 1,15 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compare with the newest yt-dlp
+        id: versions
+        run: |
+          current="$(sed -n 's/^ARG YT_DLP_VERSION=//p' backend/Dockerfile)"
+          latest="$(curl -fsSL https://pypi.org/pypi/yt-dlp/json | jq -r .info.version)"
+          if [[ ! "$latest" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+            echo "Unexpected yt-dlp version from PyPI: $latest" >&2
+            exit 1
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "Pinned $current, newest $latest"
+
+      - name: Open a pull request for the new version
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          branch="yt-dlp-$LATEST"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "A pull request branch for $LATEST already exists."
+            exit 0
+          fi
+          sed -i "s/^ARG YT_DLP_VERSION=.*/ARG YT_DLP_VERSION=$LATEST/" backend/Dockerfile
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git commit -am "Update yt-dlp to $LATEST"
+          git push origin "$branch"
+          gh pr create \
+            --title "Update yt-dlp to $LATEST" \
+            --body "yt-dlp $CURRENT → $LATEST ([release notes](https://github.com/yt-dlp/yt-dlp/releases/tag/$LATEST)). After merging, bump the patch version and tag it so the release publishes the new backend image."

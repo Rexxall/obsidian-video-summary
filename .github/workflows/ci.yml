@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  # Pull requests opened by the yt-dlp update workflow do not trigger CI on their own.
+  workflow_dispatch:
 
 permissions:
   contents: read

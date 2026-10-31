@@ -12,6 +12,7 @@ All notable changes to this project are documented here.
 - **The install guide starts with four steps, each with a screenshot:** the start script asking for keys, the connection code, the full check, the trial run and the first note. Costs, platforms and troubleshooting come after. English and Japanese guides follow the same shape.
 - The trial run in first-run setup summarizes in your note language; it used to answer in Chinese.
 - **TikTok videos with captions skip transcription.** The backend reads the video's own caption with its timing and downloads the audio only when there is none.
+- When Douyin or Xiaohongshu can't be read, or YouTube asks to confirm you are not a bot, the message says what to do instead: paste the text, save a screenshot, or download the video yourself and drop it into the side panel.
 - **Subtitles stay in the original language.** On TikTok, YouTube and Bilibili the backend takes the subtitle in the language spoken in the video, never a translation (TikTok marks machine translations; on Bilibili, among several AI subtitles only the one in the title's language counts). Without one, the audio is transcribed in its own language. The note is still written in your language, and evidence quotes keep the original words.
 - The install guide and the backend notes show the n8n workflow, the credentials page and where a failed run's reason is.
 

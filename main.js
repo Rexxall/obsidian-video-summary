@@ -11186,6 +11186,24 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         "Bilibili refused the download. Log in to Bilibili in first-run setup; if it still fails, install the newest backend, which comes with a newer downloader."
       );
     }
+    if (lower.includes("[douyin]") && lower.includes("fresh cookies")) {
+      return tr(
+        "\u6296\u97F3\u76EE\u524D\u8BFB\u4E0D\u5230\u8FD9\u6761\u89C6\u9891\u3002\u53EF\u4EE5\u628A\u6587\u6848\u590D\u5236\u4E0B\u6765\uFF0C\u7C98\u8D34\u5230\u4FA7\u680F\u603B\u7ED3\uFF1B\u6216\u8005\u622A\u56FE\u4FDD\u5B58\uFF1B\u4E5F\u53EF\u4EE5\u624B\u52A8\u4E0B\u8F7D\u89C6\u9891\uFF0C\u518D\u62D6\u8FDB\u4FA7\u680F\u3002",
+        "Douyin can't be read at the moment. Copy the video's text and paste it into the side panel, save a screenshot, or download the video yourself and drop it into the side panel."
+      );
+    }
+    if (lower.includes("[xiaohongshu]") && lower.includes("no video formats found")) {
+      return tr(
+        "\u5C0F\u7EA2\u4E66\u76EE\u524D\u8BFB\u4E0D\u5230\u8FD9\u6761\u7B14\u8BB0\u7684\u89C6\u9891\u3002\u53EF\u4EE5\u628A\u6587\u6848\u590D\u5236\u4E0B\u6765\uFF0C\u7C98\u8D34\u5230\u4FA7\u680F\u603B\u7ED3\uFF1B\u6216\u8005\u622A\u56FE\u4FDD\u5B58\uFF1B\u4E5F\u53EF\u4EE5\u624B\u52A8\u4E0B\u8F7D\u89C6\u9891\uFF0C\u518D\u62D6\u8FDB\u4FA7\u680F\u3002",
+        "Xiaohongshu can't be read at the moment. Copy the post's text and paste it into the side panel, save a screenshot, or download the video yourself and drop it into the side panel."
+      );
+    }
+    if (lower.includes("sign in to confirm")) {
+      return tr(
+        "YouTube \u6682\u65F6\u8981\u6C42\u786E\u8BA4\u201C\u4E0D\u662F\u673A\u5668\u4EBA\u201D\uFF0C\u5E38\u89C1\u4E8E\u77ED\u65F6\u95F4\u5185\u5904\u7406\u592A\u591A\u89C6\u9891\u6216\u7528\u4E86 VPN\u3002\u8FC7\u4E00\u4F1A\u513F\u518D\u8BD5\uFF1B\u6025\u7528\u65F6\u53EF\u4EE5\u624B\u52A8\u4E0B\u8F7D\u89C6\u9891\uFF0C\u518D\u62D6\u8FDB\u4FA7\u680F\u3002",
+        "YouTube wants to confirm you are not a bot, which happens after many videos in a short time or behind a VPN. Try again later; if it is urgent, download the video yourself and drop it into the side panel."
+      );
+    }
     if (lower.includes("yt-dlp") && lower.includes("not found")) {
       return tr(
         "\u540E\u7AEF\u7F3A\u5C11 yt-dlp\u3002\u8BF7\u7528\u540E\u7AEF\u5B89\u88C5\u5305\u91CC\u7684\u542F\u52A8\u811A\u672C\u542F\u52A8\uFF0C\u4E0D\u8981\u7528\u5B98\u65B9 n8n \u955C\u50CF\u3002",

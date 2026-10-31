@@ -46,6 +46,8 @@ backend/workflows/video-summary.json
 
 Obsidian installs community plugins from GitHub Releases: the release tag must equal the `version` in `manifest.json`, and the release must contain `main.js`, `manifest.json` and `styles.css`. Pushing a version tag runs `.github/workflows/release.yml`. It first builds the backend image for amd64 and arm64 with provenance and an SBOM and pushes it to `ghcr.io/rexxall/video-summary-backend:<version>` (the tag `backend/compose.yaml` pulls; `npm version` keeps the two in step), then tests and builds the plugin, checks the version files and publishes those files plus `video-summary-<version>.zip`, the backend zip, the browser extension zip and `SHA256SUMS`. The workflow can be rerun from **Run workflow** with an existing tag; it replaces same-name assets.
 
+`.github/workflows/yt-dlp-update.yml` runs on the 1st and 15th of each month. When PyPI has a newer yt-dlp than the `YT_DLP_VERSION` pinned in `backend/Dockerfile`, it opens a pull request that changes the pin; merge it, bump the patch version and tag it. It needs **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests**. Pull requests opened with the workflow token do not start CI, so run CI on that branch by hand (Actions → CI → Run workflow) before merging. If a site breaks between releases, `./vs-backend.sh update` after a manual `pip install -U yt-dlp` inside the container is the stopgap.
+
 The plugin is listed through [community.obsidian.md](https://community.obsidian.md) (**Plugins → New plugin**), which reads `manifest.json` from the default branch. Its description must not contain the word "Obsidian".
 
 When preparing a release:

@@ -1516,6 +1516,29 @@ export class VideoSummaryAPI {
       );
     }
 
+    // Douyin and Xiaohongshu now need a browser session to read; the backend does not use the
+    // user's browser cookies, so offer what works without them.
+    if (lower.includes('[douyin]') && lower.includes('fresh cookies')) {
+      return tr(
+        '抖音目前读不到这条视频。可以把文案复制下来，粘贴到侧栏总结；或者截图保存；也可以手动下载视频，再拖进侧栏。',
+        "Douyin can't be read at the moment. Copy the video's text and paste it into the side panel, save a screenshot, or download the video yourself and drop it into the side panel.",
+      );
+    }
+
+    if (lower.includes('[xiaohongshu]') && lower.includes('no video formats found')) {
+      return tr(
+        '小红书目前读不到这条笔记的视频。可以把文案复制下来，粘贴到侧栏总结；或者截图保存；也可以手动下载视频，再拖进侧栏。',
+        "Xiaohongshu can't be read at the moment. Copy the post's text and paste it into the side panel, save a screenshot, or download the video yourself and drop it into the side panel.",
+      );
+    }
+
+    if (lower.includes('sign in to confirm')) {
+      return tr(
+        'YouTube 暂时要求确认“不是机器人”，常见于短时间内处理太多视频或用了 VPN。过一会儿再试；急用时可以手动下载视频，再拖进侧栏。',
+        'YouTube wants to confirm you are not a bot, which happens after many videos in a short time or behind a VPN. Try again later; if it is urgent, download the video yourself and drop it into the side panel.',
+      );
+    }
+
     if (lower.includes('yt-dlp') && lower.includes('not found')) {
       return tr(
         '后端缺少 yt-dlp。请用后端安装包里的启动脚本启动，不要用官方 n8n 镜像。',
