@@ -1,4 +1,5 @@
 import { tr } from '../../utils/i18n';
+import { diagnoseSource } from '../../core/SourceHealth';
 import { Notice, TFile } from 'obsidian';
 import { ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
@@ -432,45 +433,42 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
 
 /** 失败行下面给一个能直接做的下一步；认不出原因时不加 */
 function renderNextStep(container: HTMLElement, ctx: ViewContext, row: HistoryRow) {
-  const kind = failureKind(row.error || '');
-  if (!kind) return;
+  const url = row.job?.input.url || row.record?.url || '';
+  const diagnosis = diagnoseSource(row.error || '', { isLink: !!url });
+  if (!diagnosis) return;
   const strip = container.createDiv({ cls: 'vs-next-step' });
-  if (kind === 'no-transcript') {
-    strip.createSpan({ text: tr('可以补一份文稿再总结', 'Add a transcript and summarise again') });
-    textButton(strip, tr('粘贴文稿 →', 'Paste a transcript →'), () => {
-      const url = row.job?.input.url || row.record?.url || '';
-      ctx.state.inputDraft = url;
-      ctx.state.advancedOpen = true;
-      ctx.renderAll();
-      window.setTimeout(() => {
-        document.querySelector<HTMLTextAreaElement>('.vs-fold .vs-transcript-input')?.focus();
-      }, 0);
-    });
-  } else if (kind === 'login') {
-    strip.createSpan({
-      text: tr('登录状态失效，更新 Cookies 后重试', 'Login expired; update the cookies and retry'),
-    });
-    textButton(strip, tr('打开设置 →', 'Open settings →'), () => openSettings(ctx));
-  } else {
+  if (diagnosis.problem === 'backend') {
     strip.createSpan({ text: tr('处理服务没有连上', 'The backend is not connected') });
     textButton(strip, tr('重新检测 →', 'Check again →'), () => {
       document.querySelector<HTMLButtonElement>('.vs-backend-line')?.click();
     });
+    return;
   }
-}
-
-function failureKind(raw: string): 'no-transcript' | 'login' | 'backend' | null {
-  const error = raw.toLowerCase();
-  if (NO_TRANSCRIPT.test(error)) return 'no-transcript';
-  if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) return 'login';
-  if (
-    /econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败|timeout|timed out|超时/.test(
-      error,
-    )
-  ) {
-    return 'backend';
+  if (diagnosis.problem === 'login' && (row.job?.platform || row.record?.platform) === 'bilibili') {
+    strip.createSpan({ text: tr('需要登录 B 站', 'Needs a Bilibili login') });
+    textButton(strip, tr('打开设置 →', 'Open settings →'), () => openSettings(ctx));
+    return;
   }
-  return null;
+  strip.createSpan({
+    text:
+      diagnosis.problem === 'rate-limit'
+        ? tr('请求太频繁，过 10 分钟再试', 'Too many requests; try again in 10 minutes')
+        : tr('拿不到文稿，可以贴一份接着总结', 'No transcript; paste one to finish'),
+  });
+  textButton(strip, tr('贴文稿 →', 'Paste a transcript →'), () => {
+    if (row.job) {
+      // 同一个任务接着跑：标题、笔记、来源链接不变
+      ctx.state.pasteForJob = row.job.id;
+      ctx.openDetail({ kind: 'job', id: row.job.id });
+      return;
+    }
+    ctx.state.inputDraft = url;
+    ctx.state.advancedOpen = true;
+    ctx.renderAll();
+    window.setTimeout(() => {
+      document.querySelector<HTMLTextAreaElement>('.vs-fold .vs-transcript-input')?.focus();
+    }, 0);
+  });
 }
 
 const NO_TRANSCRIPT =

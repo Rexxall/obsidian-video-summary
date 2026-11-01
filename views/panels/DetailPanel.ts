@@ -29,6 +29,7 @@ import { errorMessage } from '../../utils/errors';
 import { openPathInSystem } from '../../utils/desktop';
 import { isPlaceholderCover } from '../../core/CoverPlaceholder';
 import { tr } from '../../utils/i18n';
+import { renderSourceHealth } from './SourceHealthCard';
 /** 详情层：结果预览 + 写入方式 + 失败日志。写入笔记前能先看到要写什么。 */
 export function renderDetailPanel(container: HTMLElement, ctx: ViewContext) {
   const ref = ctx.state.detail;
@@ -155,6 +156,11 @@ function renderJobDetail(
   if (job.input.url) body.createDiv({ text: job.input.url, cls: 'vs-meta-link' });
 
   renderKnowledgeSignals(body, ctx, job);
+
+  if (job.state === 'error' && job.error && renderSourceHealth(body, ctx, job)) {
+    renderLogs(body, job);
+    return;
+  }
 
   if (job.state === 'error' && job.error) {
     const errorBox = body.createDiv({ cls: 'vs-error-box' });

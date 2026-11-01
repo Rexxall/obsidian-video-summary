@@ -193,7 +193,7 @@ export class JobService {
       );
       this.store.update(job.id, { state: 'success', awaitingWrite: false });
       this.plugin.addToHistory(file.basename, 'success', job.mode, {
-        url: job.input.url,
+        url: job.input.url || job.input.sourceUrl,
         platform: job.platform,
         durationMs: job.endedAt && job.startedAt ? job.endedAt - job.startedAt : undefined,
       });
@@ -465,7 +465,7 @@ export class JobService {
         );
       }
       this.plugin.addToHistory(file?.basename || noteName, 'success', job.mode, {
-        url: job.input.url,
+        url: job.input.url || job.input.sourceUrl,
         platform: job.platform,
         durationMs: job.startedAt ? Date.now() - job.startedAt : undefined,
       });
@@ -484,7 +484,7 @@ export class JobService {
         await this.updateCourseProgressForFile(file, 'error', 0, job.input.artifactId);
       }
       this.plugin.addToHistory(noteName, 'error', job.mode, {
-        url: job.input.url,
+        url: job.input.url || job.input.sourceUrl,
         platform: job.platform,
         error: message,
         durationMs: job.startedAt ? Date.now() - job.startedAt : undefined,

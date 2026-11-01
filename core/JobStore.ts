@@ -199,6 +199,26 @@ export class JobStore {
     this.pump();
   }
 
+  /**
+   * 链接拿不到文稿时，用户贴的文稿接着跑同一个任务：标题、目标笔记和来源链接都不变，后端不再下载或转写。
+   */
+  retryWithTranscript(id: string, transcript: string) {
+    const job = this.get(id);
+    const text = transcript.trim();
+    if (!job || !text) return;
+    const source = job.input.url || job.input.sourceUrl;
+    job.input = {
+      ...job.input,
+      url: undefined,
+      localFile: undefined,
+      localFiles: undefined,
+      sourceUrl: source,
+      transcript: text,
+    };
+    this.log(id, '改用粘贴的文稿');
+    this.retry(id);
+  }
+
   remove(id: string) {
     this.jobs = this.jobs.filter((job) => job.id !== id);
     this.cancelled.delete(id);

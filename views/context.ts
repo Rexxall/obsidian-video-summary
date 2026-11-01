@@ -31,6 +31,8 @@ export interface ViewState {
   partsEnabled: boolean;
   partsStart: number;
   partsEnd: number;
+  /** 打开这个失败任务的详情时直接展开“贴文稿” */
+  pasteForJob?: string;
 }
 
 export type BackendState = 'is-unknown' | 'is-online' | 'is-offline' | 'is-checking';

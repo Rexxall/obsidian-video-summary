@@ -2490,6 +2490,26 @@ body {
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
+.video-summary-view .vs-source-health {
+  display: grid;
+  gap: var(--ap-s3);
+  margin-top: var(--ap-s3);
+}
+.video-summary-view .vs-source-health .ap-row-value.is-bad {
+  color: var(--vs-err);
+}
+.video-summary-view .vs-source-next {
+  color: var(--vs-ink);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.55;
+}
+.video-summary-view .vs-source-paste {
+  display: grid;
+  gap: var(--ap-s2);
+}
+.video-summary-view .vs-source-paste .vs-source-run {
+  justify-self: start;
+}
 :is(.video-summary-view, .vs-modal) .vs-hint {
   margin-top: 8px;
   color: var(--vs-mute);

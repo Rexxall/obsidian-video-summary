@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- **A failed video says where the transcript should have come from.** The job's detail shows the video's subtitles and, when it matters, speech-to-text, each with what went wrong, then one next step for that cause: wait 10 minutes after too many requests, log in to Bilibili, paste the text when Douyin or Xiaohongshu can't be read, or add a speech-to-text key. Retry is hidden where it would fail the same way.
+- **A pasted transcript finishes the same job.** The job keeps its title, note and link; the backend does not download or transcribe again.
+
 ## 2.11.1
 
 - **TikTok videos with captions skip transcription.** The backend reads the video's own caption with its timing and downloads the audio only when there is none.
