@@ -1,6 +1,6 @@
 # Video Summary backend
 
-Start: macOS `start-mac.command` (right-click → Open), Windows `start-windows.cmd`, Linux
+Start: macOS `start-mac.command` (the first time, allow it in System Settings → Privacy & Security → Open Anyway), Windows `start-windows.cmd`, Linux
 `./vs-backend.sh`. The full guide, in Chinese with English and Japanese summaries, is
 [INSTALL.md](https://github.com/Rexxall/obsidian-video-summary/blob/main/INSTALL.md).
 

@@ -27,8 +27,11 @@ download usually takes 1–5 minutes.
 
 Download `video-summary-backend-<version>.zip` from the
 [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) and unzip it
-somewhere permanent, outside your vault. Then on macOS right-click `start-mac.command` → Open; on
-Windows double-click `start-windows.cmd`; on Linux run `./vs-backend.sh`.
+somewhere permanent, outside your vault. Then on macOS double-click `start-mac.command`. The first time macOS says it cannot verify the file:
+click Done, open System Settings → Privacy & Security, within an hour click Open under Security, then Open
+Anyway, and enter your login password
+([Apple’s guide](https://support.apple.com/guide/mac-help/mh40616/mac)). After that it opens
+with a double-click. On Windows double-click `start-windows.cmd`; on Linux run `./vs-backend.sh`.
 
 The first start asks for the two keys. Nothing is shown while you paste; press Enter, or press
 Enter alone to skip one for now.
