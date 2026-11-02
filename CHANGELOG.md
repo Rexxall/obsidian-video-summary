@@ -2,10 +2,13 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.12.0
 
 - **A failed video says where the transcript should have come from.** The job's detail shows the video's subtitles and, when it matters, speech-to-text, each with what went wrong, then one next step for that cause: wait 10 minutes after too many requests, log in to Bilibili, paste the text when Douyin or Xiaohongshu can't be read, or add a speech-to-text key. Retry is hidden where it would fail the same way.
 - **A pasted transcript finishes the same job.** The job keeps its title, note and link; the backend does not download or transcribe again.
+- The install guide explains how to allow `start-mac.command` on current macOS: System Settings → Privacy & Security → Open Anyway. Right-click → Open no longer works there.
+
+Update the backend too: unzip `video-summary-backend-2.12.0.zip` over the old backend folder (your `.env` stays) and run `./vs-backend.sh update` (Windows: `.\vs-backend.ps1 update`).
 
 ## 2.11.1
 
