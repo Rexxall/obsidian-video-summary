@@ -21,6 +21,13 @@ cookies, download permissions, and transcript generation are handled in the user
 compatible backend. A per-profile Webhook Header Auth secret can be stored locally in the plugin's
 `data.json`; it is not encrypted by the plugin and is redacted from connection diagnostics.
 
+## Verifying a release
+
+Every file attached to a release from 2.12.1 on, and every backend image, carries a signed build
+provenance attestation from the release workflow. Check a download with
+`gh attestation verify main.js --repo Rexxall/obsidian-video-summary`, or the image with
+`gh attestation verify oci://ghcr.io/rexxall/video-summary-backend:<version> --repo Rexxall/obsidian-video-summary`.
+
 ## Reporting a vulnerability
 
 Please open a GitHub issue with a concise description and reproduction steps if the issue does not expose private data.

@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Release files (main.js, manifest.json, styles.css and the zips) carry a signed build provenance attestation, like the backend image already did. SECURITY.md shows how to check one with `gh attestation verify`.
+
 ## 2.12.0
 
 - **A failed video says where the transcript should have come from.** The job's detail shows the video's subtitles and, when it matters, speech-to-text, each with what went wrong, then one next step for that cause: wait 10 minutes after too many requests, log in to Bilibili, paste the text when Douyin or Xiaohongshu can't be read, or add a speech-to-text key. Retry is hidden where it would fail the same way.
