@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.12.1
 
 - Release files (main.js, manifest.json, styles.css and the zips) carry a signed build provenance attestation, like the backend image already did. SECURITY.md shows how to check one with `gh attestation verify`.
 
