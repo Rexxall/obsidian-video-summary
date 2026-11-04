@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## 2.12.2
+
+- **The plugin release has only `main.js`, `manifest.json` and `styles.css`,** the files Obsidian installs. The backend and the browser extension moved to releases of their own, `backend-v<version>` and `capture-v<extension version>`, each with its `SHA256SUMS`; the plugin release links both under **Other downloads**. The plugin zip and the plugin `SHA256SUMS` are gone; check a download with `gh attestation verify`.
+- **Caches are files in the plugin folder.** Bilibili cover addresses are kept in `data/cache/platform-covers.json` next to the result cache, no longer in Obsidian's local storage. Covers cached by older versions are fetched again once.
+- The README says what the plugin reads in the vault, when it uses the clipboard and which hosts it contacts.
+- A settings layout used a multi-column property for its column spacing; it now uses the grid `gap`, with the same look.
+
+No backend changes are needed; the backend image is rebuilt as `2.12.2` with the same code.
+
 ## 2.12.1
 
 - Release files (main.js, manifest.json, styles.css and the zips) carry a signed build provenance attestation, like the backend image already did. SECURITY.md shows how to check one with `gh attestation verify`.

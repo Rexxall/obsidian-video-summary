@@ -16,7 +16,7 @@ Video Summary は、Obsidian プラグインと、自分のパソコンの Docke
 
 ### 2. バックエンドをダウンロードして起動
 
-[最新リリース](https://github.com/Rexxall/obsidian-video-summary/releases/latest)の `video-summary-backend-<バージョン>.zip` を、保管庫の外の消さない場所に展開します。macOS は `start-mac.command` をダブルクリックします。初回は「Apple は検証できません」と出るので「完了」を押し、1 時間以内に「システム設定 → プライバシーとセキュリティ」を開いて、「セキュリティ」で「開く」→「このまま開く」を押し、ログインパスワードを入力します（[Apple の説明](https://support.apple.com/ja-jp/guide/mac-help/mh40616/mac)）。次からはダブルクリックで開きます。Windows は `start-windows.cmd` をダブルクリック、Linux は `./vs-backend.sh` です。
+[最新リリース](https://github.com/Rexxall/obsidian-video-summary/releases/latest)の説明の下にある **Other downloads** から `video-summary-backend-<バージョン>.zip`（バックエンド専用のリリース `backend-v<バージョン>`）をダウンロードし、保管庫の外の消さない場所に展開します。macOS は `start-mac.command` をダブルクリックします。初回は「Apple は検証できません」と出るので「完了」を押し、1 時間以内に「システム設定 → プライバシーとセキュリティ」を開いて、「セキュリティ」で「開く」→「このまま開く」を押し、ログインパスワードを入力します（[Apple の説明](https://support.apple.com/ja-jp/guide/mac-help/mh40616/mac)）。次からはダブルクリックで開きます。Windows は `start-windows.cmd` をダブルクリック、Linux は `./vs-backend.sh` です。
 
 初回は二つのキーを聞かれます。貼り付けても画面には出ません。Enter を押してください（Enter だけで後回しにもできます）。
 

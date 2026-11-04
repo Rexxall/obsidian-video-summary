@@ -90,10 +90,9 @@ export class CacheManager {
     try {
       await this.ensureCacheDirectory();
       await this.loadIndex();
-      // Internal migration/cleanup methods need the index to be usable while
+      // Internal cleanup methods need the index to be usable while
       // this initialization promise is still pending.
       this.isInitialized = true;
-      await this.migrateFromLocalStorage();
       await this.cleanupInternal();
     } catch (error) {
       console.error('初始化缓存失败:', error);
@@ -135,37 +134,6 @@ export class CacheManager {
       hash &= hash;
     }
     return Math.abs(hash).toString(36);
-  }
-
-  private async migrateFromLocalStorage(): Promise<void> {
-    try {
-      if (typeof window === 'undefined' || !window.localStorage) return;
-      const oldCacheData = window.localStorage.getItem('video-summary-cache');
-      if (!oldCacheData) return;
-
-      console.debug('发现旧缓存数据，开始迁移...');
-      const entries = JSON.parse(oldCacheData) as Array<
-        [string, { mode?: ProcessingMode; language?: SupportedLanguage; result: ProcessingResult }]
-      >;
-      let migratedCount = 0;
-      for (const [key, item] of entries) {
-        try {
-          await this.writeLegacyEntry(
-            key.split('|')[0],
-            item.mode || 'summary',
-            item.language || 'zh',
-            item.result,
-          );
-          migratedCount += 1;
-        } catch (error) {
-          console.error(`迁移缓存项失败: ${key}`, error);
-        }
-      }
-      console.debug(`迁移完成，共迁移 ${migratedCount} 项`);
-      window.localStorage.removeItem('video-summary-cache');
-    } catch (error) {
-      console.error('迁移旧缓存失败:', error);
-    }
   }
 
   private async loadIndex(): Promise<void> {

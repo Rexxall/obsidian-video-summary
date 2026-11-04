@@ -170,7 +170,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 任务队列 + 视频笔记索引
     this.jobs = new JobStore();
     this.jobService = new JobService(this, this.jobs);
-    this.noteIndex = new NoteIndex(this.app);
+    this.noteIndex = new NoteIndex(this.app, `${pluginDir}/data/cache/platform-covers.json`);
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
     this.app.workspace.onLayoutReady(() => {
       void this.memoryIndex.rebuildFromStore(this.artifactStore).catch((error) => {
@@ -235,6 +235,7 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   onunload() {
+    this.noteIndex?.flush();
     // 卸载前把待写入的历史落盘
     if (this.historySaveTimer !== null) {
       window.clearTimeout(this.historySaveTimer);
@@ -4378,24 +4379,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   /**
-   * 删除指定的缓存项
-   */
-  private deleteCacheItem(key: string) {
-    try {
-      const cacheData = window.localStorage.getItem('video-summary-cache');
-      if (cacheData) {
-        const entries = asArray(JSON.parse(cacheData));
-        const filteredEntries = entries.filter(
-          (entry) => !(Array.isArray(entry) && entry[0] === key),
-        );
-        window.localStorage.setItem('video-summary-cache', JSON.stringify(filteredEntries));
-      }
-    } catch (error) {
-      console.error('删除缓存项失败:', error);
-    }
-  }
-
-  /**
    * 添加测试缓存数据
    */
   private async addTestCacheData() {
@@ -4481,23 +4464,6 @@ class VideoSummarySettingTab extends PluginSettingTab {
     } else {
       return date.toLocaleDateString();
     }
-  }
-
-  /**
-   * 获取 localStorage 大小
-   */
-  private getLocalStorageSize(): number {
-    let totalSize = 0;
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith('video-summary-cache')) {
-        const value = window.localStorage.getItem(key);
-        if (value) {
-          totalSize += value.length;
-        }
-      }
-    }
-    return totalSize;
   }
 }
 

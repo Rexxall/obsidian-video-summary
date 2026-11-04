@@ -23,8 +23,9 @@ compatible backend. A per-profile Webhook Header Auth secret can be stored local
 
 ## Verifying a release
 
-Every file attached to a release from 2.12.1 on, and every backend image, carries a signed build
-provenance attestation from the release workflow. Check a download with
+Every file attached to a release from 2.12.1 on (from 2.12.2 the backend and browser extension zips
+are in their own `backend-v<version>` and `capture-v<version>` releases), and every backend image,
+carries a signed build provenance attestation from the release workflow. Check a download with
 `gh attestation verify main.js --repo Rexxall/obsidian-video-summary`, or the image with
 `gh attestation verify oci://ghcr.io/rexxall/video-summary-backend:<version> --repo Rexxall/obsidian-video-summary`.
 

@@ -30,7 +30,7 @@ const REMOTE_COVER_TIMEOUT_MS = 8000;
 const REMOTE_COVER_RETRY_MS = 30 * 60 * 1000;
 const PLATFORM_COVER_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const PLATFORM_COVER_CACHE_LIMIT = 500;
-const PLATFORM_COVER_CACHE_KEY = 'video-summary-platform-cover-cache-v1';
+const PLATFORM_COVER_CACHE_SAVE_DELAY_MS = 1000;
 
 interface RemoteCoverTask {
   key: string;
@@ -62,10 +62,25 @@ export class NoteIndex {
   private platformCoverQueue: RemoteCoverTask[] = [];
   private activeCoverRequests = 0;
   private coverEmitTimer: number | null = null;
+  /** B站封面缓存文件，放在插件目录里，不进 data.json。 */
+  private readonly coverCachePath?: string;
+  private coverCacheLoaded = false;
+  private coverCacheSaveTimer: number | null = null;
+  /** 缓存文件读完前请求的封面，读完再决定要不要联网。 */
+  private pendingCoverLinks = new Set<string>();
 
-  constructor(app: App) {
+  constructor(app: App, coverCachePath?: string) {
     this.app = app;
-    this.loadPlatformCoverCache();
+    this.coverCachePath = coverCachePath;
+    void this.loadPlatformCoverCache();
+  }
+
+  /** 插件卸载时把还没落盘的封面写进缓存文件。 */
+  flush(): void {
+    if (this.coverCacheSaveTimer === null) return;
+    window.clearTimeout(this.coverCacheSaveTimer);
+    this.coverCacheSaveTimer = null;
+    void this.writePlatformCoverCache();
   }
 
   subscribe(listener: () => void): () => void {
@@ -125,6 +140,10 @@ export class NoteIndex {
     if (!link || derivePlatformCover(link)) return;
     const key = remoteCoverKey(link);
     if (!key) return;
+    if (!this.coverCacheLoaded) {
+      this.pendingCoverLinks.add(link);
+      return;
+    }
     const cached = this.platformCoverCache.get(key)?.url;
     if (cached) return;
     const retryAfter = this.platformCoverRetryAfter.get(key) ?? 0;
@@ -357,13 +376,7 @@ export class NoteIndex {
       this.platformCoverCache.set(task.key, { url: cover, updatedAt: Date.now() });
       this.platformCoverRetryAfter.delete(task.key);
       this.persistPlatformCoverCache();
-      let changed = false;
-      for (const entry of this.entries.values()) {
-        if (!entry.cover && entry.link && remoteCoverKey(entry.link) === task.key) {
-          entry.cover = cover;
-          changed = true;
-        }
-      }
+      const changed = this.applyPlatformCovers();
       if (changed || this.listeners.size > 0) this.scheduleCoverEmit();
     } catch (error) {
       // 封面只是增强信息：平台限流或视频失效时安静退回本地占位，不影响笔记索引。
@@ -383,9 +396,26 @@ export class NoteIndex {
     }, 80);
   }
 
-  private loadPlatformCoverCache(): void {
+  /** 给还没封面的条目填上已缓存的平台封面，返回是否有变化。 */
+  private applyPlatformCovers(): boolean {
+    let changed = false;
+    for (const entry of this.entries.values()) {
+      if (entry.cover || !entry.link) continue;
+      const key = remoteCoverKey(entry.link);
+      const cover = key ? this.platformCoverCache.get(key)?.url : undefined;
+      if (cover) {
+        entry.cover = cover;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  private async loadPlatformCoverCache(): Promise<void> {
     try {
-      const items = this.app.loadLocalStorage(PLATFORM_COVER_CACHE_KEY) as unknown;
+      const adapter = this.app.vault.adapter;
+      if (!this.coverCachePath || !(await adapter.exists(this.coverCachePath))) return;
+      const items = JSON.parse(await adapter.read(this.coverCachePath)) as unknown;
       if (!Array.isArray(items)) return;
       const cutoff = Date.now() - PLATFORM_COVER_CACHE_TTL_MS;
       for (const row of items.slice(0, PLATFORM_COVER_CACHE_LIMIT)) {
@@ -405,17 +435,38 @@ export class NoteIndex {
       }
     } catch {
       // 缓存损坏时忽略；下一次成功读取会覆盖它。
+    } finally {
+      this.coverCacheLoaded = true;
+      if (this.applyPlatformCovers()) this.scheduleCoverEmit();
+      const pending = Array.from(this.pendingCoverLinks);
+      this.pendingCoverLinks.clear();
+      for (const link of pending) this.ensureCoverForUrl(link);
     }
   }
 
+  /** 封面常常一批批到，合并成一次写盘。 */
   private persistPlatformCoverCache(): void {
+    if (!this.coverCachePath || this.coverCacheSaveTimer !== null) return;
+    this.coverCacheSaveTimer = window.setTimeout(() => {
+      this.coverCacheSaveTimer = null;
+      void this.writePlatformCoverCache();
+    }, PLATFORM_COVER_CACHE_SAVE_DELAY_MS);
+  }
+
+  private async writePlatformCoverCache(): Promise<void> {
+    const path = this.coverCachePath;
+    if (!path) return;
     try {
+      const adapter = this.app.vault.adapter;
+      const dir = path.slice(0, path.lastIndexOf('/'));
+      if (dir && !(await adapter.exists(dir))) await adapter.mkdir(dir);
       const items = Array.from(this.platformCoverCache.entries())
         .sort((left, right) => right[1].updatedAt - left[1].updatedAt)
         .slice(0, PLATFORM_COVER_CACHE_LIMIT);
-      this.app.saveLocalStorage(PLATFORM_COVER_CACHE_KEY, items);
-    } catch {
-      // localStorage 不可用时退化为会话缓存，不影响封面显示。
+      await adapter.write(path, JSON.stringify(items));
+    } catch (error) {
+      // 写不进去时退化为会话缓存，不影响封面显示。
+      console.debug('[NoteIndex] 封面缓存写入失败', error);
     }
   }
 }

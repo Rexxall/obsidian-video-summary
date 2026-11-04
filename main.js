@@ -4637,9 +4637,9 @@ var REMOTE_COVER_TIMEOUT_MS = 8e3;
 var REMOTE_COVER_RETRY_MS = 30 * 60 * 1e3;
 var PLATFORM_COVER_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
 var PLATFORM_COVER_CACHE_LIMIT = 500;
-var PLATFORM_COVER_CACHE_KEY = "video-summary-platform-cover-cache-v1";
+var PLATFORM_COVER_CACHE_SAVE_DELAY_MS = 1e3;
 var NoteIndex = class {
-  constructor(app) {
+  constructor(app, coverCachePath) {
     this.entries = /* @__PURE__ */ new Map();
     this.listeners = /* @__PURE__ */ new Set();
     this.bodyScanQueue = [];
@@ -4651,8 +4651,20 @@ var NoteIndex = class {
     this.platformCoverQueue = [];
     this.activeCoverRequests = 0;
     this.coverEmitTimer = null;
+    this.coverCacheLoaded = false;
+    this.coverCacheSaveTimer = null;
+    /** 缓存文件读完前请求的封面，读完再决定要不要联网。 */
+    this.pendingCoverLinks = /* @__PURE__ */ new Set();
     this.app = app;
-    this.loadPlatformCoverCache();
+    this.coverCachePath = coverCachePath;
+    void this.loadPlatformCoverCache();
+  }
+  /** 插件卸载时把还没落盘的封面写进缓存文件。 */
+  flush() {
+    if (this.coverCacheSaveTimer === null) return;
+    window.clearTimeout(this.coverCacheSaveTimer);
+    this.coverCacheSaveTimer = null;
+    void this.writePlatformCoverCache();
   }
   subscribe(listener) {
     this.listeners.add(listener);
@@ -4703,6 +4715,10 @@ var NoteIndex = class {
     if (!link || derivePlatformCover(link)) return;
     const key = remoteCoverKey(link);
     if (!key) return;
+    if (!this.coverCacheLoaded) {
+      this.pendingCoverLinks.add(link);
+      return;
+    }
     const cached = this.platformCoverCache.get(key)?.url;
     if (cached) return;
     const retryAfter = this.platformCoverRetryAfter.get(key) ?? 0;
@@ -4899,13 +4915,7 @@ var NoteIndex = class {
       this.platformCoverCache.set(task.key, { url: cover, updatedAt: Date.now() });
       this.platformCoverRetryAfter.delete(task.key);
       this.persistPlatformCoverCache();
-      let changed = false;
-      for (const entry of this.entries.values()) {
-        if (!entry.cover && entry.link && remoteCoverKey(entry.link) === task.key) {
-          entry.cover = cover;
-          changed = true;
-        }
-      }
+      const changed = this.applyPlatformCovers();
       if (changed || this.listeners.size > 0) this.scheduleCoverEmit();
     } catch (error) {
       console.debug("[NoteIndex] \u5E73\u53F0\u5C01\u9762\u8BFB\u53D6\u5931\u8D25", error);
@@ -4922,9 +4932,25 @@ var NoteIndex = class {
       this.emit();
     }, 80);
   }
-  loadPlatformCoverCache() {
+  /** 给还没封面的条目填上已缓存的平台封面，返回是否有变化。 */
+  applyPlatformCovers() {
+    let changed = false;
+    for (const entry of this.entries.values()) {
+      if (entry.cover || !entry.link) continue;
+      const key = remoteCoverKey(entry.link);
+      const cover = key ? this.platformCoverCache.get(key)?.url : void 0;
+      if (cover) {
+        entry.cover = cover;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+  async loadPlatformCoverCache() {
     try {
-      const items = this.app.loadLocalStorage(PLATFORM_COVER_CACHE_KEY);
+      const adapter = this.app.vault.adapter;
+      if (!this.coverCachePath || !await adapter.exists(this.coverCachePath)) return;
+      const items = JSON.parse(await adapter.read(this.coverCachePath));
       if (!Array.isArray(items)) return;
       const cutoff = Date.now() - PLATFORM_COVER_CACHE_TTL_MS;
       for (const row of items.slice(0, PLATFORM_COVER_CACHE_LIMIT)) {
@@ -4937,13 +4963,33 @@ var NoteIndex = class {
         if (url) this.platformCoverCache.set(key, { url, updatedAt: item.updatedAt });
       }
     } catch {
+    } finally {
+      this.coverCacheLoaded = true;
+      if (this.applyPlatformCovers()) this.scheduleCoverEmit();
+      const pending = Array.from(this.pendingCoverLinks);
+      this.pendingCoverLinks.clear();
+      for (const link of pending) this.ensureCoverForUrl(link);
     }
   }
+  /** 封面常常一批批到，合并成一次写盘。 */
   persistPlatformCoverCache() {
+    if (!this.coverCachePath || this.coverCacheSaveTimer !== null) return;
+    this.coverCacheSaveTimer = window.setTimeout(() => {
+      this.coverCacheSaveTimer = null;
+      void this.writePlatformCoverCache();
+    }, PLATFORM_COVER_CACHE_SAVE_DELAY_MS);
+  }
+  async writePlatformCoverCache() {
+    const path = this.coverCachePath;
+    if (!path) return;
     try {
+      const adapter = this.app.vault.adapter;
+      const dir = path.slice(0, path.lastIndexOf("/"));
+      if (dir && !await adapter.exists(dir)) await adapter.mkdir(dir);
       const items = Array.from(this.platformCoverCache.entries()).sort((left, right) => right[1].updatedAt - left[1].updatedAt).slice(0, PLATFORM_COVER_CACHE_LIMIT);
-      this.app.saveLocalStorage(PLATFORM_COVER_CACHE_KEY, items);
-    } catch {
+      await adapter.write(path, JSON.stringify(items));
+    } catch (error) {
+      console.debug("[NoteIndex] \u5C01\u9762\u7F13\u5B58\u5199\u5165\u5931\u8D25", error);
     }
   }
 };
@@ -9200,7 +9246,6 @@ var CacheManager = class {
       await this.ensureCacheDirectory();
       await this.loadIndex();
       this.isInitialized = true;
-      await this.migrateFromLocalStorage();
       await this.cleanupInternal();
     } catch (error) {
       console.error("\u521D\u59CB\u5316\u7F13\u5B58\u5931\u8D25:", error);
@@ -9236,33 +9281,6 @@ var CacheManager = class {
       hash &= hash;
     }
     return Math.abs(hash).toString(36);
-  }
-  async migrateFromLocalStorage() {
-    try {
-      if (typeof window === "undefined" || !window.localStorage) return;
-      const oldCacheData = window.localStorage.getItem("video-summary-cache");
-      if (!oldCacheData) return;
-      console.debug("\u53D1\u73B0\u65E7\u7F13\u5B58\u6570\u636E\uFF0C\u5F00\u59CB\u8FC1\u79FB...");
-      const entries2 = JSON.parse(oldCacheData);
-      let migratedCount = 0;
-      for (const [key, item] of entries2) {
-        try {
-          await this.writeLegacyEntry(
-            key.split("|")[0],
-            item.mode || "summary",
-            item.language || "zh",
-            item.result
-          );
-          migratedCount += 1;
-        } catch (error) {
-          console.error(`\u8FC1\u79FB\u7F13\u5B58\u9879\u5931\u8D25: ${key}`, error);
-        }
-      }
-      console.debug(`\u8FC1\u79FB\u5B8C\u6210\uFF0C\u5171\u8FC1\u79FB ${migratedCount} \u9879`);
-      window.localStorage.removeItem("video-summary-cache");
-    } catch (error) {
-      console.error("\u8FC1\u79FB\u65E7\u7F13\u5B58\u5931\u8D25:", error);
-    }
   }
   async loadIndex() {
     try {
@@ -21489,7 +21507,7 @@ var VideoSummaryPlugin = class extends import_obsidian21.Plugin {
     });
     this.jobs = new JobStore();
     this.jobService = new JobService(this, this.jobs);
-    this.noteIndex = new NoteIndex(this.app);
+    this.noteIndex = new NoteIndex(this.app, `${pluginDir}/data/cache/platform-covers.json`);
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
     this.app.workspace.onLayoutReady(() => {
       void this.memoryIndex.rebuildFromStore(this.artifactStore).catch((error) => {
@@ -21541,6 +21559,7 @@ var VideoSummaryPlugin = class extends import_obsidian21.Plugin {
     );
   }
   onunload() {
+    this.noteIndex?.flush();
     if (this.historySaveTimer !== null) {
       window.clearTimeout(this.historySaveTimer);
       this.historySaveTimer = null;
@@ -24930,23 +24949,6 @@ Suggestion: ${res.hint}`) : "";
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
   /**
-   * 删除指定的缓存项
-   */
-  deleteCacheItem(key) {
-    try {
-      const cacheData = window.localStorage.getItem("video-summary-cache");
-      if (cacheData) {
-        const entries2 = asArray(JSON.parse(cacheData));
-        const filteredEntries = entries2.filter(
-          (entry) => !(Array.isArray(entry) && entry[0] === key)
-        );
-        window.localStorage.setItem("video-summary-cache", JSON.stringify(filteredEntries));
-      }
-    } catch (error) {
-      console.error("\u5220\u9664\u7F13\u5B58\u9879\u5931\u8D25:", error);
-    }
-  }
-  /**
    * 添加测试缓存数据
    */
   async addTestCacheData() {
@@ -25022,22 +25024,6 @@ Suggestion: ${res.hint}`) : "";
     } else {
       return date.toLocaleDateString();
     }
-  }
-  /**
-   * 获取 localStorage 大小
-   */
-  getLocalStorageSize() {
-    let totalSize = 0;
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith("video-summary-cache")) {
-        const value = window.localStorage.getItem(key);
-        if (value) {
-          totalSize += value.length;
-        }
-      }
-    }
-    return totalSize;
   }
 };
 function isSupportedProtocolVideoUrl(value) {

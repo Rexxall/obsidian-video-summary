@@ -157,33 +157,38 @@ jobs:
           '
           git diff --exit-code -- main.js
 
-      - name: Package release assets
+      # Obsidian reads only main.js, manifest.json and styles.css from the plugin release. The
+      # backend and the browser extension ship in releases of their own (backend-v<version>,
+      # capture-v<extension version>) so the plugin release carries nothing else.
+      - name: Package backend and browser extension
         run: |
-          archive="video-summary-${RELEASE_VERSION}.zip"
+          backend_tag="backend-v${RELEASE_VERSION}"
           backend_archive="video-summary-backend-${RELEASE_VERSION}.zip"
-          zip -j "$archive" main.js manifest.json styles.css
-          test "$(unzip -Z1 "$archive" | sort | tr '\n' ' ')" = "main.js manifest.json styles.css "
+          mkdir -p dist/backend dist/capture
           # Tracked files only, with their executable bits; .env and user files never ship.
-          git archive --format=zip --prefix=video-summary-backend/ -o "$backend_archive" HEAD:backend
-          unzip -l "$backend_archive" | grep -q 'video-summary-backend/.env.example'
-          if unzip -Z1 "$backend_archive" | grep -E '/\.env$'; then
+          git archive --format=zip --prefix=video-summary-backend/ -o "dist/backend/$backend_archive" HEAD:backend
+          unzip -l "dist/backend/$backend_archive" | grep -q 'video-summary-backend/.env.example'
+          if unzip -Z1 "dist/backend/$backend_archive" | grep -E '/\.env$'; then
             echo "Backend archive must not contain .env" >&2
             exit 1
           fi
-          extension_version="$(node -p "require('./browser-extension/manifest.json').version")"
-          extension_archive="video-summary-capture-${extension_version}.zip"
-          (cd browser-extension && zip -qr "../$extension_archive" . -x 'README.md')
-          echo "EXTENSION_ARCHIVE=$extension_archive" >> "$GITHUB_ENV"
-          sha256sum \
-            main.js \
-            manifest.json \
-            styles.css \
-            "$backend_archive" \
-            "$archive" \
-            "$extension_archive" \
-            > SHA256SUMS
+          (cd dist/backend && sha256sum "$backend_archive" > SHA256SUMS)
 
-      # Signed build provenance for every file the release ships, as in Obsidian's example release
+          extension_version="$(node -p "require('./browser-extension/manifest.json').version")"
+          capture_tag="capture-v${extension_version}"
+          extension_archive="video-summary-capture-${extension_version}.zip"
+          (cd browser-extension && zip -qr "../dist/capture/$extension_archive" . -x 'README.md')
+          (cd dist/capture && sha256sum "$extension_archive" > SHA256SUMS)
+
+          {
+            echo "BACKEND_TAG=$backend_tag"
+            echo "BACKEND_ARCHIVE=$backend_archive"
+            echo "CAPTURE_TAG=$capture_tag"
+            echo "EXTENSION_VERSION=$extension_version"
+            echo "EXTENSION_ARCHIVE=$extension_archive"
+          } >> "$GITHUB_ENV"
+
+      # Signed build provenance for every file the releases ship, as in Obsidian's example release
       # workflow; check one with: gh attestation verify main.js --repo Rexxall/obsidian-video-summary
       - name: Attest release assets
         uses: actions/attest@v4
@@ -192,9 +197,8 @@ jobs:
             main.js
             manifest.json
             styles.css
-            video-summary-${{ env.RELEASE_VERSION }}.zip
-            video-summary-backend-${{ env.RELEASE_VERSION }}.zip
-            ${{ env.EXTENSION_ARCHIVE }}
+            dist/backend/${{ env.BACKEND_ARCHIVE }}
+            dist/capture/${{ env.EXTENSION_ARCHIVE }}
 
       - name: Checkout current release publisher
         uses: actions/checkout@v4
@@ -202,34 +206,67 @@ jobs:
           ref: ${{ github.workflow_sha }}
           path: .release-tooling
 
-      - name: Create or update GitHub release
+      - name: Create or update GitHub releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          repo_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          release_commit="$(git rev-parse HEAD)"
+
+          # The backend and the extension never become "Latest", so releases/latest stays the plugin.
+          publish_side_release() {
+            local tag="$1" title="$2" notes="$3"
+            shift 3
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" "$@" --clobber
+            else
+              gh release create "$tag" "$@" \
+                --title "$title" \
+                --notes "$notes" \
+                --target "$release_commit" \
+                --latest=false
+            fi
+          }
+
+          publish_side_release "$BACKEND_TAG" "Video Summary backend ${RELEASE_VERSION}" \
+            "Backend for Video Summary ${RELEASE_VERSION}. Unzip it outside your vault and run the start script; guide: ${repo_url}/blob/${RELEASE_VERSION}/INSTALL.md" \
+            "dist/backend/${BACKEND_ARCHIVE}" dist/backend/SHA256SUMS
+
+          # An unchanged extension version keeps its existing release and files.
+          if gh release view "$CAPTURE_TAG" --json assets -q '.assets[].name' 2>/dev/null |
+            grep -qxF "$EXTENSION_ARCHIVE"; then
+            echo "$CAPTURE_TAG already has $EXTENSION_ARCHIVE"
+          else
+            publish_side_release "$CAPTURE_TAG" "Video Summary Capture ${EXTENSION_VERSION}" \
+              "Video Summary Capture ${EXTENSION_VERSION}, the browser extension. Install: ${repo_url}/blob/${RELEASE_VERSION}/browser-extension/README.md" \
+              "dist/capture/${EXTENSION_ARCHIVE}" dist/capture/SHA256SUMS
+          fi
+
           notes_file=".release-tooling/docs/releases/${RELEASE_VERSION}.md"
           if [[ ! -f "$notes_file" ]]; then
             notes_file="docs/releases/${RELEASE_VERSION}.md"
           fi
-          assets=(
-            main.js
-            manifest.json
-            styles.css
-            "video-summary-${RELEASE_VERSION}.zip"
-            "video-summary-backend-${RELEASE_VERSION}.zip"
-            "$EXTENSION_ARCHIVE"
-            SHA256SUMS
-          )
-          notes_args=(--generate-notes)
+          notes_args=()
           if [[ -f "$notes_file" ]]; then
-            notes_args=(--notes-file "$notes_file")
+            cp "$notes_file" release-notes.md
+          else
+            : > release-notes.md
+            notes_args+=(--generate-notes)
           fi
+          {
+            echo
+            echo "## Other downloads"
+            echo
+            echo "- Backend: [${BACKEND_ARCHIVE}](${repo_url}/releases/download/${BACKEND_TAG}/${BACKEND_ARCHIVE}) (release [${BACKEND_TAG}](${repo_url}/releases/tag/${BACKEND_TAG}))"
+            echo "- Browser extension: [${EXTENSION_ARCHIVE}](${repo_url}/releases/download/${CAPTURE_TAG}/${EXTENSION_ARCHIVE}) (release [${CAPTURE_TAG}](${repo_url}/releases/tag/${CAPTURE_TAG}))"
+          } >> release-notes.md
 
+          assets=(main.js manifest.json styles.css)
           if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
-            edit_args=(--title "$RELEASE_VERSION")
-            if [[ -f "$notes_file" ]]; then
-              edit_args+=(--notes-file "$notes_file")
-            fi
-            gh release edit "$RELEASE_VERSION" --verify-tag "${edit_args[@]}"
+            gh release edit "$RELEASE_VERSION" --verify-tag \
+              --title "$RELEASE_VERSION" \
+              --notes-file release-notes.md \
+              --latest
             gh release upload "$RELEASE_VERSION" "${assets[@]}" --clobber
           else
             gh release create \
@@ -237,5 +274,7 @@ jobs:
               "${assets[@]}" \
               --title "$RELEASE_VERSION" \
               --verify-tag \
+              --latest \
+              --notes-file release-notes.md \
               "${notes_args[@]}"
           fi

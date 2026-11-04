@@ -3628,7 +3628,7 @@ body {
 .vs-settings .platform-matrix-list {
   display: grid;
   grid-template-columns: max-content 1fr auto;
-  column-gap: 12px;
+  gap: 0 12px;
   margin-top: 4px;
 }
 .vs-settings .platform-matrix-row {

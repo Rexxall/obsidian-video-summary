@@ -14,7 +14,7 @@ English · [中文](README.zh-CN.md) · [日本語](README.ja.md)
 
 1. Install and enable Video Summary, then run **Open the Video Summary side panel** from the command palette.
 2. Press **See an example note**. It writes one finished note (an interview on reading papers in three passes), marked as a demo, so you can see the result before setting anything up.
-3. To process your own videos, start the backend on your computer: download `video-summary-backend-<version>.zip` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest), unzip it outside your vault and double-click `start-mac.command` (macOS) or `start-windows.cmd` (Windows). It asks for your keys and prints a connection code. About 10 minutes the first time, most of it downloading the 550 MB backend image; [step-by-step guide](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
+3. To process your own videos, start the backend on your computer: open the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest), download `video-summary-backend-<version>.zip` under **Other downloads**, unzip it outside your vault and double-click `start-mac.command` (macOS) or `start-windows.cmd` (Windows). It asks for your keys and prints a connection code. About 10 minutes the first time, most of it downloading the 550 MB backend image; [step-by-step guide](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
 4. In **Settings → Video Summary → First-run setup**, paste the connection code, run **Full check**, then **Trial run**.
 5. Paste a link into the side panel and press **Start**.
 
@@ -57,15 +57,15 @@ The note reads only what is said, not the picture. What the backend does, what t
 
 ## Install
 
-Download `video-summary-<version>.zip` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) and extract `main.js`, `manifest.json` and `styles.css` into `<your-vault>/.obsidian/plugins/video-summary/`. Restart Obsidian and enable **Video Summary** in **Settings → Community plugins**. To verify the download:
+Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) into `<your-vault>/.obsidian/plugins/video-summary/`. Restart Obsidian and enable **Video Summary** in **Settings → Community plugins**. To verify a download:
 
 ```bash
-grep 'video-summary-<version>.zip' SHA256SUMS | shasum -a 256 -c -
+gh attestation verify main.js --repo Rexxall/obsidian-video-summary
 ```
 
 Desktop only; Obsidian 1.8.7 or newer. The generated `.base` library views need Obsidian 1.9.10 with the Bases core plugin.
 
-The backend comes from the same release (`video-summary-backend-<version>.zip`). It needs Docker Desktop or OrbStack; on Linux run `./vs-backend.sh`. It listens only on `127.0.0.1` and checks the connection code's token on every request. Full guide: [INSTALL.md](INSTALL.md), with [English](docs/INSTALL.en.md) and [Japanese](docs/INSTALL.ja.md) versions; security notes: [backend/SECURITY.md](backend/SECURITY.md).
+The backend has its own release, `backend-v<version>`, linked from the plugin release under **Other downloads** (`video-summary-backend-<version>.zip`, with a `SHA256SUMS`). It needs Docker Desktop or OrbStack; on Linux run `./vs-backend.sh`. It listens only on `127.0.0.1` and checks the connection code's token on every request. Full guide: [INSTALL.md](INSTALL.md), with [English](docs/INSTALL.en.md) and [Japanese](docs/INSTALL.ja.md) versions; security notes: [backend/SECURITY.md](backend/SECURITY.md).
 
 To build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -100,7 +100,15 @@ Settings cover the backend and webhook profiles (each with its own Header Auth s
 
 The plugin does not include client-side telemetry, analytics, advertising or a self-update mechanism, and sends nothing to the plugin author.
 
-**Network use.** Besides your backend, the plugin contacts video platforms directly for playlist import, video details, short-link expansion, covers and the embedded YouTube or Bilibili player; those hosts see your IP address. Covers load only over HTTPS from known platform media hosts. Markdown written by the model has its images, embeds and active HTML neutralised before it is shown or saved.
+### What the plugin touches
+
+**Notes in your vault.** The plugin lists the vault's Markdown files to find video notes: for the side panel's library, for the pending-video batch, to open the note behind a job, and to find the existing note before a result, capture or course import would create a duplicate. It reads frontmatter from Obsidian's metadata cache; when a note's frontmatter lacks the field it looks for (a video link, a source hash, an artifact ID), it reads the note text for that field. What it reads stays on your computer. It lists folders only when you pick an output folder, and changes a note only when you process it, then only its own blocks.
+
+**Clipboard.** It writes to the clipboard only when you press a copy action: a note's video link, a transcript quote, a job's error or raw result. It reads the clipboard only when you press **Paste from clipboard** in first-run setup, to take the connection code.
+
+**Local cache.** Processing results, evidence, learning progress and Bilibili cover addresses are kept as files under the plugin's `data/` folder (results and covers in `data/cache/`), not in `data.json` and not in the browser's local storage. **Clear all** in the cache settings removes cached results.
+
+**Network use.** Besides your backend, the plugin contacts video platforms directly for playlist import (`youtube.com`, `api.bilibili.com`), Bilibili covers (`api.bilibili.com`), short-link expansion, the QR login in first-run setup (`passport.bilibili.com`; the resulting login goes only to your backend) and the embedded YouTube or Bilibili player; those hosts see your IP address. Covers load only over HTTPS from known platform media hosts. Markdown written by the model has its images, embeds and active HTML neutralised before it is shown or saved.
 
 **Node and Electron access** (desktop only). `fs` and `path` list the files in the cookies folder and read their size and age, never their contents. `http` and `https` send one request to a short link and read only its `Location` header. Electron's `shell.openPath` shows a folder in Finder or Explorer. The plugin never starts processes or runs shell commands.
 

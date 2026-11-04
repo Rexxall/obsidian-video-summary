@@ -5,7 +5,7 @@ services:
   n8n:
     # The start script pulls this prebuilt image and builds from the Dockerfile only when the
     # download fails. version-bump.mjs keeps the tag equal to the plugin version.
-    image: ${VS_IMAGE:-ghcr.io/rexxall/video-summary-backend:2.12.1}
+    image: ${VS_IMAGE:-ghcr.io/rexxall/video-summary-backend:2.12.2}
     pull_policy: missing
     build:
       context: .

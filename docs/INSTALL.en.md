@@ -25,8 +25,9 @@ download usually takes 1–5 minutes.
 
 ### 2. Download the backend and start it
 
-Download `video-summary-backend-<version>.zip` from the
-[latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) and unzip it
+Open the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest), download
+`video-summary-backend-<version>.zip` under **Other downloads** (it lives in its own release,
+`backend-v<version>`) and unzip it
 somewhere permanent, outside your vault. Then on macOS double-click `start-mac.command`. The first time macOS says it cannot verify the file:
 click Done, open System Settings → Privacy & Security, within an hour click Open under Security, then Open
 Anyway, and enter your login password

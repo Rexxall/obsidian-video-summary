@@ -10,13 +10,13 @@
 
 ### 1. 装插件和 Docker
 
-- **插件：** Obsidian 里打开 **设置 → 第三方插件 → 浏览**，搜 **Video Summary**，安装并启用。商店里暂时搜不到时，从 [最新 Release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 下载 `video-summary-<版本>.zip`，把里面三个文件放进 `<你的库>/.obsidian/plugins/video-summary/`。
+- **插件：** Obsidian 里打开 **设置 → 第三方插件 → 浏览**，搜 **Video Summary**，安装并启用。商店里暂时搜不到时，从 [最新 Release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 下载 `main.js`、`manifest.json`、`styles.css` 三个文件，放进 `<你的库>/.obsidian/plugins/video-summary/`。
 - **Docker：** 装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)（Windows、macOS）或 [OrbStack](https://orbstack.dev)（macOS），打开它，等它显示正在运行。
 - **两把密钥：** [DeepSeek](https://platform.deepseek.com/api_keys) 写总结；[硅基流动](https://cloud.siliconflow.cn/account/ak) 给没有字幕的视频转文字。费用见 [准备什么、花多少钱](#准备什么花多少钱)。
 
 ### 2. 下载后端，双击启动
 
-从 [最新 Release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 下载 `video-summary-backend-<版本>.zip`，解压到一个不会被删掉的位置（**不要放进 Obsidian 库里**），然后：
+打开 [最新 Release](https://github.com/Rexxall/obsidian-video-summary/releases/latest)，在说明底部的 **Other downloads** 里下载 `video-summary-backend-<版本>.zip`（它在自己的 `backend-v<版本>` 发布里），解压到一个不会被删掉的位置（**不要放进 Obsidian 库里**），然后：
 
 - **macOS：** 双击 `start-mac.command`。第一次会提示“Apple 无法验证”，点“完成”，再打开“系统设置 → 隐私与安全”，一小时内在“安全性”里点“打开”，再点“仍要打开”，输入开机密码（[Apple 的说明](https://support.apple.com/zh-cn/guide/mac-help/mh40616/mac)）。以后双击就能直接打开。
 - **Windows：** 双击 `start-windows.cmd`；出现“Windows 已保护你的电脑”时点“更多信息 → 仍要运行”。
