@@ -52,6 +52,22 @@ export type ProcessProgressReporter = (progress: {
   message?: string;
 }) => void;
 
+const NO_SUMMARY = '服务器没有返回总结';
+const NO_TRANSCRIPT = '服务器没有返回转录文本';
+
+/** What the mode needs and the reply lacks, or null. Video details alone do not count as content. */
+export function missingContent(result: ProcessingResult, mode: ProcessingMode): string | null {
+  if (mode === 'summary') {
+    return (result.note || result.summary || '').trim() ? null : NO_SUMMARY;
+  }
+  if (mode === 'transcript-only') {
+    return (result.video_transcript || '').trim() || result.video_segments?.length
+      ? null
+      : NO_TRANSCRIPT;
+  }
+  return null;
+}
+
 export class VideoSummaryAPI {
   private webhookUrl: string;
   private timeout: number;
@@ -220,7 +236,8 @@ export class VideoSummaryAPI {
     // 富结果只按完整指纹读取，不回退到无法验证 provenance 的旧 URL key。
     if (useCache) {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
-      if (cachedResult) {
+      // An earlier version cached replies that had no summary; never serve those again.
+      if (cachedResult && !missingContent(cachedResult, mode)) {
         if (this.debugMode) {
           console.debug(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
@@ -270,6 +287,9 @@ export class VideoSummaryAPI {
         this.parseSummaryResponse(data, input),
         cacheFingerprint,
       );
+      // Title and author alone are not a result: fail the job so it can be retried, and cache nothing.
+      const missing = missingContent(result, mode);
+      if (missing) throw new Error(missing);
 
       this.recordWebhookResult(result, input, mode, language);
 
@@ -327,7 +347,8 @@ export class VideoSummaryAPI {
 
     if (useCache) {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
-      if (cachedResult) {
+      // An earlier version cached replies that had no summary; never serve those again.
+      if (cachedResult && !missingContent(cachedResult, mode)) {
         if (this.debugMode) {
           console.debug(`[VideoSummaryAPI] 使用指纹缓存: ${cacheFingerprint.key}`);
         }
@@ -366,6 +387,9 @@ export class VideoSummaryAPI {
         this.parseSummaryResponse(data, input),
         cacheFingerprint,
       );
+      // Title and author alone are not a result: fail the job so it can be retried, and cache nothing.
+      const missing = missingContent(result, mode);
+      if (missing) throw new Error(missing);
 
       this.recordWebhookResult(result, input, mode, language);
 
@@ -1588,6 +1612,18 @@ export class VideoSummaryAPI {
         `${message}。请确认 URL 指向 n8n Webhook，而不是 n8n 登录页、反向代理错误页或普通网页。`,
         `${message}. Make sure the URL points at the n8n webhook, not the n8n login page, a proxy error page or a normal web page.`,
       );
+    }
+
+    if (message.includes(NO_SUMMARY) || message.includes(NO_TRANSCRIPT)) {
+      return message.includes(NO_SUMMARY)
+        ? tr(
+            '后端只回了视频信息，没有总结，笔记没有写。可以重试；连着几次都这样，就贴一份文稿。',
+            'The backend sent the video details but no summary, so nothing was written. Retry; if it keeps happening, paste a transcript.',
+          )
+        : tr(
+            '后端只回了视频信息，没有转录文本，笔记没有写。可以重试。',
+            'The backend sent the video details but no transcript text, so nothing was written. Retry.',
+          );
     }
 
     if (message.includes('服务器返回的数据中没有有效内容')) {

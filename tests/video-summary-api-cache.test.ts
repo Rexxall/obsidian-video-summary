@@ -293,3 +293,67 @@ void test('batch processing waits for asynchronous artifact and note post-proces
     globalThis.fetch = originalFetch;
   }
 });
+
+void test('a reply with only the video details fails the job, is not cached, and an old cached one is skipped', async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  let summary = '';
+  globalThis.fetch = async () => {
+    requests += 1;
+    return new Response(
+      JSON.stringify({
+        video_title: 'why crushes are a waste of time',
+        video_author: 'Bailey Schildbach',
+        video_duration: '10:01',
+        transcript_source: '',
+        video_segments: [],
+        evidence_claims: [],
+        ...(summary ? { summary } : {}),
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  };
+
+  try {
+    const vault = { configDir: '.obsidian', adapter: new MemoryAdapter() };
+    const api = new VideoSummaryAPI(
+      'https://example.invalid/webhook',
+      vault as never,
+      '.obsidian/plugins/video-summary/data',
+      undefined,
+    );
+    const input = { url: 'https://www.youtube.com/watch?v=6FQIfTSB8S4' };
+
+    await assert.rejects(api.processVideo('note', input, 'summary', 'zh', true), (error: Error) => {
+      assert.match(error.message, /没有总结/);
+      return true;
+    });
+    await assert.rejects(
+      api.processVideoSimple(input, 'transcript-only', 'zh', true),
+      /没有转录文本/,
+    );
+    assert.equal(
+      (await api.processVideoSimple(input, 'info-only', 'zh', true)).video_title,
+      'why crushes are a waste of time',
+    );
+
+    // What 2.12.2 and earlier cached for this video: details, no summary.
+    const internals = api as unknown as {
+      cacheManager: { setByFingerprint(f: unknown, r: unknown, l: string): Promise<void> };
+      buildCacheFingerprint(i: unknown, m: string, l: string): unknown;
+    };
+    await internals.cacheManager.setByFingerprint(
+      internals.buildCacheFingerprint(input, 'summary', 'zh'),
+      { video_title: 'why crushes are a waste of time' },
+      'fixture',
+    );
+    summary = 'A real summary';
+    assert.equal(
+      (await api.processVideo('note', input, 'summary', 'zh', true)).summary,
+      'A real summary',
+    );
+    assert.equal(requests, 4);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

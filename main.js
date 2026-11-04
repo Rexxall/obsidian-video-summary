@@ -10045,6 +10045,17 @@ var SHA256_CONSTANTS = new Uint32Array([
 // api/VideoSummaryAPI.ts
 var CACHE_ARTIFACT_SCHEMA_VERSION = 3;
 var CACHE_PROMPT_VERSION = "video-note-prompt-v4";
+var NO_SUMMARY = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3";
+var NO_TRANSCRIPT = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u8F6C\u5F55\u6587\u672C";
+function missingContent(result, mode) {
+  if (mode === "summary") {
+    return (result.note || result.summary || "").trim() ? null : NO_SUMMARY;
+  }
+  if (mode === "transcript-only") {
+    return (result.video_transcript || "").trim() || result.video_segments?.length ? null : NO_TRANSCRIPT;
+  }
+  return null;
+}
 var _VideoSummaryAPI = class _VideoSummaryAPI {
   constructor(webhookUrl, vault, pluginDataPath, payloadKeys, webhookAuth, timeoutMinutes = 30) {
     this.debugMode = false;
@@ -10164,7 +10175,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
     if (useCache) {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
-      if (cachedResult) {
+      if (cachedResult && !missingContent(cachedResult, mode)) {
         if (this.debugMode) {
           console.debug(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
@@ -10205,6 +10216,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         this.parseSummaryResponse(data, input),
         cacheFingerprint
       );
+      const missing = missingContent(result, mode);
+      if (missing) throw new Error(missing);
       this.recordWebhookResult(result, input, mode, language);
       this.lastWebhookResult = {
         result,
@@ -10245,7 +10258,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     const cacheFingerprint = this.buildCacheFingerprint(input, mode, language);
     if (useCache) {
       const cachedResult = await this.cacheManager.getByFingerprint(cacheFingerprint);
-      if (cachedResult) {
+      if (cachedResult && !missingContent(cachedResult, mode)) {
         if (this.debugMode) {
           console.debug(`[VideoSummaryAPI] \u4F7F\u7528\u6307\u7EB9\u7F13\u5B58: ${cacheFingerprint.key}`);
         }
@@ -10276,6 +10289,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
         this.parseSummaryResponse(data, input),
         cacheFingerprint
       );
+      const missing = missingContent(result, mode);
+      if (missing) throw new Error(missing);
       this.recordWebhookResult(result, input, mode, language);
       this.lastWebhookResult = {
         result,
@@ -11256,6 +11271,15 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       return tr(
         `${message}\u3002\u8BF7\u786E\u8BA4 URL \u6307\u5411 n8n Webhook\uFF0C\u800C\u4E0D\u662F n8n \u767B\u5F55\u9875\u3001\u53CD\u5411\u4EE3\u7406\u9519\u8BEF\u9875\u6216\u666E\u901A\u7F51\u9875\u3002`,
         `${message}. Make sure the URL points at the n8n webhook, not the n8n login page, a proxy error page or a normal web page.`
+      );
+    }
+    if (message.includes(NO_SUMMARY) || message.includes(NO_TRANSCRIPT)) {
+      return message.includes(NO_SUMMARY) ? tr(
+        "\u540E\u7AEF\u53EA\u56DE\u4E86\u89C6\u9891\u4FE1\u606F\uFF0C\u6CA1\u6709\u603B\u7ED3\uFF0C\u7B14\u8BB0\u6CA1\u6709\u5199\u3002\u53EF\u4EE5\u91CD\u8BD5\uFF1B\u8FDE\u7740\u51E0\u6B21\u90FD\u8FD9\u6837\uFF0C\u5C31\u8D34\u4E00\u4EFD\u6587\u7A3F\u3002",
+        "The backend sent the video details but no summary, so nothing was written. Retry; if it keeps happening, paste a transcript."
+      ) : tr(
+        "\u540E\u7AEF\u53EA\u56DE\u4E86\u89C6\u9891\u4FE1\u606F\uFF0C\u6CA1\u6709\u8F6C\u5F55\u6587\u672C\uFF0C\u7B14\u8BB0\u6CA1\u6709\u5199\u3002\u53EF\u4EE5\u91CD\u8BD5\u3002",
+        "The backend sent the video details but no transcript text, so nothing was written. Retry."
       );
     }
     if (message.includes("\u670D\u52A1\u5668\u8FD4\u56DE\u7684\u6570\u636E\u4E2D\u6CA1\u6709\u6709\u6548\u5185\u5BB9")) {
@@ -12610,7 +12634,7 @@ function renderNextStep(container, ctx, row) {
     }, 0);
   });
 }
-var NO_TRANSCRIPT = /无字幕|没有字幕|未找到字幕|字幕不可用|no subtitles?|no captions?|subtitles? not (?:found|available)|transcript (?:not available|unavailable)|没有文稿/;
+var NO_TRANSCRIPT2 = /无字幕|没有字幕|未找到字幕|字幕不可用|no subtitles?|no captions?|subtitles? not (?:found|available)|transcript (?:not available|unavailable)|没有文稿/;
 function displayTaskTitle(raw) {
   const match = raw.match(/^(文稿(?:处理)?|本地文件|YouTube视频|B站视频)_(?:\d{8}_\d{6}_)?(.+)$/);
   if (!match) return raw;
@@ -12636,7 +12660,7 @@ function safeCoverUrl(value) {
 }
 function summarizeError(raw) {
   const error = raw.toLowerCase();
-  if (NO_TRANSCRIPT.test(error)) {
+  if (NO_TRANSCRIPT2.test(error)) {
     return tr("\u6CA1\u6709\u5B57\u5E55", "No subtitles");
   }
   if (/cookie|登录|login|session|需要验证|扫码|验证码/.test(error)) {

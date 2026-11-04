@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- **A reply with no summary is a failed job, not an empty note.** When the backend sends only the video details (title, author, length) and no summary, the job now fails with a message and a Retry button instead of saving a note with a success status and no body. Nothing is cached for it, and such replies cached by older versions are no longer reused. A transcript-only job fails the same way when no transcript text comes back.
+
 ## 2.12.2
 
 - **The plugin release has only `main.js`, `manifest.json` and `styles.css`,** the files Obsidian installs. The backend and the browser extension moved to releases of their own, `backend-v<version>` and `capture-v<extension version>`, each with its `SHA256SUMS`; the plugin release links both under **Other downloads**. The plugin zip and the plugin `SHA256SUMS` are gone; check a download with `gh attestation verify`.
