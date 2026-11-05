@@ -2,9 +2,11 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.12.3
 
 - **A reply with no summary is a failed job, not an empty note.** When the backend sends only the video details (title, author, length) and no summary, the job now fails with a message and a Retry button instead of saving a note with a success status and no body. Nothing is cached for it, and such replies cached by older versions are no longer reused. A transcript-only job fails the same way when no transcript text comes back.
+
+No backend changes are needed; the backend image is rebuilt as `2.12.3` with the same code.
 
 ## 2.12.2
 
