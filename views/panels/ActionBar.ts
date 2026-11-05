@@ -945,7 +945,7 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
     ctx.state.transcriptDraft = '';
     ctx.state.localFileDraft = '';
     input.dispatchEvent(new Event('input'));
-    new Notice(tr(`已提交 ${queued} 个任务`, `Sent ${queued} jobs`));
+    new Notice(tr(`已提交 ${queued} 个任务`, queued === 1 ? 'Sent 1 job' : `Sent ${queued} jobs`));
     ctx.state.tab = 'jobs';
     ctx.renderPanels();
   }

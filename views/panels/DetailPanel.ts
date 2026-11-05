@@ -154,23 +154,27 @@ function renderJobDetail(
     });
   }
   if (job.input.url) body.createDiv({ text: job.input.url, cls: 'vs-meta-link' });
+  // Open note (or Write note) sits under the title, not below the preview and the log.
+  const actions = body.createDiv({ cls: 'vs-detail-actions' });
 
   renderKnowledgeSignals(body, ctx, job);
 
   if (job.state === 'error' && job.error && renderSourceHealth(body, ctx, job)) {
+    actions.remove();
     renderLogs(body, job);
     return;
   }
 
   if (job.state === 'error' && job.error) {
+    actions.remove();
     const errorBox = body.createDiv({ cls: 'vs-error-box' });
     const icon = errorBox.createDiv({ cls: 'vs-error-icon' });
     setIcon(icon, 'alert-triangle');
     errorBox.createDiv({ text: job.error, cls: 'vs-error-text' });
 
-    const actions = body.createDiv({ cls: 'vs-detail-actions' });
+    const errorActions = body.createDiv({ cls: 'vs-detail-actions' });
     textButton(
-      actions,
+      errorActions,
       tr('重试（跳过缓存）', 'Retry (skip cache)'),
       () => {
         ctx.plugin.jobs.retry(job.id);
@@ -178,12 +182,12 @@ function renderJobDetail(
       },
       'is-primary is-fill',
     );
-    textButton(actions, tr('复制错误', 'Copy error'), () => {
+    textButton(errorActions, tr('复制错误', 'Copy error'), () => {
       void navigator.clipboard.writeText(job.error || '');
       new Notice(tr('已复制', 'Copied'));
     });
     if (isCookieError(job.error)) {
-      textButton(actions, tr('打开 cookies 目录', 'Open cookies folder'), () =>
+      textButton(errorActions, tr('打开 cookies 目录', 'Open cookies folder'), () =>
         openCookiesFolder(ctx),
       );
     }
@@ -192,6 +196,7 @@ function renderJobDetail(
   }
 
   if (!job.result) {
+    actions.remove();
     renderLogs(body, job);
     return;
   }
@@ -242,7 +247,6 @@ function renderJobDetail(
       renderPreview(pane, ctx, job);
   }
 
-  const actions = body.createDiv({ cls: 'vs-detail-actions' });
   if (job.state === 'review') {
     const write = textButton(
       actions,

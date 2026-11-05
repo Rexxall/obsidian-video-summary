@@ -7221,7 +7221,7 @@ async function pollQrLogin(key) {
   }
 }
 
-// node_modules/qrcode-generator/dist/qrcode.mjs
+// ../../../Obsidian/Projects/.plugin-dev/video-summary-plugin/node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
   const PAD1 = 17;
@@ -12179,7 +12179,7 @@ async function submit(ctx, input, fields) {
     ctx.state.transcriptDraft = "";
     ctx.state.localFileDraft = "";
     input.dispatchEvent(new Event("input"));
-    new import_obsidian10.Notice(tr(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`, `Sent ${queued} jobs`));
+    new import_obsidian10.Notice(tr(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`, queued === 1 ? "Sent 1 job" : `Sent ${queued} jobs`));
     ctx.state.tab = "jobs";
     ctx.renderPanels();
   }
@@ -13991,19 +13991,22 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     });
   }
   if (job.input.url) body.createDiv({ text: job.input.url, cls: "vs-meta-link" });
+  const actions = body.createDiv({ cls: "vs-detail-actions" });
   renderKnowledgeSignals(body, ctx, job);
   if (job.state === "error" && job.error && renderSourceHealth(body, ctx, job)) {
+    actions.remove();
     renderLogs(body, job);
     return;
   }
   if (job.state === "error" && job.error) {
+    actions.remove();
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
     (0, import_obsidian15.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
-    const actions2 = body.createDiv({ cls: "vs-detail-actions" });
+    const errorActions = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
-      actions2,
+      errorActions,
       tr("\u91CD\u8BD5\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", "Retry (skip cache)"),
       () => {
         ctx.plugin.jobs.retry(job.id);
@@ -14011,13 +14014,13 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
       },
       "is-primary is-fill"
     );
-    textButton(actions2, tr("\u590D\u5236\u9519\u8BEF", "Copy error"), () => {
+    textButton(errorActions, tr("\u590D\u5236\u9519\u8BEF", "Copy error"), () => {
       void navigator.clipboard.writeText(job.error || "");
       new import_obsidian15.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
     });
     if (isCookieError(job.error)) {
       textButton(
-        actions2,
+        errorActions,
         tr("\u6253\u5F00 cookies \u76EE\u5F55", "Open cookies folder"),
         () => openCookiesFolder(ctx)
       );
@@ -14026,6 +14029,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     return;
   }
   if (!job.result) {
+    actions.remove();
     renderLogs(body, job);
     return;
   }
@@ -14073,7 +14077,6 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     default:
       renderPreview(pane, ctx, job);
   }
-  const actions = body.createDiv({ cls: "vs-detail-actions" });
   if (job.state === "review") {
     const write = textButton(
       actions,
