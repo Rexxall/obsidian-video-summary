@@ -50,6 +50,8 @@ Obsidian installs community plugins from GitHub Releases: the release tag must e
 
 The plugin is listed through [community.obsidian.md](https://community.obsidian.md) (**Plugins → New plugin**), which reads `manifest.json` from the default branch. Its description must not contain the word "Obsidian".
 
+Before a release, check startup time: reload Obsidian with the plugin enabled and time its `onload`. It should stay under 50 ms on a vault with a year of data. Anything that reads many files, calls the network or renders waits for `onLayoutReady` or runs on first use.
+
 When preparing a release:
 
 1. Update `package.json` and `manifest.json` to the same semantic version.
