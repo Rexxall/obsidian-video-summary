@@ -1,16 +1,34 @@
-<div align="center">
+<p align="right"><a href="README.zh-CN.md">中文</a> · <a href="README.ja.md">日本語</a></p>
 
-# Video Summary
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg">
+  <img src="assets/readme/hero-light.svg" width="100%" alt="Video Summary: paste a video link, get a finished note. A finished job for a TED talk above the note it wrote, with a summary and key points.">
+</picture>
 
-**Paste a video link, drop a local recording or paste a transcript, and get an Obsidian note with a summary, a timestamped transcript and key points.**
+<p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>Install from Obsidian</b></a></p>
 
-English · [中文](README.zh-CN.md) · [日本語](README.ja.md)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/demo-dark.gif">
+  <img src="assets/readme/demo-light.gif" width="100%" alt="A YouTube link is pasted into the Video Summary side panel and Start is pressed. The job shows Processing, then Done after about a minute. Its details open with Open note under the title, and the new note opens with a Summary callout, key points and a table of the talk's three characters.">
+</picture>
 
-<img src="docs/screenshots/hero.png" width="860" alt="A finished example note on the left; the Library tab of the side panel on the right">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cards-dark.svg">
+  <img src="assets/readme/cards-light.svg" width="100%" alt="Any source: links, recordings or a transcript. A finished note: summary, key points, transcript. Your own backend: on your computer, with your keys.">
+</picture>
 
-</div>
+## Start in three steps
 
-## Start here
+1. Install **Video Summary** from _Settings → Community plugins → Browse_ and enable it. **See an example note** in the side panel shows a finished note before you set anything up.
+2. Start the backend: download `video-summary-backend-<version>.zip` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) (under **Other downloads**), unzip it outside your vault and double-click `start-mac.command` or `start-windows.cmd`. Paste the connection code it prints into _Settings → Video Summary → First-run setup_.
+3. Paste a link into the side panel and press **Start**.
+
+**Needs** Obsidian 1.8.7+ on desktop and Docker Desktop or OrbStack. **Costs** nothing for the plugin and the backend; the summary model is billed by your provider (eight summaries, one of them 47 minutes, cost about ¥0.4 with DeepSeek off-peak on 2026-10-29). Step-by-step guide: [INSTALL.md](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
+
+## Everything else
+
+<details>
+<summary><b>First run, step by step</b></summary>
 
 1. Install and enable Video Summary, then run **Open the Video Summary side panel** from the command palette.
 2. Press **See an example note**. It writes one finished note (an interview on reading papers in three passes), marked as a demo, so you can see the result before setting anything up.
@@ -18,20 +36,12 @@ English · [中文](README.zh-CN.md) · [日本語](README.ja.md)
 4. In **Settings → Video Summary → First-run setup**, paste the connection code, run **Full check**, then **Trial run**.
 5. Paste a link into the side panel and press **Start**.
 
-## What you need and what it costs
+</details>
 
-| Part            | What it is                                                                                         | Cost                                                                                                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The plugin      | Obsidian desktop                                                                                   | Free, no account                                                                                                                                                    |
-| Backend hosting | n8n with yt-dlp and ffmpeg in Docker on your own computer, started by the script                   | Free: Docker Desktop or OrbStack, free for personal use; no server to rent                                                                                          |
-| Speech-to-text  | SiliconFlow `SenseVoiceSmall`, used only for videos without subtitles and for local audio or video | The model is free, but SiliconFlow refuses even free models while the account balance is zero; top up a small amount once                                           |
-| Summary model   | DeepSeek `deepseek-flash` by default, or any OpenAI-compatible model                               | Billed per token by the provider. In our test on 2026-10-29, eight summaries including a 47-minute video cost about ¥0.4 off-peak. Check the provider's price page. |
+<details>
+<summary><b>Every feature</b></summary>
 
-Bilibili login is optional and free: scan a QR code in the setup wizard to let the backend read Bilibili subtitles and AI subtitles.
-
-## What it does
-
-- **Input:** one link, several links (one per line), a file in the backend's `uploads/` folder, a pasted transcript, or a note with a `link` property. The `obsidian://video-summary` URI and the [browser extension](#browser-extension) capture a link from outside Obsidian.
+- **Input:** one link, several links (one per line), a file in the backend's `uploads/` folder, a pasted transcript, or a note with a `link` property. The `obsidian://video-summary` URI and the [browser extension](browser-extension/README.md) capture a link from outside Obsidian.
 - **Transcript:** a pasted transcript first, then the video's own subtitles (Bilibili: uploader subtitles, then Bilibili AI subtitles; danmaku are never used; TikTok: its captions), then speech-to-text. YouTube and Bilibili work best; Douyin, TikTok and Xiaohongshu often need cookies. Details: [platform matrix](docs/PLATFORM_CAPABILITY_MATRIX.md).
 - **Note:** summary, key points and a timestamped transcript, shaped for the kind of video (course, interview, tutorial, news, meeting, review). Reprocessing replaces only the plugin's own blocks; if you edit the note while it runs, the plugin stops instead of overwriting.
 - **Evidence mode:** timed segments, claims with their source and confidence, and a watch, skim or skip verdict with the best ranges.
@@ -41,8 +51,6 @@ Bilibili login is optional and free: scan a QR code in the setup wizard to let t
 - **Side panel:** the open note, the input, jobs with their stage, elapsed time, cancel and retry, and a library of every video note. Turn on preview to confirm each result before it touches a note.
 
 The note reads only what is said, not the picture. What the backend does, what the n8n workflow looks like and where to find errors: [backend capability matrix](docs/BACKEND_CAPABILITY_MATRIX.md).
-
-## Screens
 
 <table>
 <tr>
@@ -55,21 +63,24 @@ The note reads only what is said, not the picture. What the backend does, what t
 </tr>
 </table>
 
-## Install
+</details>
 
-Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) into `<your-vault>/.obsidian/plugins/video-summary/`. Restart Obsidian and enable **Video Summary** in **Settings → Community plugins**. To verify a download:
+<details>
+<summary><b>What you need and what it costs</b></summary>
 
-```bash
-gh attestation verify main.js --repo Rexxall/obsidian-video-summary
-```
+| Part            | What it is                                                                                         | Cost                                                                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The plugin      | Obsidian desktop                                                                                   | Free, no account                                                                                                                                                    |
+| Backend hosting | n8n with yt-dlp and ffmpeg in Docker on your own computer, started by the script                   | Free: Docker Desktop or OrbStack, free for personal use; no server to rent                                                                                          |
+| Speech-to-text  | SiliconFlow `SenseVoiceSmall`, used only for videos without subtitles and for local audio or video | The model is free, but SiliconFlow refuses even free models while the account balance is zero; top up a small amount once                                           |
+| Summary model   | DeepSeek `deepseek-flash` by default, or any OpenAI-compatible model                               | Billed per token by the provider. In our test on 2026-10-29, eight summaries including a 47-minute video cost about ¥0.4 off-peak. Check the provider's price page. |
 
-Desktop only; Obsidian 1.8.7 or newer. The generated `.base` library views need Obsidian 1.9.10 with the Bases core plugin.
+Bilibili login is optional and free: scan a QR code in the setup wizard to let the backend read Bilibili subtitles and AI subtitles.
 
-The backend has its own release, `backend-v<version>`, linked from the plugin release under **Other downloads** (`video-summary-backend-<version>.zip`, with a `SHA256SUMS`). It needs Docker Desktop or OrbStack; on Linux run `./vs-backend.sh`. It listens only on `127.0.0.1` and checks the connection code's token on every request. Full guide: [INSTALL.md](INSTALL.md), with [English](docs/INSTALL.en.md) and [Japanese](docs/INSTALL.ja.md) versions; security notes: [backend/SECURITY.md](backend/SECURITY.md).
+</details>
 
-To build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Commands and settings
+<details>
+<summary><b>Commands and settings</b></summary>
 
 Run these from the command palette:
 
@@ -86,7 +97,10 @@ Command IDs changed in 2.6.0; hotkeys set on a manually installed 2.4.1 need set
 
 Settings cover the backend and webhook profiles (each with its own Header Auth secret, which the bundled workflow requires), output folder and file names, language, depth, content type, cache, batch concurrency, cookies, and request field names for custom n8n workflows. The cache reuses a result only when the source and every processing option match.
 
-## Privacy and data
+</details>
+
+<details>
+<summary><b>Safety, privacy and what the plugin touches</b></summary>
 
 | What                                                                | Goes to                                                 | Stored                                                                                                                                                             |
 | ------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -114,10 +128,30 @@ The plugin does not include client-side telemetry, analytics, advertising or a s
 
 **Files outside the vault.** A local-media input is sent to the backend as a file name; the bundled backend reads only files placed directly in its `uploads/` folder, and the Reader plays only files inside the vault. Evidence, learning progress, reproducibility records and course manifests are kept under the plugin's `data/` folder; back it up if you want them to survive a reinstall, and remove it before sharing a vault. The webhook secret is stored unencrypted in the plugin's `data.json`; rotate it if that file is exposed.
 
-## Browser extension
+</details>
+
+<details>
+<summary><b>Install by hand and verify a release</b></summary>
+
+Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) into `<your-vault>/.obsidian/plugins/video-summary/`. Restart Obsidian and enable **Video Summary** in **Settings → Community plugins**. To verify a download:
+
+```bash
+gh attestation verify main.js --repo Rexxall/obsidian-video-summary
+```
+
+Desktop only; Obsidian 1.8.7 or newer. The generated `.base` library views need Obsidian 1.9.10 with the Bases core plugin.
+
+The backend has its own release, `backend-v<version>`, linked from the plugin release under **Other downloads** (`video-summary-backend-<version>.zip`, with a `SHA256SUMS`). It needs Docker Desktop or OrbStack; on Linux run `./vs-backend.sh`. It listens only on `127.0.0.1` and checks the connection code's token on every request. Full guide: [INSTALL.md](INSTALL.md), with [English](docs/INSTALL.en.md) and [Japanese](docs/INSTALL.ja.md) versions; security notes: [backend/SECURITY.md](backend/SECURITY.md).
+
+To build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+</details>
+
+<details>
+<summary><b>Browser extension</b></summary>
 
 `browser-extension/` contains **Video Summary Capture**, a Chromium extension that sends the video you are watching, with its timestamp, to Obsidian or to the same backend. It can also scan a page for video links, keep a queue and copy timestamped Markdown links. See [browser-extension/README.md](browser-extension/README.md).
 
-## Support and license
+</details>
 
 Issues: [github.com/Rexxall/obsidian-video-summary/issues](https://github.com/Rexxall/obsidian-video-summary/issues). Changes in each version: [CHANGELOG.md](CHANGELOG.md). MIT licence, see [LICENSE](LICENSE).

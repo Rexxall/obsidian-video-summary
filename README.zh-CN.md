@@ -1,18 +1,36 @@
-<div align="center">
+<p align="right"><a href="README.md">English</a> · <a href="README.ja.md">日本語</a></p>
 
-# Video Summary（视频总结）
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-zh-dark.svg">
+  <img src="assets/readme/hero-zh-light.svg" width="100%" alt="Video Summary：贴一个视频链接，拿到一篇整理好的笔记。上面是一条 TED 演讲的完成任务，下面是它写出的笔记：总结和要点。">
+</picture>
 
-**贴一个视频链接、拖进一段本地录音录像，或者粘贴现成文稿，拿回一篇带总结、带时间戳文稿和要点的 Obsidian 笔记。**
+<p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>在 Obsidian 里安装</b></a></p>
 
-[English](README.md) · 中文 · [日本語](README.ja.md)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/demo-dark.gif">
+  <img src="assets/readme/demo-light.gif" width="100%" alt="在 Video Summary 侧栏贴一个 YouTube 链接，点 Start。任务先显示处理中，一分钟左右变成完成。点开任务，标题下就是“打开笔记”，新笔记打开后最上面是总结，下面是要点和三个角色的表格。">
+</picture>
 
-<img src="docs/screenshots/hero.png" width="860" alt="左边是一篇完成的示例笔记，右边是侧栏的笔记库">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cards-zh-dark.svg">
+  <img src="assets/readme/cards-zh-light.svg" width="100%" alt="什么都能放：链接、录音录像，或者一份文稿。直接成笔记：总结、要点和完整文稿。后端在你手里：在自己电脑上跑，用自己的密钥。">
+</picture>
 
-</div>
+## 三步上手
 
-截图是英文界面。Obsidian 设为中文时，插件界面也是中文。
+1. 在“设置 → 第三方插件 → 浏览”里搜索 **Video Summary**，安装并启用。侧栏里点 **看示例笔记**，不用配置就能先看到成品。
+2. 启动后端：在 [最新版本](https://github.com/Rexxall/obsidian-video-summary/releases/latest) 的 **Other downloads** 里下载 `video-summary-backend-<版本>.zip`，解压到库外面，双击 `start-mac.command` 或 `start-windows.cmd`，把它给出的连接码粘贴到“设置 → Video Summary → 首次配置”。
+3. 在侧栏贴一个链接，点 **开始**。
 
-## 从这里开始
+**需要** 桌面版 Obsidian 1.8.7 或更新，和 Docker Desktop 或 OrbStack。**费用** 插件和后端不要钱；总结模型由服务商按用量收费（2026-10-29 实测：8 次总结，其中一段 47 分钟，DeepSeek 非高峰时段共约 0.4 元）。详细步骤见 [安装教程](INSTALL.md)。
+
+截图和动图是英文界面。Obsidian 设为中文时，插件界面也是中文。
+
+## 其余内容
+
+<details>
+<summary><b>第一次使用的完整步骤</b></summary>
 
 1. 安装并启用 Video Summary，在命令面板运行“打开视频总结侧栏”。
 2. 点 **看示例笔记**：插件会写一篇已经完成的笔记（一期讲“论文三遍读法”的访谈），标着“演示，可删除”，不用装任何东西就能先看到成品。
@@ -20,7 +38,10 @@
 4. 打开 **设置 → Video Summary → 首次配置**，粘贴连接码，点 **完整检查**，再点 **试运行**。
 5. 在侧栏贴一个链接，点 **开始**。
 
-## 需要什么、花多少钱
+</details>
+
+<details>
+<summary><b>需要什么、花多少钱</b></summary>
 
 | 部分       | 是什么                                                             | 费用                                                                                                             |
 | ---------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
@@ -31,7 +52,33 @@
 
 B 站登录可选、免费：在首次配置里用哔哩哔哩手机客户端扫码，后端就能读取 B 站字幕和 AI 字幕。
 
-## 数据发到哪里、存在哪里
+</details>
+
+<details>
+<summary><b>特点和界面</b></summary>
+
+- 处理服务由你自己掌控，插件本身没有账号、不收集数据。
+- B 站优先用 UP 主字幕，其次 B 站 AI 字幕，最后才转写音频；不会把弹幕当文稿。
+- 重新处理时只替换插件自己的区块，你写在笔记里的内容不会被覆盖；处理期间你改过笔记，插件会停下来，不会覆盖。
+- 侧栏可以看任务进度、取消任务、预览后再写入，跟着时间戳阅读文稿。
+
+完整功能、命令、设置和隐私细节见 [英文说明](README.md)，更新记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/first-open.png" alt="还没连后端时的侧栏"><br>还没配置时，侧栏给出“打开首次配置”和“看示例笔记”。</td>
+<td width="50%"><img src="docs/screenshots/setup.png" alt="设置里的首次配置"><br>首次配置：粘贴连接码、检测、试运行，可选 B 站扫码登录。</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/setup-check.jpg" alt="完整检测结果"><br>完整检查会指出哪一项没通过、该改什么。</td>
+<td width="50%"><img src="docs/screenshots/batch.jpg" alt="批量处理"><br>一次贴多个链接，一行一个，各自显示进度。</td>
+</tr>
+</table>
+
+</details>
+
+<details>
+<summary><b>数据发到哪里、存在哪里</b></summary>
 
 | 内容                                               | 发给谁                              | 存在哪里                                                                                                           |
 | -------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -45,28 +92,6 @@ B 站登录可选、免费：在首次配置里用哔哩哔哩手机客户端扫
 
 插件没有遥测、没有统计，不向作者发送任何数据。
 
-## 界面
+</details>
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/first-open.png" alt="还没连后端时的侧栏"><br>还没配置时，侧栏给出“打开首次配置”和“看示例笔记”。</td>
-<td width="50%"><img src="docs/screenshots/setup.png" alt="设置里的首次配置"><br>首次配置：粘贴连接码、检测、试运行，可选 B 站扫码登录。</td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/setup-check.jpg" alt="完整检测结果"><br>完整检查会指出哪一项没通过、该改什么。</td>
-<td width="50%"><img src="docs/screenshots/batch.jpg" alt="批量处理"><br>一次贴多个链接，一行一个，各自显示进度。</td>
-</tr>
-</table>
-
-## 特点
-
-- 处理服务由你自己掌控，插件本身没有账号、不收集数据。
-- B 站优先用 UP 主字幕，其次 B 站 AI 字幕，最后才转写音频；不会把弹幕当文稿。
-- 重新处理时只替换插件自己的区块，你写在笔记里的内容不会被覆盖；处理期间你改过笔记，插件会停下来，不会覆盖。
-- 侧栏可以看任务进度、取消任务、预览后再写入，跟着时间戳阅读文稿。
-
-完整功能、命令、设置和隐私细节见 [英文说明](README.md)，更新记录见 [CHANGELOG.md](CHANGELOG.md)。
-
-## 许可
-
-MIT
+MIT 许可。

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="t d">
+  <title id="t">Video Summary</title>
+  <desc id="d">Video Summary 把视频链接变成 Obsidian 笔记。上面是一条 TED 演讲的完成任务，下面是它写出的笔记：总结和要点。</desc>
+  <rect width="1200" height="400" rx="28" fill="#15141B"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans', sans-serif">
+    <text x="64" y="118" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" letter-spacing="2" fill="#A48BFF">OBSIDIAN 插件 · 在你自己的电脑上运行</text>
+    <text x="62" y="196" font-size="64" font-weight="700" letter-spacing="-1.5" fill="#EEECF5">Video Summary</text>
+    <text x="64" y="252" font-size="29" fill="#EEECF5">贴一个视频链接，</text>
+    <text x="64" y="292" font-size="29" fill="#9C98AF">拿到一篇整理好的笔记。</text>
+    <text x="64" y="346" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#9C98AF">YouTube · B 站 · 本地文件 · 文稿</text>
+  </g>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans', sans-serif">
+    <rect x="700" y="48" width="436" height="304" rx="20" fill="#1E1D26" stroke="#2C2A36"/>
+    <rect x="724" y="70" width="388" height="66" rx="14" fill="#15141B" stroke="#2C2A36"/>
+    <rect x="738" y="82" width="74" height="42" rx="8" fill="#F07C80" opacity="0.85"/>
+    <path d="M769 95 L769 111 L782 103 Z" fill="#FFFFFF"/>
+    <text x="826" y="99" font-size="17" font-weight="600" fill="#EEECF5">Inside the Mind of a…</text>
+    <text x="826" y="122" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#9C98AF">TED · 1分08秒</text>
+    <rect x="1040" y="90" width="58" height="26" rx="13" fill="#16301F"/>
+    <text x="1069" y="108" font-size="15" text-anchor="middle" fill="#5CC892">完成</text>
+    <rect x="724" y="152" width="388" height="128" rx="12" fill="#14302F"/>
+    <text x="744" y="182" font-size="17" font-weight="600" fill="#5BC9CF">总结</text>
+    <text x="744" y="210" font-size="15" fill="#EEECF5">Tim Urban explains procrastination as a</text>
+    <text x="744" y="232" font-size="15" fill="#EEECF5">conflict between a Rational Decision-Maker,</text>
+    <text x="744" y="254" font-size="15" fill="#EEECF5">an Instant Gratification Monkey…</text>
+    <text x="724" y="312" font-size="20" font-weight="700" fill="#EEECF5">Key points</text>
+    <rect x="724" y="326" width="300" height="8" rx="4" fill="#2C2A36"/>
+  </g>
+</svg>
