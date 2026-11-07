@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- **A class for your own note style.** Every video note the plugin writes gets `ih-film` in its `cssclasses`, so a CSS snippet in your vault can give video notes their own look. The plugin ships no style for it; change or clear the class under **Settings → Video Summary → Note CSS class**. Classes already on the note are kept.
+- A job's details show **Open note** right under the title instead of below the preview and the log.
+- Starting one job says "Sent 1 job", not "Sent 1 jobs".
+
 ## 2.12.3
 
 - **A reply with no summary is a failed job, not an empty note.** When the backend sends only the video details (title, author, length) and no summary, the job now fails with a message and a Retry button instead of saving a note with a success status and no body. Nothing is cached for it, and such replies cached by older versions are no longer reused. A transcript-only job fails the same way when no transcript text comes back.

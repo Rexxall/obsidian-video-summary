@@ -9,11 +9,14 @@ import {
 
 import { errorMessage } from './errors';
 import { asRecord, type JsonRecord } from './json';
+import { withCssClass } from './noteCssClass';
 export class NoteProcessor {
   private vault: Vault;
+  private cssClass: () => string;
 
-  constructor(vault: Vault) {
+  constructor(vault: Vault, cssClass: () => string = () => '') {
     this.vault = vault;
+    this.cssClass = cssClass;
   }
 
   /**
@@ -167,6 +170,7 @@ export class NoteProcessor {
     // 插件状态与用户自己的通用 status 分离；旧插件笔记仍由 setProcessingStatus 兼容。
     fm.video_summary = true;
     if (!fm.source_type) fm.source_type = 'video';
+    withCssClass(fm, this.cssClass());
 
     // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
     Object.assign(fm, buildRichFrontmatterFields(result));

@@ -1958,6 +1958,7 @@ var DEFAULT_SETTINGS = {
   autoSave: true,
   batchConcurrency: 3,
   outputFolder: "",
+  noteCssClass: "ih-film",
   autoRenameEnabled: true,
   renameConflictStrategy: "append-number",
   enableDebugMode: false,
@@ -2392,10 +2393,22 @@ function errorMessage(error) {
   }
 }
 
+// utils/noteCssClass.ts
+function withCssClass(fm, cssClass) {
+  const name = cssClass.trim();
+  if (!/^[A-Za-z][\w-]*$/.test(name)) return;
+  const raw = fm.cssclasses ?? fm.cssclass;
+  const list = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
+  if (!list.includes(name)) list.push(name);
+  delete fm.cssclass;
+  fm.cssclasses = list;
+}
+
 // utils/NoteProcessor.ts
 var NoteProcessor = class {
-  constructor(vault) {
+  constructor(vault, cssClass = () => "") {
     this.vault = vault;
+    this.cssClass = cssClass;
   }
   /**
    * 解析 frontmatter 与正文
@@ -2530,6 +2543,7 @@ ${body}`;
     const { fm, body } = this.parseFrontmatter(content);
     fm.video_summary = true;
     if (!fm.source_type) fm.source_type = "video";
+    withCssClass(fm, this.cssClass());
     Object.assign(fm, buildRichFrontmatterFields(result));
     const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
     if (learningItems > 0 && !fm.video_review_due) {
@@ -2932,7 +2946,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
     this.plugin = plugin;
     this.editor = editor;
     this.view = view;
-    this.noteProcessor = new NoteProcessor(app.vault);
+    this.noteProcessor = new NoteProcessor(app.vault, () => plugin.settings.noteCssClass ?? "");
   }
   onOpen() {
     this.modalEl.addClass("ap", "ap-modal");
@@ -7221,7 +7235,7 @@ async function pollQrLogin(key) {
   }
 }
 
-// ../../../Obsidian/Projects/.plugin-dev/video-summary-plugin/node_modules/qrcode-generator/dist/qrcode.mjs
+// node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
   const PAD1 = 17;
@@ -17480,7 +17494,10 @@ var JobService = class {
     this.courseProgressLocks = /* @__PURE__ */ new Map();
     this.plugin = plugin;
     this.store = store;
-    this.noteProcessor = new NoteProcessor(plugin.app.vault);
+    this.noteProcessor = new NoteProcessor(
+      plugin.app.vault,
+      () => plugin.settings.noteCssClass ?? ""
+    );
     this.noteFactory = new NoteFactory(plugin.app);
     this.store.setRunner((job, report) => this.runJob(job, report));
     this.store.setConcurrency(plugin.settings.batchConcurrency || 2);
@@ -21431,6 +21448,8 @@ var SETTINGS_SEARCH_TERMS = [
   "Save automatically",
   "\u8F93\u51FA\u6587\u4EF6\u5939",
   "Output folder",
+  "\u7B14\u8BB0\u6837\u5F0F\u7C7B",
+  "Note CSS class",
   "\u6587\u7A3F\u5F15\u7528\u683C\u5F0F",
   "Transcript quote format",
   "\u603B\u7ED3\u8BED\u8A00",
@@ -21510,7 +21529,7 @@ var VideoSummaryPlugin = class extends import_obsidian21.Plugin {
     await this.loadSettings();
     this.initializeApiInstance();
     this.fileProcessor = new FileProcessor(this.app, this);
-    this.noteProcessor = new NoteProcessor(this.app.vault);
+    this.noteProcessor = new NoteProcessor(this.app.vault, () => this.settings.noteCssClass ?? "");
     const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     this.artifactStore = new ArtifactStore(
       this.app.vault.adapter,
@@ -22792,7 +22811,17 @@ Open Docker and run the start script, or check the connection code in settings.`
   async openDemoNote() {
     const path = DEMO_NOTE_NAME();
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian21.TFile)) file = await this.app.vault.create(path, demoNoteContent());
+    if (!(file instanceof import_obsidian21.TFile)) {
+      const created = await this.app.vault.create(path, demoNoteContent());
+      const cssClass = this.settings.noteCssClass ?? "";
+      if (cssClass) {
+        await this.app.fileManager.processFrontMatter(
+          created,
+          (fm) => withCssClass(fm, cssClass)
+        );
+      }
+      file = created;
+    }
     if (file instanceof import_obsidian21.TFile) await this.app.workspace.getLeaf(false).openFile(file);
   }
   openSettingsPage() {
@@ -24475,6 +24504,17 @@ Suggestion: ${res.hint}`) : "";
             6e3
           );
         }
+      })
+    );
+    new import_obsidian21.Setting(section3).setName(tr("\u7B14\u8BB0\u6837\u5F0F\u7C7B", "Note CSS class")).setDesc(
+      tr(
+        "\u5199\u8FDB\u6BCF\u7BC7\u89C6\u9891\u7B14\u8BB0\u7684 cssclasses\uFF0C\u8BA9\u5E93\u91CC\u7684 CSS \u7247\u6BB5\u7ED9\u5B83\u6362\u6837\u5B50\uFF1B\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E2A\u6837\u5F0F\u3002\u7559\u7A7A\u5C31\u4E0D\u52A0\u3002",
+        "Added to each video note's cssclasses so a CSS snippet in your vault can style it; the plugin ships no style for it. Leave empty to add none."
+      )
+    ).addText(
+      (text2) => text2.setPlaceholder("ih-film").setValue(this.plugin.settings.noteCssClass ?? "").onChange(async (value) => {
+        this.plugin.settings.noteCssClass = value.trim();
+        await this.plugin.saveSettings();
       })
     );
     new import_obsidian21.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(

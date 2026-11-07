@@ -36,6 +36,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   'Save automatically',
   '输出文件夹',
   'Output folder',
+  '笔记样式类',
+  'Note CSS class',
   '文稿引用格式',
   'Transcript quote format',
   '总结语言',

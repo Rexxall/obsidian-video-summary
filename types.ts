@@ -304,6 +304,8 @@ export interface VideoSummarySettings {
 
   // 输出配置
   outputFolder: string;
+  /** Added to cssclasses of every note the plugin writes, for a vault snippet to style; empty adds none. */
+  noteCssClass: string;
   // 自动重命名配置
   autoRenameEnabled: boolean;
   renameConflictStrategy: 'skip' | 'append-number' | 'append-date';

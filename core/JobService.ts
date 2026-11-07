@@ -69,7 +69,10 @@ export class JobService {
   constructor(plugin: VideoSummaryPlugin, store: JobStore) {
     this.plugin = plugin;
     this.store = store;
-    this.noteProcessor = new NoteProcessor(plugin.app.vault);
+    this.noteProcessor = new NoteProcessor(
+      plugin.app.vault,
+      () => plugin.settings.noteCssClass ?? '',
+    );
     this.noteFactory = new NoteFactory(plugin.app);
     this.store.setRunner((job, report) => this.runJob(job, report));
     this.store.setConcurrency(plugin.settings.batchConcurrency || 2);

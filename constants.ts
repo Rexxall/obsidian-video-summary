@@ -127,6 +127,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   autoSave: true,
   batchConcurrency: 3,
   outputFolder: '',
+  noteCssClass: 'ih-film',
   autoRenameEnabled: true,
   renameConflictStrategy: 'append-number',
   enableDebugMode: false,

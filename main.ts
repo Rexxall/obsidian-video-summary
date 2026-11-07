@@ -86,6 +86,7 @@ import { Modal } from 'obsidian';
 import { fire } from './utils/fire';
 import { errorMessage } from './utils/errors';
 import { asArray, asRecord, isRecord, scalarText, type JsonRecord } from './utils/json';
+import { withCssClass } from './utils/noteCssClass';
 import {
   desktopRequire,
   openPathInSystem,
@@ -143,7 +144,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);
-    this.noteProcessor = new NoteProcessor(this.app.vault);
+    this.noteProcessor = new NoteProcessor(this.app.vault, () => this.settings.noteCssClass ?? '');
     const pluginDir =
       this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     this.artifactStore = new ArtifactStore(
@@ -1704,7 +1705,16 @@ export default class VideoSummaryPlugin extends Plugin {
   async openDemoNote() {
     const path = DEMO_NOTE_NAME();
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) file = await this.app.vault.create(path, demoNoteContent());
+    if (!(file instanceof TFile)) {
+      const created = await this.app.vault.create(path, demoNoteContent());
+      const cssClass = this.settings.noteCssClass ?? '';
+      if (cssClass) {
+        await this.app.fileManager.processFrontMatter(created, (fm: JsonRecord) =>
+          withCssClass(fm, cssClass),
+        );
+      }
+      file = created;
+    }
     if (file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
   }
 
@@ -3693,6 +3703,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
                 6000,
               );
             }
+          }),
+      );
+
+    new Setting(section)
+      .setName(tr('笔记样式类', 'Note CSS class'))
+      .setDesc(
+        tr(
+          '写进每篇视频笔记的 cssclasses，让库里的 CSS 片段给它换样子；插件本身不带这个样式。留空就不加。',
+          "Added to each video note's cssclasses so a CSS snippet in your vault can style it; the plugin ships no style for it. Leave empty to add none.",
+        ),
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder('ih-film')
+          .setValue(this.plugin.settings.noteCssClass ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.noteCssClass = value.trim();
+            await this.plugin.saveSettings();
           }),
       );
 
