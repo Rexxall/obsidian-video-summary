@@ -308,6 +308,8 @@ export interface VideoSummarySettings {
   noteCssClass: string;
   /** 处理成功时补进笔记的属性，一行一个“名称: 值” */
   defaultNoteProperties: string;
+  /** AI 写的 [[双链]] 指向不存在的笔记时改成纯文字 */
+  unlinkMissingNotes: boolean;
   // 自动重命名配置
   autoRenameEnabled: boolean;
   renameConflictStrategy: 'skip' | 'append-number' | 'append-date';
@@ -462,6 +464,10 @@ export interface VideoInput {
 
 export interface ProcessingResult {
   summary?: string;
+  /** 按笔记语言起的可读标题（可以和视频原标题不同） */
+  note_title?: string;
+  /** 一句话结论 */
+  tldr?: string;
   note?: string;
   video_transcript?: string;
   video_title?: string;

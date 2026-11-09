@@ -9,6 +9,8 @@ All notable changes to this project are documented here.
 - Starting one job says "Sent 1 job", not "Sent 1 jobs".
 - **Pasting an article no longer makes a note per link.** A long text with links in it becomes one transcript job with the links kept in the text; one link per line still makes one job per link. Links copied from markdown no longer carry a trailing `)` or `,`, and a transcript note is titled from its first line of text, not from a link.
 - **Default properties.** Add your own fields to every processed note under **Settings → Video Summary → Default properties**, one `name: value` per line, for example a learning status or a type tag. Values a note already has are kept, and tags are merged.
+- **A readable title and a one-line takeaway.** The backend's note prompt (v5) also returns `note_title`, a title in the note's language, and `tldr`, one fresh sentence with the main takeaway, and it no longer writes `[[wiki links]]` in the note. Put them in your notes with **Default properties**, for example `title: {{title}}` and `tldr: {{tldr}}`. Update the backend workflow to get them.
+- **Keep only links to existing notes.** A setting turns a `[[link]]` in a processed note into plain text when your vault has no such note, so notes from older workflows do not leave dangling links.
 - **The success status can be your vault's own mark, such as ❌.** The plugin keeps its state in `video_summary_status`, so `status` is free to show "not reviewed yet". The plugin also no longer overwrites a `status` of ✅ or ▶️ that you set yourself.
 
 ## 2.12.3

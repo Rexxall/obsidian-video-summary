@@ -1960,6 +1960,7 @@ var DEFAULT_SETTINGS = {
   outputFolder: "",
   noteCssClass: "",
   defaultNoteProperties: "",
+  unlinkMissingNotes: false,
   autoRenameEnabled: true,
   renameConflictStrategy: "append-number",
   enableDebugMode: false,
@@ -9679,7 +9680,7 @@ var SHA256_CONSTANTS = new Uint32Array([
 
 // api/VideoSummaryAPI.ts
 var CACHE_ARTIFACT_SCHEMA_VERSION = 3;
-var CACHE_PROMPT_VERSION = "video-note-prompt-v4";
+var CACHE_PROMPT_VERSION = "video-note-prompt-v5";
 var NO_SUMMARY = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3";
 var NO_TRANSCRIPT = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u8F6C\u5F55\u6587\u672C";
 function missingContent(result, mode) {
@@ -10351,6 +10352,12 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     }
     if (payload.video_author && typeof payload.video_author === "string") {
       result.video_author = payload.video_author;
+    }
+    if (typeof payload.note_title === "string" && payload.note_title.trim()) {
+      result.note_title = payload.note_title.trim();
+    }
+    if (typeof payload.tldr === "string" && payload.tldr.trim()) {
+      result.tldr = payload.tldr.trim();
     }
     if (payload.video_duration && typeof payload.video_duration === "string") {
       result.video_duration = payload.video_duration;
@@ -12056,10 +12063,10 @@ function renderActiveJob(container, ctx, job) {
     })
   );
   const bar = card.createDiv({ cls: "vs-progress" });
-  const fill = bar.createDiv({
+  const fill2 = bar.createDiv({
     cls: `vs-progress-fill${job.progress === void 0 ? " is-indeterminate" : ""}`
   });
-  if (job.progress !== void 0) fill.style.width = `${Math.round(job.progress * 100)}%`;
+  if (job.progress !== void 0) fill2.style.width = `${Math.round(job.progress * 100)}%`;
 }
 function renderReviewJob(container, ctx, job) {
   const card = container.createDiv({ cls: "vs-job-card is-review" });
@@ -14745,8 +14752,21 @@ function parseDefaultProperties(text2) {
   }
   return Array.from(byKey.values());
 }
-function applyDefaultProperties(fm, defaults) {
+function fill(value, values) {
+  let missing = false;
+  const filled = value.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (_match, name) => {
+    const text2 = (values[name] || "").replace(/\s+/g, " ").trim();
+    if (!text2) missing = true;
+    return text2;
+  });
+  return missing ? "" : filled.trim();
+}
+function applyDefaultProperties(fm, rawDefaults, values = {}) {
   let changed = false;
+  const defaults = rawDefaults.map((property) => ({
+    ...property,
+    values: property.values.map((value) => fill(value, values)).filter(Boolean)
+  })).filter((property) => property.values.length > 0);
   for (const property of defaults) {
     if (property.list) {
       const current2 = toList(fm[property.key]);
@@ -14826,6 +14846,24 @@ function writePluginStatus(fm, state, displayText, successText) {
   if (!fm.source_type) fm.source_type = "video";
   fm.video_summary_status = state;
   if (mirror) fm.status = displayText;
+}
+
+// utils/wikiLinks.ts
+function unlinkMissingNotes(markdown, exists) {
+  if (!markdown || !markdown.includes("[[")) return markdown;
+  return markdown.split(/(```[\s\S]*?```|`[^`\n]*`)/).map((part, index) => index % 2 === 1 ? part : unlinkPart(part, exists)).join("");
+}
+function unlinkPart(text2, exists) {
+  return text2.replace(
+    /(!?)\[\[([^\]|\n]+?)(?:\|([^\]\n]*))?\]\]/g,
+    (match, bang, target, shown) => {
+      if (bang) return match;
+      const linkpath = target.split("#")[0].trim();
+      if (!linkpath || exists(linkpath)) return match;
+      const label = shown !== void 0 && shown.trim() ? shown.trim() : target.trim();
+      return label.replace(/#/g, " \u203A ");
+    }
+  );
 }
 
 // utils/NoteProcessor.ts
@@ -14969,7 +15007,21 @@ ${body}`;
     fm.video_summary = true;
     if (!fm.source_type) fm.source_type = "video";
     withCssClass(fm, this.cssClass());
-    applyDefaultProperties(fm, parseDefaultProperties(this.prefs().defaultProperties));
+    const prefs = this.prefs();
+    applyDefaultProperties(fm, parseDefaultProperties(prefs.defaultProperties), {
+      title: result.note_title,
+      tldr: result.tldr,
+      summary: result.summary,
+      video_title: result.video_title,
+      author: result.video_author
+    });
+    const linkExists = prefs.linkExists;
+    if (linkExists && result.note) {
+      result = {
+        ...result,
+        note: unlinkMissingNotes(result.note, (linkpath) => linkExists(linkpath, file.path))
+      };
+    }
     Object.assign(fm, buildRichFrontmatterFields(result));
     const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
     if (learningItems > 0 && !fm.video_review_due) {
@@ -21636,6 +21688,8 @@ var SETTINGS_SEARCH_TERMS = [
   "Note CSS class",
   "\u9ED8\u8BA4\u5C5E\u6027",
   "Default properties",
+  "\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE",
+  "Keep only links to existing notes",
   "\u6587\u7A3F\u5F15\u7528\u683C\u5F0F",
   "Transcript quote format",
   "\u603B\u7ED3\u8BED\u8A00",
@@ -21717,7 +21771,8 @@ var VideoSummaryPlugin = class extends import_obsidian21.Plugin {
       () => this.settings.noteCssClass ?? "",
       () => ({
         successText: this.settings.successStatusValue ?? "success",
-        defaultProperties: this.settings.defaultNoteProperties ?? ""
+        defaultProperties: this.settings.defaultNoteProperties ?? "",
+        linkExists: this.settings.unlinkMissingNotes ? (linkpath, sourcePath) => !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath) : void 0
       })
     );
   }
@@ -24699,8 +24754,8 @@ Suggestion: ${res.hint}`) : "";
     );
     new import_obsidian21.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
       tr(
-        "\u5904\u7406\u6210\u529F\u65F6\u8865\u8FDB\u7B14\u8BB0\uFF0C\u4E00\u884C\u4E00\u4E2A\u201C\u540D\u79F0: \u503C\u201D\u3002\u7B14\u8BB0\u91CC\u5DF2\u6709\u7684\u503C\u4E0D\u8986\u76D6\uFF1Btags \u548C aliases \u4F1A\u5408\u5E76\uFF0C\u591A\u4E2A\u503C\u7528\u9017\u53F7\u9694\u5F00\u3002",
-        'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas.'
+        "\u5904\u7406\u6210\u529F\u65F6\u8865\u8FDB\u7B14\u8BB0\uFF0C\u4E00\u884C\u4E00\u4E2A\u201C\u540D\u79F0: \u503C\u201D\u3002\u7B14\u8BB0\u91CC\u5DF2\u6709\u7684\u503C\u4E0D\u8986\u76D6\uFF1Btags \u548C aliases \u4F1A\u5408\u5E76\uFF0C\u591A\u4E2A\u503C\u7528\u9017\u53F7\u9694\u5F00\u3002\u503C\u91CC\u53EF\u4EE5\u7528 {{title}} {{tldr}} {{summary}}\u3002",
+        'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas. Values can use {{title}} {{tldr}} {{summary}}.'
       )
     ).addTextArea((area) => {
       area.setPlaceholder("learning_status: raw\ntags: type/video").setValue(this.plugin.settings.defaultNoteProperties ?? "").onChange(async (value) => {
@@ -24710,6 +24765,17 @@ Suggestion: ${res.hint}`) : "";
       area.inputEl.rows = 3;
       area.inputEl.addClass("vs-properties-input");
     });
+    new import_obsidian21.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(
+      tr(
+        "\u7B14\u8BB0\u91CC\u7684 [[\u53CC\u94FE]] \u6307\u5411\u5E93\u91CC\u6CA1\u6709\u7684\u7B14\u8BB0\u65F6\uFF0C\u6539\u6210\u7EAF\u6587\u5B57\u3002",
+        "A [[link]] in the note that points to a note your vault does not have becomes plain text."
+      )
+    ).addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.unlinkMissingNotes ?? false).onChange(async (value) => {
+        this.plugin.settings.unlinkMissingNotes = value;
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian21.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(
       tr(
         "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002",

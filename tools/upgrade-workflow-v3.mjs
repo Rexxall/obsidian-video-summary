@@ -1548,6 +1548,18 @@ export function upgradeWorkflow(workflow) {
     type: 'string',
   });
   upsertAssignment(summary, {
+    id: 'v5-summary-note-title',
+    name: 'note_title',
+    value: '={{ typeof $json.output.note_title === "string" ? $json.output.note_title : "" }}',
+    type: 'string',
+  });
+  upsertAssignment(summary, {
+    id: 'v5-summary-tldr',
+    name: 'tldr',
+    value: '={{ typeof $json.output.tldr === "string" ? $json.output.tldr : "" }}',
+    type: 'string',
+  });
+  upsertAssignment(summary, {
     id: 'v3-summary-content-type',
     name: 'content_type',
     value: '={{ $json.output.content_type || "" }}',
@@ -1740,6 +1752,8 @@ export function validateWorkflow(workflow) {
       'timing_quality',
       'transcript_source',
       'content_type',
+      'note_title',
+      'tldr',
       'evidence_claims',
       'attention',
       'learning',

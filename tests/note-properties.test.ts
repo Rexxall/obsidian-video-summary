@@ -2,6 +2,7 @@ import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { applyDefaultProperties, parseDefaultProperties } from '../utils/noteProperties';
+import { unlinkMissingNotes } from '../utils/wikiLinks';
 import {
   normalizeSuccessStatusText,
   shouldMirrorStatus,
@@ -101,4 +102,42 @@ void test('status values a person set by hand are kept', () => {
   }
   assert.equal(shouldMirrorStatus('已归档', '已归档'), true);
   assert.equal(shouldMirrorStatus(''), true);
+});
+
+void test('defaults can take the title, tldr and summary of the processed result', () => {
+  const fm: Record<string, unknown> = { title: '我自己起的标题' };
+  applyDefaultProperties(
+    fm,
+    parseDefaultProperties(
+      'title: {{title}}\ntldr: {{tldr}}\nsource_note: 摘自 {{author}}\nabstract: {{summary}}',
+    ),
+    { title: 'AI 起的标题', tldr: '一句话结论。', summary: '' },
+  );
+  // An existing title is kept; a placeholder that comes out empty skips the whole property.
+  assert.deepEqual(fm, { title: '我自己起的标题', tldr: '一句话结论。' });
+});
+
+void test('links to notes that do not exist become plain text', () => {
+  const existing = new Set(['人机关系', 'Clippy']);
+  const exists = (linkpath: string) => existing.has(linkpath);
+  const note = [
+    '关键词：[[人机关系]] ・ [[数字现象学]] ・ [[柏拉图洞穴|洞穴寓言]] ・ [[Clippy#历史]]',
+    '![[图.png]] 和 [[不存在#某一节]]',
+    '`[[代码里的]]`',
+    '```',
+    '[[代码块里的]]',
+    '```',
+  ].join('\n');
+  assert.equal(
+    unlinkMissingNotes(note, exists),
+    [
+      '关键词：[[人机关系]] ・ 数字现象学 ・ 洞穴寓言 ・ [[Clippy#历史]]',
+      '![[图.png]] 和 不存在 › 某一节',
+      '`[[代码里的]]`',
+      '```',
+      '[[代码块里的]]',
+      '```',
+    ].join('\n'),
+  );
+  assert.equal(unlinkMissingNotes('no links here', exists), 'no links here');
 });

@@ -6,7 +6,7 @@
  * self-contained function: no imports, no template literals, no `}}` in its source.
  */
 
-export const NOTE_PROMPT_MARKER = 'VIDEO_NOTE_PROMPT_V4';
+export const NOTE_PROMPT_MARKER = 'VIDEO_NOTE_PROMPT_V5';
 
 export const NOTE_SYSTEM_MESSAGE = [
   'You turn video transcripts into notes for Obsidian.',
@@ -15,7 +15,7 @@ export const NOTE_SYSTEM_MESSAGE = [
 ].join('\n');
 
 export function buildNotePrompt(input) {
-  const MARKER = 'VIDEO_NOTE_PROMPT_V4';
+  const MARKER = 'VIDEO_NOTE_PROMPT_V5';
   const languages = {
     zh: {
       name: 'Simplified Chinese',
@@ -106,6 +106,7 @@ export function buildNotePrompt(input) {
         : 'about a quarter of the transcript length') +
       '.',
     '5. Use a table when comparing three or more things. Use ==highlight== for at most five key terms. Put a space between Chinese or Japanese text and Latin words or numbers.',
+    '6. Write terms and names as plain text, never as [[wiki links]]: the reader decides which notes to link.',
     '',
     'CONTENT TYPES. If the requested type is not auto, use it. Otherwise pick one from the title and transcript; use general when unsure.',
     '- course: learning goals, key concepts (term and meaning), walkthrough, questions to check understanding. A language lesson also gets a vocabulary table: word, reading, meaning, example sentence from the video.',
@@ -120,6 +121,12 @@ export function buildNotePrompt(input) {
     '',
     'JSON FIELDS',
     '- video_title: a clear title, at most 15 Chinese/Japanese characters or 8 English words, no special symbols.',
+    '- note_title: a readable title for the note in ' +
+      lang.name +
+      ', at most 20 Chinese/Japanese characters or 10 English words, naming what the video teaches or argues rather than the channel or episode number. It may differ from video_title.',
+    '- tldr: one sentence in ' +
+      lang.name +
+      ' with the main takeaway, written fresh: do not copy or cut a sentence from the transcript or the summary, and do not end with an ellipsis.',
     '- summary: one or two sentences for a list view.',
     '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
     '- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.',

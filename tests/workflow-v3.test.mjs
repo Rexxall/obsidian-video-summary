@@ -97,6 +97,21 @@ test('the AI prompt is evaluated, not sent as source code, and follows the reque
   assert.doesNotMatch(text, /核心摘要|95%/);
 });
 
+test('the reply carries a readable note title and a one-line tldr, and the note has no wiki links', () => {
+  const workflow = JSON.parse(readFileSync(DEFAULT_WORKFLOW_PATH, 'utf8'));
+  const agent = workflow.nodes.find((node) => node.name === 'AI: Write Note');
+  const prompt = evaluatePromptExpression(agent.parameters.text, {
+    transcript: 'hi',
+    language: 'zh',
+  });
+  assert.match(prompt, /- note_title: a readable title for the note in Simplified Chinese/);
+  assert.match(prompt, /- tldr: one sentence in Simplified Chinese/);
+  assert.match(prompt, /never as \[\[wiki links\]\]/);
+  const summary = workflow.nodes.find((node) => node.name === 'Set: Summary');
+  const names = summary.parameters.assignments.assignments.map((item) => item.name);
+  assert.ok(names.includes('note_title') && names.includes('tldr'));
+});
+
 test('the prompt asks for a summary and key points, not a retelling', () => {
   const short = buildNotePrompt({ transcript: 'x'.repeat(2000), language: 'en' });
   const long = buildNotePrompt({ transcript: 'x'.repeat(60000), language: 'en' });

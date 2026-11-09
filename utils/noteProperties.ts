@@ -57,9 +57,36 @@ export function parseDefaultProperties(text: string): DefaultProperty[] {
   return Array.from(byKey.values());
 }
 
+/**
+ * Values a default can take from the processed result, written as {{name}}: {{title}} (a readable
+ * note title), {{tldr}}, {{summary}}, {{video_title}}, {{author}}. A default whose placeholders
+ * come out empty is skipped, so an older backend that sends no tldr adds no empty field.
+ */
+export type PropertyValues = Record<string, string | undefined>;
+
+function fill(value: string, values: PropertyValues): string {
+  let missing = false;
+  const filled = value.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (_match: string, name: string) => {
+    const text = (values[name] || '').replace(/\s+/g, ' ').trim();
+    if (!text) missing = true;
+    return text;
+  });
+  return missing ? '' : filled.trim();
+}
+
 /** Adds the defaults to frontmatter in place. Returns true when something changed. */
-export function applyDefaultProperties(fm: JsonRecord, defaults: DefaultProperty[]): boolean {
+export function applyDefaultProperties(
+  fm: JsonRecord,
+  rawDefaults: DefaultProperty[],
+  values: PropertyValues = {},
+): boolean {
   let changed = false;
+  const defaults = rawDefaults
+    .map((property) => ({
+      ...property,
+      values: property.values.map((value) => fill(value, values)).filter(Boolean),
+    }))
+    .filter((property) => property.values.length > 0);
   for (const property of defaults) {
     if (property.list) {
       const current = toList(fm[property.key]);

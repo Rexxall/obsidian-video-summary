@@ -12,11 +12,14 @@ import { asRecord, type JsonRecord } from './json';
 import { withCssClass } from './noteCssClass';
 import { applyDefaultProperties, parseDefaultProperties } from './noteProperties';
 import { writePluginStatus } from './successStatus';
+import { unlinkMissingNotes } from './wikiLinks';
 export interface NoteWritePrefs {
   /** 成功时写进 status 的文字 */
   successText: string;
   /** “新笔记默认属性”设置的原文 */
   defaultProperties: string;
+  /** 给了就把指向不存在笔记的 [[双链]] 改成纯文字；参数是链接路径和这篇笔记的路径 */
+  linkExists?: (linkpath: string, sourcePath: string) => boolean;
 }
 
 export class NoteProcessor {
@@ -186,7 +189,21 @@ export class NoteProcessor {
     fm.video_summary = true;
     if (!fm.source_type) fm.source_type = 'video';
     withCssClass(fm, this.cssClass());
-    applyDefaultProperties(fm, parseDefaultProperties(this.prefs().defaultProperties));
+    const prefs = this.prefs();
+    applyDefaultProperties(fm, parseDefaultProperties(prefs.defaultProperties), {
+      title: result.note_title,
+      tldr: result.tldr,
+      summary: result.summary,
+      video_title: result.video_title,
+      author: result.video_author,
+    });
+    const linkExists = prefs.linkExists;
+    if (linkExists && result.note) {
+      result = {
+        ...result,
+        note: unlinkMissingNotes(result.note, (linkpath) => linkExists(linkpath, file.path)),
+      };
+    }
 
     // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
     Object.assign(fm, buildRichFrontmatterFields(result));

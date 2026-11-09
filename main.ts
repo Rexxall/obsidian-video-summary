@@ -144,6 +144,10 @@ export default class VideoSummaryPlugin extends Plugin {
       () => ({
         successText: this.settings.successStatusValue ?? 'success',
         defaultProperties: this.settings.defaultNoteProperties ?? '',
+        linkExists: this.settings.unlinkMissingNotes
+          ? (linkpath, sourcePath) =>
+              !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath)
+          : undefined,
       }),
     );
   }
@@ -3723,8 +3727,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('默认属性', 'Default properties'))
       .setDesc(
         tr(
-          '处理成功时补进笔记，一行一个“名称: 值”。笔记里已有的值不覆盖；tags 和 aliases 会合并，多个值用逗号隔开。',
-          'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas.',
+          '处理成功时补进笔记，一行一个“名称: 值”。笔记里已有的值不覆盖；tags 和 aliases 会合并，多个值用逗号隔开。值里可以用 {{title}} {{tldr}} {{summary}}。',
+          'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas. Values can use {{title}} {{tldr}} {{summary}}.',
         ),
       )
       .addTextArea((area) => {
@@ -3738,6 +3742,23 @@ class VideoSummarySettingTab extends PluginSettingTab {
         area.inputEl.rows = 3;
         area.inputEl.addClass('vs-properties-input');
       });
+
+    new Setting(section)
+      .setName(tr('只保留指向已有笔记的双链', 'Keep only links to existing notes'))
+      .setDesc(
+        tr(
+          '笔记里的 [[双链]] 指向库里没有的笔记时，改成纯文字。',
+          'A [[link]] in the note that points to a note your vault does not have becomes plain text.',
+        ),
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.unlinkMissingNotes ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.unlinkMissingNotes = value;
+            await this.plugin.saveSettings();
+          }),
+      );
 
     new Setting(section)
       .setName(tr('文稿引用格式', 'Transcript quote format'))

@@ -34,7 +34,7 @@ import { errorMessage } from '../utils/errors';
 import { asRecord, asText, isRecord, type JsonRecord } from '../utils/json';
 import { tr } from '../utils/i18n';
 const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
-const CACHE_PROMPT_VERSION = 'video-note-prompt-v4';
+const CACHE_PROMPT_VERSION = 'video-note-prompt-v5';
 
 export interface EndpointProbeResult {
   ok: boolean;
@@ -933,6 +933,12 @@ export class VideoSummaryAPI {
     }
     if (payload.video_author && typeof payload.video_author === 'string') {
       result.video_author = payload.video_author;
+    }
+    if (typeof payload.note_title === 'string' && payload.note_title.trim()) {
+      result.note_title = payload.note_title.trim();
+    }
+    if (typeof payload.tldr === 'string' && payload.tldr.trim()) {
+      result.tldr = payload.tldr.trim();
     }
     if (payload.video_duration && typeof payload.video_duration === 'string') {
       result.video_duration = payload.video_duration;
