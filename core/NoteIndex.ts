@@ -4,6 +4,7 @@ import { safeInlineRasterDataUrl, safeRemoteImageUrl } from '../utils/SafeExtern
 
 import type { JsonRecord } from '../utils/json';
 import { tr } from '../utils/i18n';
+import { detectPlatform } from './Platform';
 export interface VideoNoteEntry {
   path: string;
   basename: string;
@@ -647,15 +648,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   });
 }
 
-export function detectPlatform(url: string): string {
-  const value = url.toLowerCase();
-  if (value.includes('bilibili.com') || value.includes('b23.tv')) return 'bilibili';
-  if (value.includes('youtube.com') || value.includes('youtu.be')) return 'youtube';
-  if (value.includes('douyin.com')) return 'douyin';
-  if (value.includes('tiktok.com')) return 'tiktok';
-  if (value.includes('xiaohongshu.com') || value.includes('xhslink')) return 'xiaohongshu';
-  return 'other';
-}
+export { detectPlatform };
 
 export function platformLabel(platform?: string): string {
   switch (platform) {

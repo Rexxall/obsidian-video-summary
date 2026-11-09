@@ -1,6 +1,6 @@
 import { VideoInput } from '../types';
 import { VideoUtils } from '../utils/VideoUtils';
-import { detectPlatform } from './NoteIndex';
+import { detectPlatform } from './Platform';
 
 export type DraftSource = 'url' | 'local-file' | 'transcript' | 'json';
 
@@ -45,6 +45,19 @@ export function parseInput(raw: string, options: ParseOptions = {}): JobDraft[] 
   }
 
   const urls = extractUrls(text, options.keepPartParam === true);
+  // 正文里夹着链接的长文（博客、文章）是一篇文稿，不是一串待处理的链接
+  if (urls.length > 0 && !looksLikeLinkList(text)) {
+    return [
+      {
+        title: titleForTranscript(text),
+        input: buildInput({
+          transcript: transcript ? `${text}\n\n${transcript}` : text,
+          localFile: localFiles[0],
+        }),
+        source: 'transcript',
+      },
+    ];
+  }
   if (urls.length > 0) {
     return urls.map((url) => ({
       title: titleForUrl(url),
@@ -164,6 +177,7 @@ function titleForTranscript(text: string): string {
   ].join('');
   const snippet = text
     .split('\n')[0]
+    .replace(/^#+\s*/, '')
     .substring(0, 12)
     .replace(/[<>:"/\\|?*\s]/g, '_');
   return snippet ? `文稿_${stamp}_${snippet}` : `文稿处理_${stamp}`;
@@ -196,11 +210,102 @@ function looksLikeJson(text: string): boolean {
 
 function extractUrls(text: string, keepPartParam: boolean): string[] {
   if (!text) return [];
-  const matches = text.match(/https?:\/\/[^\s"'<>]+/g) || [];
-  const cleaned = matches
+  const cleaned = findUrls(text)
     .map((url) =>
       keepPartParam ? VideoUtils.cleanVideoUrlKeepP(url) : VideoUtils.cleanVideoUrl(url),
     )
     .filter((url) => url.length > 0);
   return Array.from(new Set(cleaned));
+}
+
+// [标题](链接)：链接里允许一层成对括号，例如 wiki/Goya_(painter)
+const MARKDOWN_LINK = /\[([^\]\n]*)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)/g;
+const BARE_URL = /https?:\/\/[^\s"'<>]+/g;
+const TRAILING_PUNCTUATION = /[.,;:!?，。；：！？、】》」』'"]+$/;
+
+/** 按出现顺序找出所有链接，去掉 markdown 语法和句末标点粘上的尾巴 */
+function findUrls(text: string): string[] {
+  const found: Array<{ index: number; url: string }> = [];
+  const masked = text.replace(
+    MARKDOWN_LINK,
+    (match: string, _label: string, url: string, offset: number) => {
+      found.push({ index: offset, url });
+      return ' '.repeat(match.length);
+    },
+  );
+  for (const match of masked.matchAll(BARE_URL)) {
+    const url = trimUrlTail(match[0]);
+    if (url) found.push({ index: match.index ?? 0, url });
+  }
+  return found.sort((a, b) => a.index - b.index).map((item) => item.url);
+}
+
+function trimUrlTail(url: string): string {
+  let out = url;
+  for (;;) {
+    const before = out;
+    out = out.replace(TRAILING_PUNCTUATION, '');
+    if (
+      /[)）]$/.test(out) &&
+      count(out, '(') + count(out, '（') < count(out, ')') + count(out, '）')
+    ) {
+      out = out.slice(0, -1);
+    }
+    if (out === before) return out.replace(/^https?:\/\/$/, '');
+  }
+}
+
+function count(value: string, char: string): number {
+  return value.split(char).length - 1;
+}
+
+/**
+ * 主输入框里几乎只有链接（每行一条，最多带一小段备注或标题）时才拆成多个任务；
+ * 带大段正文的就是一篇文稿。长度按"中日韩字符算两个"计，免得中文短句被当成长文。
+ */
+const LINK_LIST_PROSE_BUDGET = 200;
+const LINK_LINE_NOTE_LIMIT = 80;
+const PLAIN_LINE_NOTE_LIMIT = 40;
+
+function looksLikeLinkList(text: string): boolean {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let total = 0;
+  let linkLines = 0;
+  let plainLines = 0;
+  let everyLineShort = true;
+  for (const line of lines) {
+    const hasUrl = /https?:\/\//.test(line);
+    const proseLength = weightedLength(proseOf(line));
+    total += proseLength;
+    if (hasUrl) {
+      linkLines += 1;
+      if (proseLength > LINK_LINE_NOTE_LIMIT) everyLineShort = false;
+    } else {
+      plainLines += 1;
+      if (proseLength > PLAIN_LINE_NOTE_LIMIT) everyLineShort = false;
+    }
+  }
+  if (total < LINK_LIST_PROSE_BUDGET) return true;
+  return everyLineShort && plainLines <= linkLines;
+}
+
+/** 一行里除去链接、markdown 链接语法和列表符号后剩下的文字 */
+function proseOf(line: string): string {
+  return line
+    .replace(MARKDOWN_LINK, (_match: string, label: string) => ` ${label} `)
+    .replace(BARE_URL, ' ')
+    .replace(/^\s*(?:[-*+•]|\d+[.)、])\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function weightedLength(value: string): number {
+  let length = 0;
+  for (const char of value) {
+    length += /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(char) ? 2 : 1;
+  }
+  return length;
 }

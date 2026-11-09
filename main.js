@@ -4644,6 +4644,17 @@ var VideoUtils = class {
   }
 };
 
+// core/Platform.ts
+function detectPlatform2(url) {
+  const value = url.toLowerCase();
+  if (value.includes("bilibili.com") || value.includes("b23.tv")) return "bilibili";
+  if (value.includes("youtube.com") || value.includes("youtu.be")) return "youtube";
+  if (value.includes("douyin.com")) return "douyin";
+  if (value.includes("tiktok.com")) return "tiktok";
+  if (value.includes("xiaohongshu.com") || value.includes("xhslink")) return "xiaohongshu";
+  return "other";
+}
+
 // core/NoteIndex.ts
 var BODY_SCAN_CHUNK = 60;
 var REMOTE_COVER_CONCURRENCY = 2;
@@ -5143,15 +5154,6 @@ function withTimeout(promise, timeoutMs) {
       }
     );
   });
-}
-function detectPlatform2(url) {
-  const value = url.toLowerCase();
-  if (value.includes("bilibili.com") || value.includes("b23.tv")) return "bilibili";
-  if (value.includes("youtube.com") || value.includes("youtu.be")) return "youtube";
-  if (value.includes("douyin.com")) return "douyin";
-  if (value.includes("tiktok.com")) return "tiktok";
-  if (value.includes("xiaohongshu.com") || value.includes("xhslink")) return "xiaohongshu";
-  return "other";
 }
 function platformLabel(platform) {
   switch (platform) {
@@ -5760,6 +5762,20 @@ function parseInput(raw, options = {}) {
     ];
   }
   const urls = extractUrls(text2, options.keepPartParam === true);
+  if (urls.length > 0 && !looksLikeLinkList(text2)) {
+    return [
+      {
+        title: titleForTranscript(text2),
+        input: buildInput({
+          transcript: transcript ? `${text2}
+
+${transcript}` : text2,
+          localFile: localFiles[0]
+        }),
+        source: "transcript"
+      }
+    ];
+  }
   if (urls.length > 0) {
     return urls.map((url) => ({
       title: titleForUrl(url),
@@ -5860,7 +5876,7 @@ function titleForTranscript(text2) {
     String(now.getMinutes()).padStart(2, "0"),
     String(now.getSeconds()).padStart(2, "0")
   ].join("");
-  const snippet = text2.split("\n")[0].substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
+  const snippet = text2.split("\n")[0].replace(/^#+\s*/, "").substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
   return snippet ? `\u6587\u7A3F_${stamp}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp}`;
 }
 function buildInput(parts) {
@@ -5884,11 +5900,76 @@ function looksLikeJson(text2) {
 }
 function extractUrls(text2, keepPartParam) {
   if (!text2) return [];
-  const matches = text2.match(/https?:\/\/[^\s"'<>]+/g) || [];
-  const cleaned = matches.map(
+  const cleaned = findUrls(text2).map(
     (url) => keepPartParam ? VideoUtils.cleanVideoUrlKeepP(url) : VideoUtils.cleanVideoUrl(url)
   ).filter((url) => url.length > 0);
   return Array.from(new Set(cleaned));
+}
+var MARKDOWN_LINK = /\[([^\]\n]*)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)/g;
+var BARE_URL = /https?:\/\/[^\s"'<>]+/g;
+var TRAILING_PUNCTUATION = /[.,;:!?，。；：！？、】》」』'"]+$/;
+function findUrls(text2) {
+  const found = [];
+  const masked = text2.replace(
+    MARKDOWN_LINK,
+    (match, _label, url, offset) => {
+      found.push({ index: offset, url });
+      return " ".repeat(match.length);
+    }
+  );
+  for (const match of masked.matchAll(BARE_URL)) {
+    const url = trimUrlTail(match[0]);
+    if (url) found.push({ index: match.index ?? 0, url });
+  }
+  return found.sort((a, b) => a.index - b.index).map((item) => item.url);
+}
+function trimUrlTail(url) {
+  let out = url;
+  for (; ; ) {
+    const before = out;
+    out = out.replace(TRAILING_PUNCTUATION, "");
+    if (/[)）]$/.test(out) && count(out, "(") + count(out, "\uFF08") < count(out, ")") + count(out, "\uFF09")) {
+      out = out.slice(0, -1);
+    }
+    if (out === before) return out.replace(/^https?:\/\/$/, "");
+  }
+}
+function count(value, char) {
+  return value.split(char).length - 1;
+}
+var LINK_LIST_PROSE_BUDGET = 200;
+var LINK_LINE_NOTE_LIMIT = 80;
+var PLAIN_LINE_NOTE_LIMIT = 40;
+function looksLikeLinkList(text2) {
+  const lines = text2.split("\n").map((line) => line.trim()).filter(Boolean);
+  let total = 0;
+  let linkLines = 0;
+  let plainLines = 0;
+  let everyLineShort = true;
+  for (const line of lines) {
+    const hasUrl = /https?:\/\//.test(line);
+    const proseLength = weightedLength(proseOf(line));
+    total += proseLength;
+    if (hasUrl) {
+      linkLines += 1;
+      if (proseLength > LINK_LINE_NOTE_LIMIT) everyLineShort = false;
+    } else {
+      plainLines += 1;
+      if (proseLength > PLAIN_LINE_NOTE_LIMIT) everyLineShort = false;
+    }
+  }
+  if (total < LINK_LIST_PROSE_BUDGET) return true;
+  return everyLineShort && plainLines <= linkLines;
+}
+function proseOf(line) {
+  return line.replace(MARKDOWN_LINK, (_match, label) => ` ${label} `).replace(BARE_URL, " ").replace(/^\s*(?:[-*+•]|\d+[.)、])\s+/, "").replace(/\s+/g, " ").trim();
+}
+function weightedLength(value) {
+  let length = 0;
+  for (const char of value) {
+    length += /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(char) ? 2 : 1;
+  }
+  return length;
 }
 
 // core/NoteFactory.ts
@@ -6470,17 +6551,17 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
   updateStartButton() {
     if (this.startLabelEl) {
       if (this.processingMode === "playlist") {
-        const count = this.selectedPlaylistKeys.size;
+        const count2 = this.selectedPlaylistKeys.size;
         this.startLabelEl.setText(
-          this.courseImport ? count > 0 ? tr(
-            `\u5BFC\u5165\u8BFE\u7A0B \xB7 \u65B0\u5EFA ${count} \u6761\u5F85\u5904\u7406\u7B14\u8BB0`,
-            `Import course \xB7 create ${count} pending notes`
+          this.courseImport ? count2 > 0 ? tr(
+            `\u5BFC\u5165\u8BFE\u7A0B \xB7 \u65B0\u5EFA ${count2} \u6761\u5F85\u5904\u7406\u7B14\u8BB0`,
+            `Import course \xB7 create ${count2} pending notes`
           ) : tr("\u66F4\u65B0\u8BFE\u7A0B\u7D22\u5F15", "Update course index") : tr("\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF", "Preview the course changes first")
         );
       } else {
-        const count = this.selectedFiles.length;
+        const count2 = this.selectedFiles.length;
         this.startLabelEl.setText(
-          count > 0 ? tr(`\u5F00\u59CB\u5904\u7406 ${count} \u4E2A`, `Process ${count}`) : tr("\u5F00\u59CB\u5904\u7406", "Start")
+          count2 > 0 ? tr(`\u5F00\u59CB\u5904\u7406 ${count2} \u4E2A`, `Process ${count2}`) : tr("\u5F00\u59CB\u5904\u7406", "Start")
         );
       }
     }
@@ -7780,7 +7861,7 @@ qrcode.createStringToBytes = function(unicodeData, numChars) {
       if (b == -1) throw "eof";
       return b;
     };
-    let count = 0;
+    let count2 = 0;
     const unicodeMap2 = {};
     while (true) {
       const b0 = bin.read();
@@ -7791,10 +7872,10 @@ qrcode.createStringToBytes = function(unicodeData, numChars) {
       const k = String.fromCharCode(b0 << 8 | b1);
       const v = b2 << 8 | b3;
       unicodeMap2[k] = v;
-      count += 1;
+      count2 += 1;
     }
-    if (count != numChars) {
-      throw count + " != " + numChars;
+    if (count2 != numChars) {
+      throw count2 + " != " + numChars;
     }
     return unicodeMap2;
   })();
@@ -8036,12 +8117,12 @@ var QRUtil = (function() {
     ;
     for (let row = 0; row < moduleCount - 1; row += 1) {
       for (let col = 0; col < moduleCount - 1; col += 1) {
-        let count = 0;
-        if (qrcode2.isDark(row, col)) count += 1;
-        if (qrcode2.isDark(row + 1, col)) count += 1;
-        if (qrcode2.isDark(row, col + 1)) count += 1;
-        if (qrcode2.isDark(row + 1, col + 1)) count += 1;
-        if (count == 0 || count == 4) {
+        let count2 = 0;
+        if (qrcode2.isDark(row, col)) count2 += 1;
+        if (qrcode2.isDark(row + 1, col)) count2 += 1;
+        if (qrcode2.isDark(row, col + 1)) count2 += 1;
+        if (qrcode2.isDark(row + 1, col + 1)) count2 += 1;
+        if (count2 == 0 || count2 == 4) {
           lostPoint += 3;
         }
       }
@@ -8387,10 +8468,10 @@ var QRRSBlock = (function() {
     const length = rsBlock.length / 3;
     const list = [];
     for (let i = 0; i < length; i += 1) {
-      const count = rsBlock[i * 3 + 0];
+      const count2 = rsBlock[i * 3 + 0];
       const totalCount = rsBlock[i * 3 + 1];
       const dataCount = rsBlock[i * 3 + 2];
-      for (let j = 0; j < count; j += 1) {
+      for (let j = 0; j < count2; j += 1) {
         list.push(qrRSBlock(totalCount, dataCount));
       }
     }
@@ -13263,14 +13344,14 @@ function renderReaderPanel(container, ctx, job) {
       "aria-label": tr("\u641C\u7D22\u6587\u7A3F", "Search the transcript")
     }
   });
-  const count = toolbar.createSpan({
+  const count2 = toolbar.createSpan({
     text: tr(
       `${segments.length.toLocaleString()} \u6BB5`,
       `${segments.length.toLocaleString()} segments`
     ),
     cls: "vs-reader-count"
   });
-  void count;
+  void count2;
   if (segments.length === 0) {
     reader.createDiv({
       text: tr(
@@ -14868,7 +14949,7 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
     const wrapper = panel.createDiv({ cls: "vs-tab-row ap-bar-glass" });
     segmented(
       wrapper,
-      tabs.map(([value, label, count]) => ({ value, label, count })),
+      tabs.map(([value, label, count2]) => ({ value, label, count: count2 })),
       this.state.tab,
       fire(async (value) => {
         this.state.tab = value;
@@ -19162,15 +19243,15 @@ function dateBoundary(value, endOfDay) {
 }
 function occurrences(haystack, needle) {
   if (!needle) return 0;
-  let count = 0;
+  let count2 = 0;
   let cursor = 0;
-  while (count < 20) {
+  while (count2 < 20) {
     const index = haystack.indexOf(needle, cursor);
     if (index < 0) break;
-    count += 1;
+    count2 += 1;
     cursor = index + Math.max(1, needle.length);
   }
-  return count;
+  return count2;
 }
 function average(values) {
   if (values.length === 0) return 0;
@@ -19529,7 +19610,7 @@ var KnowledgeLabModal = class extends import_obsidian19.Modal {
       tr("\u7B5B\u9009\u5DE5\u4EF6", "Filter artifacts"),
       tr("\u6309\u6807\u9898\u3001\u4F5C\u8005\u6216\u5E73\u53F0\u8FC7\u6EE4", "Filter by title, author or platform")
     );
-    const count = toolbar.createSpan({ cls: "vs-claim-lab-count" });
+    const count2 = toolbar.createSpan({ cls: "vs-claim-lab-count" });
     const list = this.contentEl.createDiv({ cls: "vs-claim-lab-artifacts" });
     const selected = /* @__PURE__ */ new Set();
     const renderList = () => {
@@ -19556,14 +19637,14 @@ var KnowledgeLabModal = class extends import_obsidian19.Modal {
         checkbox.onchange = () => {
           if (checkbox.checked) selected.add(artifact.artifact_id);
           else selected.delete(artifact.artifact_id);
-          count.setText(
+          count2.setText(
             tr(`\u5DF2\u9009\u62E9 ${selected.size} \u4E2A\u5DE5\u4EF6`, `${selected.size} artifacts selected`)
           );
         };
       });
     };
     renderList();
-    count.setText(tr("\u5DF2\u9009\u62E9 0 \u4E2A\u5DE5\u4EF6", "0 artifacts selected"));
+    count2.setText(tr("\u5DF2\u9009\u62E9 0 \u4E2A\u5DE5\u4EF6", "0 artifacts selected"));
     artifactSearch.addEventListener("input", renderList);
     const actions = this.contentEl.createDiv({ cls: "vs-claim-lab-actions" });
     const generate = actions.createEl("button", {
