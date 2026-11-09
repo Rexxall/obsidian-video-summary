@@ -73,7 +73,7 @@ export class BatchProcessingModal extends Modal {
   constructor(app: App, plugin: VideoSummaryPlugin) {
     super(app);
     this.plugin = plugin;
-    this.noteProcessor = new NoteProcessor(app.vault);
+    this.noteProcessor = plugin.createNoteProcessor();
     this.noteFactory = new NoteFactory(app);
     this.courseStore = plugin.courseStore;
   }
@@ -873,7 +873,7 @@ export class BatchProcessingModal extends Modal {
               conflictStrategy: this.plugin.settings.renameConflictStrategy,
             });
             await this.plugin.jobService.relinkExternalResult(artifactContext, result.result, file);
-            await this.noteProcessor.setProcessingStatus(
+            await this.noteProcessor.markProcessingSuccess(
               file,
               this.plugin.settings.successStatusValue ?? 'success',
             );

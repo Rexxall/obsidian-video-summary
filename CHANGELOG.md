@@ -7,6 +7,9 @@ All notable changes to this project are documented here.
 - **A class for your own note style.** Every video note the plugin writes gets `ih-film` in its `cssclasses`, so a CSS snippet in your vault can give video notes their own look. The plugin ships no style for it; change or clear the class under **Settings → Video Summary → Note CSS class**. Classes already on the note are kept.
 - A job's details show **Open note** right under the title instead of below the preview and the log.
 - Starting one job says "Sent 1 job", not "Sent 1 jobs".
+- **Pasting an article no longer makes a note per link.** A long text with links in it becomes one transcript job with the links kept in the text; one link per line still makes one job per link. Links copied from markdown no longer carry a trailing `)` or `,`, and a transcript note is titled from its first line of text, not from a link.
+- **Default properties.** Add your own fields to every processed note under **Settings → Video Summary → Default properties**, one `name: value` per line, for example a learning status or a type tag. Values a note already has are kept, and tags are merged.
+- **The success status can be your vault's own mark, such as ❌.** The plugin keeps its state in `video_summary_status`, so `status` is free to show "not reviewed yet". The plugin also no longer overwrites a `status` of ✅ or ▶️ that you set yourself.
 
 ## 2.12.3
 

@@ -306,6 +306,8 @@ export interface VideoSummarySettings {
   outputFolder: string;
   /** Added to cssclasses of every note the plugin writes, for a vault snippet to style; empty adds none. */
   noteCssClass: string;
+  /** 处理成功时补进笔记的属性，一行一个“名称: 值” */
+  defaultNoteProperties: string;
   // 自动重命名配置
   autoRenameEnabled: boolean;
   renameConflictStrategy: 'skip' | 'append-number' | 'append-date';

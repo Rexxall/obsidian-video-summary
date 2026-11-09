@@ -85,8 +85,9 @@ import { Modal } from 'obsidian';
 
 import { fire } from './utils/fire';
 import { errorMessage } from './utils/errors';
-import { asArray, asRecord, isRecord, scalarText, type JsonRecord } from './utils/json';
+import { asArray, asRecord, isRecord, type JsonRecord } from './utils/json';
 import { withCssClass } from './utils/noteCssClass';
+import { normalizeSuccessStatusText } from './utils/successStatus';
 import {
   desktopRequire,
   openPathInSystem,
@@ -134,6 +135,18 @@ export default class VideoSummaryPlugin extends Plugin {
     at: number;
   } | null = null;
 
+  /** Every NoteProcessor reads the same note-writing settings: style class, success text, default properties. */
+  createNoteProcessor(): NoteProcessor {
+    return new NoteProcessor(
+      this.app.vault,
+      () => this.settings.noteCssClass ?? '',
+      () => ({
+        successText: this.settings.successStatusValue ?? 'success',
+        defaultProperties: this.settings.defaultNoteProperties ?? '',
+      }),
+    );
+  }
+
   async onload() {
     setInterfaceLanguage(getLanguage());
     // 加载设置
@@ -144,7 +157,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);
-    this.noteProcessor = new NoteProcessor(this.app.vault, () => this.settings.noteCssClass ?? '');
+    this.noteProcessor = this.createNoteProcessor();
     const pluginDir =
       this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     this.artifactStore = new ArtifactStore(
@@ -569,7 +582,7 @@ export default class VideoSummaryPlugin extends Plugin {
         });
         await this.jobService.relinkExternalResult(artifactContext, result, file);
 
-        await this.noteProcessor.setProcessingStatus(
+        await this.noteProcessor.markProcessingSuccess(
           file,
           this.settings.successStatusValue ?? 'success',
         );
@@ -837,7 +850,7 @@ export default class VideoSummaryPlugin extends Plugin {
         await this.jobService.relinkExternalResult(artifactContext, result, file);
 
         // 更新状态（使用可配置的成功状态值）
-        await this.noteProcessor.setProcessingStatus(
+        await this.noteProcessor.markProcessingSuccess(
           file,
           this.settings.successStatusValue ?? 'success',
         );
@@ -955,7 +968,7 @@ export default class VideoSummaryPlugin extends Plugin {
           conflictStrategy: this.settings.renameConflictStrategy,
         });
         await this.jobService.relinkExternalResult(artifactContext, result, file);
-        await this.noteProcessor.setProcessingStatus(
+        await this.noteProcessor.markProcessingSuccess(
           file,
           this.settings.successStatusValue ?? 'success',
         );
@@ -2495,27 +2508,7 @@ export default class VideoSummaryPlugin extends Plugin {
 }
 
 function normalizeSuccessStatusValue(value: unknown): string {
-  const normalized = scalarText(value).trim();
-  if (!normalized) return DEFAULT_SETTINGS.successStatusValue;
-
-  const reservedStatuses = new Set([
-    'pending',
-    'running',
-    'error',
-    'excluded',
-    '📺',
-    '⏳',
-    '❌',
-    '⛔',
-    '⛔️',
-    '待处理',
-    '处理中',
-    '处理失败',
-    '非视频笔记',
-  ]);
-  return reservedStatuses.has(normalized.toLowerCase())
-    ? DEFAULT_SETTINGS.successStatusValue
-    : normalized;
+  return normalizeSuccessStatusText(value, DEFAULT_SETTINGS.successStatusValue);
 }
 
 class VideoSummarySettingTab extends PluginSettingTab {
@@ -3725,6 +3718,26 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
+      .setName(tr('默认属性', 'Default properties'))
+      .setDesc(
+        tr(
+          '处理成功时补进笔记，一行一个“名称: 值”。笔记里已有的值不覆盖；tags 和 aliases 会合并，多个值用逗号隔开。',
+          'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas.',
+        ),
+      )
+      .addTextArea((area) => {
+        area
+          .setPlaceholder('learning_status: raw\ntags: type/video')
+          .setValue(this.plugin.settings.defaultNoteProperties ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.defaultNoteProperties = value;
+            await this.plugin.saveSettings();
+          });
+        area.inputEl.rows = 3;
+        area.inputEl.addClass('vs-properties-input');
+      });
+
+    new Setting(section)
       .setName(tr('文稿引用格式', 'Transcript quote format'))
       .setDesc(
         tr(
@@ -3861,7 +3874,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
     // 成功状态值
     new Setting(section)
       .setName(tr('成功状态值', 'Success status'))
-      .setDesc(tr('写进 frontmatter 的 status', 'Written to the status property'))
+      .setDesc(
+        tr(
+          '处理成功后写进 status。插件自己的状态另记在 video_summary_status，所以这里可以填你库里“待整理”的标记，例如 ❌。',
+          'Written to status after a note is processed. The plugin keeps its own state in video_summary_status, so this can be your vault\'s "to review" mark, such as ❌.',
+        ),
+      )
       .addText((text) =>
         text
           .setPlaceholder(tr('例如 success', 'For example success'))
@@ -3871,8 +3889,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
             if (normalized !== value.trim()) {
               new Notice(
                 tr(
-                  '成功状态不能使用待处理、处理中或失败标记，已恢复为 success',
-                  'The success status cannot be a pending, processing or failure value; reset to success',
+                  '成功状态不能用待处理、处理中、失败或排除的标记，已恢复为 success',
+                  'The success status cannot be a pending, processing, failed or excluded value; reset to success',
                 ),
               );
             }

@@ -69,10 +69,7 @@ export class JobService {
   constructor(plugin: VideoSummaryPlugin, store: JobStore) {
     this.plugin = plugin;
     this.store = store;
-    this.noteProcessor = new NoteProcessor(
-      plugin.app.vault,
-      () => plugin.settings.noteCssClass ?? '',
-    );
+    this.noteProcessor = plugin.createNoteProcessor();
     this.noteFactory = new NoteFactory(plugin.app);
     this.store.setRunner((job, report) => this.runJob(job, report));
     this.store.setConcurrency(plugin.settings.batchConcurrency || 2);
@@ -341,7 +338,7 @@ export class JobService {
             result,
           );
           await this.noteProcessor.updateNote(file, result, 'summary');
-          await this.noteProcessor.setProcessingStatus(
+          await this.noteProcessor.markProcessingSuccess(
             file,
             this.plugin.settings.successStatusValue ?? 'success',
           );
@@ -514,7 +511,7 @@ export class JobService {
     if (context && file.path !== originalPath) {
       await this.persistArtifact({ ...context, notePath: file.path }, result);
     }
-    await this.noteProcessor.setProcessingStatus(
+    await this.noteProcessor.markProcessingSuccess(
       file,
       this.plugin.settings.successStatusValue ?? 'success',
     );

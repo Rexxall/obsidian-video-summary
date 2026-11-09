@@ -27,7 +27,7 @@ export class VideoSummaryModal extends Modal {
     this.plugin = plugin;
     this.editor = editor;
     this.view = view;
-    this.noteProcessor = new NoteProcessor(app.vault, () => plugin.settings.noteCssClass ?? '');
+    this.noteProcessor = plugin.createNoteProcessor();
   }
 
   onOpen() {

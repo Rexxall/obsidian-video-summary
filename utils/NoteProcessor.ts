@@ -10,13 +10,28 @@ import {
 import { errorMessage } from './errors';
 import { asRecord, type JsonRecord } from './json';
 import { withCssClass } from './noteCssClass';
+import { applyDefaultProperties, parseDefaultProperties } from './noteProperties';
+import { writePluginStatus } from './successStatus';
+export interface NoteWritePrefs {
+  /** 成功时写进 status 的文字 */
+  successText: string;
+  /** “新笔记默认属性”设置的原文 */
+  defaultProperties: string;
+}
+
 export class NoteProcessor {
   private vault: Vault;
   private cssClass: () => string;
+  private prefs: () => NoteWritePrefs;
 
-  constructor(vault: Vault, cssClass: () => string = () => '') {
+  constructor(
+    vault: Vault,
+    cssClass: () => string = () => '',
+    prefs: () => NoteWritePrefs = () => ({ successText: 'success', defaultProperties: '' }),
+  ) {
     this.vault = vault;
     this.cssClass = cssClass;
+    this.prefs = prefs;
   }
 
   /**
@@ -171,6 +186,7 @@ export class NoteProcessor {
     fm.video_summary = true;
     if (!fm.source_type) fm.source_type = 'video';
     withCssClass(fm, this.cssClass());
+    applyDefaultProperties(fm, parseDefaultProperties(this.prefs().defaultProperties));
 
     // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
     Object.assign(fm, buildRichFrontmatterFields(result));
@@ -215,16 +231,25 @@ export class NoteProcessor {
   }
 
   /**
-   * 设置处理状态
+   * 设置处理状态（待处理 / 处理中 / 排除）。成功请用 markProcessingSuccess。
    */
   async setProcessingStatus(file: TFile, status: string): Promise<void> {
+    await this.writeStatus(file, canonicalPluginStatus(status), status);
+  }
+
+  /** 处理成功：插件真值写 success，status 写设置里的“成功状态值”（例如 ❌ 表示待人工整理）。 */
+  async markProcessingSuccess(file: TFile, statusText: string): Promise<void> {
+    await this.writeStatus(file, 'success', statusText || 'success');
+  }
+
+  private async writeStatus(
+    file: TFile,
+    state: ReturnType<typeof canonicalPluginStatus>,
+    displayText: string,
+  ): Promise<void> {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
-    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
-    fm.video_summary = true;
-    if (!fm.source_type) fm.source_type = 'video';
-    fm.video_summary_status = canonicalPluginStatus(status);
-    if (mirrorLegacyStatus) fm.status = status;
+    writePluginStatus(fm, state, displayText, this.prefs().successText);
     const newContent = this.buildContent(fm, body);
     await this.vault.process(file, (current) => {
       if (current !== content) throw new Error('笔记在处理期间已变化，请重试；你的修改已保留。');
@@ -236,11 +261,7 @@ export class NoteProcessor {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
     const errorMessage = this.normalizeErrorMessage(error);
-    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
-    fm.video_summary = true;
-    if (!fm.source_type) fm.source_type = 'video';
-    fm.video_summary_status = 'error';
-    if (mirrorLegacyStatus) fm.status = 'error';
+    writePluginStatus(fm, 'error', 'error', this.prefs().successText);
     fm.processing_error = errorMessage;
     fm.processing_error_at = new Date().toISOString();
     const newBody = `${this.removeProcessingErrorBlock(body).trim()}\n\n${this.buildProcessingErrorBlock(errorMessage)}\n`;
@@ -520,35 +541,6 @@ export class NoteProcessor {
       console.error(`重命名文件失败: ${errorMessage(error)}`);
     }
   }
-}
-
-/**
- * 只兼容插件历来写入通用 `status` 的那些值。
- * 诸如 `status: 🔍` 的用户工作流状态必须原样保留，插件状态写入独立字段。
- */
-function shouldMirrorLegacyStatus(value: unknown): boolean {
-  const text = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
-  if (text.trim() === '') return true;
-  const status = text.trim().toLowerCase();
-  return new Set([
-    'pending',
-    'running',
-    'success',
-    'error',
-    'excluded',
-    '📺',
-    '⏳',
-    '✅',
-    '▶️',
-    '❌',
-    '⛔️',
-    '⛔',
-    '待处理',
-    '处理中',
-    '已处理',
-    '处理失败',
-    '非视频笔记',
-  ]).has(status);
 }
 
 function canonicalPluginStatus(

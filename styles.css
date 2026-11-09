@@ -266,6 +266,15 @@
 .ap-settings button {
   border-radius: var(--ap-r-pill);
 }
+/* Default properties: one "name: value" per line */
+.ap-settings textarea.vs-properties-input {
+  width: min(320px, 100%);
+  min-height: 4.5em;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  resize: vertical;
+}
 
 /* ---------- Switch: the knob stretches while pressed ---------- */
 .ap-switch {

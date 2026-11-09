@@ -124,7 +124,7 @@ function demoNoteContent() {
 }
 
 // modals/VideoSummaryModal.ts
-var import_obsidian2 = require("obsidian");
+var import_obsidian = require("obsidian");
 
 // utils/SafeExternalUrl.ts
 function safeExternalHttpUrl(value) {
@@ -1959,6 +1959,7 @@ var DEFAULT_SETTINGS = {
   batchConcurrency: 3,
   outputFolder: "",
   noteCssClass: "ih-film",
+  defaultNoteProperties: "",
   autoRenameEnabled: true,
   renameConflictStrategy: "append-number",
   enableDebugMode: false,
@@ -2030,830 +2031,6 @@ var ERROR_MESSAGES = {
     );
   }
 };
-
-// utils/NoteProcessor.ts
-var import_obsidian = require("obsidian");
-
-// core/KnowledgeMarkdown.ts
-var SOURCE_LABELS = {
-  speech: "\u53E3\u8FF0",
-  screen: "\u5C4F\u5E55",
-  comment: "\u8BC4\u8BBA",
-  user: "\u7528\u6237",
-  "ai-inference": "AI \u63A8\u65AD"
-};
-function upsertManagedBlock(body, kind, markdown) {
-  const start = `<!-- video-summary-${kind}:start -->`;
-  const end = `<!-- video-summary-${kind}:end -->`;
-  const expression = new RegExp(`${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}`, "g");
-  const cleanMarkdown = markdown.trim();
-  const replacement = cleanMarkdown ? `${start}
-${cleanMarkdown}
-${end}` : "";
-  if (expression.test(body)) return body.replace(expression, replacement);
-  if (!replacement) return body;
-  const withoutPlaceholder = removeLegacyPlaceholder(body, kind);
-  if (!withoutPlaceholder) return `${replacement}
-`;
-  const separator = withoutPlaceholder.endsWith("\n\n") ? "" : withoutPlaceholder.endsWith("\n") ? "\n" : "\n\n";
-  return `${withoutPlaceholder}${separator}${replacement}
-`;
-}
-function writeManagedKnowledgeMarkdown(body, result, sourceUrl = "", options = {}) {
-  if (options.includeDiagnostics !== true) {
-    if (options.updateGenerated === false && options.updateEvidence === false) return body;
-    let next2 = writeCleanVideoBody(body, result, options.updateGenerated !== false);
-    if (options.updateLearning !== false && result.learning) {
-      next2 = upsertManagedBlock(next2, "learning", renderLearningMarkdown(result));
-    }
-    return next2;
-  }
-  const {
-    updateGenerated = true,
-    updateEvidence = true,
-    updateAttention = true,
-    updateLearning = true
-  } = options;
-  let next = body;
-  if (updateGenerated) {
-    next = upsertManagedBlock(next, "generated", renderGeneratedMarkdown(result));
-  }
-  if (updateEvidence) {
-    const hasEvidence = !!result.video_segments?.length || !!result.evidence_claims?.length || !!result.visual_evidence?.length;
-    next = upsertManagedBlock(
-      next,
-      "evidence",
-      hasEvidence ? renderEvidenceMarkdown(result, sourceUrl) : ""
-    );
-  }
-  if (updateAttention) {
-    next = upsertManagedBlock(
-      next,
-      "attention",
-      result.attention ? renderAttentionMarkdown(result, sourceUrl) : ""
-    );
-  }
-  if (updateLearning) {
-    next = upsertManagedBlock(
-      next,
-      "learning",
-      result.learning ? renderLearningMarkdown(result) : ""
-    );
-  }
-  return next;
-}
-function managedWriteOptionsForMode(mode) {
-  if (mode === "summary") return {};
-  if (mode === "transcript-only") {
-    return {
-      updateGenerated: false,
-      updateEvidence: true,
-      updateAttention: false,
-      updateLearning: false
-    };
-  }
-  return {
-    updateGenerated: false,
-    updateEvidence: false,
-    updateAttention: false,
-    updateLearning: false
-  };
-}
-function buildRichFrontmatterFields(result) {
-  const fields = {};
-  assignNonEmptyString(fields, "video_title", result.video_title);
-  assignNonEmptyString(fields, "video_author", result.video_author);
-  assignNonEmptyString(fields, "video_duration", result.video_duration);
-  assignNonEmptyString(
-    fields,
-    "video_cover",
-    safeRemoteImageUrl(result.video_cover) || safeInlineRasterDataUrl(result.video_cover)
-  );
-  assignNonEmptyString(fields, "summary", result.summary);
-  assignNonEmptyString(fields, "video_transcript", result.video_transcript);
-  assignNonEmptyString(fields, "video_artifact_id", result.artifact?.artifact_id);
-  assignNonEmptyString(fields, "video_content_type", result.content_type);
-  assignNonEmptyString(fields, "video_attention_action", result.attention?.action);
-  assignNonEmptyString(fields, "video_processing_depth", result.artifact?.processing_depth);
-  const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
-  if (learningItems > 0) fields.video_learning_items = learningItems;
-  return fields;
-}
-function serializeScalarFrontmatter(fields) {
-  for (const [key, value] of Object.entries(fields)) {
-    if (!isSafeFrontmatterScalar(value)) {
-      throw new TypeError(`Frontmatter field "${key}" must be a scalar value.`);
-    }
-  }
-  return Object.entries(fields).map(([key, value]) => `${yamlKey(key)}: ${yamlScalar(value)}`).join("\n");
-}
-var YAML_AMBIGUOUS = /^(?:true|false|yes|no|on|off|null|~|[-+]?(?:\.?\d|\.(?:inf|nan))[\d.eE_:+-]*|\d{4}-\d\d-\d\d.*)$/i;
-function yamlKey(key) {
-  return /^[A-Za-z_][\w-]*$/.test(key) ? key : JSON.stringify(key);
-}
-function yamlScalar(value) {
-  if (value === null) return "null";
-  if (typeof value !== "string") return String(value);
-  const plain = value.length > 0 && value === value.trim() && !YAML_AMBIGUOUS.test(value) && !/^[-?:,[\]{}#&*!|>'"%@`]/.test(value) && !/[\n\r\t]|: | #|:$/.test(value);
-  return plain ? value : JSON.stringify(value);
-}
-function renderGeneratedMarkdown(result) {
-  return sanitizeGeneratedMarkdownActiveResources(result.note || result.summary || "").trim();
-}
-function sanitizeGeneratedMarkdownActiveResources(markdown) {
-  return String(markdown || "").replace(/!/g, "&#33;").replace(/</g, "&lt;");
-}
-function escapeUntrustedMarkdownInline(value) {
-  const escaped = scalarText(value).replace(/\\/g, "\\\\").replace(/([*_[\]`()#|>])/g, "\\$1").replace(/\r?\n+/g, " ");
-  return sanitizeGeneratedMarkdownActiveResources(escaped).trim();
-}
-function renderEvidenceMarkdown(result, sourceUrl = "", limits = {}) {
-  const claims = (result.evidence_claims || []).slice(0, limits.claims ?? 20);
-  const segments = result.video_segments || [];
-  const segmentById = new Map(segments.map((segment) => [segment.id, segment]));
-  const visual = (result.visual_evidence || []).slice(0, limits.visual ?? 12);
-  const lines = ["## \u8BC1\u636E\u5730\u56FE"];
-  const allowTimestamps = result.timing_quality !== "none";
-  if (result.timing_quality === "none") {
-    lines.push(
-      "",
-      "> [!warning] \u5F53\u524D\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u8F74",
-      "> \u6587\u672C\u4ECD\u53EF\u6838\u5BF9\uFF0C\u4F46\u63D2\u4EF6\u4E0D\u4F1A\u4F2A\u9020\u53EF\u70B9\u51FB\u7684\u65F6\u95F4\u6233\u3002"
-    );
-  } else if (result.timing_quality === "estimated") {
-    lines.push("", "> [!warning] \u90E8\u5206\u65F6\u95F4\u70B9\u4E3A\u4F30\u7B97\u503C", "> \u5F15\u7528\u524D\u8BF7\u56DE\u770B\u539F\u89C6\u9891\u786E\u8BA4\u3002");
-  }
-  const warnings = result.artifact?.warnings || [];
-  if (warnings.length > 0) {
-    lines.push("", "> [!info] \u5904\u7406\u9650\u5236");
-    warnings.slice(0, 5).forEach((warning) => lines.push(`> - ${escapeInline(warning)}`));
-  }
-  if (claims.length > 0) {
-    lines.push("", "### \u5173\u952E\u4E3B\u5F20");
-    claims.forEach((claim) => renderClaim(lines, claim, segmentById, sourceUrl, allowTimestamps));
-  } else if (segments.length > 0) {
-    lines.push("", "### \u53EF\u6838\u5BF9\u7247\u6BB5");
-    segments.slice(0, limits.segments ?? 40).forEach((segment) => {
-      const prefix = segmentLink(segment, sourceUrl, allowTimestamps);
-      lines.push(`- ${prefix} ${escapeInline(segment.text)} ^${segment.id}`);
-      const meta = segmentMeta(segment);
-      if (meta) lines.push(`  - ${meta}`);
-    });
-  } else {
-    lines.push("", "> [!info] \u8FD9\u6B21\u7ED3\u679C\u6CA1\u6709\u8FD4\u56DE\u7ED3\u6784\u5316\u8BC1\u636E\u3002");
-  }
-  if (visual.length > 0) {
-    lines.push("", "### \u753B\u9762\u8BC1\u636E");
-    visual.forEach(
-      (item) => renderVisual(lines, item, sourceUrl, allowTimestamps, result.artifact?.media_asset_root)
-    );
-  }
-  return lines.join("\n");
-}
-function renderAttentionMarkdown(result, sourceUrl = "") {
-  const assessment = result.attention;
-  if (!assessment) return "";
-  const actionLabel = {
-    watch: "\u503C\u5F97\u89C2\u770B",
-    skim: "\u5EFA\u8BAE\u9009\u6BB5\u6D4F\u89C8",
-    skip: "\u53EF\u4EE5\u8DF3\u8FC7"
-  }[assessment.action];
-  const lines = [
-    "## \u89C2\u770B\u4EF7\u503C\u5224\u65AD",
-    "",
-    `> [!summary] ${actionLabel}`,
-    `> ${escapeInline(assessment.rationale)}`
-  ];
-  const metrics = [
-    ["\u7EFC\u5408\u5206", assessment.score],
-    ["\u7F6E\u4FE1\u5EA6", assessment.confidence],
-    ["\u4FE1\u606F\u5BC6\u5EA6", assessment.information_density],
-    ["\u539F\u521B\u6027", assessment.originality],
-    ["\u53EF\u64CD\u4F5C\u6027", assessment.actionability],
-    ["\u4E0E\u5F53\u524D\u77E5\u8BC6\u5E93\u76F8\u5173\u5EA6", assessment.vault_relevance],
-    ["\u63A8\u5E7F\u5185\u5BB9\u5360\u6BD4", assessment.promotional_ratio]
-  ].filter((item) => typeof item[1] === "number");
-  if (metrics.length > 0) {
-    lines.push("", "| \u7EF4\u5EA6 | \u7ED3\u679C |", "| --- | ---: |");
-    metrics.forEach(([label, value]) => lines.push(`| ${label} | ${Math.round(value * 100)}% |`));
-  }
-  if (assessment.estimated_useful_seconds !== void 0) {
-    lines.push("", `\u9884\u8BA1\u9AD8\u4EF7\u503C\u5185\u5BB9\uFF1A\u7EA6 ${formatDuration(assessment.estimated_useful_seconds)}`);
-  }
-  const allowTimestamps = result.timing_quality !== "none";
-  appendRanges(lines, "\u5EFA\u8BAE\u89C2\u770B", assessment.must_watch, sourceUrl, allowTimestamps);
-  appendRanges(lines, "\u53EF\u4EE5\u7565\u8FC7", assessment.skippable, sourceUrl, allowTimestamps);
-  if (assessment.limitations?.length) {
-    lines.push("", "### \u5224\u65AD\u9650\u5236");
-    assessment.limitations.forEach((item) => lines.push(`- ${escapeInline(item)}`));
-  }
-  return lines.join("\n");
-}
-function renderLearningMarkdown(result) {
-  const learning = result.learning;
-  if (!learning) return "";
-  const lines = ["## \u5B66\u4E60\u7EC3\u4E60"];
-  if (learning.flashcards?.length) {
-    lines.push("", "### \u95EA\u5361");
-    learning.flashcards.forEach((card) => {
-      lines.push(`- **\u95EE\uFF1A${escapeInline(card.front)}** ^${sanitizeBlockId(card.id)}`);
-      lines.push(`  - \u7B54\uFF1A${escapeInline(card.back)}`);
-      if (card.evidence_segment_ids?.length) {
-        lines.push(`  - \u8BC1\u636E\uFF1A${card.evidence_segment_ids.map((id) => `#^${id}`).join("\u3001")}`);
-      }
-    });
-  }
-  if (learning.questions?.length) {
-    lines.push("", "### \u81EA\u6D4B\u9898");
-    learning.questions.forEach((question, index) => {
-      lines.push(`${index + 1}. ${escapeInline(question.prompt)} ^${sanitizeBlockId(question.id)}`);
-      if (question.choices?.length) {
-        question.choices.forEach((choice) => lines.push(`   - ${escapeInline(choice)}`));
-      }
-      lines.push(`   - \u7B54\u6848\uFF1A||${escapeInline(question.answer)}||`);
-      if (question.explanation) lines.push(`   - \u89E3\u91CA\uFF1A${escapeInline(question.explanation)}`);
-    });
-  }
-  if (learning.feynman_prompts?.length) {
-    lines.push("", "### \u8D39\u66FC\u89E3\u91CA");
-    learning.feynman_prompts.forEach((prompt) => lines.push(`- [ ] ${escapeInline(prompt)}`));
-  }
-  return lines.join("\n");
-}
-function renderClaim(lines, claim, segments, sourceUrl, allowTimestamps) {
-  const firstSegment = claim.evidence.map((reference) => segments.get(reference.segment_id)).find(Boolean);
-  const start = allowTimestamps ? claim.start ?? firstSegment?.start ?? null : null;
-  const timestampUrl2 = buildTimestampUrl(sourceUrl, start);
-  const timestamp = start === null ? "\u6587\u672C\u8BC1\u636E" : timestampUrl2 ? `[${formatTimestamp(start)}](${timestampUrl2})` : formatTimestamp(start);
-  const review = claim.review_state === "needs-review" ? " \xB7 **\u9700\u590D\u6838**" : claim.review_state === "inference" ? " \xB7 AI \u63A8\u65AD" : "";
-  lines.push(`- ${timestamp} ${escapeInline(claim.claim)}${review} ^${sanitizeBlockId(claim.id)}`);
-  if (claim.evidence.length === 0) {
-    lines.push("  - \u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u6765\u6E90\u5F15\u7528");
-    return;
-  }
-  claim.evidence.forEach((reference) => {
-    const segment = segments.get(reference.segment_id);
-    const label = SOURCE_LABELS[reference.source];
-    const quote = reference.quote || segment?.text;
-    const segmentTimestamp = segment ? segmentLink(segment, sourceUrl, allowTimestamps) : "\u6765\u6E90\u7F3A\u5931";
-    lines.push(`  - ${label} \xB7 ${segmentTimestamp}${quote ? `\uFF1A${escapeInline(quote)}` : ""}`);
-  });
-}
-function renderVisual(lines, item, sourceUrl, allowTimestamps, managedMediaRoot) {
-  if (!allowTimestamps) {
-    lines.push(
-      `- \u753B\u9762\u8BC1\u636E\uFF08\u65F6\u95F4\u672A\u5BF9\u9F50\uFF09 ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`
-    );
-    if (item.ocr_text) lines.push(`  - \u5C4F\u5E55\u6587\u5B57\uFF1A${escapeInline(item.ocr_text)}`);
-    appendKeyframe(lines, item, managedMediaRoot);
-    return;
-  }
-  const timestampUrl2 = buildTimestampUrl(sourceUrl, item.start);
-  const timestamp = timestampUrl2 ? `[${formatTimestamp(item.start)}](${timestampUrl2})` : formatTimestamp(item.start);
-  lines.push(`- ${timestamp} ${escapeInline(item.description)} ^${sanitizeBlockId(item.id)}`);
-  if (item.ocr_text) lines.push(`  - \u5C4F\u5E55\u6587\u5B57\uFF1A${escapeInline(item.ocr_text)}`);
-  appendKeyframe(lines, item, managedMediaRoot);
-}
-function appendKeyframe(lines, item, managedMediaRoot) {
-  const path = safeManagedVaultImagePath(item.keyframe?.path, managedMediaRoot);
-  if (path) {
-    lines.push(`  - ![[${path.replace(/\|/g, "\\|")}]]`);
-    return;
-  }
-  const url = safeRemoteImageUrl(item.keyframe?.url);
-  if (url) lines.push(`  - [\u8FDC\u7A0B\u5173\u952E\u5E27\uFF08\u70B9\u51FB\u6253\u5F00\uFF09](<${escapeMarkdownDestination(url)}>)`);
-}
-function escapeMarkdownDestination(value) {
-  return value.replace(/</g, "%3C").replace(/>/g, "%3E").replace(/\r?\n/g, "");
-}
-function segmentLink(segment, sourceUrl, allowTimestamps) {
-  if (!allowTimestamps || segment.start === null || segment.timing_quality === "none") {
-    return "\u6587\u672C\u8BC1\u636E";
-  }
-  const url = safeExternalHttpUrl(segment.timestamp_url) || buildTimestampUrl(sourceUrl, segment.start);
-  const label = formatTimestamp(segment.start);
-  return url ? `[${label}](<${escapeMarkdownDestination(url)}>)` : label;
-}
-function segmentMeta(segment) {
-  const parts = [SOURCE_LABELS[segment.source]];
-  if (segment.speaker) parts.push(segment.speaker);
-  if (segment.timing_quality === "estimated") parts.push("\u4F30\u7B97\u65F6\u95F4");
-  if (segment.visual_text) parts.push(`\u5C4F\u5E55\uFF1A${escapeInline(segment.visual_text)}`);
-  return parts.join(" \xB7 ");
-}
-function appendRanges(lines, title, ranges, sourceUrl, allowTimestamps) {
-  if (!Array.isArray(ranges) || ranges.length === 0) return;
-  lines.push("", `### ${title}`);
-  ranges.forEach((range) => {
-    if (!allowTimestamps) {
-      lines.push(`- \u65F6\u95F4\u672A\u5BF9\u9F50 \xB7 ${escapeInline(range.reason)}`);
-      return;
-    }
-    const url = buildTimestampUrl(sourceUrl, range.start);
-    const time = `${formatTimestamp(range.start)}\u2013${formatTimestamp(range.end)}`;
-    lines.push(`- ${url ? `[${time}](${url})` : time} ${escapeInline(range.reason)}`);
-  });
-}
-function removeLegacyPlaceholder(body, kind) {
-  if (kind !== "generated") return body;
-  return body.replace(/## 视频内容\s*\n<!-- 视频总结将在这里生成 -->\s*/g, "");
-}
-function formatDuration(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = Math.round(seconds % 60);
-  return minutes > 0 ? `${minutes} \u5206 ${remainder} \u79D2` : `${remainder} \u79D2`;
-}
-function escapeInline(value) {
-  return sanitizeGeneratedMarkdownActiveResources(String(value || "")).replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
-}
-function sanitizeBlockId(value) {
-  const raw = String(value || "").trim();
-  const normalized = raw.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
-  if (!normalized) return `video-evidence-${stableHash(raw || "missing")}`;
-  return normalized === raw ? normalized : `${normalized}-${stableHash(raw)}`;
-}
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function assignNonEmptyString(fields, key, value) {
-  if (typeof value === "string" && value.trim()) fields[key] = value;
-}
-function isSafeFrontmatterScalar(value) {
-  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
-}
-
-// utils/errors.ts
-function errorMessage(error) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  try {
-    return JSON.stringify(error) ?? String(error);
-  } catch {
-    return String(error);
-  }
-}
-
-// utils/noteCssClass.ts
-function withCssClass(fm, cssClass) {
-  const name = cssClass.trim();
-  if (!/^[A-Za-z][\w-]*$/.test(name)) return;
-  const raw = fm.cssclasses ?? fm.cssclass;
-  const list = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
-  if (!list.includes(name)) list.push(name);
-  delete fm.cssclass;
-  fm.cssclasses = list;
-}
-
-// utils/NoteProcessor.ts
-var NoteProcessor = class {
-  constructor(vault, cssClass = () => "") {
-    this.vault = vault;
-    this.cssClass = cssClass;
-  }
-  /**
-   * 解析 frontmatter 与正文
-   */
-  parseFrontmatter(content) {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?/);
-    if (fmMatch) {
-      const fmText = fmMatch[1];
-      let fm = {};
-      try {
-        fm = asRecord((0, import_obsidian.parseYaml)(fmText));
-      } catch {
-        fm = {};
-      }
-      const body = content.slice(fmMatch[0].length);
-      return { fm, body };
-    }
-    return { fm: {}, body: content };
-  }
-  /**
-   * 构建包含 frontmatter 的内容
-   */
-  buildContent(fm, body) {
-    const fmText = (0, import_obsidian.stringifyYaml)(fm);
-    return `---
-${(fmText || "").trim()}
----
-${body}`;
-  }
-  /**
-   * 从笔记内容中提取视频链接
-   */
-  extractVideoUrl(content) {
-    const { fm, body } = this.parseFrontmatter(content);
-    const linkField = fm.link;
-    if (Array.isArray(linkField)) {
-      for (const l of linkField) {
-        if (typeof l === "string" && this.isValidVideoUrl(l)) return l;
-      }
-    } else if (typeof linkField === "string") {
-      if (this.isValidVideoUrl(linkField)) return linkField;
-    }
-    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
-    const urls = body.match(urlRegex);
-    if (urls) {
-      for (const url of urls) {
-        if (this.isValidVideoUrl(url)) return url;
-      }
-    }
-    return null;
-  }
-  /**
-   * 从笔记内容中提取现有文稿
-   */
-  extractExistingTranscript(content) {
-    const { fm } = this.parseFrontmatter(content);
-    const v = fm.video_transcript;
-    return typeof v === "string" && v.trim() ? v.trim() : null;
-  }
-  extractProvidedTranscript(content) {
-    const { fm } = this.parseFrontmatter(content);
-    const provided = fm.provided_transcript;
-    if (typeof provided === "string" && provided.trim()) {
-      return provided.trim();
-    }
-    const existing = fm.video_transcript;
-    if (typeof existing === "string" && existing.trim()) {
-      return existing.trim();
-    }
-    return null;
-  }
-  /**
-   * 从笔记内容中提取本地文件名
-   */
-  extractLocalFileName(content) {
-    const { fm } = this.parseFrontmatter(content);
-    const v = fm.local_file;
-    return typeof v === "string" && v.trim() ? v.trim() : null;
-  }
-  /**
-   * 从笔记内容中提取多个本地文件名（逗号分隔）
-   */
-  extractLocalFileNames(content) {
-    const raw = this.extractLocalFileName(content);
-    if (!raw) return [];
-    return raw.split(",").map((f) => f.trim()).filter((f) => f.length > 0);
-  }
-  /**
-   * 从笔记内容中提取元数据
-   */
-  extractMetadata(content) {
-    const { fm } = this.parseFrontmatter(content);
-    const md = {};
-    const fields = md;
-    const copy = (k) => {
-      const v = fm[k];
-      if (typeof v === "string") fields[k] = v;
-    };
-    [
-      "status",
-      "video_summary_status",
-      "link",
-      "video_title",
-      "video_author",
-      "video_duration",
-      "video_cover",
-      "video_artifact_id",
-      "video_content_type",
-      "video_attention_action",
-      "video_processing_depth",
-      "video_review_due",
-      "summary",
-      "video_transcript",
-      "date",
-      "updated"
-    ].forEach((k) => copy(k));
-    return md;
-  }
-  /**
-   * 检查笔记是否已经包含基础视频信息（用于 info-only 批量补全）
-   * 这里的「info」主要指：视频标题 / 作者 / 时长 等基础字段
-   */
-  hasBasicVideoInfo(content) {
-    const metadata = this.extractMetadata(content);
-    return !!(metadata.video_title || metadata.video_author || metadata.video_duration);
-  }
-  /**
-   * 更新笔记内容
-   */
-  async updateNote(file, result, mode, options) {
-    const content = await this.vault.read(file);
-    const { fm, body } = this.parseFrontmatter(content);
-    fm.video_summary = true;
-    if (!fm.source_type) fm.source_type = "video";
-    withCssClass(fm, this.cssClass());
-    Object.assign(fm, buildRichFrontmatterFields(result));
-    const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
-    if (learningItems > 0 && !fm.video_review_due) {
-      fm.video_review_due = (/* @__PURE__ */ new Date()).toISOString();
-    }
-    delete fm.processing_error;
-    delete fm.processing_error_code;
-    delete fm.processing_error_at;
-    if (fm.provided_transcript) delete fm.provided_transcript;
-    let newBody = body;
-    newBody = this.removeProcessingErrorBlock(newBody);
-    const sourceUrl = typeof fm.link === "string" ? fm.link : "";
-    newBody = writeManagedKnowledgeMarkdown(
-      newBody,
-      result,
-      sourceUrl,
-      managedWriteOptionsForMode(mode)
-    );
-    const newContent = this.buildContent(fm, newBody);
-    await this.vault.process(file, (current) => {
-      if (current !== content) throw new Error("\u7B14\u8BB0\u5728\u5904\u7406\u671F\u95F4\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4F60\u7684\u4FEE\u6539\u5DF2\u4FDD\u7559\u3002");
-      return newContent;
-    });
-    if (options?.autoRename) {
-      await this.renameFileToVideoTitle(
-        file,
-        result.video_title || "",
-        newBody,
-        options.conflictStrategy || "append-number"
-      );
-    }
-  }
-  /**
-   * 设置处理状态
-   */
-  async setProcessingStatus(file, status) {
-    const content = await this.vault.read(file);
-    const { fm, body } = this.parseFrontmatter(content);
-    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
-    fm.video_summary = true;
-    if (!fm.source_type) fm.source_type = "video";
-    fm.video_summary_status = canonicalPluginStatus(status);
-    if (mirrorLegacyStatus) fm.status = status;
-    const newContent = this.buildContent(fm, body);
-    await this.vault.process(file, (current) => {
-      if (current !== content) throw new Error("\u7B14\u8BB0\u5728\u5904\u7406\u671F\u95F4\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4F60\u7684\u4FEE\u6539\u5DF2\u4FDD\u7559\u3002");
-      return newContent;
-    });
-  }
-  async setProcessingError(file, error) {
-    const content = await this.vault.read(file);
-    const { fm, body } = this.parseFrontmatter(content);
-    const errorMessage2 = this.normalizeErrorMessage(error);
-    const mirrorLegacyStatus = shouldMirrorLegacyStatus(fm.status);
-    fm.video_summary = true;
-    if (!fm.source_type) fm.source_type = "video";
-    fm.video_summary_status = "error";
-    if (mirrorLegacyStatus) fm.status = "error";
-    fm.processing_error = errorMessage2;
-    fm.processing_error_at = (/* @__PURE__ */ new Date()).toISOString();
-    const newBody = `${this.removeProcessingErrorBlock(body).trim()}
-
-${this.buildProcessingErrorBlock(errorMessage2)}
-`;
-    const newContent = this.buildContent(fm, newBody);
-    await this.vault.process(file, (current) => {
-      if (current !== content) throw new Error("\u7B14\u8BB0\u5728\u5904\u7406\u671F\u95F4\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4F60\u7684\u4FEE\u6539\u5DF2\u4FDD\u7559\u3002");
-      return newContent;
-    });
-  }
-  /**
-   * 构建视频输入对象
-   */
-  buildVideoInput(content) {
-    const input = {};
-    const url = this.extractVideoUrl(content);
-    if (url) {
-      input.url = url;
-    }
-    const providedTranscript = this.extractProvidedTranscript(content);
-    if (providedTranscript) {
-      input.transcript = providedTranscript;
-    }
-    const localFiles = this.extractLocalFileNames(content);
-    if (localFiles.length > 0) {
-      if (localFiles.length === 1) {
-        input.localFile = localFiles[0];
-      } else {
-        input.localFile = localFiles.join(", ");
-        input.localFiles = localFiles;
-        input.merge = true;
-      }
-    }
-    return input;
-  }
-  /**
-   * 检查是否为有效的视频URL
-   */
-  isValidVideoUrl(url) {
-    return SUPPORTED_PLATFORMS.some((platform) => url.includes(platform));
-  }
-  /**
-   * 更新或添加frontmatter字段
-   */
-  updateOrAddField(fmText, field, value) {
-    const regex = new RegExp(`^${field}:.*$`, "m");
-    const newValue = `"${String(value).replace(/"/g, '\\"')}"`;
-    const fieldLine = `${field}: ${newValue}`;
-    if (regex.test(fmText)) {
-      return fmText.replace(regex, fieldLine);
-    } else {
-      return `${fmText.trim()}
-${fieldLine}`;
-    }
-  }
-  /**
-   * 更新文稿字段（使用YAML block scalar格式）
-   */
-  updateTranscriptField(fmText, transcript) {
-    const transcriptBlock = `|
-  ${transcript.replace(/\n/g, "\n  ")}`;
-    const regex = /^video_transcript:[\s\S]*?(?=\n\w+:\s|$)/m;
-    const fieldLine = `video_transcript: ${transcriptBlock}`;
-    if (regex.test(fmText)) {
-      return fmText.replace(regex, fieldLine);
-    } else {
-      return `${fmText}
-${fieldLine}`;
-    }
-  }
-  /**
-   * 移除frontmatter字段
-   */
-  removeField(fmText, field) {
-    const regex = new RegExp(`^${field}:.*$\\n?`, "gm");
-    return fmText.replace(regex, "").replace(/\n\n+/g, "\n").trim();
-  }
-  normalizeErrorMessage(error) {
-    if (error instanceof Error) return errorMessage(error);
-    return typeof error === "string" && error ? error : "\u672A\u77E5\u9519\u8BEF";
-  }
-  buildProcessingErrorBlock(errorMessage2) {
-    const lines = errorMessage2.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").map((line) => `> ${line}`).join("\n");
-    return [
-      "<!-- video-summary-error:start -->",
-      "## \u5904\u7406\u9519\u8BEF",
-      "> [!failure] \u89C6\u9891\u5904\u7406\u5931\u8D25",
-      lines || "> \u672A\u77E5\u9519\u8BEF",
-      ">",
-      "> \u51FA\u9519\u7684\u6B65\u9AA4\u53EF\u4EE5\u5728 n8n \u7684 Executions \u9875\u9762\u67E5\u770B\uFF1Ahttp://127.0.0.1:5678/home/executions",
-      "<!-- video-summary-error:end -->"
-    ].join("\n");
-  }
-  removeProcessingErrorBlock(body) {
-    return body.replace(
-      /\n?<!-- video-summary-error:start -->[\s\S]*?<!-- video-summary-error:end -->\n?/g,
-      "\n"
-    ).replace(/\n{3,}/g, "\n\n");
-  }
-  /**
-   * 检查笔记是否包含视频内容
-   */
-  hasVideoContent(content) {
-    return !!this.extractVideoUrl(content) || !!this.extractProvidedTranscript(content) || !!this.extractLocalFileName(content);
-  }
-  /**
-   * 获取笔记的处理状态
-   */
-  getProcessingStatus(content) {
-    const metadata = this.extractMetadata(content);
-    return metadata.video_summary_status || metadata.status || null;
-  }
-  /**
-   * 检查笔记是否需要处理
-   */
-  needsProcessing(content) {
-    const status = this.getProcessingStatus(content);
-    return !status || status === "error" || status === "running";
-  }
-  /**
-   * 从正文中提取标题
-   */
-  extractBodyTitle(body) {
-    const bodyOnly = body.replace(/^---\n[\s\S]*?\n---\n/, "");
-    const titleMatch = bodyOnly.match(/^#\s+(.+)$/m);
-    if (titleMatch) {
-      return titleMatch[1].trim();
-    }
-    const h2Match = bodyOnly.match(/^##\s+(.+)$/m);
-    if (h2Match) {
-      return h2Match[1].trim();
-    }
-    const h3Match = bodyOnly.match(/^###\s+(.+)$/m);
-    if (h3Match) {
-      return h3Match[1].trim();
-    }
-    const lines = bodyOnly.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
-    if (lines.length > 0) {
-      return lines[0].slice(0, 80);
-    }
-    return null;
-  }
-  /**
-   * 根据video_title或正文标题重命名文件
-   */
-  async renameFileToVideoTitle(file, videoTitle, body, strategy = "append-number") {
-    try {
-      let titleToUse = "";
-      if (videoTitle && videoTitle.trim()) {
-        titleToUse = videoTitle.trim();
-      } else {
-        const bodyTitle = this.extractBodyTitle(body);
-        if (bodyTitle && bodyTitle.trim()) {
-          titleToUse = bodyTitle.trim();
-        } else {
-          return;
-        }
-      }
-      const cleanTitle = titleToUse.replace(/[<>:"/\\|?*]/g, "_").trim();
-      if (!cleanTitle) {
-        return;
-      }
-      const newFileName = `${cleanTitle}.md`;
-      if (file.parent && file.parent.path !== "") {
-        const newPath = `${file.parent.path}/${newFileName}`;
-        if (newPath === file.path) {
-          return;
-        }
-        let targetPath = newPath;
-        const exists = (p) => !!this.vault.getAbstractFileByPath(p);
-        if (exists(targetPath)) {
-          if (strategy === "skip") {
-            return;
-          }
-          if (strategy === "append-date") {
-            const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-            targetPath = `${file.parent.path}/${cleanTitle} ${date}.md`;
-            if (exists(targetPath)) {
-              strategy = "append-number";
-            }
-          }
-          if (strategy === "append-number") {
-            let index = 1;
-            while (exists(`${file.parent.path}/${cleanTitle} (${index}).md`)) index++;
-            targetPath = `${file.parent.path}/${cleanTitle} (${index}).md`;
-          }
-        }
-        await this.vault.rename(file, targetPath);
-      } else {
-        let targetPath = newFileName;
-        if (targetPath === file.path) {
-          return;
-        }
-        const exists = (p) => !!this.vault.getAbstractFileByPath(p);
-        if (exists(targetPath)) {
-          if (strategy === "skip") {
-            return;
-          }
-          if (strategy === "append-date") {
-            const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-            targetPath = `${cleanTitle} ${date}.md`;
-            if (exists(targetPath)) {
-              strategy = "append-number";
-            }
-          }
-          if (strategy === "append-number") {
-            let index = 1;
-            while (exists(`${cleanTitle} (${index}).md`)) index++;
-            targetPath = `${cleanTitle} (${index}).md`;
-          }
-        }
-        await this.vault.rename(file, targetPath);
-      }
-    } catch (error) {
-      console.error(`\u91CD\u547D\u540D\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
-    }
-  }
-};
-function shouldMirrorLegacyStatus(value) {
-  const text2 = typeof value === "string" || typeof value === "number" ? String(value) : "";
-  if (text2.trim() === "") return true;
-  const status = text2.trim().toLowerCase();
-  return (/* @__PURE__ */ new Set([
-    "pending",
-    "running",
-    "success",
-    "error",
-    "excluded",
-    "\u{1F4FA}",
-    "\u23F3",
-    "\u2705",
-    "\u25B6\uFE0F",
-    "\u274C",
-    "\u26D4\uFE0F",
-    "\u26D4",
-    "\u5F85\u5904\u7406",
-    "\u5904\u7406\u4E2D",
-    "\u5DF2\u5904\u7406",
-    "\u5904\u7406\u5931\u8D25",
-    "\u975E\u89C6\u9891\u7B14\u8BB0"
-  ])).has(status);
-}
-function canonicalPluginStatus(value) {
-  const status = String(value || "").trim().toLowerCase();
-  if (status === "pending" || status === "\u{1F4FA}" || status === "\u5F85\u5904\u7406") return "pending";
-  if (status === "running" || status === "\u23F3" || status === "\u5904\u7406\u4E2D") return "running";
-  if (status === "error" || status === "\u274C" || status === "\u5904\u7406\u5931\u8D25") return "error";
-  if (status === "excluded" || status.includes("\u26D4") || status === "\u975E\u89C6\u9891\u7B14\u8BB0") return "excluded";
-  return "success";
-}
 
 // utils/RetryUtils.ts
 var RetryUtils = class {
@@ -2932,8 +2109,19 @@ var RetryUtils = class {
   }
 };
 
+// utils/errors.ts
+function errorMessage(error) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error) ?? String(error);
+  } catch {
+    return String(error);
+  }
+}
+
 // modals/VideoSummaryModal.ts
-var VideoSummaryModal = class extends import_obsidian2.Modal {
+var VideoSummaryModal = class extends import_obsidian.Modal {
   constructor(app, plugin, editor, view) {
     super(app);
     this.mode = "summary";
@@ -2946,14 +2134,14 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
     this.plugin = plugin;
     this.editor = editor;
     this.view = view;
-    this.noteProcessor = new NoteProcessor(app.vault, () => plugin.settings.noteCssClass ?? "");
+    this.noteProcessor = plugin.createNoteProcessor();
   }
   onOpen() {
     this.modalEl.addClass("ap", "ap-modal");
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: tr("\u{1F4FA} \u89C6\u9891\u603B\u7ED3\u5904\u7406", "\u{1F4FA} Video Summary") });
-    new import_obsidian2.Setting(contentEl).setName(tr("\u5904\u7406\u6A21\u5F0F", "Mode")).setDesc(tr("\u9009\u62E9\u5904\u7406\u65B9\u5F0F", "How to process it")).addDropdown((dropdown) => {
+    new import_obsidian.Setting(contentEl).setName(tr("\u5904\u7406\u6A21\u5F0F", "Mode")).setDesc(tr("\u9009\u62E9\u5904\u7406\u65B9\u5F0F", "How to process it")).addDropdown((dropdown) => {
       processingModes().forEach((mode) => {
         dropdown.addOption(mode.value, mode.label);
       });
@@ -2962,7 +2150,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         this.mode = value;
       });
     });
-    const languageSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u8F93\u51FA\u8BED\u8A00", "Output language")).setDesc(tr("\u751F\u6210\u603B\u7ED3\u7684\u8BED\u8A00", "Language of the summary")).addDropdown((dropdown) => {
+    const languageSetting = new import_obsidian.Setting(contentEl).setName(tr("\u8F93\u51FA\u8BED\u8A00", "Output language")).setDesc(tr("\u751F\u6210\u603B\u7ED3\u7684\u8BED\u8A00", "Language of the summary")).addDropdown((dropdown) => {
       LANGUAGE_OPTIONS.forEach((lang) => {
         dropdown.addOption(lang.value, lang.label);
       });
@@ -2980,7 +2168,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         updateLanguageVisibility();
       }
     });
-    const videoUrlSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u89C6\u9891\u94FE\u63A5", "Video link")).setDesc(
+    const videoUrlSetting = new import_obsidian.Setting(contentEl).setName(tr("\u89C6\u9891\u94FE\u63A5", "Video link")).setDesc(
       tr(
         "\u8F93\u5165\u89C6\u9891\u94FE\u63A5\uFF08YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\uFF09",
         "A video link (YouTube, Bilibili, Douyin, TikTok)"
@@ -2992,14 +2180,14 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
       "\u89C6\u9891\u94FE\u63A5\uFF0C\u4F8B\u5982 YouTube \u6216\u54D4\u54E9\u54D4\u54E9",
       "Video link, for example YouTube or Bilibili"
     );
-    const transcriptSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u63D0\u4F9B\u7684\u6587\u7A3F", "Transcript you provide")).setDesc(tr("\u8F93\u5165\u6587\u7A3F\u5185\u5BB9\uFF08\u53EF\u9009\uFF09", "Transcript text (optional)"));
+    const transcriptSetting = new import_obsidian.Setting(contentEl).setName(tr("\u63D0\u4F9B\u7684\u6587\u7A3F", "Transcript you provide")).setDesc(tr("\u8F93\u5165\u6587\u7A3F\u5185\u5BB9\uFF08\u53EF\u9009\uFF09", "Transcript text (optional)"));
     this.providedTranscriptInput = transcriptSetting.controlEl.createEl("textarea");
     this.providedTranscriptInput.placeholder = tr(
       "\u5728\u8FD9\u91CC\u8F93\u5165\u6587\u7A3F\u5185\u5BB9...",
       "Type the transcript here..."
     );
     this.providedTranscriptInput.rows = 4;
-    const localFileSetting = new import_obsidian2.Setting(contentEl).setName(tr("\u672C\u5730\u6587\u4EF6", "Local file")).setDesc(
+    const localFileSetting = new import_obsidian.Setting(contentEl).setName(tr("\u672C\u5730\u6587\u4EF6", "Local file")).setDesc(
       tr(
         "\u81EA\u5E26\u7684 n8n\uFF08docker \u7248\uFF09\u53EA\u63A5\u53D7 uploads \u6839\u76EE\u5F55\u91CC\u7684\u6587\u4EF6\u540D\u3002",
         "The bundled n8n (Docker) accepts only file names directly inside its uploads folder."
@@ -3049,7 +2237,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
   async processVideo() {
     const file = this.view.file;
     if (!file) {
-      new import_obsidian2.Notice(ERROR_MESSAGES.NO_FILE);
+      new import_obsidian.Notice(ERROR_MESSAGES.NO_FILE);
       return;
     }
     try {
@@ -3065,7 +2253,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         videoInput.localFile = this.localFileInput.value.trim();
       }
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian2.Notice(ERROR_MESSAGES.NO_INPUT);
+        new import_obsidian.Notice(ERROR_MESSAGES.NO_INPUT);
         return;
       }
       if (!await this.plugin.ensureBackendReady()) return;
@@ -3085,7 +2273,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
             return tr("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u5019...", "Getting video info, please wait...");
         }
       })();
-      this.progressNotice = new import_obsidian2.Notice(noticeText, 0);
+      this.progressNotice = new import_obsidian.Notice(noticeText, 0);
       const result = await RetryUtils.withSmartRetry(
         async () => {
           return await this.plugin.api.processVideo(
@@ -3147,7 +2335,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
             return tr("\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u83B7\u53D6\uFF01", "\u2705 Video info received!");
         }
       })();
-      new import_obsidian2.Notice(successText, 5e3);
+      new import_obsidian.Notice(successText, 5e3);
       this.recordHistory(file.basename, "success");
       this.close();
     } catch (error) {
@@ -3159,7 +2347,7 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
         await this.noteProcessor.setProcessingError(file, error);
         await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
       }
-      new import_obsidian2.Notice(
+      new import_obsidian.Notice(
         tr(
           `\u274C \u5904\u7406\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5\uFF09: ${errorMessage(error)}`,
           `\u274C Failed (after retries): ${errorMessage(error)}`
@@ -3195,8 +2383,8 @@ var VideoSummaryModal = class extends import_obsidian2.Modal {
 };
 
 // modals/ConfirmModal.ts
-var import_obsidian3 = require("obsidian");
-var ConfirmModal = class extends import_obsidian3.Modal {
+var import_obsidian2 = require("obsidian");
+var ConfirmModal = class extends import_obsidian2.Modal {
   constructor(app, title, message, resolve) {
     super(app);
     this.title = title;
@@ -3246,7 +2434,7 @@ var ConfirmModal = class extends import_obsidian3.Modal {
 };
 
 // BatchProcessingModal.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // utils/PlaylistProcessor.ts
 var DEFAULT_MAX_ITEMS = 500;
@@ -3642,7 +2830,7 @@ function appendBilibiliItems(records, output, seen, maxItems) {
       url,
       title: stringField(value, "title") || `B\u7AD9\u89C6\u9891 ${bvid}`,
       author: stringField(owner, "name") || stringField(author, "name") || "",
-      duration: typeof seconds === "number" ? formatDuration2(seconds) : void 0,
+      duration: typeof seconds === "number" ? formatDuration(seconds) : void 0,
       position: output.length
     });
   }
@@ -3666,7 +2854,7 @@ function normalizeUrlInput(url) {
     throw new Error("\u94FE\u63A5\u683C\u5F0F\u65E0\u6548");
   }
 }
-function formatDuration2(seconds) {
+function formatDuration(seconds) {
   const whole = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(whole / 3600);
   const minutes = Math.floor(whole % 3600 / 60);
@@ -3818,7 +3006,7 @@ function balancedJsonObject(text2, start) {
 }
 
 // views/ui.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // core/CoverPlaceholder.ts
 function isPlaceholderCover(url, width, height) {
@@ -3846,7 +3034,7 @@ function iconButton(parent, icon, label, onClick, extraCls) {
     cls: `vs-icon-btn${extraCls ? ` ${extraCls}` : ""}`,
     attr: { type: "button", "aria-label": label, title: label }
   });
-  (0, import_obsidian4.setIcon)(button, icon);
+  (0, import_obsidian3.setIcon)(button, icon);
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -3873,7 +3061,7 @@ function configChip(parent, label, value, items) {
   });
   chip.createSpan({ text: value, cls: "vs-chip-value" });
   const caret = chip.createSpan({ cls: "vs-chip-caret" });
-  (0, import_obsidian4.setIcon)(caret, "chevron-down");
+  (0, import_obsidian3.setIcon)(caret, "chevron-down");
   chip.addEventListener("click", (event) => {
     event.preventDefault();
     showMenu(event, items);
@@ -3881,7 +3069,7 @@ function configChip(parent, label, value, items) {
   return chip;
 }
 function showMenu(event, items) {
-  const menu = new import_obsidian4.Menu();
+  const menu = new import_obsidian3.Menu();
   items.forEach((spec) => {
     if (spec.separatorBefore) menu.addSeparator();
     menu.addItem((item) => {
@@ -3944,7 +3132,7 @@ function segmented(parent, items, active, onSelect) {
     });
     if (item.icon) {
       const icon = seg.createSpan({ cls: "vs-seg-icon" });
-      (0, import_obsidian4.setIcon)(icon, item.icon);
+      (0, import_obsidian3.setIcon)(icon, item.icon);
     }
     seg.createSpan({ text: item.label });
     if (item.count) seg.createSpan({ text: item.count, cls: "vs-seg-count" });
@@ -3963,8 +3151,8 @@ function thumbnail(parent, options = {}) {
     cls: "vs-thumb-placeholder",
     attr: { "aria-hidden": "true" }
   });
-  (0, import_obsidian4.setIcon)(placeholder, platformIcon(options.platform));
-  if (!placeholder.firstChild) (0, import_obsidian4.setIcon)(placeholder, "play");
+  (0, import_obsidian3.setIcon)(placeholder, platformIcon(options.platform));
+  if (!placeholder.firstChild) (0, import_obsidian3.setIcon)(placeholder, "play");
   if (options.cover) {
     const img = thumb.createEl("img", {
       cls: "vs-thumb-img",
@@ -4090,7 +3278,7 @@ function parseLocaleTime(value) {
 function emptyState(parent, icon, title, hint, action, secondary) {
   const wrapper = parent.createDiv({ cls: "vs-empty" });
   const iconEl = wrapper.createDiv({ cls: "vs-empty-icon" });
-  (0, import_obsidian4.setIcon)(iconEl, icon);
+  (0, import_obsidian3.setIcon)(iconEl, icon);
   wrapper.createDiv({ text: title, cls: "vs-empty-title" });
   if (hint) wrapper.createDiv({ text: hint, cls: "vs-empty-hint" });
   if (action || secondary) {
@@ -4111,7 +3299,7 @@ function emptyState(parent, icon, title, hint, action, secondary) {
 }
 
 // core/NoteIndex.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // utils/VideoUtils.ts
 var VIDEO_STATUS_FIELDS = [
@@ -4848,7 +4036,7 @@ var NoteIndex = class {
   handleRename(file, oldPath) {
     const existing = this.entries.get(oldPath);
     this.entries.delete(oldPath);
-    if (existing && file instanceof import_obsidian5.TFile) {
+    if (existing && file instanceof import_obsidian4.TFile) {
       this.entries.set(file.path, {
         ...existing,
         path: file.path,
@@ -5112,7 +4300,7 @@ async function fetchBilibiliCover(value) {
   if (!id) return void 0;
   const query = id.type === "bvid" ? `bvid=${encodeURIComponent(id.id)}` : `aid=${id.id}`;
   const response = await withTimeout(
-    (0, import_obsidian5.requestUrl)({
+    (0, import_obsidian4.requestUrl)({
       url: `https://api.bilibili.com/x/web-interface/view?${query}`,
       headers: {
         Accept: "application/json",
@@ -5610,9 +4798,9 @@ function renderCourseManagedBlock(manifest) {
     COURSE_INDEX_START,
     "## \u8BFE\u7A0B\u7D22\u5F15",
     "",
-    `> \u6765\u6E90\uFF1A[${escapeInline2(manifest.source.platform)}](${manifest.source.canonical_url}) \xB7 ${active.length} \u8282 \xB7 \u66F4\u65B0\u4E8E ${manifest.updated_at}`
+    `> \u6765\u6E90\uFF1A[${escapeInline(manifest.source.platform)}](${manifest.source.canonical_url}) \xB7 ${active.length} \u8282 \xB7 \u66F4\u65B0\u4E8E ${manifest.updated_at}`
   ];
-  if (manifest.description) lines.push("", escapeInline2(manifest.description));
+  if (manifest.description) lines.push("", escapeInline(manifest.description));
   lines.push(
     "",
     `\u8FDB\u5EA6\uFF1A${manifest.progress.complete}/${active.length} \u5B8C\u6210 \xB7 ${manifest.progress.pending} \u5F85\u5904\u7406 \xB7 ${manifest.progress.error} \u5931\u8D25`,
@@ -5735,11 +4923,11 @@ function yamlQuote(value) {
 function escapeHeading(value) {
   return value.replace(/\n/g, " ").trim();
 }
-function escapeInline2(value) {
+function escapeInline(value) {
   return value.replace(/\r?\n/g, " ").trim();
 }
 function escapeTable(value) {
-  return escapeInline2(value).replace(/\|/g, "\\|");
+  return escapeInline(value).replace(/\|/g, "\\|");
 }
 function escapeWikiTarget(value) {
   return value.replace(/\.md$/i, "").replace(/\|/g, "\\|");
@@ -5973,6 +5161,354 @@ function weightedLength(value) {
   return length;
 }
 
+// core/KnowledgeMarkdown.ts
+var SOURCE_LABELS = {
+  speech: "\u53E3\u8FF0",
+  screen: "\u5C4F\u5E55",
+  comment: "\u8BC4\u8BBA",
+  user: "\u7528\u6237",
+  "ai-inference": "AI \u63A8\u65AD"
+};
+function upsertManagedBlock(body, kind, markdown) {
+  const start = `<!-- video-summary-${kind}:start -->`;
+  const end = `<!-- video-summary-${kind}:end -->`;
+  const expression = new RegExp(`${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}`, "g");
+  const cleanMarkdown = markdown.trim();
+  const replacement = cleanMarkdown ? `${start}
+${cleanMarkdown}
+${end}` : "";
+  if (expression.test(body)) return body.replace(expression, replacement);
+  if (!replacement) return body;
+  const withoutPlaceholder = removeLegacyPlaceholder(body, kind);
+  if (!withoutPlaceholder) return `${replacement}
+`;
+  const separator = withoutPlaceholder.endsWith("\n\n") ? "" : withoutPlaceholder.endsWith("\n") ? "\n" : "\n\n";
+  return `${withoutPlaceholder}${separator}${replacement}
+`;
+}
+function writeManagedKnowledgeMarkdown(body, result, sourceUrl = "", options = {}) {
+  if (options.includeDiagnostics !== true) {
+    if (options.updateGenerated === false && options.updateEvidence === false) return body;
+    let next2 = writeCleanVideoBody(body, result, options.updateGenerated !== false);
+    if (options.updateLearning !== false && result.learning) {
+      next2 = upsertManagedBlock(next2, "learning", renderLearningMarkdown(result));
+    }
+    return next2;
+  }
+  const {
+    updateGenerated = true,
+    updateEvidence = true,
+    updateAttention = true,
+    updateLearning = true
+  } = options;
+  let next = body;
+  if (updateGenerated) {
+    next = upsertManagedBlock(next, "generated", renderGeneratedMarkdown(result));
+  }
+  if (updateEvidence) {
+    const hasEvidence = !!result.video_segments?.length || !!result.evidence_claims?.length || !!result.visual_evidence?.length;
+    next = upsertManagedBlock(
+      next,
+      "evidence",
+      hasEvidence ? renderEvidenceMarkdown(result, sourceUrl) : ""
+    );
+  }
+  if (updateAttention) {
+    next = upsertManagedBlock(
+      next,
+      "attention",
+      result.attention ? renderAttentionMarkdown(result, sourceUrl) : ""
+    );
+  }
+  if (updateLearning) {
+    next = upsertManagedBlock(
+      next,
+      "learning",
+      result.learning ? renderLearningMarkdown(result) : ""
+    );
+  }
+  return next;
+}
+function managedWriteOptionsForMode(mode) {
+  if (mode === "summary") return {};
+  if (mode === "transcript-only") {
+    return {
+      updateGenerated: false,
+      updateEvidence: true,
+      updateAttention: false,
+      updateLearning: false
+    };
+  }
+  return {
+    updateGenerated: false,
+    updateEvidence: false,
+    updateAttention: false,
+    updateLearning: false
+  };
+}
+function buildRichFrontmatterFields(result) {
+  const fields = {};
+  assignNonEmptyString(fields, "video_title", result.video_title);
+  assignNonEmptyString(fields, "video_author", result.video_author);
+  assignNonEmptyString(fields, "video_duration", result.video_duration);
+  assignNonEmptyString(
+    fields,
+    "video_cover",
+    safeRemoteImageUrl(result.video_cover) || safeInlineRasterDataUrl(result.video_cover)
+  );
+  assignNonEmptyString(fields, "summary", result.summary);
+  assignNonEmptyString(fields, "video_transcript", result.video_transcript);
+  assignNonEmptyString(fields, "video_artifact_id", result.artifact?.artifact_id);
+  assignNonEmptyString(fields, "video_content_type", result.content_type);
+  assignNonEmptyString(fields, "video_attention_action", result.attention?.action);
+  assignNonEmptyString(fields, "video_processing_depth", result.artifact?.processing_depth);
+  const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
+  if (learningItems > 0) fields.video_learning_items = learningItems;
+  return fields;
+}
+function serializeScalarFrontmatter(fields) {
+  for (const [key, value] of Object.entries(fields)) {
+    if (!isSafeFrontmatterScalar(value)) {
+      throw new TypeError(`Frontmatter field "${key}" must be a scalar value.`);
+    }
+  }
+  return Object.entries(fields).map(([key, value]) => `${yamlKey(key)}: ${yamlScalar(value)}`).join("\n");
+}
+var YAML_AMBIGUOUS = /^(?:true|false|yes|no|on|off|null|~|[-+]?(?:\.?\d|\.(?:inf|nan))[\d.eE_:+-]*|\d{4}-\d\d-\d\d.*)$/i;
+function yamlKey(key) {
+  return /^[A-Za-z_][\w-]*$/.test(key) ? key : JSON.stringify(key);
+}
+function yamlScalar(value) {
+  if (value === null) return "null";
+  if (typeof value !== "string") return String(value);
+  const plain = value.length > 0 && value === value.trim() && !YAML_AMBIGUOUS.test(value) && !/^[-?:,[\]{}#&*!|>'"%@`]/.test(value) && !/[\n\r\t]|: | #|:$/.test(value);
+  return plain ? value : JSON.stringify(value);
+}
+function renderGeneratedMarkdown(result) {
+  return sanitizeGeneratedMarkdownActiveResources(result.note || result.summary || "").trim();
+}
+function sanitizeGeneratedMarkdownActiveResources(markdown) {
+  return String(markdown || "").replace(/!/g, "&#33;").replace(/</g, "&lt;");
+}
+function escapeUntrustedMarkdownInline(value) {
+  const escaped = scalarText(value).replace(/\\/g, "\\\\").replace(/([*_[\]`()#|>])/g, "\\$1").replace(/\r?\n+/g, " ");
+  return sanitizeGeneratedMarkdownActiveResources(escaped).trim();
+}
+function renderEvidenceMarkdown(result, sourceUrl = "", limits = {}) {
+  const claims = (result.evidence_claims || []).slice(0, limits.claims ?? 20);
+  const segments = result.video_segments || [];
+  const segmentById = new Map(segments.map((segment) => [segment.id, segment]));
+  const visual = (result.visual_evidence || []).slice(0, limits.visual ?? 12);
+  const lines = ["## \u8BC1\u636E\u5730\u56FE"];
+  const allowTimestamps = result.timing_quality !== "none";
+  if (result.timing_quality === "none") {
+    lines.push(
+      "",
+      "> [!warning] \u5F53\u524D\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u8F74",
+      "> \u6587\u672C\u4ECD\u53EF\u6838\u5BF9\uFF0C\u4F46\u63D2\u4EF6\u4E0D\u4F1A\u4F2A\u9020\u53EF\u70B9\u51FB\u7684\u65F6\u95F4\u6233\u3002"
+    );
+  } else if (result.timing_quality === "estimated") {
+    lines.push("", "> [!warning] \u90E8\u5206\u65F6\u95F4\u70B9\u4E3A\u4F30\u7B97\u503C", "> \u5F15\u7528\u524D\u8BF7\u56DE\u770B\u539F\u89C6\u9891\u786E\u8BA4\u3002");
+  }
+  const warnings = result.artifact?.warnings || [];
+  if (warnings.length > 0) {
+    lines.push("", "> [!info] \u5904\u7406\u9650\u5236");
+    warnings.slice(0, 5).forEach((warning) => lines.push(`> - ${escapeInline2(warning)}`));
+  }
+  if (claims.length > 0) {
+    lines.push("", "### \u5173\u952E\u4E3B\u5F20");
+    claims.forEach((claim) => renderClaim(lines, claim, segmentById, sourceUrl, allowTimestamps));
+  } else if (segments.length > 0) {
+    lines.push("", "### \u53EF\u6838\u5BF9\u7247\u6BB5");
+    segments.slice(0, limits.segments ?? 40).forEach((segment) => {
+      const prefix = segmentLink(segment, sourceUrl, allowTimestamps);
+      lines.push(`- ${prefix} ${escapeInline2(segment.text)} ^${segment.id}`);
+      const meta = segmentMeta(segment);
+      if (meta) lines.push(`  - ${meta}`);
+    });
+  } else {
+    lines.push("", "> [!info] \u8FD9\u6B21\u7ED3\u679C\u6CA1\u6709\u8FD4\u56DE\u7ED3\u6784\u5316\u8BC1\u636E\u3002");
+  }
+  if (visual.length > 0) {
+    lines.push("", "### \u753B\u9762\u8BC1\u636E");
+    visual.forEach(
+      (item) => renderVisual(lines, item, sourceUrl, allowTimestamps, result.artifact?.media_asset_root)
+    );
+  }
+  return lines.join("\n");
+}
+function renderAttentionMarkdown(result, sourceUrl = "") {
+  const assessment = result.attention;
+  if (!assessment) return "";
+  const actionLabel = {
+    watch: "\u503C\u5F97\u89C2\u770B",
+    skim: "\u5EFA\u8BAE\u9009\u6BB5\u6D4F\u89C8",
+    skip: "\u53EF\u4EE5\u8DF3\u8FC7"
+  }[assessment.action];
+  const lines = [
+    "## \u89C2\u770B\u4EF7\u503C\u5224\u65AD",
+    "",
+    `> [!summary] ${actionLabel}`,
+    `> ${escapeInline2(assessment.rationale)}`
+  ];
+  const metrics = [
+    ["\u7EFC\u5408\u5206", assessment.score],
+    ["\u7F6E\u4FE1\u5EA6", assessment.confidence],
+    ["\u4FE1\u606F\u5BC6\u5EA6", assessment.information_density],
+    ["\u539F\u521B\u6027", assessment.originality],
+    ["\u53EF\u64CD\u4F5C\u6027", assessment.actionability],
+    ["\u4E0E\u5F53\u524D\u77E5\u8BC6\u5E93\u76F8\u5173\u5EA6", assessment.vault_relevance],
+    ["\u63A8\u5E7F\u5185\u5BB9\u5360\u6BD4", assessment.promotional_ratio]
+  ].filter((item) => typeof item[1] === "number");
+  if (metrics.length > 0) {
+    lines.push("", "| \u7EF4\u5EA6 | \u7ED3\u679C |", "| --- | ---: |");
+    metrics.forEach(([label, value]) => lines.push(`| ${label} | ${Math.round(value * 100)}% |`));
+  }
+  if (assessment.estimated_useful_seconds !== void 0) {
+    lines.push("", `\u9884\u8BA1\u9AD8\u4EF7\u503C\u5185\u5BB9\uFF1A\u7EA6 ${formatDuration2(assessment.estimated_useful_seconds)}`);
+  }
+  const allowTimestamps = result.timing_quality !== "none";
+  appendRanges(lines, "\u5EFA\u8BAE\u89C2\u770B", assessment.must_watch, sourceUrl, allowTimestamps);
+  appendRanges(lines, "\u53EF\u4EE5\u7565\u8FC7", assessment.skippable, sourceUrl, allowTimestamps);
+  if (assessment.limitations?.length) {
+    lines.push("", "### \u5224\u65AD\u9650\u5236");
+    assessment.limitations.forEach((item) => lines.push(`- ${escapeInline2(item)}`));
+  }
+  return lines.join("\n");
+}
+function renderLearningMarkdown(result) {
+  const learning = result.learning;
+  if (!learning) return "";
+  const lines = ["## \u5B66\u4E60\u7EC3\u4E60"];
+  if (learning.flashcards?.length) {
+    lines.push("", "### \u95EA\u5361");
+    learning.flashcards.forEach((card) => {
+      lines.push(`- **\u95EE\uFF1A${escapeInline2(card.front)}** ^${sanitizeBlockId(card.id)}`);
+      lines.push(`  - \u7B54\uFF1A${escapeInline2(card.back)}`);
+      if (card.evidence_segment_ids?.length) {
+        lines.push(`  - \u8BC1\u636E\uFF1A${card.evidence_segment_ids.map((id) => `#^${id}`).join("\u3001")}`);
+      }
+    });
+  }
+  if (learning.questions?.length) {
+    lines.push("", "### \u81EA\u6D4B\u9898");
+    learning.questions.forEach((question, index) => {
+      lines.push(`${index + 1}. ${escapeInline2(question.prompt)} ^${sanitizeBlockId(question.id)}`);
+      if (question.choices?.length) {
+        question.choices.forEach((choice) => lines.push(`   - ${escapeInline2(choice)}`));
+      }
+      lines.push(`   - \u7B54\u6848\uFF1A||${escapeInline2(question.answer)}||`);
+      if (question.explanation) lines.push(`   - \u89E3\u91CA\uFF1A${escapeInline2(question.explanation)}`);
+    });
+  }
+  if (learning.feynman_prompts?.length) {
+    lines.push("", "### \u8D39\u66FC\u89E3\u91CA");
+    learning.feynman_prompts.forEach((prompt) => lines.push(`- [ ] ${escapeInline2(prompt)}`));
+  }
+  return lines.join("\n");
+}
+function renderClaim(lines, claim, segments, sourceUrl, allowTimestamps) {
+  const firstSegment = claim.evidence.map((reference) => segments.get(reference.segment_id)).find(Boolean);
+  const start = allowTimestamps ? claim.start ?? firstSegment?.start ?? null : null;
+  const timestampUrl2 = buildTimestampUrl(sourceUrl, start);
+  const timestamp = start === null ? "\u6587\u672C\u8BC1\u636E" : timestampUrl2 ? `[${formatTimestamp(start)}](${timestampUrl2})` : formatTimestamp(start);
+  const review = claim.review_state === "needs-review" ? " \xB7 **\u9700\u590D\u6838**" : claim.review_state === "inference" ? " \xB7 AI \u63A8\u65AD" : "";
+  lines.push(`- ${timestamp} ${escapeInline2(claim.claim)}${review} ^${sanitizeBlockId(claim.id)}`);
+  if (claim.evidence.length === 0) {
+    lines.push("  - \u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u6765\u6E90\u5F15\u7528");
+    return;
+  }
+  claim.evidence.forEach((reference) => {
+    const segment = segments.get(reference.segment_id);
+    const label = SOURCE_LABELS[reference.source];
+    const quote = reference.quote || segment?.text;
+    const segmentTimestamp = segment ? segmentLink(segment, sourceUrl, allowTimestamps) : "\u6765\u6E90\u7F3A\u5931";
+    lines.push(`  - ${label} \xB7 ${segmentTimestamp}${quote ? `\uFF1A${escapeInline2(quote)}` : ""}`);
+  });
+}
+function renderVisual(lines, item, sourceUrl, allowTimestamps, managedMediaRoot) {
+  if (!allowTimestamps) {
+    lines.push(
+      `- \u753B\u9762\u8BC1\u636E\uFF08\u65F6\u95F4\u672A\u5BF9\u9F50\uFF09 ${escapeInline2(item.description)} ^${sanitizeBlockId(item.id)}`
+    );
+    if (item.ocr_text) lines.push(`  - \u5C4F\u5E55\u6587\u5B57\uFF1A${escapeInline2(item.ocr_text)}`);
+    appendKeyframe(lines, item, managedMediaRoot);
+    return;
+  }
+  const timestampUrl2 = buildTimestampUrl(sourceUrl, item.start);
+  const timestamp = timestampUrl2 ? `[${formatTimestamp(item.start)}](${timestampUrl2})` : formatTimestamp(item.start);
+  lines.push(`- ${timestamp} ${escapeInline2(item.description)} ^${sanitizeBlockId(item.id)}`);
+  if (item.ocr_text) lines.push(`  - \u5C4F\u5E55\u6587\u5B57\uFF1A${escapeInline2(item.ocr_text)}`);
+  appendKeyframe(lines, item, managedMediaRoot);
+}
+function appendKeyframe(lines, item, managedMediaRoot) {
+  const path = safeManagedVaultImagePath(item.keyframe?.path, managedMediaRoot);
+  if (path) {
+    lines.push(`  - ![[${path.replace(/\|/g, "\\|")}]]`);
+    return;
+  }
+  const url = safeRemoteImageUrl(item.keyframe?.url);
+  if (url) lines.push(`  - [\u8FDC\u7A0B\u5173\u952E\u5E27\uFF08\u70B9\u51FB\u6253\u5F00\uFF09](<${escapeMarkdownDestination(url)}>)`);
+}
+function escapeMarkdownDestination(value) {
+  return value.replace(/</g, "%3C").replace(/>/g, "%3E").replace(/\r?\n/g, "");
+}
+function segmentLink(segment, sourceUrl, allowTimestamps) {
+  if (!allowTimestamps || segment.start === null || segment.timing_quality === "none") {
+    return "\u6587\u672C\u8BC1\u636E";
+  }
+  const url = safeExternalHttpUrl(segment.timestamp_url) || buildTimestampUrl(sourceUrl, segment.start);
+  const label = formatTimestamp(segment.start);
+  return url ? `[${label}](<${escapeMarkdownDestination(url)}>)` : label;
+}
+function segmentMeta(segment) {
+  const parts = [SOURCE_LABELS[segment.source]];
+  if (segment.speaker) parts.push(segment.speaker);
+  if (segment.timing_quality === "estimated") parts.push("\u4F30\u7B97\u65F6\u95F4");
+  if (segment.visual_text) parts.push(`\u5C4F\u5E55\uFF1A${escapeInline2(segment.visual_text)}`);
+  return parts.join(" \xB7 ");
+}
+function appendRanges(lines, title, ranges, sourceUrl, allowTimestamps) {
+  if (!Array.isArray(ranges) || ranges.length === 0) return;
+  lines.push("", `### ${title}`);
+  ranges.forEach((range) => {
+    if (!allowTimestamps) {
+      lines.push(`- \u65F6\u95F4\u672A\u5BF9\u9F50 \xB7 ${escapeInline2(range.reason)}`);
+      return;
+    }
+    const url = buildTimestampUrl(sourceUrl, range.start);
+    const time = `${formatTimestamp(range.start)}\u2013${formatTimestamp(range.end)}`;
+    lines.push(`- ${url ? `[${time}](${url})` : time} ${escapeInline2(range.reason)}`);
+  });
+}
+function removeLegacyPlaceholder(body, kind) {
+  if (kind !== "generated") return body;
+  return body.replace(/## 视频内容\s*\n<!-- 视频总结将在这里生成 -->\s*/g, "");
+}
+function formatDuration2(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.round(seconds % 60);
+  return minutes > 0 ? `${minutes} \u5206 ${remainder} \u79D2` : `${remainder} \u79D2`;
+}
+function escapeInline2(value) {
+  return sanitizeGeneratedMarkdownActiveResources(String(value || "")).replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
+}
+function sanitizeBlockId(value) {
+  const raw = String(value || "").trim();
+  const normalized = raw.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!normalized) return `video-evidence-${stableHash(raw || "missing")}`;
+  return normalized === raw ? normalized : `${normalized}-${stableHash(raw)}`;
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function assignNonEmptyString(fields, key, value) {
+  if (typeof value === "string" && value.trim()) fields[key] = value;
+}
+function isSafeFrontmatterScalar(value) {
+  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
 // core/NoteFactory.ts
 var NoteFactory = class {
   constructor(app) {
@@ -6151,7 +5687,7 @@ function formatDateTime(date) {
 }
 
 // core/CourseIndexWriter.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var courseIndexLocks = /* @__PURE__ */ new Map();
 async function syncCourseIndexAtomic(vault, store, courseId, createIfMissing = true) {
   const previous = courseIndexLocks.get(courseId) ?? Promise.resolve();
@@ -6171,7 +5707,7 @@ async function writeLatestCourseIndex(vault, manifest, createIfMissing) {
   const path = manifest.index_note_path;
   if (!path) throw new Error("\u8BFE\u7A0B\u7D22\u5F15\u8DEF\u5F84\u5C1A\u672A\u521D\u59CB\u5316");
   const existing = vault.getAbstractFileByPath(path);
-  if (existing instanceof import_obsidian6.TFile) {
+  if (existing instanceof import_obsidian5.TFile) {
     await vault.process(existing, (current) => updateCourseMarkdown(current, manifest));
     return;
   }
@@ -6180,13 +5716,13 @@ async function writeLatestCourseIndex(vault, manifest, createIfMissing) {
     await vault.create(path, createCourseMarkdown(manifest));
   } catch (error) {
     const raced = vault.getAbstractFileByPath(path);
-    if (!(raced instanceof import_obsidian6.TFile)) throw error;
+    if (!(raced instanceof import_obsidian5.TFile)) throw error;
     await vault.process(raced, (current) => updateCourseMarkdown(current, manifest));
   }
 }
 
 // BatchProcessingModal.ts
-var BatchProcessingModal = class extends import_obsidian7.Modal {
+var BatchProcessingModal = class extends import_obsidian6.Modal {
   constructor(app, plugin) {
     super(app);
     this.mode = "summary";
@@ -6223,7 +5759,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     // 信息字段筛选：all - 不区分；no-info - 缺少基础视频信息；has-info - 已有基础视频信息
     this.infoFilter = "all";
     this.plugin = plugin;
-    this.noteProcessor = new NoteProcessor(app.vault);
+    this.noteProcessor = plugin.createNoteProcessor();
     this.noteFactory = new NoteFactory(app);
     this.courseStore = plugin.courseStore;
   }
@@ -6240,7 +5776,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       cls: "vs-icon-btn",
       attr: { type: "button", "aria-label": tr("\u5173\u95ED", "Close") }
     });
-    (0, import_obsidian7.setIcon)(closeBtn, "x");
+    (0, import_obsidian6.setIcon)(closeBtn, "x");
     closeBtn.onclick = () => this.close();
     const bodyEl = contentEl.createDiv({ cls: "vs-modal-body" });
     segmented(
@@ -6292,7 +5828,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     this.filterEl = fileSelectionEl.createDiv({ cls: "vs-modal-filters" });
     const search = this.filterEl.createDiv({ cls: "vs-search" });
     const searchIcon = search.createSpan({ cls: "vs-search-icon" });
-    (0, import_obsidian7.setIcon)(searchIcon, "search");
+    (0, import_obsidian6.setIcon)(searchIcon, "search");
     const searchInput = search.createEl("input", {
       cls: "vs-search-input",
       attr: {
@@ -6394,7 +5930,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     this.fileListEl = fileSelectionEl.createDiv({ cls: "vs-modal-list" });
     this.renderLastBatch(fileSelectionEl);
     const playlistSelectionEl = bodyEl.createDiv({ cls: "batch-playlist-selection" });
-    new import_obsidian7.Setting(playlistSelectionEl).setName(tr("\u8BFE\u7A0B\u6765\u6E90\u94FE\u63A5", "Course source link")).setDesc(
+    new import_obsidian6.Setting(playlistSelectionEl).setName(tr("\u8BFE\u7A0B\u6765\u6E90\u94FE\u63A5", "Course source link")).setDesc(
       tr(
         "\u652F\u6301 YouTube \u64AD\u653E\u5217\u8868\u4E0E\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\uFF1B\u89E3\u6790\u548C\u5BFC\u5165\u4E0D\u4F1A\u8C03\u7528 AI",
         "YouTube playlists and Bilibili collections or favourites; reading and importing them does not call the AI"
@@ -6461,7 +5997,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       attr: { type: "button" }
     });
     const startIcon = this.startButtonEl.createSpan({ cls: "vs-btn-icon" });
-    (0, import_obsidian7.setIcon)(startIcon, "play");
+    (0, import_obsidian6.setIcon)(startIcon, "play");
     this.startLabelEl = this.startButtonEl.createSpan({ text: tr("\u5F00\u59CB\u5904\u7406", "Start") });
     this.startButtonEl.addEventListener("click", () => {
       void this.startBatchProcessing();
@@ -6477,7 +6013,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     });
     pill.createSpan({ text: label });
     const caret = pill.createSpan({ cls: "vs-chip-caret" });
-    (0, import_obsidian7.setIcon)(caret, "chevron-down");
+    (0, import_obsidian6.setIcon)(caret, "chevron-down");
     pill.addEventListener("click", (event) => {
       event.preventDefault();
       showMenu(event, items());
@@ -6577,11 +6113,11 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
   }
   async parsePlaylist() {
     if (!this.playlistUrl.trim()) {
-      new import_obsidian7.Notice(tr("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5", "Enter a playlist link"));
+      new import_obsidian6.Notice(tr("\u8BF7\u8F93\u5165\u64AD\u653E\u5217\u8868\u94FE\u63A5", "Enter a playlist link"));
       return;
     }
     if (!PlaylistProcessor.isPlaylistUrl(this.playlistUrl)) {
-      new import_obsidian7.Notice(
+      new import_obsidian6.Notice(
         tr(
           "\u8BF7\u8F93\u5165\u6709\u6548\u7684 YouTube \u64AD\u653E\u5217\u8868\u6216\u54D4\u54E9\u54D4\u54E9\u5408\u96C6/\u6536\u85CF\u5939\u94FE\u63A5",
           "Enter a valid YouTube playlist or Bilibili collection/favourites link"
@@ -6673,7 +6209,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
         });
       }
       this.updateStartButton();
-      new import_obsidian7.Notice(
+      new import_obsidian6.Notice(
         tr(
           `\u8BFE\u7A0B\u589E\u91CF\u5DF2\u5C31\u7EEA\uFF1A${courseImport.diff.new.length} \u4E2A\u65B0\u589E\u89C6\u9891\uFF08\u5C1A\u672A\u8C03\u7528 AI\uFF09`,
           `Course changes ready: ${courseImport.diff.new.length} new videos (no AI used yet)`
@@ -6687,7 +6223,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
         text: tr(`\u274C \u89E3\u6790\u5931\u8D25: ${message}`, `\u274C Could not read it: ${message}`),
         cls: "mod-warning"
       });
-      new import_obsidian7.Notice(
+      new import_obsidian6.Notice(
         tr(`\u274C \u89E3\u6790\u64AD\u653E\u5217\u8868\u5931\u8D25: ${message}`, `\u274C Could not read the playlist: ${message}`)
       );
     }
@@ -6699,7 +6235,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     const files = [];
     for (const entry of entries2) {
       const file = this.app.vault.getAbstractFileByPath(entry.path);
-      if (file instanceof import_obsidian7.TFile) files.push(file);
+      if (file instanceof import_obsidian6.TFile) files.push(file);
     }
     this.allVideoFiles = files;
     this.selectedFiles = this.selectedFiles.filter(
@@ -6724,7 +6260,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       const row = this.fileListEl.createDiv({ cls: "vs-modal-row" });
       const checked = this.selectedFiles.some((selected) => selected.path === file.path);
       const box = row.createDiv({ cls: `vs-checkbox${checked ? " is-checked" : ""}` });
-      if (checked) (0, import_obsidian7.setIcon)(box, "check");
+      if (checked) (0, import_obsidian6.setIcon)(box, "check");
       const body = row.createDiv({ cls: "vs-modal-row-body" });
       body.createDiv({
         text: file.basename,
@@ -6809,7 +6345,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
   }
   async processFiles() {
     if (this.selectedFiles.length === 0) {
-      new import_obsidian7.Notice(tr("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6", "Select files to process first"));
+      new import_obsidian6.Notice(tr("\u8BF7\u5148\u9009\u62E9\u8981\u5904\u7406\u7684\u6587\u4EF6", "Select files to process first"));
       return;
     }
     if (!await this.plugin.ensureBackendReady()) return;
@@ -6858,7 +6394,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
           this.progress.failed++;
           this.progress.current = file.basename;
           this.updateProgressDisplay();
-          new import_obsidian7.Notice(
+          new import_obsidian6.Notice(
             tr(
               `\u274C ${file.basename} \u65E0\u6CD5\u52A0\u5165\u6279\u91CF\u4EFB\u52A1: ${normalizedError.message}`,
               `\u274C ${file.basename} could not join the batch: ${normalizedError.message}`
@@ -6886,7 +6422,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
               conflictStrategy: this.plugin.settings.renameConflictStrategy
             });
             await this.plugin.jobService.relinkExternalResult(artifactContext, result.result, file);
-            await this.noteProcessor.setProcessingStatus(
+            await this.noteProcessor.markProcessingSuccess(
               file,
               this.plugin.settings.successStatusValue ?? "success"
             );
@@ -6897,13 +6433,13 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
               result.result.artifact?.artifact_id
             );
             this.progress.completed++;
-            new import_obsidian7.Notice(tr(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, `\u2705 ${file.basename} done`), 3e3);
+            new import_obsidian6.Notice(tr(`\u2705 ${file.basename} \u5904\u7406\u5B8C\u6210`, `\u2705 ${file.basename} done`), 3e3);
           } catch (updateError) {
             console.error(`\u66F4\u65B0\u7B14\u8BB0\u5931\u8D25: ${file.basename}`, updateError);
             await this.noteProcessor.setProcessingError(file, updateError);
             await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
             this.progress.failed++;
-            new import_obsidian7.Notice(
+            new import_obsidian6.Notice(
               tr(
                 `\u274C ${file.basename} \u66F4\u65B0\u5931\u8D25: ${errorMessage(updateError)}`,
                 `\u274C ${file.basename} could not be updated: ${errorMessage(updateError)}`
@@ -6919,7 +6455,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
             );
             await this.plugin.jobService.updateCourseProgressForFile(file, "error", 0);
             this.progress.failed++;
-            new import_obsidian7.Notice(
+            new import_obsidian6.Notice(
               tr(
                 `\u274C ${file.basename} \u5904\u7406\u5931\u8D25: ${result.error}`,
                 `\u274C ${file.basename} failed: ${result.error}`
@@ -6945,12 +6481,12 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
         `\u6279\u91CF\u5904\u7406\u5B8C\u6210\uFF01\u6210\u529F: ${this.progress.completed}, \u5931\u8D25: ${this.progress.failed}`,
         `Batch finished. Succeeded: ${this.progress.completed}, failed: ${this.progress.failed}`
       );
-      new import_obsidian7.Notice(successText, 5e3);
+      new import_obsidian6.Notice(successText, 5e3);
     } catch (error) {
       console.error("\u6279\u91CF\u5904\u7406\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian7.Notice(
+      new import_obsidian6.Notice(
         tr(
           `\u274C \u6279\u91CF\u5904\u7406\u5931\u8D25: ${errorMessage(error)}`,
           `\u274C Batch processing failed: ${errorMessage(error)}`
@@ -6961,7 +6497,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
   }
   async processPlaylist() {
     if (!this.courseImport || !this.playlistInfo) {
-      new import_obsidian7.Notice(tr("\u8BF7\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF", "Preview the course changes first"));
+      new import_obsidian6.Notice(tr("\u8BF7\u5148\u9884\u89C8\u8BFE\u7A0B\u589E\u91CF", "Preview the course changes first"));
       return;
     }
     const selectedKeys = new Set(this.selectedPlaylistKeys);
@@ -7084,7 +6620,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       this.selectedPlaylistKeys.clear();
       this.courseImport = compileCourseImport(this.playlistInfo, manifest);
       this.updateStartButton();
-      new import_obsidian7.Notice(
+      new import_obsidian6.Notice(
         tr(
           `\u8BFE\u7A0B\u5DF2\u5BFC\u5165\uFF1A${this.progress.completed} \u6761\u5F85\u5904\u7406\u7B14\u8BB0\uFF0C\u672A\u8C03\u7528 AI${this.progress.failed > 0 ? `\uFF0C${this.progress.failed} \u6761\u521B\u5EFA\u5931\u8D25` : ""}`,
           `Course imported: ${this.progress.completed} pending notes, no AI used${this.progress.failed > 0 ? `, ${this.progress.failed} could not be created` : ""}`
@@ -7095,7 +6631,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
       console.error("\u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25:", error);
       this.progress.status = "error";
       this.updateProgressDisplay();
-      new import_obsidian7.Notice(
+      new import_obsidian6.Notice(
         tr(`\u274C \u8BFE\u7A0B\u5BFC\u5165\u5931\u8D25: ${messageOf(error)}`, `\u274C Course import failed: ${messageOf(error)}`),
         0
       );
@@ -7134,7 +6670,7 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     let suffix = 1;
     while (await this.app.vault.adapter.exists(path)) {
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian7.TFile) {
+      if (file instanceof import_obsidian6.TFile) {
         const content = await this.app.vault.read(file);
         if (content.includes(`course_id: ${manifest.course_id}`)) return path;
       }
@@ -7227,7 +6763,7 @@ function messageOf(error) {
 }
 
 // core/BilibiliLogin.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // core/BilibiliCookies.ts
 var LOGIN_COOKIES = ["SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid"];
@@ -7267,7 +6803,7 @@ var GENERATE_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/ge
 var POLL_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
 var HEADERS = { "User-Agent": "Mozilla/5.0", Referer: "https://www.bilibili.com/" };
 async function startQrLogin() {
-  const response = await (0, import_obsidian8.requestUrl)({ url: GENERATE_URL, headers: HEADERS, throw: false });
+  const response = await (0, import_obsidian7.requestUrl)({ url: GENERATE_URL, headers: HEADERS, throw: false });
   const body = response.json;
   const data = isRecord(body) && isRecord(body.data) ? body.data : null;
   if (response.status !== 200 || !data || typeof data.url !== "string") {
@@ -7276,7 +6812,7 @@ async function startQrLogin() {
   return { url: data.url, key: scalarText(data.qrcode_key) };
 }
 async function pollQrLogin(key) {
-  const response = await (0, import_obsidian8.requestUrl)({
+  const response = await (0, import_obsidian7.requestUrl)({
     url: `${POLL_URL}?qrcode_key=${encodeURIComponent(key)}`,
     headers: HEADERS,
     throw: false
@@ -11450,14 +10986,14 @@ _VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(r
 var VideoSummaryAPI = _VideoSummaryAPI;
 
 // views/VideoSummaryView.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 
 // views/panels/ActionBar.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // modals/FolderSelectModal.ts
-var import_obsidian9 = require("obsidian");
-var FolderSelectModal = class extends import_obsidian9.Modal {
+var import_obsidian8 = require("obsidian");
+var FolderSelectModal = class extends import_obsidian8.Modal {
   constructor(app, folders, onSelect) {
     super(app);
     this.folderContainer = null;
@@ -11588,7 +11124,7 @@ function renderActionBar(container, ctx) {
       ctx.plugin.settings.generateLearningArtifacts ? tr("\u5B66\u4E60\u5361", "Study cards") : ""
     ].filter(Boolean).join(" \xB7 ")
   });
-  (0, import_obsidian10.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
+  (0, import_obsidian9.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
   foldToggle.addEventListener("click", () => {
     state.advancedOpen = !state.advancedOpen;
     ctx.renderAll();
@@ -11675,7 +11211,7 @@ function renderHeader(root, ctx) {
       updateBackendPill(statusLine, dot, label, backend, "is-checking");
       const result = await probeBackend(ctx, backend, true);
       updateBackendPill(statusLine, dot, label, backend, result.state, result);
-      new import_obsidian10.Notice(
+      new import_obsidian9.Notice(
         result.state === "is-online" ? tr(
           `${backend.label} \u8FDE\u63A5\u6B63\u5E38\uFF08${result.durationMs ?? 0}ms\uFF09`,
           `${backend.label} connected (${result.durationMs ?? 0} ms)`
@@ -11917,7 +11453,7 @@ function renderContextStrip(root, ctx) {
   const meta = statusMeta(status);
   const strip = root.createDiv({ cls: "vs-context-strip" });
   const icon = strip.createDiv({ cls: "vs-context-icon" });
-  (0, import_obsidian10.setIcon)(icon, "file-text");
+  (0, import_obsidian9.setIcon)(icon, "file-text");
   const body = strip.createDiv({ cls: "vs-context-body" });
   body.createDiv({ text: activeFile.basename, cls: "vs-context-title" });
   const sub = body.createDiv({ cls: "vs-context-sub" });
@@ -12042,7 +11578,7 @@ function renderOptions(container, ctx) {
   });
   folderBtn.addEventListener("click", (event) => {
     event.preventDefault();
-    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian10.TFolder).map((folder) => folder.path).sort();
+    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian9.TFolder).map((folder) => folder.path).sort();
     new FolderSelectModal(
       plugin.app,
       folders,
@@ -12164,7 +11700,7 @@ function renderAdvanced(container, ctx, mainInput) {
   });
   localFile.addEventListener("blur", () => {
     if (isAbsoluteLocalPath(localFile.value)) {
-      new import_obsidian10.Notice(
+      new import_obsidian9.Notice(
         tr(
           "\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002\u7528 docker \u65F6\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002",
           "This looks like an absolute path. With Docker, use the file name inside uploads or a relative path."
@@ -12208,7 +11744,7 @@ async function submit(ctx, input, fields) {
   const transcript = fields.transcript.value.trim();
   const localFiles = fields.localFile.value.trim();
   if (!raw && !transcript && !localFiles) {
-    new import_obsidian10.Notice(
+    new import_obsidian9.Notice(
       tr(
         "\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F",
         "Paste a link, a local file name or a transcript first"
@@ -12224,18 +11760,18 @@ async function submit(ctx, input, fields) {
   if (fields.partsToggle.checked) {
     const url = drafts.find((draft) => draft.source === "url")?.input.url;
     if (!url) {
-      new import_obsidian10.Notice(tr("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5", "Expanding by episode needs a video link"));
+      new import_obsidian9.Notice(tr("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5", "Expanding by episode needs a video link"));
       return;
     }
     const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
     const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
     if (end - start + 1 > 100) {
-      new import_obsidian10.Notice(tr("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6", "At most 100 episodes at a time"));
+      new import_obsidian9.Notice(tr("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6", "At most 100 episodes at a time"));
       return;
     }
     const expanded = expandParts(url, start, end, { transcript, localFiles });
     if (expanded.length === 0) {
-      new import_obsidian10.Notice(
+      new import_obsidian9.Notice(
         tr(
           "\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427",
           "Cannot find a video ID in the link; use one link per episode instead"
@@ -12248,12 +11784,12 @@ async function submit(ctx, input, fields) {
     ctx.state.partsEnd = end;
   }
   if (drafts.length === 0) {
-    new import_obsidian10.Notice(tr("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9", "Nothing to process was found"));
+    new import_obsidian9.Notice(tr("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9", "Nothing to process was found"));
     return;
   }
   const looksAccidental = drafts.length === 1 && drafts[0].source === "transcript" && !transcript && raw.length > 0 && raw.length < 40 && !raw.includes("\n");
   if (looksAccidental) {
-    new import_obsidian10.Notice(
+    new import_obsidian9.Notice(
       tr(
         `"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`,
         `"${raw}" does not look like a link or file name. To process it as a transcript, paste it into "Manual transcript" under the advanced options.`
@@ -12263,7 +11799,7 @@ async function submit(ctx, input, fields) {
     return;
   }
   if (drafts.length > 50) {
-    new import_obsidian10.Notice(tr("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761", "At most 50 at a time"));
+    new import_obsidian9.Notice(tr("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761", "At most 50 at a time"));
     return;
   }
   const queued = await ctx.plugin.jobService.submit(drafts, ctx.submitOptions());
@@ -12275,7 +11811,7 @@ async function submit(ctx, input, fields) {
     ctx.state.transcriptDraft = "";
     ctx.state.localFileDraft = "";
     input.dispatchEvent(new Event("input"));
-    new import_obsidian10.Notice(tr(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`, queued === 1 ? "Sent 1 job" : `Sent ${queued} jobs`));
+    new import_obsidian9.Notice(tr(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`, queued === 1 ? "Sent 1 job" : `Sent ${queued} jobs`));
     ctx.state.tab = "jobs";
     ctx.renderPanels();
   }
@@ -12296,7 +11832,7 @@ function appendFileNames(ctx, input, names) {
 ${names.join("\n")}` : names.join("\n");
   ctx.state.inputDraft = input.value;
   input.dispatchEvent(new Event("input"));
-  new import_obsidian10.Notice(
+  new import_obsidian9.Notice(
     tr(
       `\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`,
       `Filled in ${names.length} file names; make sure they are in a folder the backend can read`
@@ -12352,7 +11888,7 @@ function diagnoseSource(error, options) {
 }
 
 // views/panels/JobsPanel.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 var RECENT_HISTORY_LIMIT = 3;
 var historyExpanded = false;
 function renderJobsPanel(container, ctx) {
@@ -12409,9 +11945,9 @@ function renderJobsPanel(container, ctx) {
           onClick: async () => {
             try {
               ctx.plugin.api.clearCache();
-              new import_obsidian11.Notice(tr("\u7F13\u5B58\u5DF2\u6E05\u7A7A", "Cache cleared"));
+              new import_obsidian10.Notice(tr("\u7F13\u5B58\u5DF2\u6E05\u7A7A", "Cache cleared"));
             } catch (error) {
-              new import_obsidian11.Notice(
+              new import_obsidian10.Notice(
                 tr(
                   `\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? errorMessage(error) : error}`,
                   `Could not clear the cache: ${error instanceof Error ? errorMessage(error) : error}`
@@ -12547,7 +12083,7 @@ function renderReviewJob(container, ctx, job) {
     tr("\u76F4\u63A5\u5199\u5165", "Write now"),
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
-        new import_obsidian11.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
+        new import_obsidian10.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
         ctx.renderPanels();
       }
     }),
@@ -12690,7 +12226,7 @@ function renderHistoryRow(container, ctx, row) {
         disabled: !row.error,
         onClick: () => {
           void navigator.clipboard.writeText(row.error || "");
-          new import_obsidian11.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+          new import_obsidian10.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
         }
       }
     ]);
@@ -12814,7 +12350,7 @@ async function rerun(ctx, row) {
   }
   const file = findNote(ctx, row.title);
   if (!file) {
-    new import_obsidian11.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`, `Note not found: ${row.title}`));
+    new import_obsidian10.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`, `Note not found: ${row.title}`));
     return;
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
@@ -12823,14 +12359,14 @@ async function rerun(ctx, row) {
 function openNoteByName(ctx, name) {
   const file = findNote(ctx, name);
   if (!file) {
-    new import_obsidian11.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`, `Note not found: ${name}`));
+    new import_obsidian10.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`, `Note not found: ${name}`));
     return;
   }
   void ctx.openNote(file.path);
 }
 function findNote(ctx, name) {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian11.TFile) return direct;
+  if (direct instanceof import_obsidian10.TFile) return direct;
   const files = ctx.plugin.app.vault.getMarkdownFiles();
   return files.find((file) => file.basename === name) || null;
 }
@@ -12854,7 +12390,7 @@ function summarize(job) {
 function showWebhookHistoryMenu(ctx, event) {
   const history = ctx.plugin.api.getWebhookHistory();
   if (!history || history.length === 0) {
-    new import_obsidian11.Notice(tr("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C", "No reusable webhook result yet"));
+    new import_obsidian10.Notice(tr("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C", "No reusable webhook result yet"));
     return;
   }
   showMenu(
@@ -12900,14 +12436,14 @@ function showWebhookEntryActions(ctx, entry, event) {
       icon: "clipboard",
       onClick: () => {
         void navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
-        new import_obsidian11.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+        new import_obsidian10.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
       }
     }
   ]);
 }
 
 // views/panels/LibraryPanel.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 var PAGE_SIZE = 80;
 var searchHadFocus = false;
 var visibleCount = PAGE_SIZE;
@@ -12925,7 +12461,7 @@ function renderLibraryPanel(container, ctx) {
   const header = container.createDiv({ cls: "vs-library-header" });
   const searchWrap = header.createDiv({ cls: "vs-search" });
   const searchIcon = searchWrap.createDiv({ cls: "vs-search-icon" });
-  (0, import_obsidian12.setIcon)(searchIcon, "search");
+  (0, import_obsidian11.setIcon)(searchIcon, "search");
   const search = searchWrap.createEl("input", {
     cls: "vs-search-input",
     attr: {
@@ -13221,7 +12757,7 @@ function renderRow(listEl, ctx, entry, observer) {
         disabled: !entry.link,
         onClick: () => {
           void navigator.clipboard.writeText(entry.link || "");
-          new import_obsidian12.Notice(tr("\u5DF2\u590D\u5236\u94FE\u63A5", "Link copied"));
+          new import_obsidian11.Notice(tr("\u5DF2\u590D\u5236\u94FE\u63A5", "Link copied"));
         }
       },
       {
@@ -13255,14 +12791,14 @@ function confirmDelete(ctx, entry) {
       const file = fileOf(ctx, entry);
       if (!file) return;
       await ctx.plugin.app.fileManager.trashFile(file);
-      new import_obsidian12.Notice(tr(`\u5DF2\u5220\u9664 ${entry.basename}`, `Deleted ${entry.basename}`));
+      new import_obsidian11.Notice(tr(`\u5DF2\u5220\u9664 ${entry.basename}`, `Deleted ${entry.basename}`));
       ctx.renderPanels();
     })
   ).open();
 }
 function fileOf(ctx, entry) {
   const file = ctx.plugin.app.vault.getAbstractFileByPath(entry.path);
-  return file instanceof import_obsidian12.TFile ? file : null;
+  return file instanceof import_obsidian11.TFile ? file : null;
 }
 function countByStatus(entries2, ctx) {
   const counts = { pending: 0, active: 0, interrupted: 0, success: 0, error: 0 };
@@ -13319,10 +12855,10 @@ function filterForDisplayStatus(status) {
 }
 
 // views/panels/DetailPanel.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // views/panels/ReaderPanel.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 var PAGE_SIZE2 = 240;
 function renderReaderPanel(container, ctx, job) {
   const segments = job.result?.video_segments || [];
@@ -13419,7 +12955,7 @@ function renderReaderPanel(container, ctx, job) {
           "aria-pressed": String(highlighted)
         }
       });
-      (0, import_obsidian13.setIcon)(star, highlighted ? "star" : "star-off");
+      (0, import_obsidian12.setIcon)(star, highlighted ? "star" : "star-off");
       const activateHighlight = (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -13440,7 +12976,7 @@ function renderReaderPanel(container, ctx, job) {
             title: tr("\u590D\u5236\u5F15\u7528", "Copy quote"),
             icon: "quote",
             onClick: () => {
-              void navigator.clipboard.writeText(quote).then(() => new import_obsidian13.Notice(tr("\u5DF2\u590D\u5236\u5F15\u7528", "Quote copied")));
+              void navigator.clipboard.writeText(quote).then(() => new import_obsidian12.Notice(tr("\u5DF2\u590D\u5236\u5F15\u7528", "Quote copied")));
             }
           },
           {
@@ -13457,7 +12993,7 @@ function renderReaderPanel(container, ctx, job) {
       });
       row.addEventListener("click", () => {
         if (segment.start === null || segment.timing_quality === "none") {
-          new import_obsidian13.Notice(
+          new import_obsidian12.Notice(
             tr("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This transcript line has no reliable timestamp")
           );
           return;
@@ -13540,8 +13076,8 @@ function quoteFor(ctx, job, sourceUrl, segment) {
 function insertIntoRecentNote(ctx, text2) {
   const { workspace } = ctx.plugin.app;
   const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
-  if (!(view instanceof import_obsidian13.MarkdownView)) {
-    new import_obsidian13.Notice(
+  if (!(view instanceof import_obsidian12.MarkdownView)) {
+    new import_obsidian12.Notice(
       tr(
         "\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528",
         "Open a note in the main editor first, then insert the quote"
@@ -13551,7 +13087,7 @@ function insertIntoRecentNote(ctx, text2) {
   }
   view.editor.replaceSelection(`${text2}
 `);
-  new import_obsidian13.Notice(
+  new import_obsidian12.Notice(
     tr(
       `\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`,
       `Inserted into ${view.file?.basename ?? "the note"}`
@@ -13567,7 +13103,7 @@ function createPlayer(container, ctx, job, sourceUrl) {
   if (bilibiliId) return createBilibiliPlayer(container, bilibiliId);
   const fallback = container.createDiv({ cls: "vs-reader-player-fallback" });
   const icon = fallback.createDiv({ cls: "vs-reader-player-icon" });
-  (0, import_obsidian13.setIcon)(icon, "external-link");
+  (0, import_obsidian12.setIcon)(icon, "external-link");
   fallback.createDiv({
     text: tr("\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", "This platform uses an external player"),
     cls: "vs-reader-player-title"
@@ -13716,7 +13252,7 @@ function resolveLocalSource(ctx, localFile) {
   const vaultPath = safeVaultRelativeMediaPath(localFile);
   if (!vaultPath) return "";
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(vaultPath);
-  if (direct instanceof import_obsidian13.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
+  if (direct instanceof import_obsidian12.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
   return "";
 }
 function extractYouTubeId(sourceUrl) {
@@ -13801,7 +13337,7 @@ async function toggleHighlight(ctx, job, segment, highlights) {
   } catch (error) {
     if (removing) highlights.add(segment.id);
     else highlights.delete(segment.id);
-    new import_obsidian13.Notice(
+    new import_obsidian12.Notice(
       tr(
         `\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`,
         `Could not save the highlight: ${error instanceof Error ? errorMessage(error) : String(error)}`
@@ -13814,7 +13350,7 @@ function cssEscape(value) {
 }
 
 // views/panels/SourceHealthCard.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var SPEECH_TTL_MS = 5 * 60 * 1e3;
 var speechCheck = { at: 0 };
 function speechConfigured(ctx) {
@@ -13944,7 +13480,7 @@ function renderSourceHealth(body, ctx, job) {
       tr("\u7528\u8FD9\u4EFD\u6587\u7A3F\u603B\u7ED3", "Summarise this transcript"),
       () => {
         if (!area.value.trim()) {
-          new import_obsidian14.Notice(tr("\u5148\u8D34\u4E00\u4EFD\u6587\u7A3F", "Paste a transcript first"));
+          new import_obsidian13.Notice(tr("\u5148\u8D34\u4E00\u4EFD\u6587\u7A3F", "Paste a transcript first"));
           return;
         }
         ctx.plugin.jobs.retryWithTranscript(job.id, area.value);
@@ -13978,7 +13514,7 @@ function renderSourceHealth(body, ctx, job) {
   }
   textButton(actions, tr("\u590D\u5236\u9519\u8BEF", "Copy error"), () => {
     void navigator.clipboard.writeText(job.error || "");
-    new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+    new import_obsidian13.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
   });
   return true;
 }
@@ -14013,7 +13549,7 @@ function renderBanner(container, ctx, options) {
   const banner = container.createDiv({
     cls: `vs-banner ${platformClass(options.platform)}`
   });
-  (0, import_obsidian15.setIcon)(banner.createSpan({ cls: "vs-banner-icon", attr: { "aria-hidden": "true" } }), "play");
+  (0, import_obsidian14.setIcon)(banner.createSpan({ cls: "vs-banner-icon", attr: { "aria-hidden": "true" } }), "play");
   if (options.cover) {
     const img = banner.createEl("img", {
       cls: "vs-banner-img",
@@ -14098,7 +13634,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     actions.remove();
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian15.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian14.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
     const errorActions = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
@@ -14112,7 +13648,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     );
     textButton(errorActions, tr("\u590D\u5236\u9519\u8BEF", "Copy error"), () => {
       void navigator.clipboard.writeText(job.error || "");
-      new import_obsidian15.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+      new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
     });
     if (isCookieError(job.error)) {
       textButton(
@@ -14179,7 +13715,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
       tr("\u5199\u5165\u7B14\u8BB0", "Write note"),
       fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
-          new import_obsidian15.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
+          new import_obsidian14.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
           ctx.closeDetail();
         }
       }),
@@ -14198,7 +13734,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (persistedArtifact) {
     const copy = textButton(actions, tr("\u590D\u5236\u5DE5\u4EF6 JSON", "Copy artifact JSON"), () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-      new import_obsidian15.Notice(tr("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON", "Artifact JSON copied"));
+      new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON", "Artifact JSON copied"));
     });
     prependIcon(copy, "clipboard");
   } else {
@@ -14232,7 +13768,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
           icon: "clipboard",
           onClick: () => {
             void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-            new import_obsidian15.Notice(tr("\u5DF2\u590D\u5236 JSON", "JSON copied"));
+            new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236 JSON", "JSON copied"));
           }
         }
       ]);
@@ -14351,7 +13887,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.content_type) {
     const route = signals.createDiv({ cls: "vs-signal" });
     const icon = route.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian15.setIcon)(icon, "route");
+    (0, import_obsidian14.setIcon)(icon, "route");
     route.createSpan({
       text: tr(
         `\u7ED3\u6784 \xB7 ${contentTypeLabel(result.content_type)}`,
@@ -14364,7 +13900,7 @@ function renderKnowledgeSignals(body, ctx, job) {
       cls: `vs-signal is-attention is-${result.attention.action}`
     });
     const icon = decision2.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian15.setIcon)(
+    (0, import_obsidian14.setIcon)(
       icon,
       result.attention.action === "watch" ? "eye" : result.attention.action === "skim" ? "scan" : "skip-forward"
     );
@@ -14374,7 +13910,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.visual_evidence?.length) {
     const visual = signals.createDiv({ cls: "vs-signal is-visual" });
     const icon = visual.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian15.setIcon)(icon, "scan-eye");
+    (0, import_obsidian14.setIcon)(icon, "scan-eye");
     visual.createSpan({
       text: tr(
         `\u771F\u5B9E\u753B\u9762\u8BC1\u636E \xB7 ${result.visual_evidence.length}`,
@@ -14386,7 +13922,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (learningCount > 0) {
     const learning = signals.createDiv({ cls: "vs-signal is-learning" });
     const icon = learning.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian15.setIcon)(icon, "graduation-cap");
+    (0, import_obsidian14.setIcon)(icon, "graduation-cap");
     learning.createSpan({
       text: tr(`\u5B66\u4E60\u7EC3\u4E60 \xB7 ${learningCount}`, `Learning exercises \xB7 ${learningCount}`)
     });
@@ -14443,8 +13979,8 @@ function renderKnowledgeSignals(body, ctx, job) {
       tr(`\u5F00\u59CB\u590D\u4E60 \xB7 ${learningCount}`, `Start review \xB7 ${learningCount}`),
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || "");
-        if (!(file instanceof import_obsidian15.TFile)) {
-          new import_obsidian15.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+        if (!(file instanceof import_obsidian14.TFile)) {
+          new import_obsidian14.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
           return;
         }
         void ctx.plugin.openLearningReviewForFile(file);
@@ -14465,14 +14001,14 @@ function renderKnowledgeSignals(body, ctx, job) {
 }
 async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!job.notePath) {
-    new import_obsidian15.Notice(
+    new import_obsidian14.Notice(
       tr("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406", "Save the result as a note before adding processing")
     );
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian15.TFile)) {
-    new import_obsidian15.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+  if (!(file instanceof import_obsidian14.TFile)) {
+    new import_obsidian14.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -14486,11 +14022,11 @@ async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian15.Notice(tr("\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD", "Sent for a quick worth-watching check"));
+  new import_obsidian14.Notice(tr("\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD", "Sent for a quick worth-watching check"));
 }
 async function queueLearningUpgrade(ctx, job) {
   if (!job.notePath) {
-    new import_obsidian15.Notice(
+    new import_obsidian14.Notice(
       tr(
         "\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361",
         "Save the result as a note before generating learning cards"
@@ -14499,8 +14035,8 @@ async function queueLearningUpgrade(ctx, job) {
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian15.TFile)) {
-    new import_obsidian15.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+  if (!(file instanceof import_obsidian14.TFile)) {
+    new import_obsidian14.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -14514,7 +14050,7 @@ async function queueLearningUpgrade(ctx, job) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian15.Notice(tr("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1", "Sent to generate learning cards"));
+  new import_obsidian14.Notice(tr("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1", "Sent to generate learning cards"));
 }
 function contentTypeLabel(type) {
   return {
@@ -14548,7 +14084,7 @@ function renderEvidence(container, ctx, job) {
     job.input.url || job.result.artifact?.source_url
   );
   const markdownEl = container.createDiv({ cls: "vs-markdown vs-evidence-map" });
-  void import_obsidian15.MarkdownRenderer.render(
+  void import_obsidian14.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown,
     markdownEl,
@@ -14558,12 +14094,12 @@ function renderEvidence(container, ctx, job) {
 }
 function prependIcon(button, icon) {
   const holder = createSpan({ cls: "vs-btn-icon" });
-  (0, import_obsidian15.setIcon)(holder, icon);
+  (0, import_obsidian14.setIcon)(holder, icon);
   button.prepend(holder);
 }
 function prependCaret(button) {
   const holder = createSpan({ cls: "vs-btn-caret" });
-  (0, import_obsidian15.setIcon)(holder, "chevron-down");
+  (0, import_obsidian14.setIcon)(holder, "chevron-down");
   button.append(holder);
 }
 function renderPreview(body, ctx, job) {
@@ -14576,7 +14112,7 @@ function renderPreview(body, ctx, job) {
   if (result.summary) fields.push("summary");
   const diff = body.createDiv({ cls: "vs-write-card" });
   const diffIcon = diff.createDiv({ cls: "vs-write-icon" });
-  (0, import_obsidian15.setIcon)(diffIcon, "file-diff");
+  (0, import_obsidian14.setIcon)(diffIcon, "file-diff");
   const diffText = diff.createDiv({ cls: "vs-write-text" });
   diffText.createDiv({
     text: tr(
@@ -14609,7 +14145,7 @@ ${result.note}`) : ""
     markdownEl.setText(tr("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587", "Nothing writable came back this time"));
     return;
   }
-  void import_obsidian15.MarkdownRenderer.render(
+  void import_obsidian14.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown.slice(0, 6e3),
     markdownEl,
@@ -14656,7 +14192,7 @@ function renderRecordDetail(container, ctx, record) {
   if (record.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian15.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian14.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
   } else if (record.result === "error") {
     body.createDiv({
@@ -14730,7 +14266,7 @@ function isCookieError(error) {
 function openCookiesFolder(ctx) {
   const path = ctx.plugin.settings.cookiesDirPath;
   if (!path) {
-    new import_obsidian15.Notice(
+    new import_obsidian14.Notice(
       tr(
         "\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B",
         "No cookies folder yet; set it in the plugin settings first"
@@ -14739,16 +14275,16 @@ function openCookiesFolder(ctx) {
     return;
   }
   if (!openPathInSystem(path)) {
-    new import_obsidian15.Notice(tr(`cookies \u76EE\u5F55\uFF1A${path}`, `Cookies folder: ${path}`));
+    new import_obsidian14.Notice(tr(`cookies \u76EE\u5F55\uFF1A${path}`, `Cookies folder: ${path}`));
   }
 }
 function findNote2(ctx, name) {
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian15.TFile) return direct;
+  if (direct instanceof import_obsidian14.TFile) return direct;
   return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
 }
 function panelComponent(ctx) {
-  const component = new import_obsidian15.Component();
+  const component = new import_obsidian14.Component();
   component.load();
   ctx.registerPanelCleanup(() => component.unload());
   return component;
@@ -14756,7 +14292,7 @@ function panelComponent(ctx) {
 
 // views/VideoSummaryView.ts
 var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
-var VideoSummaryView = class extends import_obsidian16.ItemView {
+var VideoSummaryView = class extends import_obsidian15.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.actionHeaderEl = null;
@@ -14963,7 +14499,7 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
   }
   async openNote(path) {
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian16.TFile)) {
+    if (!(file instanceof import_obsidian15.TFile)) {
       const job = this.plugin.jobs.getAll().find((item) => item.notePath === path);
       const artifactId = job?.result?.artifact?.artifact_id || job?.input?.artifactId;
       if (artifactId) {
@@ -14971,13 +14507,13 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
           const artifact = await this.plugin.artifactStore.load(artifactId);
           const resolved = artifact?.source?.note_path;
           if (resolved) file = this.app.vault.getAbstractFileByPath(resolved);
-          if (file instanceof import_obsidian16.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
+          if (file instanceof import_obsidian15.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
         } catch {
         }
       }
     }
-    if (!(file instanceof import_obsidian16.TFile)) {
-      new import_obsidian16.Notice(
+    if (!(file instanceof import_obsidian15.TFile)) {
+      new import_obsidian15.Notice(
         tr(
           "\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002",
           "The note was moved or renamed; open it from the library."
@@ -14990,7 +14526,7 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
       await leaf.openFile(file, { active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch (error) {
-      new import_obsidian16.Notice(
+      new import_obsidian15.Notice(
         tr(
           `\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`,
           `Could not open the note: ${error instanceof Error ? errorMessage(error) : String(error)}`
@@ -15010,7 +14546,7 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
 };
 
 // utils/FileProcessor.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var FileProcessor = class {
   constructor(app, plugin) {
     this.app = app;
@@ -15025,12 +14561,12 @@ var FileProcessor = class {
       await leaf.openFile(file);
       window.setTimeout(() => {
         const view = leaf.view;
-        if (view instanceof import_obsidian17.MarkdownView) {
+        if (view instanceof import_obsidian16.MarkdownView) {
           new VideoSummaryModal(this.app, this.plugin, view.editor, view).open();
         }
       }, 100);
     } catch (error) {
-      new import_obsidian17.Notice(
+      new import_obsidian16.Notice(
         tr(
           `\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`,
           `Could not process the file: ${errorMessage(error)}`
@@ -15150,6 +14686,572 @@ var FileProcessor = class {
     };
   }
 };
+
+// utils/NoteProcessor.ts
+var import_obsidian17 = require("obsidian");
+
+// utils/noteCssClass.ts
+function withCssClass(fm, cssClass) {
+  const name = cssClass.trim();
+  if (!/^[A-Za-z][\w-]*$/.test(name)) return;
+  const raw = fm.cssclasses ?? fm.cssclass;
+  const list = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
+  if (!list.includes(name)) list.push(name);
+  delete fm.cssclass;
+  fm.cssclasses = list;
+}
+
+// utils/noteProperties.ts
+var LIST_KEYS = /* @__PURE__ */ new Set(["tags", "aliases", "cssclasses"]);
+var KEY_PATTERN = /^[A-Za-z_぀-ヿ一-鿿][\w぀-ヿ一-鿿-]*$/;
+var RESERVED_KEYS = /* @__PURE__ */ new Set([
+  "status",
+  "link",
+  "local_file",
+  "provided_transcript",
+  "summary",
+  "source_type",
+  "date",
+  "updated",
+  "processing_error",
+  "processing_error_code",
+  "processing_error_at"
+]);
+function isReserved(key) {
+  return RESERVED_KEYS.has(key) || key.startsWith("video_");
+}
+function parseDefaultProperties(text2) {
+  const byKey = /* @__PURE__ */ new Map();
+  for (const rawLine of (text2 || "").split("\n")) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const colon = line.indexOf(":");
+    if (colon <= 0) continue;
+    const key = line.slice(0, colon).trim();
+    const value = line.slice(colon + 1).trim();
+    if (!KEY_PATTERN.test(key) || isReserved(key) || !value) continue;
+    const list = LIST_KEYS.has(key);
+    const values = list ? splitList(key, value) : [value];
+    if (values.length === 0) continue;
+    const existing = byKey.get(key);
+    if (existing && list) {
+      for (const item of values) if (!existing.values.includes(item)) existing.values.push(item);
+    } else if (!existing) {
+      byKey.set(key, { key, values, list });
+    }
+  }
+  return Array.from(byKey.values());
+}
+function applyDefaultProperties(fm, defaults) {
+  let changed = false;
+  for (const property of defaults) {
+    if (property.list) {
+      const current2 = toList(fm[property.key]);
+      const merged = [...current2];
+      for (const item of property.values) if (!merged.includes(item)) merged.push(item);
+      if (merged.length !== current2.length || !Array.isArray(fm[property.key])) {
+        fm[property.key] = merged;
+        changed = true;
+      }
+      continue;
+    }
+    const current = fm[property.key];
+    const empty = current === void 0 || current === null || typeof current === "string" && current.trim() === "";
+    if (empty) {
+      fm[property.key] = property.values[0];
+      changed = true;
+    }
+  }
+  return changed;
+}
+function splitList(key, value) {
+  return value.split(/[,，]/).map((item) => item.trim()).map((item) => key === "tags" ? item.replace(/^#/, "") : item).filter(Boolean);
+}
+function toList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  if (typeof value === "string")
+    return value.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
+// utils/successStatus.ts
+var RESERVED_SUCCESS_TEXT = /* @__PURE__ */ new Set([
+  "pending",
+  "running",
+  "error",
+  "excluded",
+  "\u{1F4FA}",
+  "\u23F3",
+  "\u26D4",
+  "\u26D4\uFE0F",
+  "\u5F85\u5904\u7406",
+  "\u5904\u7406\u4E2D",
+  "\u5904\u7406\u5931\u8D25",
+  "\u975E\u89C6\u9891\u7B14\u8BB0"
+]);
+function normalizeSuccessStatusText(value, fallback = "success") {
+  const text2 = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+  if (!text2) return fallback;
+  return RESERVED_SUCCESS_TEXT.has(text2.toLowerCase()) ? fallback : text2;
+}
+var MIRRORED_STATUS = /* @__PURE__ */ new Set([
+  "pending",
+  "running",
+  "success",
+  "error",
+  "excluded",
+  "\u{1F4FA}",
+  "\u23F3",
+  "\u274C",
+  "\u26D4\uFE0F",
+  "\u26D4",
+  "\u5F85\u5904\u7406",
+  "\u5904\u7406\u4E2D",
+  "\u5DF2\u5904\u7406",
+  "\u5904\u7406\u5931\u8D25",
+  "\u975E\u89C6\u9891\u7B14\u8BB0"
+]);
+function shouldMirrorStatus(value, successText) {
+  const text2 = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+  if (text2 === "") return true;
+  if (successText && text2 === successText.trim()) return true;
+  return MIRRORED_STATUS.has(text2.toLowerCase());
+}
+function writePluginStatus(fm, state, displayText, successText) {
+  const mirror = shouldMirrorStatus(fm.status, successText);
+  fm.video_summary = true;
+  if (!fm.source_type) fm.source_type = "video";
+  fm.video_summary_status = state;
+  if (mirror) fm.status = displayText;
+}
+
+// utils/NoteProcessor.ts
+var NoteProcessor = class {
+  constructor(vault, cssClass = () => "", prefs = () => ({ successText: "success", defaultProperties: "" })) {
+    this.vault = vault;
+    this.cssClass = cssClass;
+    this.prefs = prefs;
+  }
+  /**
+   * 解析 frontmatter 与正文
+   */
+  parseFrontmatter(content) {
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?/);
+    if (fmMatch) {
+      const fmText = fmMatch[1];
+      let fm = {};
+      try {
+        fm = asRecord((0, import_obsidian17.parseYaml)(fmText));
+      } catch {
+        fm = {};
+      }
+      const body = content.slice(fmMatch[0].length);
+      return { fm, body };
+    }
+    return { fm: {}, body: content };
+  }
+  /**
+   * 构建包含 frontmatter 的内容
+   */
+  buildContent(fm, body) {
+    const fmText = (0, import_obsidian17.stringifyYaml)(fm);
+    return `---
+${(fmText || "").trim()}
+---
+${body}`;
+  }
+  /**
+   * 从笔记内容中提取视频链接
+   */
+  extractVideoUrl(content) {
+    const { fm, body } = this.parseFrontmatter(content);
+    const linkField = fm.link;
+    if (Array.isArray(linkField)) {
+      for (const l of linkField) {
+        if (typeof l === "string" && this.isValidVideoUrl(l)) return l;
+      }
+    } else if (typeof linkField === "string") {
+      if (this.isValidVideoUrl(linkField)) return linkField;
+    }
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+    const urls = body.match(urlRegex);
+    if (urls) {
+      for (const url of urls) {
+        if (this.isValidVideoUrl(url)) return url;
+      }
+    }
+    return null;
+  }
+  /**
+   * 从笔记内容中提取现有文稿
+   */
+  extractExistingTranscript(content) {
+    const { fm } = this.parseFrontmatter(content);
+    const v = fm.video_transcript;
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  }
+  extractProvidedTranscript(content) {
+    const { fm } = this.parseFrontmatter(content);
+    const provided = fm.provided_transcript;
+    if (typeof provided === "string" && provided.trim()) {
+      return provided.trim();
+    }
+    const existing = fm.video_transcript;
+    if (typeof existing === "string" && existing.trim()) {
+      return existing.trim();
+    }
+    return null;
+  }
+  /**
+   * 从笔记内容中提取本地文件名
+   */
+  extractLocalFileName(content) {
+    const { fm } = this.parseFrontmatter(content);
+    const v = fm.local_file;
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  }
+  /**
+   * 从笔记内容中提取多个本地文件名（逗号分隔）
+   */
+  extractLocalFileNames(content) {
+    const raw = this.extractLocalFileName(content);
+    if (!raw) return [];
+    return raw.split(",").map((f) => f.trim()).filter((f) => f.length > 0);
+  }
+  /**
+   * 从笔记内容中提取元数据
+   */
+  extractMetadata(content) {
+    const { fm } = this.parseFrontmatter(content);
+    const md = {};
+    const fields = md;
+    const copy = (k) => {
+      const v = fm[k];
+      if (typeof v === "string") fields[k] = v;
+    };
+    [
+      "status",
+      "video_summary_status",
+      "link",
+      "video_title",
+      "video_author",
+      "video_duration",
+      "video_cover",
+      "video_artifact_id",
+      "video_content_type",
+      "video_attention_action",
+      "video_processing_depth",
+      "video_review_due",
+      "summary",
+      "video_transcript",
+      "date",
+      "updated"
+    ].forEach((k) => copy(k));
+    return md;
+  }
+  /**
+   * 检查笔记是否已经包含基础视频信息（用于 info-only 批量补全）
+   * 这里的「info」主要指：视频标题 / 作者 / 时长 等基础字段
+   */
+  hasBasicVideoInfo(content) {
+    const metadata = this.extractMetadata(content);
+    return !!(metadata.video_title || metadata.video_author || metadata.video_duration);
+  }
+  /**
+   * 更新笔记内容
+   */
+  async updateNote(file, result, mode, options) {
+    const content = await this.vault.read(file);
+    const { fm, body } = this.parseFrontmatter(content);
+    fm.video_summary = true;
+    if (!fm.source_type) fm.source_type = "video";
+    withCssClass(fm, this.cssClass());
+    applyDefaultProperties(fm, parseDefaultProperties(this.prefs().defaultProperties));
+    Object.assign(fm, buildRichFrontmatterFields(result));
+    const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
+    if (learningItems > 0 && !fm.video_review_due) {
+      fm.video_review_due = (/* @__PURE__ */ new Date()).toISOString();
+    }
+    delete fm.processing_error;
+    delete fm.processing_error_code;
+    delete fm.processing_error_at;
+    if (fm.provided_transcript) delete fm.provided_transcript;
+    let newBody = body;
+    newBody = this.removeProcessingErrorBlock(newBody);
+    const sourceUrl = typeof fm.link === "string" ? fm.link : "";
+    newBody = writeManagedKnowledgeMarkdown(
+      newBody,
+      result,
+      sourceUrl,
+      managedWriteOptionsForMode(mode)
+    );
+    const newContent = this.buildContent(fm, newBody);
+    await this.vault.process(file, (current) => {
+      if (current !== content) throw new Error("\u7B14\u8BB0\u5728\u5904\u7406\u671F\u95F4\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4F60\u7684\u4FEE\u6539\u5DF2\u4FDD\u7559\u3002");
+      return newContent;
+    });
+    if (options?.autoRename) {
+      await this.renameFileToVideoTitle(
+        file,
+        result.video_title || "",
+        newBody,
+        options.conflictStrategy || "append-number"
+      );
+    }
+  }
+  /**
+   * 设置处理状态（待处理 / 处理中 / 排除）。成功请用 markProcessingSuccess。
+   */
+  async setProcessingStatus(file, status) {
+    await this.writeStatus(file, canonicalPluginStatus(status), status);
+  }
+  /** 处理成功：插件真值写 success，status 写设置里的“成功状态值”（例如 ❌ 表示待人工整理）。 */
+  async markProcessingSuccess(file, statusText) {
+    await this.writeStatus(file, "success", statusText || "success");
+  }
+  async writeStatus(file, state, displayText) {
+    const content = await this.vault.read(file);
+    const { fm, body } = this.parseFrontmatter(content);
+    writePluginStatus(fm, state, displayText, this.prefs().successText);
+    const newContent = this.buildContent(fm, body);
+    await this.vault.process(file, (current) => {
+      if (current !== content) throw new Error("\u7B14\u8BB0\u5728\u5904\u7406\u671F\u95F4\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4F60\u7684\u4FEE\u6539\u5DF2\u4FDD\u7559\u3002");
+      return newContent;
+    });
+  }
+  async setProcessingError(file, error) {
+    const content = await this.vault.read(file);
+    const { fm, body } = this.parseFrontmatter(content);
+    const errorMessage2 = this.normalizeErrorMessage(error);
+    writePluginStatus(fm, "error", "error", this.prefs().successText);
+    fm.processing_error = errorMessage2;
+    fm.processing_error_at = (/* @__PURE__ */ new Date()).toISOString();
+    const newBody = `${this.removeProcessingErrorBlock(body).trim()}
+
+${this.buildProcessingErrorBlock(errorMessage2)}
+`;
+    const newContent = this.buildContent(fm, newBody);
+    await this.vault.process(file, (current) => {
+      if (current !== content) throw new Error("\u7B14\u8BB0\u5728\u5904\u7406\u671F\u95F4\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4F60\u7684\u4FEE\u6539\u5DF2\u4FDD\u7559\u3002");
+      return newContent;
+    });
+  }
+  /**
+   * 构建视频输入对象
+   */
+  buildVideoInput(content) {
+    const input = {};
+    const url = this.extractVideoUrl(content);
+    if (url) {
+      input.url = url;
+    }
+    const providedTranscript = this.extractProvidedTranscript(content);
+    if (providedTranscript) {
+      input.transcript = providedTranscript;
+    }
+    const localFiles = this.extractLocalFileNames(content);
+    if (localFiles.length > 0) {
+      if (localFiles.length === 1) {
+        input.localFile = localFiles[0];
+      } else {
+        input.localFile = localFiles.join(", ");
+        input.localFiles = localFiles;
+        input.merge = true;
+      }
+    }
+    return input;
+  }
+  /**
+   * 检查是否为有效的视频URL
+   */
+  isValidVideoUrl(url) {
+    return SUPPORTED_PLATFORMS.some((platform) => url.includes(platform));
+  }
+  /**
+   * 更新或添加frontmatter字段
+   */
+  updateOrAddField(fmText, field, value) {
+    const regex = new RegExp(`^${field}:.*$`, "m");
+    const newValue = `"${String(value).replace(/"/g, '\\"')}"`;
+    const fieldLine = `${field}: ${newValue}`;
+    if (regex.test(fmText)) {
+      return fmText.replace(regex, fieldLine);
+    } else {
+      return `${fmText.trim()}
+${fieldLine}`;
+    }
+  }
+  /**
+   * 更新文稿字段（使用YAML block scalar格式）
+   */
+  updateTranscriptField(fmText, transcript) {
+    const transcriptBlock = `|
+  ${transcript.replace(/\n/g, "\n  ")}`;
+    const regex = /^video_transcript:[\s\S]*?(?=\n\w+:\s|$)/m;
+    const fieldLine = `video_transcript: ${transcriptBlock}`;
+    if (regex.test(fmText)) {
+      return fmText.replace(regex, fieldLine);
+    } else {
+      return `${fmText}
+${fieldLine}`;
+    }
+  }
+  /**
+   * 移除frontmatter字段
+   */
+  removeField(fmText, field) {
+    const regex = new RegExp(`^${field}:.*$\\n?`, "gm");
+    return fmText.replace(regex, "").replace(/\n\n+/g, "\n").trim();
+  }
+  normalizeErrorMessage(error) {
+    if (error instanceof Error) return errorMessage(error);
+    return typeof error === "string" && error ? error : "\u672A\u77E5\u9519\u8BEF";
+  }
+  buildProcessingErrorBlock(errorMessage2) {
+    const lines = errorMessage2.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n").map((line) => `> ${line}`).join("\n");
+    return [
+      "<!-- video-summary-error:start -->",
+      "## \u5904\u7406\u9519\u8BEF",
+      "> [!failure] \u89C6\u9891\u5904\u7406\u5931\u8D25",
+      lines || "> \u672A\u77E5\u9519\u8BEF",
+      ">",
+      "> \u51FA\u9519\u7684\u6B65\u9AA4\u53EF\u4EE5\u5728 n8n \u7684 Executions \u9875\u9762\u67E5\u770B\uFF1Ahttp://127.0.0.1:5678/home/executions",
+      "<!-- video-summary-error:end -->"
+    ].join("\n");
+  }
+  removeProcessingErrorBlock(body) {
+    return body.replace(
+      /\n?<!-- video-summary-error:start -->[\s\S]*?<!-- video-summary-error:end -->\n?/g,
+      "\n"
+    ).replace(/\n{3,}/g, "\n\n");
+  }
+  /**
+   * 检查笔记是否包含视频内容
+   */
+  hasVideoContent(content) {
+    return !!this.extractVideoUrl(content) || !!this.extractProvidedTranscript(content) || !!this.extractLocalFileName(content);
+  }
+  /**
+   * 获取笔记的处理状态
+   */
+  getProcessingStatus(content) {
+    const metadata = this.extractMetadata(content);
+    return metadata.video_summary_status || metadata.status || null;
+  }
+  /**
+   * 检查笔记是否需要处理
+   */
+  needsProcessing(content) {
+    const status = this.getProcessingStatus(content);
+    return !status || status === "error" || status === "running";
+  }
+  /**
+   * 从正文中提取标题
+   */
+  extractBodyTitle(body) {
+    const bodyOnly = body.replace(/^---\n[\s\S]*?\n---\n/, "");
+    const titleMatch = bodyOnly.match(/^#\s+(.+)$/m);
+    if (titleMatch) {
+      return titleMatch[1].trim();
+    }
+    const h2Match = bodyOnly.match(/^##\s+(.+)$/m);
+    if (h2Match) {
+      return h2Match[1].trim();
+    }
+    const h3Match = bodyOnly.match(/^###\s+(.+)$/m);
+    if (h3Match) {
+      return h3Match[1].trim();
+    }
+    const lines = bodyOnly.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+    if (lines.length > 0) {
+      return lines[0].slice(0, 80);
+    }
+    return null;
+  }
+  /**
+   * 根据video_title或正文标题重命名文件
+   */
+  async renameFileToVideoTitle(file, videoTitle, body, strategy = "append-number") {
+    try {
+      let titleToUse = "";
+      if (videoTitle && videoTitle.trim()) {
+        titleToUse = videoTitle.trim();
+      } else {
+        const bodyTitle = this.extractBodyTitle(body);
+        if (bodyTitle && bodyTitle.trim()) {
+          titleToUse = bodyTitle.trim();
+        } else {
+          return;
+        }
+      }
+      const cleanTitle = titleToUse.replace(/[<>:"/\\|?*]/g, "_").trim();
+      if (!cleanTitle) {
+        return;
+      }
+      const newFileName = `${cleanTitle}.md`;
+      if (file.parent && file.parent.path !== "") {
+        const newPath = `${file.parent.path}/${newFileName}`;
+        if (newPath === file.path) {
+          return;
+        }
+        let targetPath = newPath;
+        const exists = (p) => !!this.vault.getAbstractFileByPath(p);
+        if (exists(targetPath)) {
+          if (strategy === "skip") {
+            return;
+          }
+          if (strategy === "append-date") {
+            const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+            targetPath = `${file.parent.path}/${cleanTitle} ${date}.md`;
+            if (exists(targetPath)) {
+              strategy = "append-number";
+            }
+          }
+          if (strategy === "append-number") {
+            let index = 1;
+            while (exists(`${file.parent.path}/${cleanTitle} (${index}).md`)) index++;
+            targetPath = `${file.parent.path}/${cleanTitle} (${index}).md`;
+          }
+        }
+        await this.vault.rename(file, targetPath);
+      } else {
+        let targetPath = newFileName;
+        if (targetPath === file.path) {
+          return;
+        }
+        const exists = (p) => !!this.vault.getAbstractFileByPath(p);
+        if (exists(targetPath)) {
+          if (strategy === "skip") {
+            return;
+          }
+          if (strategy === "append-date") {
+            const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+            targetPath = `${cleanTitle} ${date}.md`;
+            if (exists(targetPath)) {
+              strategy = "append-number";
+            }
+          }
+          if (strategy === "append-number") {
+            let index = 1;
+            while (exists(`${cleanTitle} (${index}).md`)) index++;
+            targetPath = `${cleanTitle} (${index}).md`;
+          }
+        }
+        await this.vault.rename(file, targetPath);
+      }
+    } catch (error) {
+      console.error(`\u91CD\u547D\u540D\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`);
+    }
+  }
+};
+function canonicalPluginStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (status === "pending" || status === "\u{1F4FA}" || status === "\u5F85\u5904\u7406") return "pending";
+  if (status === "running" || status === "\u23F3" || status === "\u5904\u7406\u4E2D") return "running";
+  if (status === "error" || status === "\u274C" || status === "\u5904\u7406\u5931\u8D25") return "error";
+  if (status === "excluded" || status.includes("\u26D4") || status === "\u975E\u89C6\u9891\u7B14\u8BB0") return "excluded";
+  return "success";
+}
 
 // core/JobStore.ts
 var JobStore = class {
@@ -17576,10 +17678,7 @@ var JobService = class {
     this.courseProgressLocks = /* @__PURE__ */ new Map();
     this.plugin = plugin;
     this.store = store;
-    this.noteProcessor = new NoteProcessor(
-      plugin.app.vault,
-      () => plugin.settings.noteCssClass ?? ""
-    );
+    this.noteProcessor = plugin.createNoteProcessor();
     this.noteFactory = new NoteFactory(plugin.app);
     this.store.setRunner((job, report) => this.runJob(job, report));
     this.store.setConcurrency(plugin.settings.batchConcurrency || 2);
@@ -17823,7 +17922,7 @@ ${buildInsertionContent(result)}`
             result
           );
           await this.noteProcessor.updateNote(file, result, "summary");
-          await this.noteProcessor.setProcessingStatus(
+          await this.noteProcessor.markProcessingSuccess(
             file,
             this.plugin.settings.successStatusValue ?? "success"
           );
@@ -17966,7 +18065,7 @@ ${buildInsertionContent(result)}`
     if (context && file.path !== originalPath) {
       await this.persistArtifact({ ...context, notePath: file.path }, result);
     }
-    await this.noteProcessor.setProcessingStatus(
+    await this.noteProcessor.markProcessingSuccess(
       file,
       this.plugin.settings.successStatusValue ?? "success"
     );
@@ -21532,6 +21631,8 @@ var SETTINGS_SEARCH_TERMS = [
   "Output folder",
   "\u7B14\u8BB0\u6837\u5F0F\u7C7B",
   "Note CSS class",
+  "\u9ED8\u8BA4\u5C5E\u6027",
+  "Default properties",
   "\u6587\u7A3F\u5F15\u7528\u683C\u5F0F",
   "Transcript quote format",
   "\u603B\u7ED3\u8BED\u8A00",
@@ -21606,12 +21707,23 @@ var VideoSummaryPlugin = class extends import_obsidian21.Plugin {
     // preflight 结果缓存（60s 内不重复 ping）
     this.lastPreflight = null;
   }
+  /** Every NoteProcessor reads the same note-writing settings: style class, success text, default properties. */
+  createNoteProcessor() {
+    return new NoteProcessor(
+      this.app.vault,
+      () => this.settings.noteCssClass ?? "",
+      () => ({
+        successText: this.settings.successStatusValue ?? "success",
+        defaultProperties: this.settings.defaultNoteProperties ?? ""
+      })
+    );
+  }
   async onload() {
     setInterfaceLanguage((0, import_obsidian21.getLanguage)());
     await this.loadSettings();
     this.initializeApiInstance();
     this.fileProcessor = new FileProcessor(this.app, this);
-    this.noteProcessor = new NoteProcessor(this.app.vault, () => this.settings.noteCssClass ?? "");
+    this.noteProcessor = this.createNoteProcessor();
     const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     this.artifactStore = new ArtifactStore(
       this.app.vault.adapter,
@@ -21955,7 +22067,7 @@ var VideoSummaryPlugin = class extends import_obsidian21.Plugin {
           conflictStrategy: this.settings.renameConflictStrategy
         });
         await this.jobService.relinkExternalResult(artifactContext, result, file);
-        await this.noteProcessor.setProcessingStatus(
+        await this.noteProcessor.markProcessingSuccess(
           file,
           this.settings.successStatusValue ?? "success"
         );
@@ -22168,7 +22280,7 @@ ${extractResult.video_transcript}
           conflictStrategy: this.settings.renameConflictStrategy
         });
         await this.jobService.relinkExternalResult(artifactContext, result, file);
-        await this.noteProcessor.setProcessingStatus(
+        await this.noteProcessor.markProcessingSuccess(
           file,
           this.settings.successStatusValue ?? "success"
         );
@@ -22267,7 +22379,7 @@ ${extractResult.video_transcript}
           conflictStrategy: this.settings.renameConflictStrategy
         });
         await this.jobService.relinkExternalResult(artifactContext, result, file);
-        await this.noteProcessor.setProcessingStatus(
+        await this.noteProcessor.markProcessingSuccess(
           file,
           this.settings.successStatusValue ?? "success"
         );
@@ -23582,24 +23694,7 @@ Confirm only if you recognise where it came from.`
   }
 };
 function normalizeSuccessStatusValue(value) {
-  const normalized = scalarText(value).trim();
-  if (!normalized) return DEFAULT_SETTINGS.successStatusValue;
-  const reservedStatuses = /* @__PURE__ */ new Set([
-    "pending",
-    "running",
-    "error",
-    "excluded",
-    "\u{1F4FA}",
-    "\u23F3",
-    "\u274C",
-    "\u26D4",
-    "\u26D4\uFE0F",
-    "\u5F85\u5904\u7406",
-    "\u5904\u7406\u4E2D",
-    "\u5904\u7406\u5931\u8D25",
-    "\u975E\u89C6\u9891\u7B14\u8BB0"
-  ]);
-  return reservedStatuses.has(normalized.toLowerCase()) ? DEFAULT_SETTINGS.successStatusValue : normalized;
+  return normalizeSuccessStatusText(value, DEFAULT_SETTINGS.successStatusValue);
 }
 var VideoSummarySettingTab = class extends import_obsidian21.PluginSettingTab {
   constructor(app, plugin) {
@@ -24599,6 +24694,19 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian21.Setting(section3).setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
+      tr(
+        "\u5904\u7406\u6210\u529F\u65F6\u8865\u8FDB\u7B14\u8BB0\uFF0C\u4E00\u884C\u4E00\u4E2A\u201C\u540D\u79F0: \u503C\u201D\u3002\u7B14\u8BB0\u91CC\u5DF2\u6709\u7684\u503C\u4E0D\u8986\u76D6\uFF1Btags \u548C aliases \u4F1A\u5408\u5E76\uFF0C\u591A\u4E2A\u503C\u7528\u9017\u53F7\u9694\u5F00\u3002",
+        'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas.'
+      )
+    ).addTextArea((area) => {
+      area.setPlaceholder("learning_status: raw\ntags: type/video").setValue(this.plugin.settings.defaultNoteProperties ?? "").onChange(async (value) => {
+        this.plugin.settings.defaultNoteProperties = value;
+        await this.plugin.saveSettings();
+      });
+      area.inputEl.rows = 3;
+      area.inputEl.addClass("vs-properties-input");
+    });
     new import_obsidian21.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(
       tr(
         "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002",
@@ -24672,14 +24780,19 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian21.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(tr("\u5199\u8FDB frontmatter \u7684 status", "Written to the status property")).addText(
+    new import_obsidian21.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(
+      tr(
+        "\u5904\u7406\u6210\u529F\u540E\u5199\u8FDB status\u3002\u63D2\u4EF6\u81EA\u5DF1\u7684\u72B6\u6001\u53E6\u8BB0\u5728 video_summary_status\uFF0C\u6240\u4EE5\u8FD9\u91CC\u53EF\u4EE5\u586B\u4F60\u5E93\u91CC\u201C\u5F85\u6574\u7406\u201D\u7684\u6807\u8BB0\uFF0C\u4F8B\u5982 \u274C\u3002",
+        `Written to status after a note is processed. The plugin keeps its own state in video_summary_status, so this can be your vault's "to review" mark, such as \u274C.`
+      )
+    ).addText(
       (text2) => text2.setPlaceholder(tr("\u4F8B\u5982 success", "For example success")).setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
           new import_obsidian21.Notice(
             tr(
-              "\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u4F7F\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u6216\u5931\u8D25\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success",
-              "The success status cannot be a pending, processing or failure value; reset to success"
+              "\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u3001\u5931\u8D25\u6216\u6392\u9664\u7684\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success",
+              "The success status cannot be a pending, processing, failed or excluded value; reset to success"
             )
           );
         }
