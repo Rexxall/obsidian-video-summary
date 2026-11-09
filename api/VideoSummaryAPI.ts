@@ -54,11 +54,18 @@ export type ProcessProgressReporter = (progress: {
 
 const NO_SUMMARY = '服务器没有返回总结';
 const NO_TRANSCRIPT = '服务器没有返回转录文本';
+const BACKEND_ERROR = '后端报错';
+/** The workflow's error branch puts its message in summary as "Error: …". */
+const ERROR_SUMMARY = /^\s*Error\s*[:：]\s*/i;
 
 /** What the mode needs and the reply lacks, or null. Video details alone do not count as content. */
 export function missingContent(result: ProcessingResult, mode: ProcessingMode): string | null {
   if (mode === 'summary') {
-    return (result.note || result.summary || '').trim() ? null : NO_SUMMARY;
+    const summary = (result.summary || '').trim();
+    if (!(result.note || '').trim() && ERROR_SUMMARY.test(summary)) {
+      return `${BACKEND_ERROR}：${summary.replace(ERROR_SUMMARY, '').slice(0, 300)}`;
+    }
+    return (result.note || summary).trim() ? null : NO_SUMMARY;
   }
   if (mode === 'transcript-only') {
     return (result.video_transcript || '').trim() || result.video_segments?.length
@@ -1617,6 +1624,14 @@ export class VideoSummaryAPI {
       return tr(
         `${message}。请确认 URL 指向 n8n Webhook，而不是 n8n 登录页、反向代理错误页或普通网页。`,
         `${message}. Make sure the URL points at the n8n webhook, not the n8n login page, a proxy error page or a normal web page.`,
+      );
+    }
+
+    if (message.startsWith(BACKEND_ERROR)) {
+      const detail = message.slice(BACKEND_ERROR.length).replace(/^[:：]\s*/, '');
+      return tr(
+        `后端没写出总结，笔记没有写。可以重试；连着几次都这样，检查 n8n 里的模型和凭据。后端的原话：${detail}`,
+        `The backend did not write a summary, so nothing was written. Retry; if it keeps happening, check the model and its credential in n8n. The backend said: ${detail}`,
       );
     }
 

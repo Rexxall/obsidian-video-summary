@@ -357,3 +357,52 @@ void test('a reply with only the video details fails the job, is not cached, and
     globalThis.fetch = originalFetch;
   }
 });
+
+void test('a reply whose summary is the workflow error message fails the job and is not cached', async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  let reply: Record<string, unknown> = {
+    summary: 'Error: 模型多次调用失败。Error in sub-node Model: Chat',
+    video_title: 'Bliss (Windows XP)',
+    video_transcript: '[00:07] I have been dancing on your desktop all day',
+  };
+  globalThis.fetch = async () => {
+    requests += 1;
+    return new Response(JSON.stringify(reply), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    const vault = { configDir: '.obsidian', adapter: new MemoryAdapter() };
+    const api = new VideoSummaryAPI(
+      'https://example.invalid/webhook',
+      vault as never,
+      '.obsidian/plugins/video-summary/data',
+      undefined,
+    );
+    const input = { url: 'https://www.youtube.com/watch?v=AoNnbz237E0' };
+
+    await assert.rejects(api.processVideo('note', input, 'summary', 'zh', true), (error: Error) => {
+      assert.match(error.message, /后端没写出总结/);
+      assert.match(error.message, /Error in sub-node Model: Chat/);
+      return true;
+    });
+    // Transcript-only jobs do not need a summary, so the transcript still counts.
+    assert.match(
+      (await api.processVideoSimple(input, 'transcript-only', 'zh', true)).video_transcript || '',
+      /dancing on your desktop/,
+    );
+
+    // Nothing was cached: once the model works again, the next run asks the backend.
+    reply = { summary: '一首劝人离开屏幕的歌', note: '> [!summary] 摘要\n> 内容' };
+    assert.equal(
+      (await api.processVideo('note', input, 'summary', 'zh', true)).summary,
+      '一首劝人离开屏幕的歌',
+    );
+    assert.equal(requests, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -9684,9 +9684,15 @@ var CACHE_ARTIFACT_SCHEMA_VERSION = 3;
 var CACHE_PROMPT_VERSION = "video-note-prompt-v5";
 var NO_SUMMARY = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3";
 var NO_TRANSCRIPT = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u8F6C\u5F55\u6587\u672C";
+var BACKEND_ERROR = "\u540E\u7AEF\u62A5\u9519";
+var ERROR_SUMMARY = /^\s*Error\s*[:：]\s*/i;
 function missingContent(result, mode) {
   if (mode === "summary") {
-    return (result.note || result.summary || "").trim() ? null : NO_SUMMARY;
+    const summary = (result.summary || "").trim();
+    if (!(result.note || "").trim() && ERROR_SUMMARY.test(summary)) {
+      return `${BACKEND_ERROR}\uFF1A${summary.replace(ERROR_SUMMARY, "").slice(0, 300)}`;
+    }
+    return (result.note || summary).trim() ? null : NO_SUMMARY;
   }
   if (mode === "transcript-only") {
     return (result.video_transcript || "").trim() || result.video_segments?.length ? null : NO_TRANSCRIPT;
@@ -10914,6 +10920,13 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       return tr(
         `${message}\u3002\u8BF7\u786E\u8BA4 URL \u6307\u5411 n8n Webhook\uFF0C\u800C\u4E0D\u662F n8n \u767B\u5F55\u9875\u3001\u53CD\u5411\u4EE3\u7406\u9519\u8BEF\u9875\u6216\u666E\u901A\u7F51\u9875\u3002`,
         `${message}. Make sure the URL points at the n8n webhook, not the n8n login page, a proxy error page or a normal web page.`
+      );
+    }
+    if (message.startsWith(BACKEND_ERROR)) {
+      const detail = message.slice(BACKEND_ERROR.length).replace(/^[:：]\s*/, "");
+      return tr(
+        `\u540E\u7AEF\u6CA1\u5199\u51FA\u603B\u7ED3\uFF0C\u7B14\u8BB0\u6CA1\u6709\u5199\u3002\u53EF\u4EE5\u91CD\u8BD5\uFF1B\u8FDE\u7740\u51E0\u6B21\u90FD\u8FD9\u6837\uFF0C\u68C0\u67E5 n8n \u91CC\u7684\u6A21\u578B\u548C\u51ED\u636E\u3002\u540E\u7AEF\u7684\u539F\u8BDD\uFF1A${detail}`,
+        `The backend did not write a summary, so nothing was written. Retry; if it keeps happening, check the model and its credential in n8n. The backend said: ${detail}`
       );
     }
     if (message.includes(NO_SUMMARY) || message.includes(NO_TRANSCRIPT)) {

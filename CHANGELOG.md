@@ -5,6 +5,7 @@ All notable changes to this project are documented here.
 ## Unreleased
 
 - **A class for your own note style.** Set a class under **Settings → Video Summary → Note CSS class** and every video note the plugin writes gets it in its `cssclasses`, so a CSS snippet in your vault can give video notes their own look. Empty by default; the plugin ships no style for it. Classes already on the note are kept.
+- **A backend error is a failed job, not a note.** When the workflow's model call fails and the reply's summary is its `Error: …` message, the job now fails with that message and a Retry button instead of saving a note whose summary is the error. Nothing is cached for it.
 - A job's details show **Open note** right under the title instead of below the preview and the log.
 - Starting one job says "Sent 1 job", not "Sent 1 jobs".
 - **Pasting an article no longer makes a note per link.** A long text with links in it becomes one transcript job with the links kept in the text; one link per line still makes one job per link. Links copied from markdown no longer carry a trailing `)` or `,`, and a transcript note is titled from its first line of text, not from a link.
