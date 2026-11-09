@@ -12,7 +12,7 @@ import { asRecord, type JsonRecord } from './json';
 import { withCssClass } from './noteCssClass';
 import { applyDefaultProperties, parseDefaultProperties } from './noteProperties';
 import { writePluginStatus } from './successStatus';
-import { markNoteBody, syncDoneStamp } from './themeMarks';
+import { addDoneStamp, markNoteBody, readExistingMarks } from './themeMarks';
 import { unlinkMissingNotes } from './wikiLinks';
 export interface NoteWritePrefs {
   /** 成功时写进 status 的文字 */
@@ -208,10 +208,13 @@ export class NoteProcessor {
       };
     }
     if (prefs.themeMarks) {
-      syncDoneStamp(fm);
+      addDoneStamp(fm);
       if (result.note) {
         const takeaway = typeof fm.tldr === 'string' && fm.tldr.trim() ? fm.tldr : result.tldr;
-        result = { ...result, note: markNoteBody(result.note, takeaway) };
+        result = {
+          ...result,
+          note: markNoteBody(result.note, takeaway, readExistingMarks(body)),
+        };
       }
     }
 

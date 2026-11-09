@@ -3765,8 +3765,8 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('主题标记', 'Theme marks'))
       .setDesc(
         tr(
-          '给认识这些类的主题用：一句话结论放成副题（ih-sub），圈出第一个 ==重点==（ih-circ），status 为 ✅ 的笔记盖印章（ih-stamp-done）。插件本身不带这些样式。',
-          'For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is ✅ (ih-stamp-done). The plugin ships no style for them.',
+          '给认识这些类的主题用：一句话结论放成副题（ih-sub），圈出第一个 ==重点==（ih-circ），status 为 ✅ 的笔记盖印章（ih-stamp-done）。页面上已有的副题、圈和印章保留不动。插件本身不带这些样式。',
+          'For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is ✅ (ih-stamp-done). A subtitle, circle or stamp already on the page is kept. The plugin ships no style for them.',
         ),
       )
       .addToggle((toggle) =>

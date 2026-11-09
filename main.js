@@ -14853,36 +14853,79 @@ function writePluginStatus(fm, state, displayText, successText) {
 var SUBTITLE_CLASS = "ih-sub";
 var CIRCLE_CLASS = "ih-circ";
 var DONE_STAMP_CLASS = "ih-stamp-done";
+var STAMP_CLASSES = [
+  "ih-stamp-draft",
+  "ih-stamp-final",
+  "ih-stamp-sent",
+  "ih-stamp-wait",
+  "ih-stamp-done"
+];
 var DONE_STATUS = "\u2705";
-function markNoteBody(note, takeaway) {
-  let body = circleFirstHighlight(note || "");
-  const line = (takeaway || "").replace(/\s+/g, " ").trim();
-  if (line) body = `<span class="${SUBTITLE_CLASS}">${escapeHtml(line)}</span>
+var GENERATED_BLOCK = /<!-- video-summary-generated:start -->([\s\S]*?)<!-- video-summary-generated:end -->/;
+var SPAN = /<span class="(ih-[^"]*)">(.*?)<\/span>/g;
+var sameClass = (a, b) => a.trim().split(/\s+/).sort().join(" ") === b.trim().split(/\s+/).sort().join(" ");
+function findMark(text2, cls) {
+  for (const match of text2.matchAll(SPAN)) if (sameClass(match[1], cls)) return match[2];
+  return void 0;
+}
+function readExistingMarks(body) {
+  const generated = body.match(GENERATED_BLOCK)?.[1] ?? "";
+  const outside = body.replace(GENERATED_BLOCK, "");
+  return {
+    subOutside: findMark(outside, SUBTITLE_CLASS) !== void 0,
+    subInside: findMark(generated, SUBTITLE_CLASS),
+    circleOutside: findMark(outside, CIRCLE_CLASS) !== void 0,
+    circleInside: findMark(generated, CIRCLE_CLASS)
+  };
+}
+function markNoteBody(note, takeaway, existing = { subOutside: false, circleOutside: false }) {
+  let body = note || "";
+  if (!existing.circleOutside) {
+    body = existing.circleInside !== void 0 ? circleText(body, existing.circleInside) : circleFirstHighlight(body);
+  }
+  if (!existing.subOutside) {
+    const line = existing.subInside !== void 0 ? existing.subInside : escapeHtml((takeaway || "").replace(/\s+/g, " ").trim());
+    if (line.trim()) body = `<span class="${SUBTITLE_CLASS}">${line}</span>
 
 ${body}`;
+  }
   return body;
 }
-function circleFirstHighlight(markdown) {
+function editableParts(markdown) {
+  return markdown.split(
+    /(```[\s\S]*?```|`[^`\n]*`|<span class="ih-[^"]*">.*?<\/span>|\[\[[^\]\n]*\]\])/
+  );
+}
+function replaceFirst(markdown, find, wrap) {
   let done = false;
-  return markdown.split(/(```[\s\S]*?```|`[^`\n]*`)/).map((part, index) => {
+  return editableParts(markdown).map((part, index) => {
     if (done || index % 2 === 1) return part;
-    return part.replace(/==([^=\n]+?)==/, (match, text2) => {
+    return part.replace(find, (match, text2) => {
       if (done) return match;
       done = true;
-      return `<span class="${CIRCLE_CLASS}">${text2}</span>`;
+      return wrap(text2);
     });
   }).join("");
 }
-function syncDoneStamp(fm) {
+var circle = (text2) => `<span class="${CIRCLE_CLASS}">${text2}</span>`;
+function circleFirstHighlight(markdown) {
+  return replaceFirst(markdown, /==([^=\n]+?)==/, circle);
+}
+function circleText(markdown, text2) {
+  const words = text2.trim();
+  if (!words) return markdown;
+  const escaped = words.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const highlighted = replaceFirst(markdown, new RegExp(`==(${escaped})==`), circle);
+  if (highlighted !== markdown) return highlighted;
+  return replaceFirst(markdown, new RegExp(`(${escaped})`), circle);
+}
+function addDoneStamp(fm) {
+  if (typeof fm.status !== "string" || fm.status.trim() !== DONE_STATUS) return;
   const raw = fm.cssclasses ?? fm.cssclass;
   const list = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
-  const done = typeof fm.status === "string" && fm.status.trim() === DONE_STATUS;
-  const has = list.includes(DONE_STAMP_CLASS);
-  if (done === has) return;
-  const next = done ? [...list, DONE_STAMP_CLASS] : list.filter((c) => c !== DONE_STAMP_CLASS);
-  delete fm.cssclass;
-  if (next.length > 0) fm.cssclasses = next;
-  else delete fm.cssclasses;
+  if (list.some((cls) => STAMP_CLASSES.includes(cls))) return;
+  if ("cssclass" in fm && !("cssclasses" in fm)) delete fm.cssclass;
+  fm.cssclasses = [...list, DONE_STAMP_CLASS];
 }
 function escapeHtml(text2) {
   return text2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -15063,10 +15106,13 @@ ${body}`;
       };
     }
     if (prefs.themeMarks) {
-      syncDoneStamp(fm);
+      addDoneStamp(fm);
       if (result.note) {
         const takeaway = typeof fm.tldr === "string" && fm.tldr.trim() ? fm.tldr : result.tldr;
-        result = { ...result, note: markNoteBody(result.note, takeaway) };
+        result = {
+          ...result,
+          note: markNoteBody(result.note, takeaway, readExistingMarks(body))
+        };
       }
     }
     Object.assign(fm, buildRichFrontmatterFields(result));
@@ -24828,8 +24874,8 @@ Suggestion: ${res.hint}`) : "";
     );
     new import_obsidian21.Setting(section3).setName(tr("\u4E3B\u9898\u6807\u8BB0", "Theme marks")).setDesc(
       tr(
-        "\u7ED9\u8BA4\u8BC6\u8FD9\u4E9B\u7C7B\u7684\u4E3B\u9898\u7528\uFF1A\u4E00\u53E5\u8BDD\u7ED3\u8BBA\u653E\u6210\u526F\u9898\uFF08ih-sub\uFF09\uFF0C\u5708\u51FA\u7B2C\u4E00\u4E2A ==\u91CD\u70B9==\uFF08ih-circ\uFF09\uFF0Cstatus \u4E3A \u2705 \u7684\u7B14\u8BB0\u76D6\u5370\u7AE0\uFF08ih-stamp-done\uFF09\u3002\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E9B\u6837\u5F0F\u3002",
-        "For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is \u2705 (ih-stamp-done). The plugin ships no style for them."
+        "\u7ED9\u8BA4\u8BC6\u8FD9\u4E9B\u7C7B\u7684\u4E3B\u9898\u7528\uFF1A\u4E00\u53E5\u8BDD\u7ED3\u8BBA\u653E\u6210\u526F\u9898\uFF08ih-sub\uFF09\uFF0C\u5708\u51FA\u7B2C\u4E00\u4E2A ==\u91CD\u70B9==\uFF08ih-circ\uFF09\uFF0Cstatus \u4E3A \u2705 \u7684\u7B14\u8BB0\u76D6\u5370\u7AE0\uFF08ih-stamp-done\uFF09\u3002\u9875\u9762\u4E0A\u5DF2\u6709\u7684\u526F\u9898\u3001\u5708\u548C\u5370\u7AE0\u4FDD\u7559\u4E0D\u52A8\u3002\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E9B\u6837\u5F0F\u3002",
+        "For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is \u2705 (ih-stamp-done). A subtitle, circle or stamp already on the page is kept. The plugin ships no style for them."
       )
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.themeMarks ?? false).onChange(async (value) => {
