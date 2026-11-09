@@ -13,7 +13,13 @@ const statement = ast.statements.find(
 assert.ok(statement, 'Shipping NoteProcessor exists');
 function fixture(race = false) {
   let content = 'user note';
-  const context = { shouldMirrorLegacyStatus: () => false, canonicalPluginStatus: (x) => x };
+  const context = {
+    canonicalPluginStatus: (x) => x,
+    writePluginStatus: (fm, state, display) => {
+      fm.video_summary_status = state;
+      fm.status = display;
+    },
+  };
   vm.runInNewContext(statement.getText(ast), context);
   const vault = {
     read: async () => content,
