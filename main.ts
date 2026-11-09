@@ -1404,7 +1404,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
   async loadSettings() {
     const { stored, migrated } = await this.readStoredData();
-    this.settings = withDefaultSettings(stored as Partial<VideoSummarySettings>);
+    this.settings = withDefaultSettings(stored);
 
     let shouldSave = migrated;
     try {
