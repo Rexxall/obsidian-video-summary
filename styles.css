@@ -266,13 +266,21 @@
 .ap-settings button {
   border-radius: var(--ap-r-pill);
 }
-/* Default properties: one "name: value" per line */
+/* Default properties: a multi-line field sits under its label and takes the full row */
+.ap-settings .setting-item.vs-setting-stacked {
+  flex-wrap: wrap;
+}
+.ap-settings .setting-item.vs-setting-stacked .setting-item-control {
+  flex: 1 0 100%;
+  padding-top: 8px;
+}
 .ap-settings textarea.vs-properties-input {
-  width: min(320px, 100%);
-  min-height: 4.5em;
+  width: 100%;
+  min-height: calc(3 * 1.6em + 16px);
+  padding: 8px 10px;
   font-family: var(--font-monospace);
   font-size: var(--font-ui-small);
-  line-height: 1.5;
+  line-height: 1.6;
   resize: vertical;
 }
 

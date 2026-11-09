@@ -24694,7 +24694,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian21.Setting(section3).setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
+    new import_obsidian21.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
       tr(
         "\u5904\u7406\u6210\u529F\u65F6\u8865\u8FDB\u7B14\u8BB0\uFF0C\u4E00\u884C\u4E00\u4E2A\u201C\u540D\u79F0: \u503C\u201D\u3002\u7B14\u8BB0\u91CC\u5DF2\u6709\u7684\u503C\u4E0D\u8986\u76D6\uFF1Btags \u548C aliases \u4F1A\u5408\u5E76\uFF0C\u591A\u4E2A\u503C\u7528\u9017\u53F7\u9694\u5F00\u3002",
         'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas.'

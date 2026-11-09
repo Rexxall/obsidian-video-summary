@@ -3718,6 +3718,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
+      .setClass('vs-setting-stacked')
       .setName(tr('默认属性', 'Default properties'))
       .setDesc(
         tr(
