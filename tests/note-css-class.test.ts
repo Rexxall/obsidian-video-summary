@@ -1,6 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { DEFAULT_SETTINGS, withDefaultSettings } from '../constants';
 import { withCssClass } from '../utils/noteCssClass';
 
 void test('the note class joins the classes already on the note, once, and an empty setting adds none', () => {
@@ -18,4 +19,13 @@ void test('the note class joins the classes already on the note, once, and an em
   withCssClass(none, '');
   withCssClass(none, 'not a class!');
   assert.equal('cssclasses' in none, false);
+});
+
+void test('the note class is empty by default and a saved class survives the new default', () => {
+  assert.equal(DEFAULT_SETTINGS.noteCssClass, '');
+  assert.equal(withDefaultSettings({}).noteCssClass, '');
+  // Someone who already saved a class (such as ih-film) keeps it after upgrading.
+  assert.equal(withDefaultSettings({ noteCssClass: 'ih-film' }).noteCssClass, 'ih-film');
+  // Someone who cleared it keeps it cleared.
+  assert.equal(withDefaultSettings({ noteCssClass: '' }).noteCssClass, '');
 });

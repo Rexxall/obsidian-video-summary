@@ -127,7 +127,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   autoSave: true,
   batchConcurrency: 3,
   outputFolder: '',
-  noteCssClass: 'ih-film',
+  noteCssClass: '',
   defaultNoteProperties: '',
   autoRenameEnabled: true,
   renameConflictStrategy: 'append-number',
@@ -203,3 +203,11 @@ export const ERROR_MESSAGES = {
     );
   },
 };
+
+/**
+ * Settings as loaded: defaults first, then whatever the person saved. A saved value always wins,
+ * so changing a default (such as the note class) never changes it for someone who already set it.
+ */
+export function withDefaultSettings(stored: Partial<VideoSummarySettings>): VideoSummarySettings {
+  return Object.assign({}, DEFAULT_SETTINGS, stored);
+}

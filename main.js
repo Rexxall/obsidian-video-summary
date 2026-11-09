@@ -1958,7 +1958,7 @@ var DEFAULT_SETTINGS = {
   autoSave: true,
   batchConcurrency: 3,
   outputFolder: "",
-  noteCssClass: "ih-film",
+  noteCssClass: "",
   defaultNoteProperties: "",
   autoRenameEnabled: true,
   renameConflictStrategy: "append-number",
@@ -2031,6 +2031,9 @@ var ERROR_MESSAGES = {
     );
   }
 };
+function withDefaultSettings(stored) {
+  return Object.assign({}, DEFAULT_SETTINGS, stored);
+}
 
 // utils/RetryUtils.ts
 var RetryUtils = class {
@@ -22751,7 +22754,7 @@ Open Docker and run the start script, or check the connection code in settings.`
   }
   async loadSettings() {
     const { stored, migrated } = await this.readStoredData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
+    this.settings = withDefaultSettings(stored);
     let shouldSave = migrated;
     try {
       const safeOutputFolder = normalizeVideoSummaryBaseFolder(this.settings.outputFolder);
@@ -24689,7 +24692,7 @@ Suggestion: ${res.hint}`) : "";
         "Added to each video note's cssclasses so a CSS snippet in your vault can style it; the plugin ships no style for it. Leave empty to add none."
       )
     ).addText(
-      (text2) => text2.setPlaceholder("ih-film").setValue(this.plugin.settings.noteCssClass ?? "").onChange(async (value) => {
+      (text2) => text2.setPlaceholder(tr("\u4F8B\u5982 video-note", "For example video-note")).setValue(this.plugin.settings.noteCssClass ?? "").onChange(async (value) => {
         this.plugin.settings.noteCssClass = value.trim();
         await this.plugin.saveSettings();
       })

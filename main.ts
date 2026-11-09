@@ -42,6 +42,7 @@ import {
   SETUP_GUIDE_URL,
   setupTrialTranscript,
   SUPPORTED_PLATFORMS,
+  withDefaultSettings,
 } from './constants';
 import { pollQrLogin, startQrLogin, type QrLoginTicket } from './core/BilibiliLogin';
 import { drawQrCode } from './views/qrCode';
@@ -1403,7 +1404,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
   async loadSettings() {
     const { stored, migrated } = await this.readStoredData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
+    this.settings = withDefaultSettings(stored as Partial<VideoSummarySettings>);
 
     let shouldSave = migrated;
     try {
@@ -3709,7 +3710,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
       )
       .addText((text) =>
         text
-          .setPlaceholder('ih-film')
+          .setPlaceholder(tr('例如 video-note', 'For example video-note'))
           .setValue(this.plugin.settings.noteCssClass ?? '')
           .onChange(async (value) => {
             this.plugin.settings.noteCssClass = value.trim();
