@@ -130,6 +130,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   noteCssClass: '',
   defaultNoteProperties: '',
   unlinkMissingNotes: false,
+  themeMarks: false,
   autoRenameEnabled: true,
   renameConflictStrategy: 'append-number',
   enableDebugMode: false,

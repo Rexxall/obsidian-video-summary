@@ -1961,6 +1961,7 @@ var DEFAULT_SETTINGS = {
   noteCssClass: "",
   defaultNoteProperties: "",
   unlinkMissingNotes: false,
+  themeMarks: false,
   autoRenameEnabled: true,
   renameConflictStrategy: "append-number",
   enableDebugMode: false,
@@ -14848,6 +14849,45 @@ function writePluginStatus(fm, state, displayText, successText) {
   if (mirror) fm.status = displayText;
 }
 
+// utils/themeMarks.ts
+var SUBTITLE_CLASS = "ih-sub";
+var CIRCLE_CLASS = "ih-circ";
+var DONE_STAMP_CLASS = "ih-stamp-done";
+var DONE_STATUS = "\u2705";
+function markNoteBody(note, takeaway) {
+  let body = circleFirstHighlight(note || "");
+  const line = (takeaway || "").replace(/\s+/g, " ").trim();
+  if (line) body = `<span class="${SUBTITLE_CLASS}">${escapeHtml(line)}</span>
+
+${body}`;
+  return body;
+}
+function circleFirstHighlight(markdown) {
+  let done = false;
+  return markdown.split(/(```[\s\S]*?```|`[^`\n]*`)/).map((part, index) => {
+    if (done || index % 2 === 1) return part;
+    return part.replace(/==([^=\n]+?)==/, (match, text2) => {
+      if (done) return match;
+      done = true;
+      return `<span class="${CIRCLE_CLASS}">${text2}</span>`;
+    });
+  }).join("");
+}
+function syncDoneStamp(fm) {
+  const raw = fm.cssclasses ?? fm.cssclass;
+  const list = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
+  const done = typeof fm.status === "string" && fm.status.trim() === DONE_STATUS;
+  const has = list.includes(DONE_STAMP_CLASS);
+  if (done === has) return;
+  const next = done ? [...list, DONE_STAMP_CLASS] : list.filter((c) => c !== DONE_STAMP_CLASS);
+  delete fm.cssclass;
+  if (next.length > 0) fm.cssclasses = next;
+  else delete fm.cssclasses;
+}
+function escapeHtml(text2) {
+  return text2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // utils/wikiLinks.ts
 function unlinkMissingNotes(markdown, exists) {
   if (!markdown || !markdown.includes("[[")) return markdown;
@@ -15021,6 +15061,13 @@ ${body}`;
         ...result,
         note: unlinkMissingNotes(result.note, (linkpath) => linkExists(linkpath, file.path))
       };
+    }
+    if (prefs.themeMarks) {
+      syncDoneStamp(fm);
+      if (result.note) {
+        const takeaway = typeof fm.tldr === "string" && fm.tldr.trim() ? fm.tldr : result.tldr;
+        result = { ...result, note: markNoteBody(result.note, takeaway) };
+      }
     }
     Object.assign(fm, buildRichFrontmatterFields(result));
     const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
@@ -21690,6 +21737,8 @@ var SETTINGS_SEARCH_TERMS = [
   "Default properties",
   "\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE",
   "Keep only links to existing notes",
+  "\u4E3B\u9898\u6807\u8BB0",
+  "Theme marks",
   "\u6587\u7A3F\u5F15\u7528\u683C\u5F0F",
   "Transcript quote format",
   "\u603B\u7ED3\u8BED\u8A00",
@@ -21772,7 +21821,8 @@ var VideoSummaryPlugin = class extends import_obsidian21.Plugin {
       () => ({
         successText: this.settings.successStatusValue ?? "success",
         defaultProperties: this.settings.defaultNoteProperties ?? "",
-        linkExists: this.settings.unlinkMissingNotes ? (linkpath, sourcePath) => !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath) : void 0
+        linkExists: this.settings.unlinkMissingNotes ? (linkpath, sourcePath) => !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath) : void 0,
+        themeMarks: this.settings.themeMarks ?? false
       })
     );
   }
@@ -24773,6 +24823,17 @@ Suggestion: ${res.hint}`) : "";
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.unlinkMissingNotes ?? false).onChange(async (value) => {
         this.plugin.settings.unlinkMissingNotes = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian21.Setting(section3).setName(tr("\u4E3B\u9898\u6807\u8BB0", "Theme marks")).setDesc(
+      tr(
+        "\u7ED9\u8BA4\u8BC6\u8FD9\u4E9B\u7C7B\u7684\u4E3B\u9898\u7528\uFF1A\u4E00\u53E5\u8BDD\u7ED3\u8BBA\u653E\u6210\u526F\u9898\uFF08ih-sub\uFF09\uFF0C\u5708\u51FA\u7B2C\u4E00\u4E2A ==\u91CD\u70B9==\uFF08ih-circ\uFF09\uFF0Cstatus \u4E3A \u2705 \u7684\u7B14\u8BB0\u76D6\u5370\u7AE0\uFF08ih-stamp-done\uFF09\u3002\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E9B\u6837\u5F0F\u3002",
+        "For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is \u2705 (ih-stamp-done). The plugin ships no style for them."
+      )
+    ).addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.themeMarks ?? false).onChange(async (value) => {
+        this.plugin.settings.themeMarks = value;
         await this.plugin.saveSettings();
       })
     );

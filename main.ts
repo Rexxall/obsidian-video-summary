@@ -148,6 +148,7 @@ export default class VideoSummaryPlugin extends Plugin {
           ? (linkpath, sourcePath) =>
               !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath)
           : undefined,
+        themeMarks: this.settings.themeMarks ?? false,
       }),
     );
   }
@@ -3758,6 +3759,21 @@ class VideoSummarySettingTab extends PluginSettingTab {
             this.plugin.settings.unlinkMissingNotes = value;
             await this.plugin.saveSettings();
           }),
+      );
+
+    new Setting(section)
+      .setName(tr('主题标记', 'Theme marks'))
+      .setDesc(
+        tr(
+          '给认识这些类的主题用：一句话结论放成副题（ih-sub），圈出第一个 ==重点==（ih-circ），status 为 ✅ 的笔记盖印章（ih-stamp-done）。插件本身不带这些样式。',
+          'For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is ✅ (ih-stamp-done). The plugin ships no style for them.',
+        ),
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.themeMarks ?? false).onChange(async (value) => {
+          this.plugin.settings.themeMarks = value;
+          await this.plugin.saveSettings();
+        }),
       );
 
     new Setting(section)

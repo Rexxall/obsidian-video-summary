@@ -310,6 +310,8 @@ export interface VideoSummarySettings {
   defaultNoteProperties: string;
   /** AI 写的 [[双链]] 指向不存在的笔记时改成纯文字 */
   unlinkMissingNotes: boolean;
+  /** 给认识 ih-sub / ih-circ / ih-stamp-done 的主题加标记 */
+  themeMarks: boolean;
   // 自动重命名配置
   autoRenameEnabled: boolean;
   renameConflictStrategy: 'skip' | 'append-number' | 'append-date';

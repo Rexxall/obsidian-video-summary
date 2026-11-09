@@ -42,6 +42,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   'Default properties',
   '只保留指向已有笔记的双链',
   'Keep only links to existing notes',
+  '主题标记',
+  'Theme marks',
   '文稿引用格式',
   'Transcript quote format',
   '总结语言',

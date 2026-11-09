@@ -12,6 +12,7 @@ import { asRecord, type JsonRecord } from './json';
 import { withCssClass } from './noteCssClass';
 import { applyDefaultProperties, parseDefaultProperties } from './noteProperties';
 import { writePluginStatus } from './successStatus';
+import { markNoteBody, syncDoneStamp } from './themeMarks';
 import { unlinkMissingNotes } from './wikiLinks';
 export interface NoteWritePrefs {
   /** 成功时写进 status 的文字 */
@@ -20,6 +21,8 @@ export interface NoteWritePrefs {
   defaultProperties: string;
   /** 给了就把指向不存在笔记的 [[双链]] 改成纯文字；参数是链接路径和这篇笔记的路径 */
   linkExists?: (linkpath: string, sourcePath: string) => boolean;
+  /** 主题标记：副题、红笔圈、✅ 印章（见 themeMarks.ts） */
+  themeMarks?: boolean;
 }
 
 export class NoteProcessor {
@@ -203,6 +206,13 @@ export class NoteProcessor {
         ...result,
         note: unlinkMissingNotes(result.note, (linkpath) => linkExists(linkpath, file.path)),
       };
+    }
+    if (prefs.themeMarks) {
+      syncDoneStamp(fm);
+      if (result.note) {
+        const takeaway = typeof fm.tldr === 'string' && fm.tldr.trim() ? fm.tldr : result.tldr;
+        result = { ...result, note: markNoteBody(result.note, takeaway) };
+      }
     }
 
     // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
