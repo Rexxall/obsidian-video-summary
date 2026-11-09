@@ -5876,7 +5876,8 @@ function titleForTranscript(text2) {
     String(now.getMinutes()).padStart(2, "0"),
     String(now.getSeconds()).padStart(2, "0")
   ].join("");
-  const snippet = text2.split("\n")[0].replace(/^#+\s*/, "").substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
+  const firstLine = text2.split("\n").map((line) => proseOf(line.replace(/^#+\s*/, ""))).find((line) => line.length > 0) || "";
+  const snippet = firstLine.substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
   return snippet ? `\u6587\u7A3F_${stamp}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp}`;
 }
 function buildInput(parts) {

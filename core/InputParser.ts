@@ -175,11 +175,13 @@ function titleForTranscript(text: string): string {
     String(now.getMinutes()).padStart(2, '0'),
     String(now.getSeconds()).padStart(2, '0'),
   ].join('');
-  const snippet = text
-    .split('\n')[0]
-    .replace(/^#+\s*/, '')
-    .substring(0, 12)
-    .replace(/[<>:"/\\|?*\s]/g, '_');
+  // 取第一行有文字的内容：跳过只有链接的行，去掉标题符号和 markdown 链接语法
+  const firstLine =
+    text
+      .split('\n')
+      .map((line) => proseOf(line.replace(/^#+\s*/, '')))
+      .find((line) => line.length > 0) || '';
+  const snippet = firstLine.substring(0, 12).replace(/[<>:"/\\|?*\s]/g, '_');
   return snippet ? `文稿_${stamp}_${snippet}` : `文稿处理_${stamp}`;
 }
 

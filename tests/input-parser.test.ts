@@ -31,6 +31,13 @@ void test('a pasted article with inline links becomes one transcript job', () =>
   // The links stay inside the text so the summary can cite them.
   assert.ok(drafts[0].input.transcript?.includes('https://news.example.org/walk-report'));
   assert.ok(drafts[0].input.transcript?.startsWith('# How to plan a long walk'));
+  assert.match(drafts[0].title, /^文稿_\d{8}_\d{6}_How_to_plan_$/);
+});
+
+void test('the transcript title skips a first line that is only a link', () => {
+  const drafts = parseInput(`https://example.com/walk/\n\n${ARTICLE}`);
+  assert.equal(drafts.length, 1);
+  assert.match(drafts[0].title, /_How_to_plan_$/);
 });
 
 void test('a long Chinese passage with a couple of links stays one transcript', () => {
