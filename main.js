@@ -19209,7 +19209,7 @@ var BackendControl = class {
         this.lastStartFailure = "";
         this.notice?.hide();
         this.notice = null;
-        this.plugin.jobs.setHeld(false);
+        if (!this.plugin.installer?.restarting) this.plugin.jobs.setHeld(false);
       } else if (snapshot.status === "offline" && this.preflightOn()) {
         this.plugin.jobs.setHeld(true);
       }
@@ -19250,6 +19250,18 @@ var BackendControl = class {
     const diagnosis = await this.freshDiagnosis();
     if (diagnosis.ok) return true;
     this.plugin.jobs.setHeld(true);
+    const snapshot = this.monitor.snapshot();
+    if (snapshot.status === "starting") {
+      this.notice?.hide();
+      this.notice = new import_obsidian20.Notice(
+        tr(
+          `\u4EFB\u52A1\u5728\u7B49\u540E\u7AEF\uFF1A${snapshot.step || "\u6B63\u5728\u542F\u52A8"}\u3002\u540E\u7AEF\u5E94\u7B54\u540E\u81EA\u52A8\u5F00\u59CB\u3002`,
+          `The job is waiting: ${snapshot.step || "the backend is starting"}. It starts by itself once the backend answers.`
+        ),
+        8e3
+      );
+      return false;
+    }
     this.tellOffline(diagnosis, true);
     return false;
   }
@@ -19749,6 +19761,8 @@ var BackendInstaller = class {
     this.applyTimer = null;
     this.applying = null;
     this.lastFacts = null;
+    /** true from handing settings over until the container has restarted: an answer in between is the old process. */
+    this.restarting = false;
   }
   progress() {
     return this.current;
@@ -19873,12 +19887,15 @@ var BackendInstaller = class {
    * The model or a key changed in settings: hand it to the backend shortly after
    * the last change, so typing a model name does not restart the backend per letter.
    */
-  scheduleApply() {
+  scheduleApply(delayMs = APPLY_DEBOUNCE_MS) {
     if (this.applyTimer !== null) window.clearTimeout(this.applyTimer);
     this.applyTimer = window.setTimeout(() => {
       this.applyTimer = null;
       void this.applyIfChanged(true);
-    }, APPLY_DEBOUNCE_MS);
+    }, delayMs);
+  }
+  async waitForRunningJobs() {
+    while (this.plugin.jobs.countByState("running") > 0 && !this.cancelled) await sleep(2e3);
   }
   dispose() {
     if (this.applyTimer !== null) window.clearTimeout(this.applyTimer);
@@ -19904,10 +19921,21 @@ var BackendInstaller = class {
     if (fingerprint === settings.backendAppliedConfig) return true;
     const facts = await this.refreshFacts();
     if (!facts.bundled || !facts.container?.running) return false;
+    if (this.plugin.jobs.countByState("running") > 0) {
+      if (!this.running) {
+        this.scheduleApply(15e3);
+        return false;
+      }
+      await this.waitForRunningJobs();
+    }
     const { monitor } = this.plugin.backend;
     monitor.beginStart(tr("\u6B63\u5728\u628A\u6A21\u578B\u548C\u5BC6\u94A5\u4EA4\u7ED9\u540E\u7AEF", "Giving the backend the model and keys"));
+    this.plugin.jobs.setHeld(true);
     try {
-      const result = await applyModelConfig(runProgram, facts.container.id, config);
+      this.restarting = true;
+      const result = await applyModelConfig(runProgram, facts.container.id, config).finally(() => {
+        this.restarting = false;
+      });
       if (!result.ok) {
         const message = result.reason === "old-backend" ? tr(
           "\u8FD9\u4E2A\u540E\u7AEF\u662F\u65E7\u7248\uFF0C\u8FD8\u4E0D\u80FD\u4ECE\u8BBE\u7F6E\u91CC\u63A5\u6536\u6A21\u578B\u548C\u5BC6\u94A5\u3002\u5148\u66F4\u65B0\u540E\u7AEF\u3002",
@@ -19947,7 +19975,8 @@ var BackendInstaller = class {
       return false;
     } finally {
       monitor.endStart();
-      void monitor.check();
+      const after = await monitor.check();
+      if (after.ok) this.plugin.jobs.setHeld(false);
     }
   }
   /** Writes compose.yaml, .env, the two data folders and the Terminal script. */
@@ -20298,7 +20327,7 @@ function drawFirstRun(root, host, redraw) {
     );
     return;
   }
-  drawModelRows(root, host, { applyToBackend: false, onChange: redraw });
+  drawModelRows(root, host, { applyToBackend: false, disabled: false, onChange: redraw });
   const ready = !!readSecret(host.app, plugin.settings.llmKeySecret);
   new import_obsidian23.Setting(root).setName(tr("\u5B89\u88C5\u5E76\u542F\u52A8", "Install and start")).setDesc(
     ready ? tr(
@@ -20323,7 +20352,8 @@ function drawInstalled(root, host, redraw) {
   const facts = installer.facts();
   const snapshot = backend.monitor.snapshot();
   const progress = installer.progress();
-  const managed = !!facts?.bundled;
+  const managed = !!facts?.bundled || !!facts && !facts.container && !!plugin.settings.backendAppliedConfig;
+  const external = !!facts && !managed && plugin.hasBackend();
   if (progress.phase === "failed") drawFailure(root, host);
   if (progress.phase === "done") {
     root.createDiv({ cls: "vs-install is-done" }).createDiv({
@@ -20331,16 +20361,16 @@ function drawInstalled(root, host, redraw) {
       text: progress.message
     });
   }
-  if (facts && !managed && plugin.hasBackend()) {
+  if (external) {
     root.createEl("p", {
       cls: "setting-item-description vs-backend-external",
       text: tr(
-        "\u73B0\u5728\u7528\u7684\u662F\u4F60\u81EA\u5DF1\u642D\u7684\u540E\u7AEF\uFF0C\u5B83\u7684\u6A21\u578B\u548C\u5BC6\u94A5\u5728\u5B83\u90A3\u8FB9\u8BBE\u7F6E\u3002",
-        "You are using a backend you set up yourself; its model and keys are set on its side."
+        "\u8FD9\u4E2A\u540E\u7AEF\u7528\u5B83\u81EA\u5DF1\u7684\u51ED\u636E\uFF0C\u4E0B\u9762\u7684\u6A21\u578B\u548C\u5BC6\u94A5\u6539\u4E86\u4E0D\u751F\u6548\u3002\u8981\u6362\uFF0C\u5230\u5B83\u90A3\u8FB9\uFF08n8n \u7684\u51ED\u636E\uFF0C\u6216\u5B83\u7684 .env\uFF09\u53BB\u6539\u3002",
+        "This backend uses its own credentials; changing the model and keys below has no effect. Change them on its side (its n8n credentials, or its .env)."
       )
     });
   }
-  drawModelRows(root, host, { applyToBackend: managed, onChange: redraw });
+  drawModelRows(root, host, { applyToBackend: managed, disabled: external, onChange: redraw });
   host.renderBilibili(root);
   if (managed && facts?.container) {
     new import_obsidian23.Setting(root).setName(tr("\u5F00\u673A\u540E\u81EA\u52A8\u542F\u52A8", "Start with the computer")).setDesc(
@@ -20428,6 +20458,13 @@ function drawModelRows(root, host, options) {
     if (options.applyToBackend) plugin.installer.scheduleApply();
     if (redraw) options.onChange();
   };
+  const lock = (setting) => {
+    if (!options.disabled) return;
+    setting.setDisabled(true);
+    setting.settingEl.addClass("is-disabled", "vs-row-locked");
+    setting.controlEl.setAttr("inert", "");
+    setting.controlEl.setAttr("aria-disabled", "true");
+  };
   const provider = llmProvider(settings.llmProvider);
   const llm = resolveLlm(settings);
   const model = new import_obsidian23.Setting(root).setName(tr("\u603B\u7ED3\u6A21\u578B", "Summary model"));
@@ -20457,7 +20494,8 @@ function drawModelRows(root, host, options) {
     text2.inputEl.setAttr("aria-label", tr("\u6A21\u578B\u540D", "Model name"));
     text2.inputEl.addClass("vs-model-name");
   });
-  if (!llm.model) {
+  lock(model);
+  if (!llm.model && !options.disabled) {
     model.setDesc(
       tr(
         "\u8FD9\u5BB6\u6CA1\u6709\u56FA\u5B9A\u7684\u9ED8\u8BA4\u6A21\u578B\uFF0C\u586B\u5B83\u63A7\u5236\u53F0\u91CC\u7684\u6A21\u578B\u540D\u3002",
@@ -20487,6 +20525,7 @@ function drawModelRows(root, host, options) {
         await changed(true);
       })
     );
+    lock(setting);
   };
   keyRow(tr("\u603B\u7ED3\u5BC6\u94A5", "Summary key"), settings.llmKeySecret, provider.keyUrl, (secret) => {
     settings.llmKeySecret = secret;

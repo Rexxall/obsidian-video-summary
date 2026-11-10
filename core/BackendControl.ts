@@ -39,7 +39,8 @@ export class BackendControl {
         this.lastStartFailure = '';
         this.notice?.hide();
         this.notice = null;
-        this.plugin.jobs.setHeld(false);
+        // An answer just before a restart comes from the process about to stop: keep the queue held.
+        if (!this.plugin.installer?.restarting) this.plugin.jobs.setHeld(false);
       } else if (snapshot.status === 'offline' && this.preflightOn()) {
         this.plugin.jobs.setHeld(true);
       }
@@ -85,6 +86,19 @@ export class BackendControl {
     const diagnosis = await this.freshDiagnosis();
     if (diagnosis.ok) return true;
     this.plugin.jobs.setHeld(true);
+    const snapshot = this.monitor.snapshot();
+    if (snapshot.status === 'starting') {
+      // The backend is being started or is restarting with new settings: no button, it comes back by itself.
+      this.notice?.hide();
+      this.notice = new Notice(
+        tr(
+          `任务在等后端：${snapshot.step || '正在启动'}。后端应答后自动开始。`,
+          `The job is waiting: ${snapshot.step || 'the backend is starting'}. It starts by itself once the backend answers.`,
+        ),
+        8000,
+      );
+      return false;
+    }
     this.tellOffline(diagnosis, true);
     return false;
   }

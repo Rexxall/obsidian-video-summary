@@ -219,7 +219,7 @@ function drawFirstRun(root: HTMLElement, host: BackendSettingsHost, redraw: () =
   }
 
   // Docker runs: choose the model and keys, then one button does the rest.
-  drawModelRows(root, host, { applyToBackend: false, onChange: redraw });
+  drawModelRows(root, host, { applyToBackend: false, disabled: false, onChange: redraw });
   const ready = !!readSecret(host.app, plugin.settings.llmKeySecret);
   new Setting(root)
     .setName(tr('安装并启动', 'Install and start'))
@@ -256,7 +256,12 @@ function drawInstalled(root: HTMLElement, host: BackendSettingsHost, redraw: () 
   const facts = installer.facts();
   const snapshot = backend.monitor.snapshot();
   const progress = installer.progress();
-  const managed = !!facts?.bundled;
+  // Managed: the container runs the packaged backend. While Docker is off that cannot be seen,
+  // so a backend the plugin has already handed settings to still counts.
+  const managed =
+    !!facts?.bundled || (!!facts && !facts.container && !!plugin.settings.backendAppliedConfig);
+  // A remote backend or someone's own n8n keeps its model and keys on its side.
+  const external = !!facts && !managed && plugin.hasBackend();
 
   if (progress.phase === 'failed') drawFailure(root, host);
   if (progress.phase === 'done') {
@@ -266,17 +271,17 @@ function drawInstalled(root: HTMLElement, host: BackendSettingsHost, redraw: () 
     });
   }
 
-  if (facts && !managed && plugin.hasBackend()) {
+  if (external) {
     root.createEl('p', {
       cls: 'setting-item-description vs-backend-external',
       text: tr(
-        '现在用的是你自己搭的后端，它的模型和密钥在它那边设置。',
-        'You are using a backend you set up yourself; its model and keys are set on its side.',
+        '这个后端用它自己的凭据，下面的模型和密钥改了不生效。要换，到它那边（n8n 的凭据，或它的 .env）去改。',
+        'This backend uses its own credentials; changing the model and keys below has no effect. Change them on its side (its n8n credentials, or its .env).',
       ),
     });
   }
 
-  drawModelRows(root, host, { applyToBackend: managed, onChange: redraw });
+  drawModelRows(root, host, { applyToBackend: managed, disabled: external, onChange: redraw });
 
   host.renderBilibili(root);
 
@@ -372,7 +377,7 @@ function drawInstalled(root: HTMLElement, host: BackendSettingsHost, redraw: () 
 function drawModelRows(
   root: HTMLElement,
   host: BackendSettingsHost,
-  options: { applyToBackend: boolean; onChange: () => void },
+  options: { applyToBackend: boolean; disabled: boolean; onChange: () => void },
 ) {
   const { plugin, app } = host;
   const { settings } = plugin;
@@ -381,6 +386,15 @@ function drawModelRows(
     await plugin.saveSettings();
     if (options.applyToBackend) plugin.installer.scheduleApply();
     if (redraw) options.onChange();
+  };
+
+  /** Greys a row out and takes its controls out of reach of the pointer and the keyboard. */
+  const lock = (setting: Setting) => {
+    if (!options.disabled) return;
+    setting.setDisabled(true);
+    setting.settingEl.addClass('is-disabled', 'vs-row-locked');
+    setting.controlEl.setAttr('inert', '');
+    setting.controlEl.setAttr('aria-disabled', 'true');
   };
 
   const provider = llmProvider(settings.llmProvider);
@@ -418,7 +432,8 @@ function drawModelRows(
     text.inputEl.setAttr('aria-label', tr('模型名', 'Model name'));
     text.inputEl.addClass('vs-model-name');
   });
-  if (!llm.model) {
+  lock(model);
+  if (!llm.model && !options.disabled) {
     model.setDesc(
       tr(
         '这家没有固定的默认模型，填它控制台里的模型名。',
@@ -457,6 +472,7 @@ function drawModelRows(
         await changed(true);
       }),
     );
+    lock(setting);
   };
   keyRow(tr('总结密钥', 'Summary key'), settings.llmKeySecret, provider.keyUrl, (secret) => {
     settings.llmKeySecret = secret;

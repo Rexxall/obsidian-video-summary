@@ -72,6 +72,8 @@ export class BackendInstaller {
   private applyTimer: number | null = null;
   private applying: Promise<boolean> | null = null;
   private lastFacts: BackendFacts | null = null;
+  /** true from handing settings over until the container has restarted: an answer in between is the old process. */
+  restarting = false;
 
   constructor(private readonly plugin: VideoSummaryPlugin) {}
 
@@ -221,12 +223,16 @@ export class BackendInstaller {
    * The model or a key changed in settings: hand it to the backend shortly after
    * the last change, so typing a model name does not restart the backend per letter.
    */
-  scheduleApply() {
+  scheduleApply(delayMs = APPLY_DEBOUNCE_MS) {
     if (this.applyTimer !== null) window.clearTimeout(this.applyTimer);
     this.applyTimer = window.setTimeout(() => {
       this.applyTimer = null;
       void this.applyIfChanged(true);
-    }, APPLY_DEBOUNCE_MS);
+    }, delayMs);
+  }
+
+  private async waitForRunningJobs() {
+    while (this.plugin.jobs.countByState('running') > 0 && !this.cancelled) await sleep(2000);
   }
 
   dispose() {
@@ -258,10 +264,24 @@ export class BackendInstaller {
     const facts = await this.refreshFacts();
     if (!facts.bundled || !facts.container?.running) return false;
 
+    // The restart would cut off a job in the middle: wait for running jobs, then go.
+    if (this.plugin.jobs.countByState('running') > 0) {
+      if (!this.running) {
+        this.scheduleApply(15_000);
+        return false;
+      }
+      await this.waitForRunningJobs();
+    }
+
     const { monitor } = this.plugin.backend;
     monitor.beginStart(tr('正在把模型和密钥交给后端', 'Giving the backend the model and keys'));
+    // Jobs sent during the restart wait in the queue; it is released when the backend answers again.
+    this.plugin.jobs.setHeld(true);
     try {
-      const result = await applyModelConfig(runProgram, facts.container.id, config);
+      this.restarting = true;
+      const result = await applyModelConfig(runProgram, facts.container.id, config).finally(() => {
+        this.restarting = false;
+      });
       if (!result.ok) {
         const message =
           result.reason === 'old-backend'
@@ -306,7 +326,9 @@ export class BackendInstaller {
       return false;
     } finally {
       monitor.endStart();
-      void monitor.check();
+      // Online again releases the queue; still offline keeps it held with the usual Start backend path.
+      const after = await monitor.check();
+      if (after.ok) this.plugin.jobs.setHeld(false);
     }
   }
 

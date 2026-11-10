@@ -401,3 +401,99 @@ test('the model and keys the plugin hands over win over .env, and .env stays the
     /VS_CHAT_MODEL/,
   );
 });
+
+test('apply never prints a key: not when it stores it, not when it rejects the input', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { mkdtempSync, writeFileSync, readFileSync, statSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'vs-apply-'));
+  const CHAT_KEY = 'sk-chat-SECRET-0123456789abcdef';
+  const SPEECH_KEY = 'sk-speech-SECRET-fedcba9876543210';
+  try {
+    writeFileSync(join(dir, 'config.env'), `VS_WEBHOOK_TOKEN=${TOKEN}\n`);
+    const apply = (input) =>
+      spawnSync(
+        process.execPath,
+        [new URL('../backend/init/configure.mjs', import.meta.url).pathname, 'apply'],
+        {
+          input: JSON.stringify(input),
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            VS_CONFIG_FILE: join(dir, 'config.env'),
+            VS_STATE_DIR: join(dir, 'state'),
+          },
+        },
+      );
+
+    // Everything the container log would receive is stdout plus stderr.
+    const stored = apply({
+      chat: { key: CHAT_KEY, base: 'https://api.deepseek.com', model: 'deepseek-flash' },
+      speech: { key: SPEECH_KEY },
+    });
+    assert.equal(stored.status, 0, stored.stderr);
+    const printed = stored.stdout + stored.stderr;
+    assert.equal(printed.includes(CHAT_KEY), false);
+    assert.equal(printed.includes(SPEECH_KEY), false);
+    assert.doesNotMatch(printed, /SECRET/);
+    assert.deepEqual(JSON.parse(stored.stdout).chat, {
+      configured: true,
+      model: 'deepseek-flash',
+      host: 'api.deepseek.com',
+    });
+    const file = join(dir, 'state', 'overrides.json');
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).chat.key, CHAT_KEY);
+    assert.equal(
+      statSync(file).mode & 0o777,
+      0o600,
+      'only the container user can read the stored keys',
+    );
+
+    // A rejected model name, a rejected key and unreadable input: the message names the field, not the value.
+    for (const bad of [
+      { chat: { key: CHAT_KEY, model: 'bad model name' } },
+      { chat: { key: `${CHAT_KEY} with spaces` } },
+    ]) {
+      const rejected = apply(bad);
+      assert.equal(rejected.status, 1);
+      assert.doesNotMatch(rejected.stdout + rejected.stderr, /SECRET/);
+      assert.match(rejected.stderr, /VS_CHAT_(MODEL|API_KEY)/);
+    }
+    const garbled = spawnSync(
+      process.execPath,
+      [new URL('../backend/init/configure.mjs', import.meta.url).pathname, 'apply'],
+      {
+        input: `{"chat":{"key":"${CHAT_KEY}"`,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          VS_CONFIG_FILE: join(dir, 'config.env'),
+          VS_STATE_DIR: join(dir, 'state'),
+        },
+      },
+    );
+    assert.equal(garbled.status, 1);
+    assert.doesNotMatch(garbled.stdout + garbled.stderr, /SECRET/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('nothing the start-up import logs can contain a key', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../backend/init/configure.mjs', import.meta.url), 'utf8');
+  // Every log line is built from publicStatus (model and host) or from fixed text.
+  const logged = [...source.matchAll(/\blog\(([^;]*)\);/g)].map((match) => match[1]);
+  assert.ok(logged.length >= 3);
+  for (const argument of logged) assert.doesNotMatch(argument, /\.key\b|apiKey|token|secret/i);
+  assert.doesNotMatch(source, /console\.(log|error|warn)/);
+  const status = publicStatus(
+    resolveConfig({
+      VS_WEBHOOK_TOKEN: TOKEN,
+      VS_CHAT_API_KEY: 'sk-chat-SECRET',
+      VS_SPEECH_API_KEY: 'sk-speech-SECRET',
+    }),
+  );
+  assert.doesNotMatch(JSON.stringify(status), /SECRET/);
+});

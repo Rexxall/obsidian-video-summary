@@ -16,9 +16,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const CONFIG_FILE = '/run/video-summary/config.env';
+// The two locations can be moved for tests; the image never sets these variables.
+const CONFIG_FILE = process.env.VS_CONFIG_FILE || '/run/video-summary/config.env';
 const WORKFLOW_DIR = '/opt/video-summary/workflows';
-const STATE_DIR = '/home/node/.n8n/video-summary';
+const STATE_DIR = process.env.VS_STATE_DIR || '/home/node/.n8n/video-summary';
 const STATE_FILE = path.join(STATE_DIR, 'state.json');
 const OVERRIDES_FILE = path.join(STATE_DIR, 'overrides.json');
 

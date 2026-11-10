@@ -4470,6 +4470,13 @@ body {
 .vs-settings .vs-backend-update {
   text-align: right;
 }
+.vs-settings .setting-item.vs-row-locked .setting-item-control {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.vs-settings .setting-item.vs-row-locked .setting-item-name {
+  color: var(--text-muted);
+}
 .vs-settings .vs-model-name {
   width: 14em;
   max-width: 100%;

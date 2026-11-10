@@ -278,3 +278,34 @@ void test('the messages a stopped backend leaves on a job are recognised after r
   assert.equal(mayMeanBackendGone(api.formatUserFacingError(new Error('HTTP 401'))), false);
   assert.equal(mayMeanBackendGone('Bilibili refused the request'), false);
 });
+
+void test('a job sent while the backend restarts with new settings waits and then runs, without an error', async () => {
+  let up = true;
+  const jobs = new JobStore();
+  jobs.setRunner(async () => {
+    if (!up) throw new Error('sent to a backend that is down');
+    return { summary: 'done' };
+  });
+  const monitor = new BackendMonitor(async () => (up ? online() : offline()));
+  monitor.subscribe((snapshot) => {
+    if (snapshot.status === 'online') jobs.setHeld(false);
+  });
+  await monitor.check();
+
+  // Settings changed: the queue is held first, then the container restarts.
+  monitor.beginStart('Restarting with the new settings');
+  jobs.setHeld(true);
+  up = false;
+  const job = jobs.enqueue(spec('sent during the restart'));
+  assert.equal((await monitor.check()).ok, false);
+  assert.equal(monitor.snapshot().status, 'starting');
+  await tick();
+  assert.equal(job.state, 'queued');
+
+  up = true;
+  monitor.record(online());
+  monitor.endStart();
+  await jobs.waitFor(job.id);
+  assert.equal(job.state, 'success');
+  assert.equal(job.error, undefined);
+});
