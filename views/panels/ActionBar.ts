@@ -211,7 +211,7 @@ function renderBackendLine(root: HTMLElement, ctx: ViewContext) {
     dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
     const word = tr(`后端${statusWord(snapshot)}`, `Backend ${statusWord(snapshot)}`);
     const reason =
-      snapshot.status === 'offline'
+      snapshot.status === 'offline' && snapshot.diagnosis?.fault !== 'not-configured'
         ? faultReason(snapshot.diagnosis, endpoint)
         : snapshot.status === 'starting'
           ? snapshot.step || ''

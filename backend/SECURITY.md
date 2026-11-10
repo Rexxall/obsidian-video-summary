@@ -7,9 +7,16 @@
 - **Webhook password.** Every request must carry the `X-Video-Summary-Token` header. The start
   script creates a random 48-character value in `.env` (`VS_WEBHOOK_TOKEN`). It is the
   "connection code" shown to the user.
-- **Where the keys live.** Model and speech keys live only in `.env` and in n8n's encrypted
+- **Where the keys live.** Model and speech keys live in `.env` (start script) or, when they are
+  chosen in the plugin's settings, in `overrides.json` in the backend's own Docker volume, a file
+  only the container user can read. Either way they are also written to n8n's encrypted
   credential store. The container reads `.env` from a read-only mount, so the keys never become
   environment variables of the n8n process.
+- **How the plugin hands keys over.** The plugin runs `docker exec -i … configure.mjs apply` and
+  writes one JSON object to its standard input, then restarts the container. The keys are in no
+  command line, no HTTP request and no n8n execution record. `apply` keeps only a base address, a
+  model name and a key per service, and checks them the same way as `.env`. Values handed over
+  this way win over `.env`; `.env` stays the fallback.
 - **Import file.** `init/configure.mjs` passes the keys to `n8n import:credentials` through a
   temporary file that only the container user can read, and deletes it straight after. It never
   prints a key.

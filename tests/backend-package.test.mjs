@@ -6,6 +6,8 @@ import test from 'node:test';
 import {
   buildCredentials,
   fillWorkflow,
+  cleanOverrides,
+  mergeOverrides,
   parseEnv,
   publicStatus,
   resolveConfig,
@@ -361,4 +363,41 @@ test('the backend pulls the prebuilt image for this version and builds only as a
   assert.match(release, /provenance: mode=max/);
   assert.match(release, /actions\/attest-build-provenance/);
   assert.match(release, /needs: backend-image/);
+});
+
+test('the model and keys the plugin hands over win over .env, and .env stays the fallback', () => {
+  const env = {
+    VS_WEBHOOK_TOKEN: TOKEN,
+    VS_CHAT_API_KEY: 'env-chat-key',
+    VS_CHAT_MODEL: 'qwen-plus',
+    VS_SPEECH_API_KEY: 'env-speech-key',
+  };
+  // Nothing handed over: exactly the .env backend.
+  assert.deepEqual(resolveConfig(mergeOverrides(env, {})), resolveConfig(env));
+
+  const config = resolveConfig(
+    mergeOverrides(env, {
+      chat: { key: 'plugin-chat-key', base: 'https://api.deepseek.com', model: 'deepseek-flash' },
+      speech: { key: '' },
+    }),
+  );
+  assert.equal(config.chat.key, 'plugin-chat-key');
+  assert.equal(config.chat.model, 'deepseek-flash');
+  assert.equal(config.speech.key, 'env-speech-key', 'an empty value leaves .env in charge');
+
+  // Only base, model and key per service are ever stored; anything else is dropped.
+  assert.deepEqual(
+    cleanOverrides({
+      chat: { key: ' k ', extra: 'x', model: 42 },
+      token: 'nope',
+      VS_WEBHOOK_TOKEN: 'nope',
+      speech: 'not an object',
+    }),
+    { chat: { key: 'k' } },
+  );
+  // A handed-over value goes through the same checks as .env.
+  assert.throws(
+    () => resolveConfig(mergeOverrides(env, { chat: { model: "a'); process.exit(1); ('" } })),
+    /VS_CHAT_MODEL/,
+  );
 });

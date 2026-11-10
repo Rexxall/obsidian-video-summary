@@ -8,7 +8,9 @@ export function statusWord(snapshot: BackendSnapshot): string {
     case 'online':
       return tr('在线', 'online');
     case 'offline':
-      return tr('离线', 'offline');
+      return snapshot.diagnosis?.fault === 'not-configured'
+        ? tr('未安装', 'not set up')
+        : tr('离线', 'offline');
     case 'starting':
       return tr('启动中', 'starting');
     case 'checking':
@@ -29,7 +31,7 @@ export function statusClass(snapshot: BackendSnapshot): string {
 export function faultReason(diagnosis: BackendDiagnosis | undefined, endpoint: string): string {
   switch (diagnosis?.fault) {
     case 'not-configured':
-      return tr('还没填连接码', 'no connection code yet');
+      return tr('还没安装后端', 'no backend yet');
     case 'unreachable':
       return isLocalEndpoint(endpoint)
         ? tr('后端没在运行', 'the backend is not running')
@@ -63,8 +65,8 @@ export function faultNextStep(
   switch (diagnosis?.fault) {
     case 'not-configured':
       return tr(
-        '到设置的“首次配置”里粘贴启动脚本给的连接码。',
-        'Paste the connection code from the start script under First-run setup in settings.',
+        '到 设置 → 视频总结 → 后端 里安装并启动。',
+        'Go to Settings → Video Summary → Backend to install and start it.',
       );
     case 'unreachable':
       if (canStart) return tr('点“启动后端”。', 'Choose Start backend.');

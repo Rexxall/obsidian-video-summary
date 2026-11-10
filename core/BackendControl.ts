@@ -29,7 +29,11 @@ export class BackendControl {
   private notice: Notice | null = null;
 
   constructor(private readonly plugin: VideoSummaryPlugin) {
-    this.monitor = new BackendMonitor(() => this.plugin.api.diagnose());
+    this.monitor = new BackendMonitor(() =>
+      this.plugin.hasBackend()
+        ? this.plugin.api.diagnose()
+        : Promise.resolve({ ok: false, fault: 'not-configured' as const, checkedAt: Date.now() }),
+    );
     this.monitor.subscribe((snapshot) => {
       if (snapshot.status === 'online') {
         this.lastStartFailure = '';

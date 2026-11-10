@@ -192,6 +192,38 @@ function serviceStep(
   return step(id, 'ready', `${model} @ ${host}`);
 }
 
+/**
+ * For a backend whose model and keys come from the plugin's settings: the fixes for the model
+ * and speech steps point at those settings instead of at .env and the start script.
+ */
+export function withSettingsFixes(steps: SetupStep[]): SetupStep[] {
+  return steps.map((item) => {
+    if (item.id === 'bilibili' && item.fix) {
+      // On the settings page the login row sits above the result and has no step number.
+      return {
+        ...item,
+        fix: item.fix.replace(/④\s*/g, '').replace('下面的', '上面的').replace(' below', ' above'),
+      };
+    }
+    if ((item.id !== 'chat' && item.id !== 'speech') || !item.fix || !/\.env/.test(item.fix)) {
+      return item;
+    }
+    return {
+      ...item,
+      fix:
+        item.id === 'chat'
+          ? tr(
+              '在上面的“总结模型”和“总结密钥”里改，改完会自动交给后端。',
+              'Change Summary model and Summary key above; the backend gets the change by itself.',
+            )
+          : tr(
+              '在上面的“语音转写密钥”里改，改完会自动交给后端。',
+              'Change Speech-to-text key above; the backend gets the change by itself.',
+            ),
+    };
+  });
+}
+
 export function interpretSetupCheck(input: SetupCheckInput): SetupStep[] {
   const later: SetupStep['id'][] = ['version', 'tools', 'chat', 'speech', 'vision', 'bilibili'];
   if (input.status === undefined) {

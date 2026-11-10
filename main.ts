@@ -64,8 +64,10 @@ import { safeExternalHttpUrl } from './utils/SafeExternalUrl';
 import { JobStore } from './core/JobStore';
 import { JobService } from './core/JobService';
 import { BackendControl } from './core/BackendControl';
+import { BackendInstaller } from './core/BackendInstaller';
+import { renderBackendSettings } from './views/BackendSettings';
 import { BackendHealthModal } from './views/BackendHealthModal';
-import { statusClass, statusWord } from './views/backendText';
+import { faultReason, statusClass, statusWord } from './views/backendText';
 import { NoteIndex } from './core/NoteIndex';
 import { ArtifactStore } from './core/ArtifactStore';
 import { CrossModalMemoryIndex } from './core/CrossModalMemory';
@@ -134,6 +136,8 @@ export default class VideoSummaryPlugin extends Plugin {
 
   /** 后端在不在、按住队列、“启动后端”都在这里 */
   backend: BackendControl;
+  /** 从设置页安装、接管、更新后端，并把模型和密钥交给它 */
+  installer: BackendInstaller;
 
   /** Every NoteProcessor reads the same note-writing settings: style class, success text, default properties. */
   createNoteProcessor(): NoteProcessor {
@@ -191,6 +195,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.jobService = new JobService(this, this.jobs);
     this.backend = new BackendControl(this);
     this.backend.attach();
+    this.installer = new BackendInstaller(this);
     this.addBackendStatusBar();
     this.noteIndex = new NoteIndex(this.app, `${pluginDir}/data/cache/platform-covers.json`);
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
@@ -258,6 +263,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
   onunload() {
     BackendHealthModal.closeAll();
+    this.installer?.dispose();
     this.noteIndex?.flush();
     // 卸载前把待写入的历史落盘
     if (this.historySaveTimer !== null) {
@@ -1660,6 +1666,44 @@ export default class VideoSummaryPlugin extends Plugin {
     this.backend?.endpointChanged();
   }
 
+  /** Points the active backend profile at this address and token, creating the profile when there is none. */
+  async applyConnection(code: ConnectionCode, own = false) {
+    const settings = this.settings;
+    let profile = this.getActiveWebhookProfile();
+    // A backend the plugin installs gets a profile of its own; other backends a person set up stay as they are.
+    if (own && profile && profile.url.trim() && profile.url.trim() !== code.url) {
+      profile = settings.webhookProfiles.find((item) => item.id === 'managed-backend');
+      if (!profile) {
+        profile = {
+          id: 'managed-backend',
+          name: tr('本机后端', 'This computer'),
+          url: '',
+          headerName: '',
+          secret: '',
+        };
+        settings.webhookProfiles.push(profile);
+      }
+      settings.activeWebhookId = profile.id;
+    }
+    if (!profile) {
+      profile = {
+        id: 'default-webhook',
+        name: tr('本机后端', 'This computer'),
+        url: '',
+        headerName: '',
+        secret: '',
+      };
+      settings.webhookProfiles.push(profile);
+      settings.activeWebhookId = profile.id;
+    }
+    profile.url = code.url;
+    profile.headerName = code.headerName;
+    profile.secret = code.secret;
+    settings.n8nWebhookUrl = code.url;
+    this.reinitializeApi();
+    await this.saveSettings();
+  }
+
   /** The webhook address jobs are sent to. */
   activeEndpoint(): string {
     return this.getActiveProcessingEndpoint();
@@ -1724,6 +1768,16 @@ export default class VideoSummaryPlugin extends Plugin {
   isBackendConfigured(): boolean {
     const profile = this.getActiveWebhookProfile();
     return !!profile?.url?.trim() && !!profile.secret?.trim();
+  }
+
+  /**
+   * true once this vault points at some backend: a connection code is in place, or the address
+   * was changed from the default (a self-hosted backend without a token).
+   */
+  hasBackend(): boolean {
+    const profile = this.getActiveWebhookProfile();
+    const url = profile?.url?.trim() || '';
+    return !!url && (!!profile?.secret?.trim() || url !== DEFAULT_N8N_WEBHOOK_URL);
   }
 
   /** Open (or create) the demo note: a real processed result, made without any backend. */
@@ -2576,7 +2630,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
   /** Stops asking the backend about a QR login once the page is closed or redrawn. */
   private stopLoginPolling: (() => void) | null = null;
 
+  /** Stops the Backend group following the backend's state once the page is closed. */
+  private stopBackendSection: (() => void) | null = null;
+
   hide(): void {
+    this.stopBackendSection?.();
+    this.stopBackendSection = null;
     this.stopGroupMarks?.();
     this.stopGroupMarks = null;
     this.stopLoginPolling?.();
@@ -2590,10 +2649,18 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     this.renderSettingsHeader(containerEl);
 
-    // 一页三段：先连上后端，再定写到哪，最后是怎么处理；不常动的收进“高级”
-    this.group(containerEl, tr('连接', 'Connection'));
-    this.createSetupGuideSection(containerEl);
-    this.createApiSection(containerEl);
+    // 一页三段：先有后端，再定写到哪，最后是怎么处理；不常动的收进“高级”
+    this.group(containerEl, tr('后端', 'Backend'));
+    this.stopBackendSection?.();
+    this.stopBackendSection = renderBackendSettings(containerEl, {
+      app: this.app,
+      plugin: this.plugin,
+      renderSteps: (container, steps) => this.renderSetupSteps(container, steps),
+      renderBilibili: (container) =>
+        this.createBilibiliLoginStep(container, tr('哔哩哔哩登录', 'Bilibili login')),
+    });
+    // 这台设备不能由插件安装后端时（Windows），连接码这条老路留在外面
+    if (!this.plugin.installer.supported()) this.createSetupGuideSection(containerEl);
 
     this.group(containerEl, tr('输出', 'Output'));
     this.createOutputSection(containerEl);
@@ -2606,10 +2673,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const advanced = containerEl.createEl('details', { cls: 'vs-settings-advanced' });
     advanced.createEl('summary', {
       text: tr(
-        '高级：cookies、平台说明、请求字段名、缓存、调试日志',
-        'Advanced: cookies, platforms, request field names, cache, debug log',
+        '高级：其他后端、连接码、后端文件夹、cookies、平台说明、请求字段名、缓存、调试日志',
+        'Advanced: other backends, connection code, backend folder, cookies, platforms, request field names, cache, debug log',
       ),
     });
+    this.createApiSection(advanced);
+    if (this.plugin.installer.supported()) this.createSetupGuideSection(advanced);
     this.createCookiesSection(advanced);
     this.createPlatformMatrixSection(advanced);
     this.createPayloadKeysSection(advanced);
@@ -2633,37 +2702,35 @@ class VideoSummarySettingTab extends PluginSettingTab {
     text.createDiv({ text: tr('视频总结', 'Video summary'), cls: 'vs-settings-title' });
     text.createDiv({ text: `v${this.plugin.manifest.version}`, cls: 'vs-settings-sub' });
 
+    // 和状态栏同一颗点、同一个词；点开是体检面板
     const pill = header.createEl('button', {
       cls: 'vs-settings-pill',
-      attr: {
-        type: 'button',
-        title: tr('点击测试后端连接', 'Click to test the backend connection'),
-      },
+      attr: { type: 'button', 'aria-label': tr('打开后端体检', 'Open the backend check-up') },
     });
     const dot = pill.createSpan({ cls: 'vs-backend-dot' });
-    const label = pill.createSpan({ text: tr('未检测', 'Not checked') });
-    pill.addEventListener(
-      'click',
-      fire(async () => {
-        dot.className = 'vs-backend-dot is-checking';
-        label.setText(tr('检测中…', 'Checking…'));
-        try {
-          const result = await this.plugin.api.testConnection();
-          dot.className = `vs-backend-dot ${result.success ? 'is-online' : 'is-offline'}`;
-          label.setText(
-            result.success
-              ? tr(
-                  `后端在线 · ${result.durationMs ?? 0}ms`,
-                  `Backend online · ${result.durationMs ?? 0} ms`,
-                )
-              : tr('后端离线', 'Backend offline'),
-          );
-        } catch {
-          dot.className = 'vs-backend-dot is-offline';
-          label.setText(tr('后端离线', 'Backend offline'));
-        }
-      }),
-    );
+    const label = pill.createSpan();
+    const { backend } = this.plugin;
+    const paint = () => {
+      const snapshot = backend.monitor.snapshot();
+      dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
+      const reason =
+        snapshot.status === 'offline' && snapshot.diagnosis?.fault !== 'not-configured'
+          ? faultReason(snapshot.diagnosis, backend.endpoint())
+          : snapshot.status === 'starting'
+            ? snapshot.step || ''
+            : '';
+      const word = tr(`后端${statusWord(snapshot)}`, `Backend ${statusWord(snapshot)}`);
+      label.setText(reason ? `${word} · ${reason}` : word);
+    };
+    paint();
+    const off = backend.monitor.subscribe(() => {
+      if (!pill.isConnected) {
+        off();
+        return;
+      }
+      paint();
+    });
+    pill.addEventListener('click', () => new BackendHealthModal(this.app, this.plugin).open());
   }
 
   /** 段内小节：一行小标题，不画卡片框 */
@@ -2900,7 +2967,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   /** ④ 扫码登录 B 站：登录 cookie 直接交给自己的后端，插件不保存。 */
-  private createBilibiliLoginStep(section: HTMLElement) {
+  private createBilibiliLoginStep(section: HTMLElement, title?: string) {
     const panel = section.createDiv({ cls: 'setup-qr' });
     const status = section.createEl('p', { cls: 'setting-item-description' });
     let polling = 0;
@@ -2912,7 +2979,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.stopLoginPolling = stop;
 
     new Setting(section)
-      .setName(tr('④ 哔哩哔哩登录（可选）', '④ Bilibili login (optional)'))
+      .setName(title ?? tr('④ 哔哩哔哩登录（可选）', '④ Bilibili login (optional)'))
       .setDesc(
         tr(
           '用哔哩哔哩手机客户端扫码登录后，能拿到它的字幕和 AI 字幕，不用再转写。登录信息只交给你自己的后端，插件不保存。',
@@ -3029,25 +3096,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
   }
 
   private async applyConnectionCode(code: ConnectionCode) {
-    const settings = this.plugin.settings;
-    let profile = this.plugin.getActiveWebhookProfile();
-    if (!profile) {
-      profile = {
-        id: 'default-webhook',
-        name: tr('本机后端', 'This computer'),
-        url: '',
-        headerName: '',
-        secret: '',
-      };
-      settings.webhookProfiles.push(profile);
-      settings.activeWebhookId = profile.id;
-    }
-    profile.url = code.url;
-    profile.headerName = code.headerName;
-    profile.secret = code.secret;
-    settings.n8nWebhookUrl = code.url;
-    this.plugin.reinitializeApi();
-    await this.plugin.saveSettings();
+    await this.plugin.applyConnection(code);
   }
 
   private renderConnectionResult(containerEl: HTMLElement, result: ConnectionTestResult) {
@@ -3177,6 +3226,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.backendDirPath || '')
           .onChange(async (value) => {
             this.plugin.settings.backendDirPath = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(section)
+      .setName(tr('后端镜像', 'Backend image'))
+      .setDesc(
+        tr(
+          '留空用官方镜像。下载不动时可以填镜像站上的同一个镜像，下次安装或更新时生效。',
+          'Leave empty for the official image. When the download does not work, enter the same image on a mirror; it applies at the next install or update.',
+        ),
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder(`ghcr.io/rexxall/video-summary-backend:${this.plugin.manifest.version}`)
+          .setValue(this.plugin.settings.backendImage || '')
+          .onChange(async (value) => {
+            this.plugin.settings.backendImage = value.trim();
             await this.plugin.saveSettings();
           }),
       );

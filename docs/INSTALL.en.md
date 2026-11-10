@@ -9,7 +9,40 @@ sets the backend up; no coding is needed.
 **About 10 minutes in all.** The backend is a ready-made image of about 550 MB; the first
 download usually takes 1–5 minutes.
 
-## Four steps
+## On macOS: set it up from the settings page
+
+Tested on macOS only. On Windows use the start script below; on Linux either works.
+
+1. Install the plugin and [OrbStack](https://orbstack.dev) or
+   [Docker Desktop](https://www.docker.com/products/docker-desktop/), and open Docker. If it is
+   missing or not running, the settings page says so and links to the downloads.
+2. Open **Settings → Video Summary → Backend**. Choose the **Summary model** (DeepSeek by default;
+   SiliconFlow, Qwen, Kimi, Gemini or your own address), then add the **Summary key** and the
+   **Speech-to-text key**. Keys are kept in Obsidian's secret storage (Obsidian 1.11.4 or newer),
+   not in the vault and not in `data.json`.
+3. Press **Install and start**. The plugin writes the backend folder (`~/video-summary-backend`:
+   `compose.yaml`, `.env` with a random token, `uploads`, `cookies`) and remembers the address and
+   token itself, so there is no connection code to copy. It then opens a Terminal window that
+   shows the command it will run, `docker compose pull && docker compose up -d`, and **waits for
+   you to press Return** before downloading the backend image (about 550 MB). Obsidian does not
+   let a plugin download or update the programs it depends on, so this one step is yours to
+   confirm. The plugin never downloads or updates anything by itself.
+4. Go back to Obsidian. The page carries on alone: it hands the model and keys to the backend,
+   runs the full check and a trial run on a short sample, along one progress line. Then paste a
+   link into the side panel and press **Start**.
+
+Afterwards, the same page has the model, the keys, Bilibili login, **Start with the computer**,
+and the **Check**, **Stop** and, when the plugin is newer than the backend, **Update backend**
+buttons. Update opens Terminal the same way. Changing the model or a key there reaches the backend
+in about half a minute; `.env` is not involved. The plugin hands keys to the backend with
+`docker exec` on standard input, so they appear in no command line, HTTP request or n8n execution
+record; the backend keeps them in its own Docker volume. Other backends, the port, the backend
+folder and a mirror for the image are under **Advanced**.
+
+## With the start script (Windows, or by choice)
+
+A backend installed this way is adopted by the plugin as it is; its connection code keeps working.
+On macOS the connection-code steps are under **Settings → Video Summary → Advanced**.
 
 ### 1. Plugin and Docker
 

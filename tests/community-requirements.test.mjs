@@ -99,3 +99,17 @@ test('README discloses the programs the plugin runs, and Start backend never fet
   // Programs are run with an argument list, never through a shell.
   assert.doesNotMatch(desktop, /\bexec\(|shell:\s*true|\bspawn\(/);
 });
+
+test('downloading the backend is left to the Terminal step the person confirms', async () => {
+  const [installer, managed] = await Promise.all([
+    readFile(new URL('core/BackendInstaller.ts', projectRoot), 'utf8'),
+    readFile(new URL('core/ManagedBackend.ts', projectRoot), 'utf8'),
+  ]);
+  // No docker call made by the plugin itself pulls or builds an image.
+  assert.doesNotMatch(installer, /\[\s*'(?:pull|build|compose)'/);
+  const dockerCalls = [...managed.matchAll(/run\(\s*'docker',\s*\[([^\]]*)\]/g)].map((m) => m[1]);
+  assert.ok(dockerCalls.length >= 3);
+  for (const args of dockerCalls) assert.doesNotMatch(args, /'pull'|'build'|'compose'/);
+  // The only pull is inside the script text, after the prompt.
+  assert.match(managed, /read -r -p[\s\S]*docker compose --env-file \.env pull/);
+});

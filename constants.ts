@@ -160,6 +160,15 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   historyLimit: DEFAULT_HISTORY_LIMIT,
   preflightCheckEnabled: true, // 处理前先 ping 后端，失败时提示/建议切换
   expandShortLinks: true, // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
+  llmProvider: 'deepseek',
+  llmModel: '',
+  llmBaseUrl: '',
+  llmKeySecret: '',
+  speechKeySecret: '',
+  speechBaseUrl: '',
+  speechModel: '',
+  backendAppliedConfig: '',
+  backendImage: '',
   backendDirPath: '', // 后端文件夹（有 compose.yaml）；“启动后端”找不到现成容器时用
   cookiesDirPath: '', // 后端文件夹里 cookies 目录的绝对路径（桌面端 cookies 管理用）
   payloadKeys: {

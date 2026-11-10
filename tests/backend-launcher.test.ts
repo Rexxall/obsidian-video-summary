@@ -12,7 +12,7 @@ import {
 const ok = (stdout = ''): CommandResult => ({ code: 0, stdout, stderr: '' });
 const fail = (stderr = 'failed'): CommandResult => ({ code: 1, stdout: '', stderr });
 const inspectLine = (id: string, running: boolean, name: string, dir: string, hostPort: number) =>
-  `${id}\t${running}\t/${name}\t${dir}\t{"5678/tcp":[{"HostIp":"127.0.0.1","HostPort":"${hostPort}"}]}`;
+  `${id}\t${running}\t/${name}\t${dir}\tghcr.io/rexxall/video-summary-backend:2.12.5\tunless-stopped\t{"5678/tcp":[{"HostIp":"127.0.0.1","HostPort":"${hostPort}"}]}`;
 
 interface World {
   dockerInstalled: boolean;
@@ -103,13 +103,15 @@ void test('docker inspect output is matched on the host port, running container 
     inspectLine('b2', true, 'n8n', '/srv/n8n', 5678),
     inspectLine('c3', true, 'postgres', '', 5432),
     'garbage line',
-    'd4\ttrue\t/noports\t\t{}',
+    'd4\ttrue\t/noports\t\timg\tno\t{}',
   ].join('\n');
   assert.deepEqual(findContainerForPort(output, 5678), {
     id: 'b2',
     name: 'n8n',
     running: true,
     workingDir: '/srv/n8n',
+    image: 'ghcr.io/rexxall/video-summary-backend:2.12.5',
+    restart: 'unless-stopped',
   });
   assert.equal(findContainerForPort(output, 9999), null);
   assert.equal(findContainerForPort(output, 5432)?.workingDir, undefined);

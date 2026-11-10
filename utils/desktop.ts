@@ -54,7 +54,7 @@ interface ChildProcessModule {
       stdout: string,
       stderr: string,
     ) => void,
-  ): unknown;
+  ): { stdin?: { end(text: string): void; on(event: 'error', listener: () => void): void } };
 }
 
 /** Folders where Docker's command-line tool lives when Obsidian was started from the Dock. */
@@ -82,7 +82,7 @@ function dockerSearchPath(): string {
 export function runProgram(
   file: string,
   args: string[],
-  options: { cwd?: string; timeoutMs?: number } = {},
+  options: { cwd?: string; timeoutMs?: number; input?: string } = {},
 ): Promise<{ code: number | null; stdout: string; stderr: string; notFound?: boolean }> {
   const childProcess = desktopRequire('child_process') as ChildProcessModule | undefined;
   if (!childProcess?.execFile) {
@@ -91,7 +91,7 @@ export function runProgram(
   const env = (desktopRequire('process') as { env?: Record<string, string | undefined> }).env ?? {};
   return new Promise((resolve) => {
     try {
-      childProcess.execFile(
+      const child = childProcess.execFile(
         file,
         args,
         {
@@ -112,6 +112,11 @@ export function runProgram(
           });
         },
       );
+      if (options.input !== undefined && child.stdin) {
+        // The program may exit before it reads everything; that is reported through its exit code.
+        child.stdin.on('error', () => undefined);
+        child.stdin.end(options.input);
+      }
     } catch (error) {
       resolve({ code: null, stdout: '', stderr: String(error), notFound: true });
     }
@@ -178,4 +183,67 @@ export async function pickFolderInSystem(title: string): Promise<string | null> 
   if (!dialog) return null;
   const result = await dialog.showOpenDialog({ title, properties: ['openDirectory'] });
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+}
+
+interface DesktopFsWrite {
+  mkdirSync(path: string, options: { recursive: boolean }): unknown;
+  writeFileSync(path: string, text: string, options: { mode: number }): void;
+  readFileSync(path: string, encoding: 'utf8'): string;
+  chmodSync(path: string, mode: number): void;
+}
+
+/** Text of a file outside the vault, or null when it does not exist or cannot be read. */
+export function readTextOutsideVault(path: string): string | null {
+  const fs = desktopRequire('fs') as DesktopFsWrite | undefined;
+  try {
+    return fs ? fs.readFileSync(path, 'utf8') : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Writes a text file outside the vault, creating its folder. Throws when that is not possible. */
+export function writeTextOutsideVault(dir: string, name: string, text: string, mode = 0o644) {
+  const fs = desktopRequire('fs') as DesktopFsWrite | undefined;
+  if (!fs) throw new Error('No file access on this device');
+  fs.mkdirSync(dir, { recursive: true });
+  const target = joinPath(dir, name);
+  fs.writeFileSync(target, text, { mode });
+  fs.chmodSync(target, mode);
+}
+
+export function makeFolderOutsideVault(path: string) {
+  const fs = desktopRequire('fs') as DesktopFsWrite | undefined;
+  fs?.mkdirSync(path, { recursive: true });
+}
+
+export function homeFolder(): string {
+  const os = desktopRequire('os') as { homedir?: () => string } | undefined;
+  return os?.homedir?.() ?? '';
+}
+
+/** Opens a file with the system's default app, for example a .command file in Terminal. */
+export async function openFileInSystem(path: string): Promise<boolean> {
+  const electron = desktopRequire('electron') as
+    | { shell?: { openPath?: (path: string) => Promise<string> } }
+    | undefined;
+  if (!electron?.shell?.openPath) return false;
+  return (await electron.shell.openPath(path)) === '';
+}
+
+/** true when nothing on this computer listens on the port. */
+export function portIsFree(port: number): Promise<boolean> {
+  interface NetServer {
+    once(event: 'error' | 'listening', listener: () => void): NetServer;
+    listen(port: number, host: string): void;
+    close(callback?: () => void): void;
+  }
+  const net = desktopRequire('net') as { createServer?: () => NetServer } | undefined;
+  if (!net?.createServer) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const server = net.createServer!();
+    server.once('error', () => resolve(false));
+    server.once('listening', () => server.close(() => resolve(true)));
+    server.listen(port, '0.0.0.0');
+  });
 }

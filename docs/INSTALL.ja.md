@@ -6,7 +6,20 @@ Video Summary は、Obsidian プラグインと、自分のパソコンの Docke
 
 **全体で約 10 分です。** バックエンドは出来上がったイメージ（約 550 MB）で、初回のダウンロードは通常 1〜5 分です。
 
-## 4 つの手順
+## macOS：設定ページからセットアップ
+
+macOS でのみ検証しています。Windows は下の起動スクリプトを使ってください。Linux はどちらでも構いません。
+
+1. プラグインと [OrbStack](https://orbstack.dev) または [Docker Desktop](https://www.docker.com/products/docker-desktop/) を入れ、Docker を起動します。入っていない、または動いていないときは、設定ページがその旨とダウンロード先を表示します。
+2. **Settings → Video Summary → Backend** を開き、**Summary model**（既定は DeepSeek）を選び、**Summary key** と **Speech-to-text key** を追加します。キーは Obsidian のシークレットストレージに保存され（Obsidian 1.11.4 以降）、保管庫や `data.json` には入りません。
+3. **Install and start** を押します。プラグインがバックエンドのフォルダ（`~/video-summary-backend`）を書き出し、アドレスとトークンを自分で記憶するので、接続コードを貼る必要はありません。続いてターミナルが開き、実行するコマンド `docker compose pull && docker compose up -d` を表示して、**Return を押すまで待ちます**。押すと約 550 MB のイメージをダウンロードします。Obsidian はプラグイン自身が依存プログラムをダウンロード・更新することを認めていないため、この一手だけは利用者が確認します。プラグインが自分でダウンロードや更新をすることはありません。
+4. Obsidian に戻ると、モデルとキーの受け渡し、フルチェック、試運転まで自動で進みます。あとはサイドパネルにリンクを貼って **Start** を押します。
+
+以後、モデルやキーの変更、**Check**、**Stop**、**Update backend**（プラグインの方が新しいときだけ表示。同じくターミナルで確認します）は同じページで行います。キーは `docker exec` の標準入力でバックエンドに渡され、コマンドライン・HTTP リクエスト・n8n の実行記録には残りません。
+
+## 起動スクリプトを使う場合（Windows、または好みで）
+
+この方法で入れたバックエンドは、プラグインがそのまま引き継ぎます。接続コードは引き続き有効です。macOS では接続コードの手順は **Settings → Video Summary → Advanced** にあります。
 
 ### 1. プラグインと Docker
 

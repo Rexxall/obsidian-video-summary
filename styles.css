@@ -4461,3 +4461,81 @@ body {
     transform: none;
   }
 }
+
+/* Settings → Backend: status line, install progress, buttons */
+.vs-settings .vs-backend-external,
+.vs-settings .vs-backend-update {
+  margin: 0 0 8px;
+}
+.vs-settings .vs-backend-update {
+  text-align: right;
+}
+.vs-settings .vs-model-name {
+  width: 14em;
+  max-width: 100%;
+}
+.vs-settings .vs-install {
+  margin: 0 0 12px;
+  padding: 14px var(--ap-s4, 16px);
+  border-radius: var(--ap-r-group, 12px);
+  background: var(--ap-group, var(--background-secondary));
+}
+.vs-settings .vs-backend-buttons {
+  padding-block: 10px 0;
+}
+.vs-settings .vs-install.is-failed .vs-install-message {
+  color: var(--text-error);
+}
+.vs-settings .vs-install-track {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 10px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+.vs-settings .vs-install-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vs-settings .vs-install-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--background-modifier-border-hover);
+}
+.vs-settings .vs-install-stage.is-done {
+  color: var(--text-muted);
+}
+.vs-settings .vs-install-stage.is-done .vs-install-dot {
+  background: var(--color-green);
+}
+.vs-settings .vs-install-stage.is-now {
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
+}
+.vs-settings .vs-install-stage.is-now .vs-install-dot {
+  background: var(--interactive-accent);
+  animation: vs-backend-breathe 1.4s ease-in-out infinite;
+}
+.vs-settings .vs-install-message {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+.vs-settings .vs-install-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.vs-settings .vs-install-actions:empty {
+  display: none;
+}
+.vs-settings .vs-install .setup-check-list {
+  margin-top: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vs-settings .vs-install-stage.is-now .vs-install-dot {
+    animation: none;
+  }
+}

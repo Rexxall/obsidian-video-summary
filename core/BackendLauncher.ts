@@ -21,7 +21,7 @@ export interface CommandResult {
 export type RunCommand = (
   file: string,
   args: string[],
-  options?: { cwd?: string; timeoutMs?: number },
+  options?: { cwd?: string; timeoutMs?: number; input?: string },
 ) => Promise<CommandResult>;
 
 export type LaunchStage =
@@ -66,16 +66,20 @@ export interface BackendContainer {
   running: boolean;
   /** The compose project folder the container was created from, when it has one. */
   workingDir?: string;
+  /** The image reference the container was created from. */
+  image: string;
+  /** Docker's restart policy name: 'no', 'always', 'unless-stopped' or 'on-failure'. */
+  restart: string;
 }
 
 const INSPECT_FORMAT =
-  '{{.Id}}\t{{.State.Running}}\t{{.Name}}\t{{index .Config.Labels "com.docker.compose.project.working_dir"}}\t{{json .HostConfig.PortBindings}}';
+  '{{.Id}}\t{{.State.Running}}\t{{.Name}}\t{{index .Config.Labels "com.docker.compose.project.working_dir"}}\t{{.Config.Image}}\t{{.HostConfig.RestartPolicy.Name}}\t{{json .HostConfig.PortBindings}}';
 
 /** Reads `docker inspect` lines in INSPECT_FORMAT and returns the container bound to `port`. */
 export function findContainerForPort(inspectOutput: string, port: number): BackendContainer | null {
   const matches: BackendContainer[] = [];
   for (const line of inspectOutput.split(/\r?\n/)) {
-    const [id, running, name, workingDir, bindings] = line.split('\t');
+    const [id, running, name, workingDir, image, restart, bindings] = line.split('\t');
     if (!id || !bindings) continue;
     let parsed: unknown;
     try {
@@ -100,6 +104,8 @@ export function findContainerForPort(inspectOutput: string, port: number): Backe
       running: running === 'true',
       name: (name || '').replace(/^\//, ''),
       workingDir: workingDir && workingDir !== '<no value>' ? workingDir : undefined,
+      image: image || '',
+      restart: restart || 'no',
     });
   }
   return matches.find((container) => container.running) ?? matches[0] ?? null;

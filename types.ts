@@ -1,3 +1,4 @@
+import type { LlmProviderId } from './core/ModelSettings';
 import { TFile } from 'obsidian';
 
 export interface WebhookAuthConfig {
@@ -360,6 +361,25 @@ export interface VideoSummarySettings {
   cookiesDirPath: string;
   /** Folder with the backend's compose.yaml; used by Start backend when no container exists yet. */
   backendDirPath: string;
+
+  // 模型与密钥（core/ModelSettings.ts 读这些；密钥只存钥匙串里的名字）
+  llmProvider: LlmProviderId;
+  /** '' = the provider's default model */
+  llmModel: string;
+  /** Only used when llmProvider is 'custom' */
+  llmBaseUrl: string;
+  /** Name of the summary key in Obsidian's secret storage; '' = not set */
+  llmKeySecret: string;
+  /** Name of the speech-to-text key in Obsidian's secret storage; '' = not set */
+  speechKeySecret: string;
+  /** '' = SiliconFlow */
+  speechBaseUrl: string;
+  /** '' = SenseVoice */
+  speechModel: string;
+  /** Advanced: another image for the backend (a mirror or a local tag); '' = the official one. */
+  backendImage: string;
+  /** Fingerprint of the model settings last handed to the managed backend; holds no key. */
+  backendAppliedConfig: string;
 }
 
 export interface PayloadKeys {

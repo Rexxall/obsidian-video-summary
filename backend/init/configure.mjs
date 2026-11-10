@@ -4,6 +4,11 @@
 // bundled workflows, imports them and publishes them. Keys reach the n8n CLI through a temporary
 // file that only the node user can read and that is deleted straight after the import; they are
 // never printed. When nothing changed since the last start, the import is skipped.
+//
+// `configure.mjs apply` is how the Obsidian plugin hands over the model and keys chosen in its
+// settings: it reads one JSON object from standard input and stores it next to n8n's own data,
+// readable only by the node user. Values stored that way win over .env at the next start; .env
+// stays the fallback, so a backend set up with the start script keeps working unchanged.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -15,6 +20,7 @@ const CONFIG_FILE = '/run/video-summary/config.env';
 const WORKFLOW_DIR = '/opt/video-summary/workflows';
 const STATE_DIR = '/home/node/.n8n/video-summary';
 const STATE_FILE = path.join(STATE_DIR, 'state.json');
+const OVERRIDES_FILE = path.join(STATE_DIR, 'overrides.json');
 
 const IDS = {
   main: 'vsMainWorkflow01',
@@ -113,6 +119,80 @@ export function resolveConfig(env) {
   };
 }
 
+const OVERRIDE_KEYS = {
+  chat: { base: 'VS_CHAT_BASE_URL', model: 'VS_CHAT_MODEL', key: 'VS_CHAT_API_KEY' },
+  speech: { base: 'VS_SPEECH_BASE_URL', model: 'VS_SPEECH_MODEL', key: 'VS_SPEECH_API_KEY' },
+  vision: { base: 'VS_VISION_BASE_URL', model: 'VS_VISION_MODEL', key: 'VS_VISION_API_KEY' },
+};
+
+/**
+ * Keeps only the fields the plugin may set, as non-empty strings. Anything else in the input
+ * is dropped, so the stored file never holds more than base, model and key per service.
+ */
+export function cleanOverrides(input) {
+  const clean = {};
+  if (!input || typeof input !== 'object') return clean;
+  for (const [part, fields] of Object.entries(OVERRIDE_KEYS)) {
+    const source = input[part];
+    if (!source || typeof source !== 'object') continue;
+    for (const field of Object.keys(fields)) {
+      const value = typeof source[field] === 'string' ? source[field].trim() : '';
+      if (value) (clean[part] ??= {})[field] = value;
+    }
+  }
+  return clean;
+}
+
+/** .env values with the plugin's choices laid over them; an empty choice leaves .env in place. */
+export function mergeOverrides(env, overrides) {
+  const merged = { ...env };
+  const clean = cleanOverrides(overrides);
+  for (const [part, fields] of Object.entries(OVERRIDE_KEYS)) {
+    for (const [field, name] of Object.entries(fields)) {
+      if (clean[part]?.[field]) merged[name] = clean[part][field];
+    }
+  }
+  return merged;
+}
+
+function readOverrides() {
+  try {
+    return cleanOverrides(JSON.parse(fs.readFileSync(OVERRIDES_FILE, 'utf8')));
+  } catch {
+    return {};
+  }
+}
+
+function readMountedEnv() {
+  if (!fs.existsSync(CONFIG_FILE)) {
+    throw new ConfigError(
+      'The .env file is not mounted. Run the start script in the backend folder.',
+    );
+  }
+  return parseEnv(fs.readFileSync(CONFIG_FILE, 'utf8'));
+}
+
+/**
+ * `configure.mjs apply`: validates the JSON on standard input together with .env and stores it.
+ * Prints one line of JSON without any key in it. The new values take effect at the next start
+ * of the container, which the plugin triggers.
+ */
+function apply() {
+  let input;
+  try {
+    input = JSON.parse(fs.readFileSync(0, 'utf8'));
+  } catch {
+    throw new ConfigError('apply expects one JSON object on standard input');
+  }
+  const overrides = cleanOverrides(input);
+  const config = resolveConfig(mergeOverrides(readMountedEnv(), overrides));
+  fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+  const temp = `${OVERRIDES_FILE}.${process.pid}`;
+  fs.writeFileSync(temp, JSON.stringify(overrides), { mode: 0o600 });
+  fs.renameSync(temp, OVERRIDES_FILE);
+  process.stdout.write(`${JSON.stringify({ applied: true, ...publicStatus(config) })}\n`);
+}
+
 export function publicStatus(config) {
   const describe = (part) => ({
     configured: Boolean(part.key),
@@ -202,12 +282,7 @@ function n8n(args) {
 }
 
 function main() {
-  if (!fs.existsSync(CONFIG_FILE)) {
-    throw new ConfigError(
-      'The .env file is not mounted. Run the start script in the backend folder.',
-    );
-  }
-  const config = resolveConfig(parseEnv(fs.readFileSync(CONFIG_FILE, 'utf8')));
+  const config = resolveConfig(mergeOverrides(readMountedEnv(), readOverrides()));
   const workflows = ['video-summary-speech.json', 'video-summary.json'].map((name) =>
     JSON.parse(fs.readFileSync(path.join(WORKFLOW_DIR, name), 'utf8')),
   );
@@ -261,7 +336,8 @@ function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    main();
+    if (process.argv[2] === 'apply') apply();
+    else main();
   } catch (error) {
     process.stderr.write(
       `[video-summary] ${error instanceof Error ? error.message : String(error)}\n`,
