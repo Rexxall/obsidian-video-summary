@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.12.5
 
 - _Insert into the current note_ reads and writes in one step, so an edit made meanwhile is not overwritten.
 - Closing the settings page stops the Bilibili QR login check; it used to keep asking the backend for up to three minutes.
