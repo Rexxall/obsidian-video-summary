@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.12.4
 
 - **A class for your own note style.** Set a class under **Settings → Video Summary → Note CSS class** and every video note the plugin writes gets it in its `cssclasses`, so a CSS snippet in your vault can give video notes their own look. Empty by default; the plugin ships no style for it. Classes already on the note are kept.
 - **A backend error is a failed job, not a note.** When the workflow's model call fails and the reply's summary is its `Error: …` message, the job now fails with that message and a Retry button instead of saving a note whose summary is the error. Nothing is cached for it.
@@ -14,6 +14,8 @@ All notable changes to this project are documented here.
 - **Theme marks.** For a vault theme that styles `ih-sub`, `ih-circ` and `ih-stamp-done`, a setting (off by default) puts the note's one-line takeaway as a subtitle, circles the first `==highlight==`, and stamps notes whose status is ✅. A subtitle, circle or stamp already on the page is kept, and one you moved or edited is carried over when the note is processed again. The plugin ships no style for them.
 - **Keep only links to existing notes.** A setting turns a `[[link]]` in a processed note into plain text when your vault has no such note, so notes from older workflows do not leave dangling links.
 - **The success status can be your vault's own mark, such as ❌.** The plugin keeps its state in `video_summary_status`, so `status` is free to show "not reviewed yet". The plugin also no longer overwrites a `status` of ✅ or ▶️ that you set yourself.
+
+The bundled backend workflow changed: the note prompt (v5) returns `note_title` and `tldr`. Update the backend workflow to get them.
 
 ## 2.12.3
 
