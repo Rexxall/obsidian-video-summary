@@ -253,10 +253,10 @@ export class JobService {
       new Notice(tr('请先打开一个笔记', 'Open a note first'));
       return;
     }
-    const content = await this.plugin.app.vault.read(activeFile);
-    await this.plugin.app.vault.modify(
+    // Read and write in one step, so an edit made meanwhile is not overwritten.
+    await this.plugin.app.vault.process(
       activeFile,
-      `${content.trim()}\n\n${buildInsertionContent(result)}`,
+      (content) => `${content.trim()}\n\n${buildInsertionContent(result)}`,
     );
     new Notice(tr('已插入当前笔记', 'Inserted into the current note'));
   }

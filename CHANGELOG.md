@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- _Insert into the current note_ reads and writes in one step, so an edit made meanwhile is not overwritten.
+- Closing the settings page stops the Bilibili QR login check; it used to keep asking the backend for up to three minutes.
+
 ## 2.12.4
 
 - **A class for your own note style.** Set a class under **Settings → Video Summary → Note CSS class** and every video note the plugin writes gets it in its `cssclasses`, so a CSS snippet in your vault can give video notes their own look. Empty by default; the plugin ships no style for it. Classes already on the note are kept.

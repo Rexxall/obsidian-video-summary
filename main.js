@@ -18005,10 +18005,9 @@ var JobService = class {
       new import_obsidian18.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
       return;
     }
-    const content = await this.plugin.app.vault.read(activeFile);
-    await this.plugin.app.vault.modify(
+    await this.plugin.app.vault.process(
       activeFile,
-      `${content.trim()}
+      (content) => `${content.trim()}
 
 ${buildInsertionContent(result)}`
     );
@@ -23870,6 +23869,8 @@ var VideoSummarySettingTab = class extends import_obsidian21.PluginSettingTab {
     this.host = null;
     /** Stops keeping the group corners current once the page is closed. */
     this.stopGroupMarks = null;
+    /** Stops asking the backend about a QR login once the page is closed or redrawn. */
+    this.stopLoginPolling = null;
     this.plugin = plugin;
   }
   /**
@@ -23907,6 +23908,8 @@ var VideoSummarySettingTab = class extends import_obsidian21.PluginSettingTab {
   hide() {
     this.stopGroupMarks?.();
     this.stopGroupMarks = null;
+    this.stopLoginPolling?.();
+    this.stopLoginPolling = null;
   }
   renderPage(containerEl) {
     this.host = containerEl;
@@ -24176,10 +24179,12 @@ var VideoSummarySettingTab = class extends import_obsidian21.PluginSettingTab {
     const panel = section3.createDiv({ cls: "setup-qr" });
     const status = section3.createEl("p", { cls: "setting-item-description" });
     let polling = 0;
+    this.stopLoginPolling?.();
     const stop = () => {
       if (polling) window.clearInterval(polling);
       polling = 0;
     };
+    this.stopLoginPolling = stop;
     new import_obsidian21.Setting(section3).setName(tr("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09", "\u2463 Bilibili login (optional)")).setDesc(
       tr(
         "\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u7801\u767B\u5F55\u540E\uFF0C\u80FD\u62FF\u5230\u5B83\u7684\u5B57\u5E55\u548C AI \u5B57\u5E55\uFF0C\u4E0D\u7528\u518D\u8F6C\u5199\u3002\u767B\u5F55\u4FE1\u606F\u53EA\u4EA4\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\uFF0C\u63D2\u4EF6\u4E0D\u4FDD\u5B58\u3002",

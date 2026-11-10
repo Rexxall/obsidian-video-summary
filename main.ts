@@ -2567,9 +2567,14 @@ class VideoSummarySettingTab extends PluginSettingTab {
   /** Stops keeping the group corners current once the page is closed. */
   private stopGroupMarks: (() => void) | null = null;
 
+  /** Stops asking the backend about a QR login once the page is closed or redrawn. */
+  private stopLoginPolling: (() => void) | null = null;
+
   hide(): void {
     this.stopGroupMarks?.();
     this.stopGroupMarks = null;
+    this.stopLoginPolling?.();
+    this.stopLoginPolling = null;
   }
 
   private renderPage(containerEl: HTMLElement): void {
@@ -2893,10 +2898,12 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const panel = section.createDiv({ cls: 'setup-qr' });
     const status = section.createEl('p', { cls: 'setting-item-description' });
     let polling = 0;
+    this.stopLoginPolling?.();
     const stop = () => {
       if (polling) window.clearInterval(polling);
       polling = 0;
     };
+    this.stopLoginPolling = stop;
 
     new Setting(section)
       .setName(tr('④ 哔哩哔哩登录（可选）', '④ Bilibili login (optional)'))
