@@ -33,6 +33,12 @@ import {
 import { errorMessage } from '../utils/errors';
 import { asRecord, asText, isRecord, type JsonRecord } from '../utils/json';
 import { tr } from '../utils/i18n';
+import {
+  type BackendDiagnosis,
+  type WebhookAnswer,
+  diagnoseBackend,
+  endpointOrigin,
+} from '../core/BackendHealth';
 const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
 const CACHE_PROMPT_VERSION = 'video-note-prompt-v5';
 
@@ -1113,6 +1119,49 @@ export class VideoSummaryAPI {
     );
   }
 
+  /**
+   * 体检：POST 一次测试 payload，再按结果分出“没有服务／工作流没激活／工作流出错／空响应”。
+   * 只有 404 时才多问一次 n8n 自己的 /healthz，用来区分“工作流没激活”和“地址不对”。
+   */
+  async diagnose(timeoutMs = 4000): Promise<BackendDiagnosis> {
+    const url = (this.webhookUrl || '').trim();
+    if (!url) return { ok: false, fault: 'not-configured', checkedAt: Date.now() };
+
+    let answer: WebhookAnswer;
+    try {
+      const response = await VideoSummaryAPI.nativeRequest(
+        {
+          url,
+          method: 'POST',
+          contentType: 'application/json',
+          headers: this.buildN8nHeaders(),
+          body: JSON.stringify(this.buildConnectionTestPayload()),
+        },
+        timeoutMs,
+      );
+      answer = { status: response.status, bodyEmpty: !(response.text || '').trim() };
+    } catch (error) {
+      answer =
+        (error as Error)?.name === 'TimeoutError'
+          ? { timedOut: true }
+          : { networkError: errorMessage(error) };
+    }
+    const serviceUp = answer.status === 404 ? await this.pingService(timeoutMs) : undefined;
+    return diagnoseBackend(answer, serviceUp, Date.now());
+  }
+
+  /** n8n 进程还在不在：/healthz 有任何 HTTP 应答都算在。只用于处理中的掉线探测。 */
+  async pingService(timeoutMs = 4000): Promise<boolean> {
+    const origin = endpointOrigin(this.webhookUrl || '');
+    if (!origin) return false;
+    try {
+      await VideoSummaryAPI.nativeRequest({ url: `${origin}/healthz`, method: 'GET' }, timeoutMs);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** 向 n8n 端点 POST 测试 payload，只有 2xx 算可用。 */
   static async probeEndpoint(
     url: string,
@@ -1608,15 +1657,15 @@ export class VideoSummaryAPI {
       lower.includes('connection refused')
     ) {
       return tr(
-        `无法连接后端。先打开 Docker，再在后端文件夹运行启动脚本。当前地址: ${this.webhookUrl}`,
-        `Cannot reach the backend. Open Docker, then run the start script in the backend folder. Current address: ${this.webhookUrl}`,
+        `无法连接后端，它没在运行。点状态栏的“视频 离线”，再点“启动后端”；或者打开 Docker 后运行后端文件夹里的启动脚本。当前地址: ${this.webhookUrl}`,
+        `Cannot reach the backend; it is not running. Click "Video offline" in the status bar and choose Start backend, or open Docker and run the start script in the backend folder. Current address: ${this.webhookUrl}`,
       );
     }
 
     if (message.includes('服务器返回空响应')) {
       return tr(
-        '服务器返回空响应。请确认 n8n workflow 已激活，并且 Respond to Webhook 节点已连到测试/处理分支。',
-        'The server returned an empty response. Check that the n8n workflow is active and the Respond to Webhook node is connected.',
+        '后端收到了请求但没有回内容：工作流里有节点出错，或回复节点断开了。打开 n8n 的 Executions，看最近一次执行停在哪个节点。',
+        'The backend took the request and sent nothing back: a node in the workflow failed, or the Respond node is disconnected. Open Executions in n8n and see where the latest run stopped.',
       );
     }
 

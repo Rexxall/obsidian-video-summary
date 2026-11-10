@@ -84,3 +84,18 @@ test('the bundle loads obsidian with require, never with a native import()', asy
   // Obsidian evaluates main.js as CommonJS; import('obsidian') fails there at request time.
   assert.doesNotMatch(bundle, /\bimport\(\s*["']obsidian["']\s*\)/);
 });
+
+test('README discloses the programs the plugin runs, and Start backend never fetches or builds', async () => {
+  const [readme, launcher, desktop] = await Promise.all([
+    readFile(new URL('README.md', projectRoot), 'utf8'),
+    readFile(new URL('core/BackendLauncher.ts', projectRoot), 'utf8'),
+    readFile(new URL('utils/desktop.ts', projectRoot), 'utf8'),
+  ]);
+  assert.match(readme, /^\*\*Programs the plugin runs\*\*/m);
+  assert.match(readme, /docker compose up -d --no-build --pull never/);
+  assert.match(launcher, /'--no-build',\s*'--pull',\s*'never'/);
+  // Developer policies: a plugin must not install or update its dependencies.
+  assert.doesNotMatch(launcher, /'pull'|'build'|'install'/);
+  // Programs are run with an argument list, never through a shell.
+  assert.doesNotMatch(desktop, /\bexec\(|shell:\s*true|\bspawn\(/);
+});

@@ -63,6 +63,9 @@ import { NoteProcessor } from './utils/NoteProcessor';
 import { safeExternalHttpUrl } from './utils/SafeExternalUrl';
 import { JobStore } from './core/JobStore';
 import { JobService } from './core/JobService';
+import { BackendControl } from './core/BackendControl';
+import { BackendHealthModal } from './views/BackendHealthModal';
+import { statusClass, statusWord } from './views/backendText';
 import { NoteIndex } from './core/NoteIndex';
 import { ArtifactStore } from './core/ArtifactStore';
 import { CrossModalMemoryIndex } from './core/CrossModalMemory';
@@ -129,12 +132,8 @@ export default class VideoSummaryPlugin extends Plugin {
   // history.json 延迟写入
   private historySaveTimer: number | null = null;
 
-  // preflight 结果缓存（60s 内不重复 ping）
-  private lastPreflight: {
-    url: string;
-    ok: boolean;
-    at: number;
-  } | null = null;
+  /** 后端在不在、按住队列、“启动后端”都在这里 */
+  backend: BackendControl;
 
   /** Every NoteProcessor reads the same note-writing settings: style class, success text, default properties. */
   createNoteProcessor(): NoteProcessor {
@@ -190,6 +189,9 @@ export default class VideoSummaryPlugin extends Plugin {
     // 任务队列 + 视频笔记索引
     this.jobs = new JobStore();
     this.jobService = new JobService(this, this.jobs);
+    this.backend = new BackendControl(this);
+    this.backend.attach();
+    this.addBackendStatusBar();
     this.noteIndex = new NoteIndex(this.app, `${pluginDir}/data/cache/platform-covers.json`);
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
     this.app.workspace.onLayoutReady(() => {
@@ -255,6 +257,7 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   onunload() {
+    BackendHealthModal.closeAll();
     this.noteIndex?.flush();
     // 卸载前把待写入的历史落盘
     if (this.historySaveTimer !== null) {
@@ -1218,41 +1221,11 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   /**
-   * 处理前的后端自检（preflight）。
-   * - 60 秒内的成功结果直接复用，批量处理不会反复 ping。
-   * 返回 false 表示应中止本次处理。
+   * 处理前的后端自检（preflight），给不走任务队列的旧命令用。
+   * 返回 false 表示应中止本次处理，原因和“启动后端”按钮已经提示过。
    */
   async ensureBackendReady(): Promise<boolean> {
-    if (this.settings.preflightCheckEnabled === false) {
-      return true;
-    }
-
-    const endpoint = this.getActiveProcessingEndpoint();
-    const now = Date.now();
-
-    if (
-      this.lastPreflight &&
-      this.lastPreflight.ok &&
-      this.lastPreflight.url === endpoint &&
-      now - this.lastPreflight.at < 60_000
-    ) {
-      return true;
-    }
-
-    const result = await this.api.quickHealthCheck();
-    this.lastPreflight = { url: endpoint, ok: result.ok, at: now };
-    if (result.ok) {
-      return true;
-    }
-
-    new Notice(
-      tr(
-        `⚠️ 后端不可达：${result.error || '未知错误'}\n先打开 Docker 并运行启动脚本，或在设置中检查连接码。`,
-        `⚠️ Backend unreachable: ${result.error || 'unknown error'}\nOpen Docker and run the start script, or check the connection code in settings.`,
-      ),
-      8000,
-    );
-    return false;
+    return this.backend.ensureReady();
   }
 
   private async processFile(file: TFile) {
@@ -1684,6 +1657,39 @@ export default class VideoSummaryPlugin extends Plugin {
     } else {
       this.api.setCacheEnabled(false);
     }
+    this.backend?.endpointChanged();
+  }
+
+  /** The webhook address jobs are sent to. */
+  activeEndpoint(): string {
+    return this.getActiveProcessingEndpoint();
+  }
+
+  /** 状态栏：一个点加一个词，点开是体检面板 */
+  private addBackendStatusBar() {
+    const item = this.addStatusBarItem();
+    item.addClass('vs-statusbar', 'mod-clickable');
+    item.setAttr('role', 'button');
+    item.setAttr('tabindex', '0');
+    const dot = item.createSpan({ cls: 'vs-backend-dot' });
+    const word = item.createSpan();
+    const paint = () => {
+      const snapshot = this.backend.monitor.snapshot();
+      dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
+      const label = tr(`视频后端${statusWord(snapshot)}`, `Video backend ${statusWord(snapshot)}`);
+      word.setText(tr(`视频 ${statusWord(snapshot)}`, `Video ${statusWord(snapshot)}`));
+      item.setAttr('aria-label', label);
+    };
+    paint();
+    this.register(this.backend.monitor.subscribe(paint));
+    const open = () => new BackendHealthModal(this.app, this).open();
+    this.registerDomEvent(item, 'click', open);
+    this.registerDomEvent(item, 'keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        open();
+      }
+    });
   }
 
   reinitializeApi(url?: string) {
@@ -3156,6 +3162,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
     });
 
     const resultBox = section.createDiv({ cls: 'setup-diagnostic-result' });
+
+    new Setting(section)
+      .setName(tr('后端文件夹', 'Backend folder'))
+      .setDesc(
+        tr(
+          '有 compose.yaml 的那个文件夹。“启动后端”找不到现成的容器时，在这里运行 docker compose up。',
+          'The folder with compose.yaml. When Start backend finds no existing container, it runs docker compose up here.',
+        ),
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder('/path/to/video-summary-backend')
+          .setValue(this.plugin.settings.backendDirPath || '')
+          .onChange(async (value) => {
+            this.plugin.settings.backendDirPath = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
 
     new Setting(section)
       .setName(tr('Cookies 目录', 'Cookies folder'))

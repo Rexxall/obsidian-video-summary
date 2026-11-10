@@ -358,6 +358,8 @@ export interface VideoSummarySettings {
 
   // cookies 目录（后端文件夹里 cookies 的绝对路径，桌面端）
   cookiesDirPath: string;
+  /** Folder with the backend's compose.yaml; used by Start backend when no container exists yet. */
+  backendDirPath: string;
 }
 
 export interface PayloadKeys {

@@ -14,6 +14,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   '③ Trial run',
   '④ 哔哩哔哩登录（可选）',
   '④ Bilibili login (optional)',
+  '后端文件夹',
+  'Backend folder',
   'Cookies 目录',
   'Cookies folder',
   '默认 webhook（n8n 或兼容服务）',

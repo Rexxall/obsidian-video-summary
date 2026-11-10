@@ -1,3 +1,4 @@
+import { BackendLostError, mayMeanBackendGone, withBackendWatch } from './BackendHealth';
 import { Notice, TFile } from 'obsidian';
 import VideoSummaryPlugin from '../main';
 import { NoteProcessor } from '../utils/NoteProcessor';
@@ -91,10 +92,8 @@ export class JobService {
 
     if (runnableDrafts.length === 0) return jsonCreated;
 
-    if (!(await this.plugin.ensureBackendReady())) {
-      new Notice(tr('后端不可用，任务未提交', 'Backend unavailable; the job was not sent'));
-      return jsonCreated;
-    }
+    // 后端不在也照样入队：队列被按住，后端一应答就按顺序接着跑
+    await this.plugin.backend.readyOrHold();
 
     let queued = 0;
     for (const draft of runnableDrafts) {
@@ -143,7 +142,7 @@ export class JobService {
       );
       return null;
     }
-    if (!(await this.plugin.ensureBackendReady())) return null;
+    await this.plugin.backend.readyOrHold();
 
     await this.updateCourseProgressForFile(file, 'queued', 0, input.artifactId);
     try {
@@ -429,13 +428,24 @@ export class JobService {
 
     try {
       this.assertNotCancelled(job);
-      const result = await this.plugin.api.processVideo(
-        noteName,
-        job.input,
-        job.mode,
-        job.language,
-        job.useCache,
-        report,
+      // 处理中每 45 秒问一次后端还在不在；连着两次没应答就立刻失败，不等总超时
+      const result = await withBackendWatch(
+        this.plugin.api.processVideo(
+          noteName,
+          job.input,
+          job.mode,
+          job.language,
+          job.useCache,
+          report,
+        ),
+        {
+          ping: () => this.plugin.api.pingService(),
+          onLost: () => {
+            void this.plugin.api.cancelByNoteName(noteName);
+            this.plugin.backend.lostWhileRunning();
+          },
+          lostMessage: backendLostText(),
+        },
       );
       // Some remote workers cannot abort an already-running job. Never persist
       // or write a late response after the local user has cancelled it.
@@ -478,9 +488,20 @@ export class JobService {
         }
         throw error instanceof JobCancelledError ? error : new JobCancelledError();
       }
-      const message = messageOf(error);
+      // n8n 被停掉时会先给还没答完的请求回一个空响应，再关端口。所以“空响应”和连接错误
+      // 先确认后端还在不在：不在了就照实说“后端停了”，而不是让人去查工作流。
+      let failure: unknown = error;
+      if (error instanceof BackendLostError) {
+        this.plugin.backend.lostWhileRunning();
+      } else if (
+        mayMeanBackendGone(messageOf(error)) &&
+        (await this.plugin.backend.goneAfterFailure())
+      ) {
+        failure = new BackendLostError(backendLostText());
+      }
+      const message = messageOf(failure);
       if (file) {
-        await this.noteProcessor.setProcessingError(file, error);
+        await this.noteProcessor.setProcessingError(file, failure);
         await this.updateCourseProgressForFile(file, 'error', 0, job.input.artifactId);
       }
       this.plugin.addToHistory(noteName, 'error', job.mode, {
@@ -489,7 +510,7 @@ export class JobService {
         error: message,
         durationMs: job.startedAt ? Date.now() - job.startedAt : undefined,
       });
-      throw error;
+      throw failure;
     }
   }
 
@@ -816,6 +837,13 @@ function stripBackendMediaAssetPaths(result: ProcessingResult): void {
     ...evidence,
     keyframe: evidence.keyframe ? { ...evidence.keyframe, path: undefined } : undefined,
   }));
+}
+
+function backendLostText(): string {
+  return tr(
+    '处理到一半后端停了，任务已中止。启动后端后点“重试”。',
+    'The backend stopped in the middle of this job. Start the backend, then choose Retry.',
+  );
 }
 
 function messageOf(error: unknown): string {

@@ -68,6 +68,22 @@ export class JobStore {
   private seq = 0;
   private concurrency = 2;
   private cancelled = new Set<string>();
+  private held = false;
+
+  /**
+   * 后端不在时按住队列：排队的任务留着不发，放开后按原顺序接着跑。
+   * 已经在跑的任务不受影响。
+   */
+  setHeld(held: boolean) {
+    if (this.held === held) return;
+    this.held = held;
+    this.emit();
+    if (!held) this.pump();
+  }
+
+  isHeld(): boolean {
+    return this.held;
+  }
 
   setRunner(runner: JobRunner) {
     this.runner = runner;
@@ -233,7 +249,7 @@ export class JobStore {
   }
 
   private pump() {
-    if (!this.runner) return;
+    if (!this.runner || this.held) return;
     while (this.running < this.concurrency) {
       const next = this.jobs.filter((job) => job.state === 'queued').pop();
       if (!next) return;

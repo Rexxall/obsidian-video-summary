@@ -192,7 +192,9 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   statusPill(side, job.state === 'queued' ? 'queued' : 'running', {
     label:
       job.state === 'queued'
-        ? tr('排队中', 'Queued')
+        ? ctx.plugin.jobs.isHeld()
+          ? tr('等待后端', 'Waiting for backend')
+          : tr('排队中', 'Queued')
         : job.stageLabel || tr('处理中', 'Processing'),
     title: job.stageLabel
       ? undefined

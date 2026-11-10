@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- **You can see whether the backend is up.** The status bar shows a dot and a word (online, offline, checking, starting), and so does the top of the side panel. The plugin checks when Obsidian has loaded, when its window gets focus, and before each job, never in a tight loop. Click the dot for a check-up: Docker engine, container, service, workflow, with the one next step.
+- **A job sent while the backend is off waits instead of being dropped.** It stays in the list as _Waiting for backend_ and starts by itself once the backend answers. You are told within a few seconds, not after a timeout.
+- **Start backend.** For a backend on this computer, the notice, the side panel and the check-up have a _Start backend_ button. It opens OrbStack or Docker Desktop, starts the backend container, and waits up to 90 seconds for the webhook; if that fails it says where it stopped: Docker not installed, engine not up, container not starting, or workflow not answering. It only starts what is already installed and never downloads or updates anything. The folder with `compose.yaml` is remembered under **Settings → Video Summary → Backend folder**; an existing container is found by its port, so most setups never need it. Tested on macOS; Windows and Linux use the same commands and are untested.
+- **"Empty response" now says which kind.** The plugin tells apart nothing listening at the address (the backend is not running), n8n running with the workflow switched off, a workflow that failed, and a workflow that answered with nothing, each with its own next step.
+- **A long job no longer waits out the full timeout when the backend dies.** While a job runs, the plugin asks the backend every 45 seconds whether it is still there; two misses in a row fail the job at once with a Retry button. A backend that is shut down mid-job (n8n answers with an empty reply as it stops) is reported as "the backend stopped", not as a workflow error, and the jobs queued behind it wait instead of failing one by one.
+
+The plugin now runs the `docker` command line when you choose _Start backend_ or open the check-up; see **Programs the plugin runs** in the README. No backend changes are needed.
+
 ## 2.12.5
 
 - _Insert into the current note_ reads and writes in one step, so an edit made meanwhile is not overwritten.

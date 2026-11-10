@@ -23,35 +23,9 @@ import { VideoUtils } from '../../utils/VideoUtils';
 import { liveJobForNote, noteDisplayStatus } from '../noteStatus';
 
 import { fire } from '../../utils/fire';
-import { errorMessage } from '../../utils/errors';
 import { tr } from '../../utils/i18n';
-const BACKEND_PROBE_TIMEOUT_MS = 8_000;
-const BACKEND_ONLINE_TTL_MS = 5 * 60_000;
-const BACKEND_OFFLINE_TTL_MS = 60_000;
-
-interface BackendInfo {
-  key: string;
-  label: string;
-  endpoint: string;
-}
-
-interface BackendProbeResult {
-  state: 'is-online' | 'is-offline';
-  checkedAt: number;
-  /** true = 完整响应诊断通过；false = 只确认端点可达 */
-  verified?: boolean;
-  durationMs?: number;
-  reason?: string;
-}
-
-interface BackendProbeCache {
-  key: string;
-  result?: BackendProbeResult;
-  pending?: Promise<BackendProbeResult>;
-}
-
-/** 探测缓存跟随插件实例；视图重绘或关闭重开都不会重复请求。 */
-const backendProbeCaches = new WeakMap<object, BackendProbeCache>();
+import { BackendHealthModal } from '../BackendHealthModal';
+import { faultReason, statusClass, statusWord } from '../backendText';
 
 /** “选项”行右侧的摘要：只要文稿 / 总结（极速）/ 证据（保留时间轴）。 */
 type QuickMode = 'transcript' | 'summary' | 'evidence';
@@ -206,58 +180,70 @@ function renderHeader(root: HTMLElement, ctx: ViewContext) {
     'vs-header-more',
   );
 
-  const backend = activeBackendInfo(ctx);
-  const cachedResult = freshProbeResult(ctx, backend);
-  const cachedEntry = backendProbeCaches.get(ctx.plugin);
-  const initialState =
-    cachedEntry?.key === backend.key && cachedEntry.pending
-      ? 'is-checking'
-      : cachedResult?.state || 'is-unknown';
-  ctx.setBackendState(initialState);
+  renderBackendLine(root, ctx);
+}
 
-  const statusLine = root.createEl('button', {
+/**
+ * 后端状态行：点 + 一个词；离线时写原因，右边是“启动后端”。点这一行开体检面板。
+ * 跟着 BackendMonitor 自己更新，不重画整个顶部，输入框里打了一半的内容不受影响。
+ */
+function renderBackendLine(root: HTMLElement, ctx: ViewContext) {
+  const { backend } = ctx.plugin;
+  const line = root.createDiv({ cls: 'vs-backend-row' });
+  const status = line.createEl('button', {
     cls: 'vs-backend-line',
     attr: { type: 'button' },
   });
-  const dot = statusLine.createSpan({ cls: 'vs-backend-dot' });
-  const label = statusLine.createSpan();
-  updateBackendPill(statusLine, dot, label, backend, initialState, cachedResult);
+  const dot = status.createSpan({ cls: 'vs-backend-dot' });
+  const label = status.createSpan();
+  const start = line.createEl('button', {
+    cls: 'vs-backend-start',
+    text: tr('启动后端', 'Start backend'),
+    attr: {
+      type: 'button',
+      'aria-label': tr('打开 Docker 并启动后端容器', 'Open Docker and start the backend container'),
+    },
+  });
 
-  statusLine.addEventListener(
+  const paint = () => {
+    const snapshot = backend.monitor.snapshot();
+    const endpoint = backend.endpoint();
+    dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
+    const word = tr(`后端${statusWord(snapshot)}`, `Backend ${statusWord(snapshot)}`);
+    const reason =
+      snapshot.status === 'offline'
+        ? faultReason(snapshot.diagnosis, endpoint)
+        : snapshot.status === 'starting'
+          ? snapshot.step || ''
+          : '';
+    label.setText(reason ? `${word} · ${reason}` : word);
+    status.setAttr(
+      'aria-label',
+      tr(`${label.getText()}，打开后端体检`, `${label.getText()}; open the backend check-up`),
+    );
+    start.toggle(
+      backend.canStart() &&
+        snapshot.status === 'offline' &&
+        snapshot.diagnosis?.fault === 'unreachable',
+    );
+    ctx.setBackendState(snapshot.status === 'starting' ? 'is-checking' : `is-${snapshot.status}`);
+  };
+  paint();
+  const off = backend.monitor.subscribe(() => {
+    if (!line.isConnected) {
+      off();
+      return;
+    }
+    paint();
+  });
+
+  status.addEventListener('click', () => new BackendHealthModal(ctx.plugin.app, ctx.plugin).open());
+  start.addEventListener(
     'click',
-    fire(async (event) => {
-      event.preventDefault();
-      if (ctx.backendState() === 'is-checking') return;
-
-      ctx.setBackendState('is-checking');
-      updateBackendPill(statusLine, dot, label, backend, 'is-checking');
-      const result = await probeBackend(ctx, backend, true);
-      updateBackendPill(statusLine, dot, label, backend, result.state, result);
-      new Notice(
-        result.state === 'is-online'
-          ? tr(
-              `${backend.label} 连接正常（${result.durationMs ?? 0}ms）`,
-              `${backend.label} connected (${result.durationMs ?? 0} ms)`,
-            )
-          : tr(
-              `${backend.label} 连接失败：${result.reason || '未知原因'}`,
-              `${backend.label} connection failed: ${result.reason || 'unknown reason'}`,
-            ),
-        result.state === 'is-online' ? 3000 : 6000,
-      );
-      ctx.renderAll();
-    }),
+    fire(() => backend.start()),
   );
-
-  // 首次打开或缓存过期时才自动检测；重绘会复用 pending/result，不重复发请求。
-  if (initialState === 'is-unknown' || initialState === 'is-checking') {
-    ctx.setBackendState('is-checking');
-    updateBackendPill(statusLine, dot, label, backend, 'is-checking');
-    void probeBackend(ctx, backend).then((result) => {
-      ctx.setBackendState(result.state);
-      ctx.renderAll();
-    });
-  }
+  // 侧栏打开时顺手看一眼；一分钟内查过就不再发请求
+  void backend.monitor.check(60_000);
 }
 
 /** “···”：不常用但保留的入口，都转给已有命令 */
@@ -320,202 +306,6 @@ export function openSettings(ctx: ViewContext) {
     settingApi.open();
     settingApi.openTabById(ctx.plugin.manifest.id);
   }
-}
-
-function activeBackendInfo(ctx: ViewContext): BackendInfo {
-  const endpoint = (ctx.plugin.settings.n8nWebhookUrl || '').trim();
-  return { key: `n8n:${endpoint}`, label: 'n8n', endpoint };
-}
-
-function freshProbeResult(ctx: ViewContext, backend: BackendInfo): BackendProbeResult | undefined {
-  const cached = backendProbeCaches.get(ctx.plugin);
-  if (!cached || cached.key !== backend.key || !cached.result) return undefined;
-  const ttl = cached.result.state === 'is-online' ? BACKEND_ONLINE_TTL_MS : BACKEND_OFFLINE_TTL_MS;
-  return Date.now() - cached.result.checkedAt < ttl ? cached.result : undefined;
-}
-
-async function probeBackend(
-  ctx: ViewContext,
-  backend: BackendInfo,
-  force = false,
-): Promise<BackendProbeResult> {
-  let cached = backendProbeCaches.get(ctx.plugin);
-  if (!cached || cached.key !== backend.key) {
-    cached = { key: backend.key };
-    backendProbeCaches.set(ctx.plugin, cached);
-  }
-
-  if (cached.pending) return cached.pending;
-  if (!force) {
-    const fresh = freshProbeResult(ctx, backend);
-    if (fresh) return fresh;
-  }
-
-  const pending = (async (): Promise<BackendProbeResult> => {
-    const checkedAt = Date.now();
-    if (!backend.endpoint) {
-      return {
-        state: 'is-offline',
-        checkedAt,
-        reason: tr('未配置服务地址', 'No service address set'),
-      };
-    }
-
-    try {
-      if (force) {
-        // 用户主动点击时跑完整诊断；它能返回耗时和更精确的 workflow 原因。
-        const test = await withTimeout(ctx.plugin.api.testConnection(), BACKEND_PROBE_TIMEOUT_MS);
-        return test.success
-          ? {
-              state: 'is-online',
-              checkedAt: Date.now(),
-              verified: true,
-              durationMs: test.durationMs,
-            }
-          : {
-              state: 'is-offline',
-              checkedAt: Date.now(),
-              verified: true,
-              durationMs: test.durationMs,
-              reason: summarizeBackendFailure(test.error || test.hint || '', backend.endpoint),
-            };
-      }
-
-      // 自动探测只走已有的 4 秒 quick health check，不做完整 workflow 诊断。
-      const health = await ctx.plugin.api.quickHealthCheck();
-      return health.ok
-        ? { state: 'is-online', checkedAt: Date.now(), verified: false }
-        : {
-            state: 'is-offline',
-            checkedAt: Date.now(),
-            verified: false,
-            reason: summarizeBackendFailure(health.error || '', backend.endpoint),
-          };
-    } catch (error) {
-      return {
-        state: 'is-offline',
-        checkedAt: Date.now(),
-        reason: summarizeBackendFailure(
-          error instanceof Error ? errorMessage(error) : String(error),
-          backend.endpoint,
-        ),
-      };
-    }
-  })();
-
-  cached.pending = pending;
-  ctx.setBackendState('is-checking');
-  const result = await pending;
-  cached.result = result;
-  cached.pending = undefined;
-  ctx.setBackendState(result.state);
-  return result;
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  let timer = 0;
-  try {
-    const timeout = new Promise<never>((_, reject) => {
-      timer = window.setTimeout(() => reject(new Error('连接超时')), timeoutMs);
-    });
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timer) window.clearTimeout(timer);
-  }
-}
-
-function updateBackendPill(
-  pill: HTMLElement,
-  dot: HTMLElement,
-  label: HTMLElement,
-  backend: BackendInfo,
-  state: string,
-  result?: BackendProbeResult,
-) {
-  dot.className = `vs-backend-dot ${state}`;
-  if (state === 'is-checking') {
-    label.setText(tr(`正在检测 ${backend.label}…`, `Checking ${backend.label}…`));
-    pill.setAttr(
-      'title',
-      tr(`${backend.label}：正在检测连接`, `${backend.label}: checking connection`),
-    );
-    return;
-  }
-  if (state === 'is-online') {
-    const reachabilityOnly = result?.verified === false;
-    label.setText(tr(`${backend.label} 已连接`, `${backend.label} connected`));
-    pill.setAttr(
-      'title',
-      tr(
-        `${backend.label} ${
-          reachabilityOnly ? '端点可达，尚未验证完整响应' : '在线'
-        }${result?.durationMs !== undefined ? ` · ${result.durationMs}ms` : ''}${
-          result ? ` · 最近检测 ${formatProbeTime(result.checkedAt)}` : ''
-        }；点击运行完整检测`,
-        `${backend.label} ${
-          reachabilityOnly ? 'endpoint reachable, full response not yet verified' : 'online'
-        }${result?.durationMs !== undefined ? ` · ${result.durationMs}ms` : ''}${
-          result ? ` · last checked ${formatProbeTime(result.checkedAt)}` : ''
-        }; click to run a full check`,
-      ),
-    );
-    return;
-  }
-  if (state === 'is-offline') {
-    const reason = result?.reason || tr('无法连接', 'Unreachable');
-    label.setText(
-      tr(`${backend.label} 未连接 · ${reason}`, `${backend.label} not connected · ${reason}`),
-    );
-    pill.setAttr(
-      'title',
-      tr(
-        `${backend.label} 离线：${reason}${
-          result ? ` · 最近检测 ${formatProbeTime(result.checkedAt)}` : ''
-        }；点击重新检测`,
-        `${backend.label} offline: ${reason}${
-          result ? ` · last checked ${formatProbeTime(result.checkedAt)}` : ''
-        }; click to check again`,
-      ),
-    );
-    return;
-  }
-  label.setText(
-    tr(`${backend.label} 未检测 · 点此测试`, `${backend.label} not checked · click to test`),
-  );
-  pill.setAttr(
-    'title',
-    tr(`${backend.label}：点击测试连接`, `${backend.label}: click to test the connection`),
-  );
-}
-
-function formatProbeTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/** 连接状态同样只显示分类后的安全原因，避免把 webhook URL 或本机路径带到页头。 */
-function summarizeBackendFailure(raw: string, endpoint = ''): string {
-  const error = raw.toLowerCase();
-  if (!error) return tr('未知原因', 'unknown reason');
-  if (/空响应|empty response|no response body/.test(error)) return tr('空响应', 'empty response');
-  if (/404|webhook.*(?:不存在|not found)|workflow.*(?:未激活|inactive)/.test(error)) {
-    return tr('流程未启用', 'workflow not active');
-  }
-  if (/401|unauthorized|api.?key|鉴权|授权失败/.test(error)) return tr('授权失败', 'auth failed');
-  if (/403|forbidden|拒绝访问/.test(error)) return tr('访问被拒绝', 'access denied');
-  if (/429|rate.?limit|too many requests|限流/.test(error))
-    return tr('请求过频', 'too many requests');
-  if (/json|返回格式|unexpected token/.test(error)) return tr('格式异常', 'bad format');
-  if (/timeout|timed out|etimedout|超时|abort/.test(error)) return tr('连接超时', 'timed out');
-  if (/econnrefused|enotfound|network|failed to fetch|fetch failed|无法连接|连接失败/.test(error)) {
-    if (/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(endpoint)) {
-      return tr('本机服务未启动', 'local service not running');
-    }
-    return tr('无法连接', 'cannot connect');
-  }
-  return tr('检测失败', 'check failed');
 }
 
 /** 当前笔记上下文条：侧栏里直接看到正在编辑的这篇处于什么状态 */
@@ -945,7 +735,12 @@ async function submit(ctx: ViewContext, input: HTMLTextAreaElement, fields: Adva
     ctx.state.transcriptDraft = '';
     ctx.state.localFileDraft = '';
     input.dispatchEvent(new Event('input'));
-    new Notice(tr(`已提交 ${queued} 个任务`, queued === 1 ? 'Sent 1 job' : `Sent ${queued} jobs`));
+    // 后端不在时已经有一条带“启动后端”的提示，不再叠一条“已提交”
+    if (!ctx.plugin.jobs.isHeld()) {
+      new Notice(
+        tr(`已提交 ${queued} 个任务`, queued === 1 ? 'Sent 1 job' : `Sent ${queued} jobs`),
+      );
+    }
     ctx.state.tab = 'jobs';
     ctx.renderPanels();
   }
