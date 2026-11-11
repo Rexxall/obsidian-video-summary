@@ -104,10 +104,7 @@ test("the Ithaca style gets the video's channel, date, length and id; frames get
   assert.match(filled, /<span class="ih-postmark">バイエンス<br>2026\.11\.11<\/span>/);
   assert.match(filled, /<span class="ih-barcode">9:46 · lAxKiwd1QLo<\/span>/);
   assert.doesNotMatch(filled, /\{\{/);
-  assert.match(
-    fillNoteStyle('{{channel}}', { channel: '<b>x\ny' }),
-    /^b x y\/b$|^ b x y\/b $|b x y/,
-  );
+  assert.equal(fillNoteStyle('{{channel}}', { channel: '<b>x\ny' }), 'b x y');
   assert.equal(fillNoteStyle('', { channel: 'x' }), '');
   const frames = noteImagesFor('https://youtu.be/lAxKiwd1QLo', '9:46');
   assert.deepEqual(
