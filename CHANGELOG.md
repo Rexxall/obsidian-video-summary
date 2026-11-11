@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.13.0
 
 - **Light tier: a note without a backend.** A job that carries a transcript goes straight to your summary model, with no backend and no Docker: a transcript pasted into the side panel, or the captions the browser extension sends from a YouTube page. The note appears in the job card as it is written, in the same shape as a backend note (prompt v5: title, summary, key points, timestamped transcript, evidence). A reasoning model first thinks for up to half a minute; the card says _Reading the transcript_ meanwhile. A transcript over 80,000 characters is condensed part by part first. On by default; turn it off under **Settings → Video Summary → Model → Light tier**. A link or a local file on its own still needs the backend, and the plugin says so.
 - **The browser extension sends YouTube captions.** On a YouTube page, capture (⌘⇧S, the popup's button or the right-click menu) reads the captions the page's player loaded — written ones in the spoken language first, then the automatic ones — and puts them in the note as `provided_transcript`, so the plugin can use the light tier. It does not work while an ad is playing; then only the link is sent. Turn it off in the extension's settings under **YouTube 字幕**. The extension (now 0.8.0) is still loaded by hand in developer mode.
