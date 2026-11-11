@@ -438,3 +438,35 @@ class MemoryAdapter implements ArtifactStoreAdapter {
     return next;
   }
 }
+
+void test('the note ↔ record map follows saves, renames and deletes, so notes need no id property', async () => {
+  const { NoteArtifactLinks } = await import('../core/NoteArtifactLinks');
+  const links = new NoteArtifactLinks();
+  const adapter = new MemoryAdapter();
+  const store = new ArtifactStore(adapter, 'plugin-data/artifacts', {
+    now: () => FIXED_NOW,
+    onSaved: (saved) => links.record(saved),
+  });
+  const artifact = makeArtifact();
+  artifact.source = { ...artifact.source, note_path: 'Inbox/A.md' };
+  artifact.content_type = 'tutorial';
+  const saved = await store.save(artifact);
+  assert.equal(links.get('Inbox/A.md')?.artifactId, saved.artifact_id);
+  assert.equal(links.get('Inbox/A.md')?.contentType, 'tutorial');
+  assert.equal(links.pathFor(saved.artifact_id), 'Inbox/A.md');
+
+  // A rename re-saves the record with its new path: the old path lets go.
+  await store.save({ ...saved, source: { ...saved.source, note_path: 'Notes/B.md' } });
+  assert.equal(links.get('Inbox/A.md'), undefined);
+  assert.equal(links.get('Notes/B.md')?.artifactId, saved.artifact_id);
+
+  // A deleted note keeps its record; only the link goes.
+  await store.save({ ...saved, source: { ...saved.source, note_path: undefined } });
+  assert.equal(links.pathFor(saved.artifact_id), undefined);
+
+  // At startup the map is rebuilt from the records alone.
+  const rebuilt = new NoteArtifactLinks();
+  await store.save({ ...saved, source: { ...saved.source, note_path: 'Notes/C.md' } });
+  rebuilt.rebuild(await store.list());
+  assert.equal(rebuilt.get('Notes/C.md')?.artifactId, saved.artifact_id);
+});

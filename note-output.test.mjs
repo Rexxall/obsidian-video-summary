@@ -12,6 +12,7 @@ const ast = ts.createSourceFile(
 );
 const names = [
   'cleanVideoScaffold',
+  'cleanCaptureScaffold',
   'renderTranscriptFold',
   'writeCleanVideoBody',
   'relinkVideoJobs',

@@ -59,6 +59,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   'Note CSS class',
   '默认属性',
   'Default properties',
+  '文章的标签',
+  'Article tags',
   '只保留指向已有笔记的双链',
   'Keep only links to existing notes',
   '主题标记',

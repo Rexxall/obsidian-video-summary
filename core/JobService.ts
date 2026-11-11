@@ -12,7 +12,7 @@ import {
   VideoKnowledgeArtifact,
 } from '../types';
 import { Job, JobProgress, JobStore } from './JobStore';
-import { liteDecision, nodeStreamTransport, runLiteJob } from './LiteRunner';
+import { type LiteVideoMeta, liteDecision, nodeStreamTransport, runLiteJob } from './LiteRunner';
 import { readSecret, resolveLlm } from './ModelSettings';
 import { JobDraft } from './InputParser';
 import { NoteFactory, buildInsertionContent, extractVideoInputFromPayload } from './NoteFactory';
@@ -389,6 +389,10 @@ export class JobService {
   }
 
   private async fileForArtifactId(artifactId: string): Promise<TFile | null> {
+    // Newer notes carry no id; the record knows its note.
+    const known = this.plugin.noteLinks.pathFor(artifactId);
+    const knownFile = known ? this.plugin.app.vault.getAbstractFileByPath(known) : null;
+    if (knownFile instanceof TFile) return knownFile;
     for (const file of this.plugin.app.vault.getMarkdownFiles()) {
       const cached = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
       let current = stringValue(cached?.video_artifact_id);
@@ -554,6 +558,20 @@ export class JobService {
     );
   }
 
+  /** Title, uploader, duration and cover already on the job's note, as the backend would have them. */
+  private videoMetaFor(job: Job): LiteVideoMeta {
+    const file = this.fileFor(job);
+    const fm = file ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter : undefined;
+    const text = (value: unknown) =>
+      typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    return {
+      title: text(fm?.video_title) || job.title,
+      author: text(fm?.video_author),
+      duration: text(fm?.video_duration),
+      cover: text(fm?.video_cover),
+    };
+  }
+
   /** Light tier: the job's transcript, then the person's model, streamed. */
   private async runLite(
     job: Job,
@@ -593,7 +611,7 @@ export class JobService {
         job.language,
         throttled,
         controller.signal,
-        job.title,
+        this.videoMetaFor(job),
       );
     } finally {
       this.liteControllers.delete(job.id);

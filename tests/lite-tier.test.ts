@@ -13,7 +13,7 @@ import {
   partialJsonString,
   streamChat,
 } from '../core/LiteTier';
-import { liteDecision, runLiteJob } from '../core/LiteRunner';
+import { liteDecision, pageVideoDetails, runLiteJob } from '../core/LiteRunner';
 import { JobStore } from '../core/JobStore';
 import { readableLive } from '../views/liveText';
 import { statusClass, statusWord } from '../views/backendText';
@@ -278,9 +278,12 @@ void test('a light-tier result has the note, the timed transcript and segments t
       if (progress.liveText) live.push(progress.liveText);
     },
     undefined,
-    'Never Gonna Give You Up',
+    { title: 'Never Gonna Give You Up', author: 'Rick Astley', duration: '3:33' },
   );
   assert.match(prompt, /Title: Never Gonna Give You Up/);
+  assert.match(prompt, /Author: Rick Astley/);
+  assert.equal(result.video_author, 'Rick Astley');
+  assert.equal(result.video_duration, '3:33');
   assert.equal(result.note_title, '规则与承诺');
   assert.equal(result.tldr, '讲的是承诺。');
   assert.equal(result.video_platform, 'youtube');
@@ -443,4 +446,23 @@ void test('with the light tier ready, a backend that was never set up is not sho
   assert.equal(statusWord(never), '未安装');
   // A backend that is set up but down is still a fault.
   assert.equal(statusClass(down, true), 'is-offline');
+});
+
+void test('details from the page are kept only when they look like what yt-dlp writes', () => {
+  assert.deepEqual(
+    pageVideoDetails({
+      author: 'Rick Astley',
+      duration: '3:33',
+      cover: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+    }),
+    {
+      video_author: 'Rick Astley',
+      video_duration: '3:33',
+      video_cover: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+    },
+  );
+  assert.deepEqual(
+    pageVideoDetails({ author: 'a\nb', duration: 'soon', cover: 'https://evil.example/x.jpg' }),
+    {},
+  );
 });

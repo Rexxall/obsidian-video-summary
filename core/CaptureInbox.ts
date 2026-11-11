@@ -113,9 +113,8 @@ export async function createCaptureNoteDraft(input: CaptureInboxInput): Promise<
     video_platform: source.platform,
     video_source_identity: source.identity,
     video_source_hash: source.source_hash,
-    // A predicted id is useful for queue hand-off, but video_artifact_id means
-    // a real persisted artifact and must stay empty until processing succeeds.
-    video_artifact_id: null,
+    // A predicted id is useful for queue hand-off. The real record id is kept by the
+    // plugin (NoteArtifactLinks), not in the note.
     video_expected_artifact_id: source.artifact_id,
     video_capture_action: input.action,
     video_captured_at: capturedAt,

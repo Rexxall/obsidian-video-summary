@@ -9,7 +9,9 @@ test('the demo note is marked as a demo and carries a full processed result', ()
   const frontmatter = note.slice(4, note.indexOf('\n---\n', 4));
   assert.match(frontmatter, /^video_summary_demo: true$/m);
   assert.match(frontmatter, /^source_type: demo$/m);
-  assert.match(frontmatter, /^video_transcript: \|\n {2}主持人：/m);
+  // The transcript is a folded callout at the end of the note, not a property.
+  assert.doesNotMatch(frontmatter, /video_transcript/);
+  assert.match(note, /<!-- video-summary-transcript:start -->\n> \[!quote\]- 原始文稿\n> 主持人：/);
   assert.match(note, /演示笔记，没有连接任何后端/);
   assert.match(
     note,

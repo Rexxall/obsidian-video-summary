@@ -160,6 +160,15 @@
     return passages.map((p) => `[${clockText(p.start)}] ${p.text}`).join('\n');
   }
 
+  /** A duration the way yt-dlp's duration_string writes it: 9:46, 1:56:20. */
+  function durationString(seconds) {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = String(total % 60).padStart(2, '0');
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+  }
+
   /** A YAML block scalar, safe for any text. */
   function yamlBlock(value) {
     return `|-\n${String(value)
@@ -195,7 +204,12 @@
       : '';
 
     const transcriptLines = item.transcript
-      ? `provided_transcript: ${yamlBlock(item.transcript)}\n`
+      ? [
+          item.videoAuthor ? `video_author: ${yamlQuote(item.videoAuthor)}\n` : '',
+          item.videoDuration ? `video_duration: ${yamlQuote(item.videoDuration)}\n` : '',
+          item.videoCover ? `video_cover: ${yamlQuote(item.videoCover)}\n` : '',
+          `provided_transcript: ${yamlBlock(item.transcript)}\n`,
+        ].join('')
       : '';
 
     return `---\nlink: ${yamlQuote(baseUrl)}\nstatus: pending\nsource: browser-extension\ncapture_route: ${yamlQuote(settings.quickAction || 'create-pending-note')}\nvideo_title: ${yamlQuote(title)}\nvideo_platform: ${yamlQuote(platform)}\n${timestampLines}${transcriptLines}captured_at: ${yamlQuote(capturedAt)}\n---\n# ${title}\n\n${buildMarkdownLink({ ...item, title, url: baseUrl, timestampUrl })}\n`;
@@ -234,7 +248,12 @@
     if (timestampUrl && timestampUrl !== baseUrl) {
       params.push(`timestamp_link=${encodeObsidianParam(timestampUrl)}`);
     }
-    if (item.transcript) params.push(`transcript=${encodeObsidianParam(item.transcript)}`);
+    if (item.transcript) {
+      if (item.videoAuthor) params.push(`author=${encodeObsidianParam(item.videoAuthor)}`);
+      if (item.videoDuration) params.push(`duration=${encodeObsidianParam(item.videoDuration)}`);
+      if (item.videoCover) params.push(`cover=${encodeObsidianParam(item.videoCover)}`);
+      params.push(`transcript=${encodeObsidianParam(item.transcript)}`);
+    }
     return `obsidian://video-summary?${params.join('&')}`;
   }
 
@@ -332,6 +351,7 @@
     buildObsidianNewUri,
     buildObsidianProcessUri,
     captionTranscriptFromJson3,
+    durationString,
     buildPendingNoteContent,
     buildUnifiedPayload,
     cleanTitle,

@@ -130,6 +130,9 @@ function normalizeCaptureItem(item) {
     sourceTabUrl: item?.sourceTabUrl || '',
     source: item?.source || 'browser',
     transcript: typeof item?.transcript === 'string' ? item.transcript : '',
+    videoAuthor: typeof item?.videoAuthor === 'string' ? item.videoAuthor : '',
+    videoDuration: typeof item?.videoDuration === 'string' ? item.videoDuration : '',
+    videoCover: typeof item?.videoCover === 'string' ? item.videoCover : '',
   };
 }
 
@@ -254,12 +257,15 @@ async function readPlayerCaptions(videoId) {
     text = await fetchText(asLoaded.toString());
   }
   switchOff();
+  const details = response.videoDetails || {};
   return text
     ? {
         ok: true,
         json3: text,
         lang: track.languageCode,
         kind: track.kind || '',
+        author: details.author || '',
+        lengthSeconds: Number(details.lengthSeconds) || 0,
         ms: Date.now() - started,
       }
     : { ok: false, reason: 'empty', ms: Date.now() - started };
@@ -292,8 +298,14 @@ async function getYouTubeTranscript(tab) {
     const result = results && results[0] ? results[0].result : null;
     if (!result || !result.ok) return { transcript: '', reason: result?.reason || 'failed' };
     const transcript = U.captionTranscriptFromJson3(result.json3);
+    // What the backend would read with yt-dlp: uploader, duration_string, thumbnail.
+    const video = {
+      videoAuthor: result.author || '',
+      videoDuration: result.lengthSeconds ? U.durationString(result.lengthSeconds) : '',
+      videoCover: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+    };
     return transcript
-      ? { transcript, lang: result.lang, kind: result.kind, ms: result.ms }
+      ? { transcript, video, lang: result.lang, kind: result.kind, ms: result.ms }
       : { transcript: '', reason: 'empty' };
   } catch {
     return { transcript: '', reason: 'failed' };
@@ -500,7 +512,9 @@ async function transferMany(items, operation) {
         const tab = await getCurrentTab();
         if (tab?.url && tab.url === item.sourceTabUrl) {
           const captions = await getYouTubeTranscript(tab);
-          if (captions.transcript) item = { ...item, transcript: captions.transcript };
+          if (captions.transcript) {
+            item = { ...item, transcript: captions.transcript, ...captions.video };
+          }
         }
       }
       results.push(await transferOne(item, operation, settings));
@@ -668,7 +682,8 @@ async function runQuickAction(tab) {
   if (!capture) throw new Error('No current tab to capture.');
   if (settings.sendCaptions !== false && CAPTION_OPERATIONS.includes(settings.quickAction)) {
     const captions = await getYouTubeTranscript(tab);
-    if (captions.transcript) capture.transcript = captions.transcript;
+    if (captions.transcript)
+      Object.assign(capture, { transcript: captions.transcript }, captions.video);
   }
   if (settings.quickAction === 'queue') {
     const result = await addToQueue(capture);

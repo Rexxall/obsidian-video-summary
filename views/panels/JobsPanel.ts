@@ -416,18 +416,27 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
     if (!row.time && !row.durationMs) sub.createSpan({ text: modeLabel(row.mode) });
   }
 
-  body.addEventListener('click', () => {
+  const openDetails = () => {
     if (row.job) {
       ctx.openDetail({ kind: 'job', id: row.job.id });
     } else if (row.record) {
       ctx.openDetail({ kind: 'history', file: row.record.file, time: row.record.time });
     }
+  };
+  // A finished job opens its note; the details are one button away. Failed and cancelled
+  // jobs, and a finished one whose note is gone, open the details.
+  const notePath = row.state === 'success' ? notePathFor(ctx, row, entry?.path) : null;
+  body.addEventListener('click', () => {
+    if (notePath) void ctx.openNote(notePath);
+    else openDetails();
   });
   body.tabIndex = 0;
   body.setAttribute('role', 'button');
   body.setAttribute(
     'aria-label',
-    tr(`查看任务详情：${displayTitle}`, `Job details: ${displayTitle}`),
+    notePath
+      ? tr(`打开笔记：${displayTitle}`, `Open the note: ${displayTitle}`)
+      : tr(`查看任务详情：${displayTitle}`, `Job details: ${displayTitle}`),
   );
   body.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -451,6 +460,7 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   if (row.state === 'error' && row.error) renderNextStep(container, ctx, row);
 
   const actions = item.createDiv({ cls: 'vs-row-actions' });
+  if (notePath) iconButton(actions, 'info', tr('任务详情', 'Job details'), openDetails);
   iconButton(actions, 'more-horizontal', tr('更多操作', 'More actions'), (event) => {
     showMenu(event, [
       {
@@ -619,6 +629,15 @@ async function rerun(ctx: ViewContext, row: HistoryRow) {
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
   ctx.renderPanels();
+}
+
+/** The note a finished job wrote, if it is still there. */
+function notePathFor(ctx: ViewContext, row: HistoryRow, indexed?: string): string | null {
+  const vault = ctx.plugin.app.vault;
+  for (const candidate of [row.job?.notePath, indexed]) {
+    if (candidate && vault.getAbstractFileByPath(candidate) instanceof TFile) return candidate;
+  }
+  return findNote(ctx, row.title)?.path ?? null;
 }
 
 function openNoteByName(ctx: ViewContext, name: string) {

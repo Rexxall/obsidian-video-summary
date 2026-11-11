@@ -7,6 +7,16 @@ export function cleanVideoScaffold(body: string): string {
   );
 }
 
+/** Remove the capture inbox's placeholder (heading, inbox callout, source link) once the note is written. */
+export function cleanCaptureScaffold(body: string): string {
+  return body
+    .replace(/\r\n/g, '\n')
+    .replace(
+      /^\s*# [^\n]+\n+> \[!info\] Video Summary Inbox\n> [^\n]*\n+(?:\[打开原视频\]\([^\n]*\)|本地文件：`[^\n]*`)[ \t]*\n*/,
+      '',
+    );
+}
+
 /** A single folded source section; keep the source text, not a fabricated evidence claim. */
 export function renderTranscriptFold(transcript: string): string {
   if (!transcript.trim()) return '';
@@ -23,6 +33,20 @@ export function renderTranscriptFold(transcript: string): string {
   );
 }
 
+/** The transcript in the folded callout at the end of a note, or null. */
+export function readTranscriptFold(content: string): string | null {
+  const match = content.match(
+    /<!-- video-summary-transcript:start -->\s*\n> \[!quote\]-[^\n]*\n([\s\S]*?)\n<!-- video-summary-transcript:end -->/,
+  );
+  if (!match) return null;
+  const text = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^> ?/, ''))
+    .join('\n')
+    .trim();
+  return text || null;
+}
+
 /** Replace only plugin-owned blocks; keep prose and annotations outside them intact. */
 export function writeCleanVideoBody(
   body: string,
@@ -37,7 +61,7 @@ export function writeCleanVideoBody(
     if (regex.test(text)) return text.replace(regex, () => block);
     return block ? `${text.trimEnd()}\n\n${block}`.trimStart() : text;
   };
-  let next = cleanVideoScaffold(body);
+  let next = cleanCaptureScaffold(cleanVideoScaffold(body));
   // These diagnostics remain in the artifact/reader, not in the default note.
   next = replace(next, 'evidence', '');
   next = replace(next, 'attention', '');

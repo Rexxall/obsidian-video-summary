@@ -309,6 +309,8 @@ export interface VideoSummarySettings {
   noteCssClass: string;
   /** 处理成功时补进笔记的属性，一行一个“名称: 值” */
   defaultNoteProperties: string;
+  /** Tags for notes made from a pasted article or transcript, instead of the default tags */
+  articleTags: string;
   /** AI 写的 [[双链]] 指向不存在的笔记时改成纯文字 */
   unlinkMissingNotes: boolean;
   /** 给认识 ih-sub / ih-circ / ih-stamp-done 的主题加标记 */

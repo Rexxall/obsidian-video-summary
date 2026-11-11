@@ -2,6 +2,9 @@ import { SUPPORTED_PLATFORMS } from '../constants';
 import { normalizeStatus as sharedNormalizeStatus, canonicalizeVideoUrl } from '../shared';
 
 import { isRecord, scalarText, type JsonRecord } from './json';
+
+/** The transcript now lives in this block at the end of the note, not in a property. */
+const TRANSCRIPT_FOLD_START = '<!-- video-summary-transcript:start -->';
 const VIDEO_STATUS_FIELDS = [
   'video_summary_status',
   'video_processing_status',
@@ -141,7 +144,8 @@ export class VideoUtils {
     const fmText = fmMatch[1];
     const hasGeneratedOutput =
       this.hasMeaningfulYamlField(fmText, 'summary') ||
-      this.hasMeaningfulYamlField(fmText, 'video_transcript');
+      this.hasMeaningfulYamlField(fmText, 'video_transcript') ||
+      content.includes(TRANSCRIPT_FOLD_START);
     return this.resolveProcessingStatus(
       (field) => this.readYamlScalar(fmText, field),
       hasGeneratedOutput,
@@ -367,7 +371,8 @@ export class VideoUtils {
     const fmText = fmMatch[1];
     return (
       this.hasMeaningfulYamlField(fmText, 'summary') ||
-      this.hasMeaningfulYamlField(fmText, 'video_transcript')
+      this.hasMeaningfulYamlField(fmText, 'video_transcript') ||
+      content.includes(TRANSCRIPT_FOLD_START)
     );
   }
 

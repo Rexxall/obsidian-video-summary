@@ -46,10 +46,24 @@ function cleanVideoScaffold(body) {
     ""
   );
 }
+function cleanCaptureScaffold(body) {
+  return body.replace(/\r\n/g, "\n").replace(
+    /^\s*# [^\n]+\n+> \[!info\] Video Summary Inbox\n> [^\n]*\n+(?:\[打开原视频\]\([^\n]*\)|本地文件：`[^\n]*`)[ \t]*\n*/,
+    ""
+  );
+}
 function renderTranscriptFold(transcript) {
   if (!transcript.trim()) return "";
   const lines = transcript.trim().replace(/\r\n/g, "\n").replace(/([^\n])(?=\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])/g, "$1\n");
   return "> [!quote]- \u539F\u59CB\u6587\u7A3F\n" + lines.split("\n").map((line) => "> " + line).join("\n");
+}
+function readTranscriptFold(content) {
+  const match = content.match(
+    /<!-- video-summary-transcript:start -->\s*\n> \[!quote\]-[^\n]*\n([\s\S]*?)\n<!-- video-summary-transcript:end -->/
+  );
+  if (!match) return null;
+  const text2 = match[1].split("\n").map((line) => line.replace(/^> ?/, "")).join("\n").trim();
+  return text2 || null;
 }
 function writeCleanVideoBody(body, result, updateSummary = true) {
   const replace = (text2, kind, value) => {
@@ -64,7 +78,7 @@ ${end}` : "";
 
 ${block}`.trimStart() : text2;
   };
-  let next = cleanVideoScaffold(body);
+  let next = cleanCaptureScaffold(cleanVideoScaffold(body));
   next = replace(next, "evidence", "");
   next = replace(next, "attention", "");
   if (updateSummary && (result.note || result.summary)) {
@@ -101,7 +115,6 @@ var DEMO_SUMMARY = "\u5609\u5BBE\u63D0\u51FA\u8BBA\u6587\u4E09\u904D\u8BFB\u6CD5
 var DEMO_BODY = "<!-- video-summary-generated:start -->\n> [!summary] \u6838\u5FC3\u6458\u8981\n> \u672C\u671F\u64AD\u5BA2\u4EE5\u4E3B\u6301\u4EBA\u4E0E\u5609\u5BBE\u95EE\u7B54\u7684\u5F62\u5F0F\uFF0C\u7ED9\u51FA\u4E00\u5957\u6309\u6295\u5165\u6210\u672C\u5206\u5C42\u7684\u8BBA\u6587\u9605\u8BFB\u65B9\u6CD5 \u2014\u2014 ==\u4E09\u904D\u8BFB\u6CD5==\u3002\u7B2C\u4E00\u904D 5\u201310 \u5206\u949F\u53EA\u8BFB\u6807\u9898\u3001\u6458\u8981\u3001\u5F15\u8A00\u3001\u7ED3\u8BBA\u5E76\u626B\u56FE\u8868\uFF0C\u7528\u4E94\u4E2A\u56FA\u5B9A\u95EE\u9898\u5B8C\u6210\u7B5B\u9009\uFF1B\u7B2C\u4E8C\u904D\u7EA6 1 \u5C0F\u65F6\u7CBE\u8BFB\u56FE\u8868\u3001\u6838\u67E5\u5750\u6807\u8F74\u4E0E\u8BEF\u5DEE\u7EBF\u3001\u6807\u8BB0\u4E0D\u61C2\u7684\u53C2\u8003\u6587\u732E\uFF0C\u76EE\u6807\u662F\u80FD\u590D\u8FF0\u4E3B\u8981\u8BBA\u8BC1\uFF1B\u7B2C\u4E09\u904D 4\u20135 \u5C0F\u65F6\u505A [[\u865A\u62DF\u590D\u73B0]]\uFF0C\u4EC5\u5728\u5BA1\u7A3F\u6216\u8981\u5728\u6B64\u57FA\u7840\u4E0A\u505A\u7814\u7A76\u65F6\u4F7F\u7528\u3002\u6536\u5C3E\u7ED9\u51FA\u4E09\u53E5\u8BDD\u7B14\u8BB0\u6CD5\uFF0C\u7528\u4E8E\u957F\u671F\u79EF\u7D2F [[\u6587\u732E\u7EFC\u8FF0]] \u7D20\u6750\u3002\n\n---\n\n## \u4E00\u3001\u4EBA\u7269\u4E0E\u8BED\u5883\n\n### \u5BF9\u8BDD\u53CC\u65B9\u4E0E\u89D2\u8272\u5206\u5DE5\n\n| \u89D2\u8272 | \u5728\u672C\u6B21\u5BF9\u8C08\u4E2D\u7684\u5B9A\u4F4D | \u4E3B\u8981\u8F93\u51FA |\n| :--- | :--- | :--- |\n| **\u4E3B\u6301\u4EBA** | \u63A8\u8FDB\u6D41\u7A0B\u3001\u8FFD\u95EE\u904D\u6B21\u7EC6\u8282\u3001\u6536\u675F\u7ED3\u8BBA | \u63D0\u51FA\u7B2C\u4E8C\u904D\u505A\u6CD5\u3001\u7B2C\u4E09\u904D\u662F\u5426\u9010\u5B57\u9010\u53E5\u3001\u6700\u7EC8\u5EFA\u8BAE\u4E09\u7C7B\u95EE\u9898 |\n| **\u5609\u5BBE** | \u65B9\u6CD5\u7684\u63D0\u51FA\u8005\u4E0E\u89E3\u91CA\u8005 | ==\u4E09\u904D\u8BFB\u6CD5== \u7684\u65F6\u95F4\u9884\u7B97\u3001\u9605\u8BFB\u5BF9\u8C61\u3001\u5B8C\u6210\u6807\u51C6\u4E0E\u9002\u7528\u573A\u666F |\n\n### \u5BF9\u8C08\u4E3B\u9898\n\n- **\u8D77\u70B9\u75DB\u70B9**\uFF1A\u5F88\u591A\u540C\u5B66\u62FF\u5230\u8BBA\u6587\u5C31\u4ECE\u7B2C\u4E00\u9875\u8BFB\u5230\u6700\u540E\u4E00\u9875\uFF0C\u7ED3\u679C\u4E00\u4E0B\u5348\u8FC7\u53BB\u4E86\uFF0C\u4EC0\u4E48\u4E5F\u6CA1\u8BB0\u4F4F\u3002\n- **\u5609\u5BBE\u65B9\u6848**\uFF1A\u6309\u9605\u8BFB\u76EE\u7684\u5206\u5C42\u6295\u5165\u65F6\u95F4\u7684\u4E09\u904D\u8BFB\u6CD5\u3002\n- **\u6700\u7EC8\u843D\u70B9**\uFF1A\u6BCF\u8BFB\u4E00\u7BC7\u8BBA\u6587\uFF0C\u7528\u4E09\u53E5\u8BDD\u6C89\u6DC0\u4E0B\u6765\uFF0C\u79EF\u7D2F\u6210\u81EA\u5DF1\u7684 [[\u6587\u732E\u7EFC\u8FF0]]\u3002\n\n---\n\n## \u4E8C\u3001\u6309\u8BF4\u8BDD\u8005\u5F52\u5C5E\u7684\u89C2\u70B9\n\n### \u5609\u5BBE\uFF1A\u4E09\u904D\u8BFB\u6CD5\u603B\u89C8\n\n| \u904D\u6B21 | \u65F6\u95F4\u9884\u7B97 | \u6838\u5FC3\u52A8\u4F5C | \u5B8C\u6210\u6807\u51C6\uFF08\u8BFB\u5B8C\u5FC5\u987B\u80FD\u505A\u5230\uFF09 | \u9002\u7528\u573A\u666F |\n| :--- | :--- | :--- | :--- | :--- |\n| **\u7B2C\u4E00\u904D** | 5\u201310 \u5206\u949F | \u8BFB\u6807\u9898\u3001\u6458\u8981\u3001\u5F15\u8A00\u3001\u7ED3\u8BBA\uFF0C\u518D\u626B\u4E00\u773C\u56FE\u8868 | \u56DE\u7B54\u4E94\u4E2A\u56FA\u5B9A\u95EE\u9898 | \u6240\u6709\u8BBA\u6587\u7684\u521D\u7B5B |\n| **\u7B2C\u4E8C\u904D** | \u7EA6 1 \u5C0F\u65F6 | \u8BA4\u771F\u770B\u56FE\u548C\u8868\uFF0C\u6CE8\u610F\u5750\u6807\u8F74\u4E0E\u8BEF\u5DEE\u7EBF\uFF0C\u6807\u8BB0\u4E0D\u61C2\u7684\u53C2\u8003\u6587\u732E | \u80FD\u628A\u8BBA\u6587\u7684\u4E3B\u8981\u8BBA\u8BC1\u8BB2\u7ED9\u522B\u4EBA\u542C | \u5224\u65AD\u662F\u5426\u503C\u5F97\u7EE7\u7EED\u6DF1\u6316 |\n| **\u7B2C\u4E09\u904D** | 4\u20135 \u5C0F\u65F6 | [[\u865A\u62DF\u590D\u73B0]]\uFF1A\u5047\u8BBE\u81EA\u5DF1\u662F\u4F5C\u8005\u91CD\u505A\u4E00\u904D\uFF0C\u518D\u4E0E\u539F\u6587\u5BF9\u6BD4 | \u627E\u51FA\u9690\u85CF\u5047\u8BBE\u4E0E\u7F3A\u9677 | \u5BA1\u7A3F\uFF0C\u6216\u8981\u5728\u8FD9\u7BC7\u8BBA\u6587\u57FA\u7840\u4E0A\u505A\u7814\u7A76 |\n\n#### \u7B2C\u4E00\u904D\uFF1A\u7528\u5341\u5206\u949F\u5224\u65AD\u4E00\u7BC7\u8BBA\u6587\u503C\u4E0D\u503C\u5F97\u8BFB\n\n> [!example] \u7B2C\u4E00\u904D\u7684\u4E94\u4E2A\u5FC5\u7B54\u95EE\u9898\n> 1. \u8FD9\u7BC7\u5C5E\u4E8E\u4EC0\u4E48**\u7C7B\u578B**\uFF1F\n> 2. \u5B83\u548C\u54EA\u4E9B**\u5DF2\u6709\u5DE5\u4F5C**\u76F8\u5173\uFF1F\n> 3. **\u7ED3\u8BBA**\u770B\u8D77\u6765\u5BF9\u4E0D\u5BF9\uFF1F\n> 4. \u4E3B\u8981**\u8D21\u732E**\u662F\u4EC0\u4E48\uFF1F\n> 5. \u5199\u5F97**\u6E05\u4E0D\u6E05\u695A**\uFF1F\n\n- **\u9605\u8BFB\u8303\u56F4\u4E25\u683C\u9650\u5B9A**\uFF1A\u6807\u9898\u3001\u6458\u8981\u3001\u5F15\u8A00\u3001\u7ED3\u8BBA\uFF0C\u5916\u52A0\u626B\u4E00\u773C\u56FE\u8868\u3002\n- **\u76EE\u7684\u4E0D\u662F\u7406\u89E3\uFF0C\u800C\u662F\u5206\u6D41**\uFF1A\u51B3\u5B9A\u8FD9\u7BC7\u8BBA\u6587\u503C\u5F97\u518D\u82B1\u4E00\u5C0F\u65F6\uFF0C\u8FD8\u662F\u5230\u6B64\u4E3A\u6B62\u3002\n- \u5609\u5BBE\u5F3A\u8C03\u8FD9\u4E00\u904D\u53EA\u9700 5\u201310 \u5206\u949F\uFF0C\u65F6\u95F4\u76D2\u672C\u8EAB\u5C31\u662F\u65B9\u6CD5\u7684\u4E00\u90E8\u5206\u3002\n\n#### \u7B2C\u4E8C\u904D\uFF1A\u4E00\u5C0F\u65F6\u6293\u4F4F\u8BBA\u8BC1\u9AA8\u67B6\n\n- \u8BA4\u771F\u770B **\u56FE** \u548C **\u8868**\u3002\n- \u6CE8\u610F **\u5750\u6807\u8F74** \u4E0E ==\u8BEF\u5DEE\u7EBF== \u2014\u2014 \u8FD9\u662F\u5609\u5BBE\u660E\u786E\u70B9\u540D\u7684\u4E24\u4E2A\u6838\u67E5\u4F4D\u7F6E\u3002\n- \u628A **\u4E0D\u61C2\u7684\u53C2\u8003\u6587\u732E** \u6807\u51FA\u6765\uFF0C\u7559\u5F85\u540E\u7EED\u8FFD\u6EAF\uFF0C\u4E0D\u5728\u8FD9\u4E00\u904D\u89E3\u51B3\u3002\n- \u8FD9\u4E00\u904D **\u4E0D\u7528\u7BA1\u8BC1\u660E\u7EC6\u8282**\u3002\n- **\u5B8C\u6210\u6807\u5FD7**\uFF1A\u8BFB\u5B8C\u80FD\u628A\u8BBA\u6587\u7684\u4E3B\u8981\u8BBA\u8BC1\u8BB2\u7ED9\u522B\u4EBA\u542C\u3002\n\n#### \u7B2C\u4E09\u904D\uFF1A\u56DB\u5230\u4E94\u5C0F\u65F6\u7684\u865A\u62DF\u590D\u73B0\n\n> [!info]- \u865A\u62DF\u590D\u73B0\u7684\u64CD\u4F5C\u5B9A\u4E49\u3001\u6536\u76CA\u4E0E\u95E8\u69DB\n> **\u3010\u505A\u6CD5\u3011**\n> - \u5047\u8BBE\u4F60\u662F\u4F5C\u8005\uFF0C\u81EA\u5DF1\u4ECE\u5934\u628A\u8FD9\u9879\u5DE5\u4F5C\u91CD\u505A\u4E00\u904D\u3002\n> - \u505A\u5B8C\u4E4B\u540E\uFF0C\u518D\u548C\u539F\u6587\u9010\u70B9\u5BF9\u6BD4\u3002\n> \n> **\u3010\u6536\u76CA\u3011**\n> - \u6700\u5BB9\u6613\u53D1\u73B0\u539F\u6587\u7684 **\u9690\u85CF\u5047\u8BBE** \u548C **\u7F3A\u9677**\u3002\n> - \u539F\u56E0\u5728\u4E8E\uFF1A\u53EA\u6709\u771F\u6B63\u91CD\u505A\u4E00\u904D\uFF0C\u672A\u8A00\u660E\u7684\u524D\u63D0\u624D\u4F1A\u66B4\u9732\u51FA\u6765\u3002\n> \n> **\u3010\u6210\u672C\u4E0E\u9002\u7528\u95E8\u69DB\u3011**\n> - \u4E00\u822C\u9700\u8981 4\u20135 \u5C0F\u65F6\u3002\n> - \u5609\u5BBE\u660E\u786E\u9650\u5B9A\uFF1A==\u53EA\u6709\u5BA1\u7A3F==\uFF0C\u6216\u8005 ==\u8981\u5728\u8FD9\u7BC7\u8BBA\u6587\u57FA\u7840\u4E0A\u505A\u7814\u7A76== \u65F6\u624D\u9700\u8981\u505A\u7B2C\u4E09\u904D\u3002\n\n### \u5609\u5BBE\uFF1A\u6536\u5C3E\u5EFA\u8BAE \u2014\u2014 \u4E09\u53E5\u8BDD\u7B14\u8BB0\u6CD5\n\n| \u4E09\u53E5\u8BDD\u7ED3\u6784 | \u5BF9\u5E94\u8981\u56DE\u7B54\u7684\u95EE\u9898 |\n| :--- | :--- |\n| \u7B2C\u4E00\u53E5 | \u5B83 **\u89E3\u51B3\u4E86\u4EC0\u4E48\u95EE\u9898** |\n| \u7B2C\u4E8C\u53E5 | \u5B83 **\u600E\u4E48\u89E3\u51B3** |\n| \u7B2C\u4E09\u53E5 | \u5B83\u8FD8 **\u6709\u4EC0\u4E48\u6CA1\u89E3\u51B3** |\n\n- \u5609\u5BBE\u7684\u5224\u65AD\uFF1A\u8FD9\u6837\u4E00\u7BC7\u7BC7\u79EF\u7D2F\u4E0B\u6765\uFF0C==\u5C31\u662F\u4F60\u81EA\u5DF1\u7684\u6587\u732E\u7EFC\u8FF0==\u3002\n- \u8BE5\u65B9\u6CD5\u4E0E\u4E09\u904D\u8BFB\u6CD5\u914D\u5957\uFF1A\u8BFB\u5B8C\u5373\u5199\uFF0C\u907F\u514D\u8BFB\u5B8C\u5373\u5FD8\u3002\n\n### \u4E3B\u6301\u4EBA\uFF1A\u8FFD\u95EE\u4E0E\u6D41\u7A0B\u63A7\u5236\n\n| \u4E3B\u6301\u4EBA\u7684\u63D0\u95EE | \u63D0\u95EE\u610F\u56FE | \u5609\u5BBE\u7684\u56DE\u5E94\u8981\u70B9 |\n| :--- | :--- | :--- |\n| \u300C\u7B2C\u4E8C\u904D\u5462\uFF1F\u300D | \u7D22\u8981\u7B2C\u4E8C\u904D\u7684\u65F6\u95F4\u4E0E\u5177\u4F53\u52A8\u4F5C | \u7EA6 1 \u5C0F\u65F6\uFF0C\u91CD\u5728\u770B\u56FE\u548C\u8868\uFF0C\u4E0D\u7BA1\u8BC1\u660E\u7EC6\u8282 |\n| \u300C\u7B2C\u4E09\u904D\u662F\u4E0D\u662F\u5C31\u662F\u9010\u5B57\u9010\u53E5\u4E86\uFF1F\u300D | \u7528\u5E38\u89C1\u8BEF\u89E3\u53BB\u8BD5\u63A2\u65B9\u6CD5\u8FB9\u754C | \u4E0D\u662F\u9010\u5B57\u9010\u53E5\uFF0C\u800C\u662F\u865A\u62DF\u590D\u73B0 |\n| \u300C\u6700\u540E\u7ED9\u5927\u5BB6\u4E00\u4E2A\u5EFA\u8BAE\uFF1F\u300D | \u628A\u65B9\u6CD5\u6536\u675F\u4E3A\u4E00\u4E2A\u53EF\u6267\u884C\u7684\u6C89\u6DC0\u52A8\u4F5C | \u4E09\u53E5\u8BDD\u7B14\u8BB0\u6CD5\uFF0C\u957F\u671F\u79EF\u7D2F\u6210\u6587\u732E\u7EFC\u8FF0 |\n\n- **\u5F52\u5C5E\u63D0\u9192**\uFF1A\u4EE5\u4E0A\u4E09\u53E5\u5747\u4E3A ==\u4E3B\u6301\u4EBA\u63D0\u95EE==\uFF0C\u4E0D\u662F\u5609\u5BBE\u4E3B\u5F20\uFF1B\u5609\u5BBE\u7684\u4E3B\u5F20\u4EE5\u4E0A\u4E24\u8282\u4E3A\u51C6\u3002\n\n---\n\n## \u4E09\u3001\u5173\u952E\u95EE\u7B54\n\n| \u95EE\u9898 | \u7B54\u6848 | \u5173\u952E\u7EA6\u675F |\n| :--- | :--- | :--- |\n| \u4E00\u7BC7\u8BBA\u6587\u8BE5\u600E\u4E48\u8BFB\uFF1F | \u5206\u4E09\u904D\u8BFB\uFF0C\u6309\u76EE\u7684\u5206\u914D\u65F6\u95F4 | \u4E0D\u662F\u4ECE\u5934\u8BFB\u5230\u5C3E |\n| \u7B2C\u4E00\u904D\u8BFB\u4EC0\u4E48\uFF1F | \u6807\u9898\u3001\u6458\u8981\u3001\u5F15\u8A00\u3001\u7ED3\u8BBA\uFF0C\u518D\u626B\u56FE\u8868 | \u9650\u65F6 5\u201310 \u5206\u949F |\n| \u7B2C\u4E00\u904D\u8BFB\u5B8C\u8981\u8FBE\u6210\u4EC0\u4E48\uFF1F | \u56DE\u7B54\u7C7B\u578B\u3001\u76F8\u5173\u5DE5\u4F5C\u3001\u7ED3\u8BBA\u662F\u5426\u53EF\u4FE1\u3001\u4E3B\u8981\u8D21\u732E\u3001\u5199\u4F5C\u6E05\u6670\u5EA6\u4E94\u4E2A\u95EE\u9898 | \u4E94\u95EE\u7F3A\u4E00\u4E0D\u53EF |\n| \u7B2C\u4E8C\u904D\u8BFB\u591A\u4E45\u3001\u8BFB\u4EC0\u4E48\uFF1F | \u7EA6 1 \u5C0F\u65F6\uFF0C\u8BA4\u771F\u770B\u56FE\u548C\u8868 | \u6CE8\u610F\u5750\u6807\u8F74\u4E0E\u8BEF\u5DEE\u7EBF\uFF0C\u4E0D\u7BA1\u8BC1\u660E\u7EC6\u8282 |\n| \u7B2C\u4E8C\u904D\u7684\u4EA7\u51FA\u662F\u4EC0\u4E48\uFF1F | \u80FD\u628A\u4E3B\u8981\u8BBA\u8BC1\u8BB2\u7ED9\u522B\u4EBA\u542C | \u4EE5\u590D\u8FF0\u4E3A\u9A8C\u6536\u6807\u51C6 |\n| \u7B2C\u4E09\u904D\u662F\u9010\u5B57\u9010\u53E5\u8BFB\u5417\uFF1F | \u4E0D\u662F\uFF0C\u662F\u865A\u62DF\u590D\u73B0 | \u81EA\u5DF1\u662F\u4F5C\u8005\uFF0C\u91CD\u505A\u4E00\u904D\u518D\u5BF9\u6BD4\u539F\u6587 |\n| \u7B2C\u4E09\u904D\u4EC0\u4E48\u65F6\u5019\u505A\uFF1F | \u5BA1\u7A3F\uFF0C\u6216\u8981\u5728\u6B64\u8BBA\u6587\u57FA\u7840\u4E0A\u505A\u7814\u7A76\u65F6 | \u6210\u672C 4\u20135 \u5C0F\u65F6\uFF0C\u4E0D\u4F5C\u4E3A\u9ED8\u8BA4\u52A8\u4F5C |\n| \u8BFB\u5B8C\u600E\u4E48\u6C89\u6DC0\uFF1F | \u4E09\u53E5\u8BDD\uFF1A\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\u3001\u600E\u4E48\u89E3\u51B3\u3001\u8FD8\u6709\u4EC0\u4E48\u6CA1\u89E3\u51B3 | \u957F\u671F\u79EF\u7D2F\u5373\u6587\u732E\u7EFC\u8FF0 |\n<!-- video-summary-generated:end -->\n";
 var DEMO_NOTE_NAME = () => tr("\u89C6\u9891\u603B\u7ED3\u793A\u4F8B\uFF08\u6F14\u793A\uFF0C\u53EF\u5220\u9664\uFF09.md", "Video Summary example (demo, safe to delete).md");
 function demoNoteContent() {
-  const yamlBlock = (text2) => text2.split("\n").map((line) => line ? `  ${line}` : "").join("\n");
   return [
     "---",
     "video_summary: true",
@@ -111,15 +124,17 @@ function demoNoteContent() {
     "status: success",
     `video_title: ${tr("\u8BBA\u6587\u4E09\u904D\u8BFB\u6CD5\uFF08\u6F14\u793A\uFF09", "Reading a paper in three passes (demo)")}`,
     `summary: ${JSON.stringify(DEMO_SUMMARY)}`,
-    "video_transcript: |",
-    yamlBlock(DEMO_TRANSCRIPT),
     "---",
     tr(
       "> [!info] \u8FD9\u662F\u89C6\u9891\u603B\u7ED3\u7684\u6F14\u793A\u7B14\u8BB0\uFF0C\u6CA1\u6709\u8FDE\u63A5\u4EFB\u4F55\u540E\u7AEF\uFF0C\u53EF\u4EE5\u76F4\u63A5\u5220\u9664\u3002\n> \u4E0B\u9762\u662F\u63D2\u4EF6\u5904\u7406\u4E00\u6BB5\u8BBF\u8C08\u540E\u5199\u8FDB\u7B14\u8BB0\u7684\u771F\u5B9E\u6837\u5B50\u3002\u60F3\u5904\u7406\u81EA\u5DF1\u7684\u89C6\u9891\uFF0C\u6253\u5F00 \u8BBE\u7F6E \u2192 \u89C6\u9891\u603B\u7ED3 \u2192 \u9996\u6B21\u914D\u7F6E\u3002",
       "> [!info] This is a Video Summary demo note. No backend was used; delete it whenever you like.\n> Below is exactly what the plugin writes into a note after processing an interview. To process your own videos, open Settings \u2192 Video Summary \u2192 first-run setup."
     ),
     "",
-    DEMO_BODY
+    DEMO_BODY,
+    `<!-- video-summary-transcript:start -->
+${renderTranscriptFold(DEMO_TRANSCRIPT)}
+<!-- video-summary-transcript:end -->`,
+    ""
   ].join("\n");
 }
 
@@ -1960,6 +1975,7 @@ var DEFAULT_SETTINGS = {
   outputFolder: "",
   noteCssClass: "",
   defaultNoteProperties: "",
+  articleTags: "",
   unlinkMissingNotes: false,
   themeMarks: false,
   autoRenameEnabled: true,
@@ -3320,6 +3336,7 @@ function emptyState(parent, icon, title, hint, action, secondary) {
 var import_obsidian4 = require("obsidian");
 
 // utils/VideoUtils.ts
+var TRANSCRIPT_FOLD_START = "<!-- video-summary-transcript:start -->";
 var VIDEO_STATUS_FIELDS = [
   "video_summary_status",
   "video_processing_status",
@@ -3432,7 +3449,7 @@ var VideoUtils = class {
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!fmMatch) return "pending";
     const fmText = fmMatch[1];
-    const hasGeneratedOutput = this.hasMeaningfulYamlField(fmText, "summary") || this.hasMeaningfulYamlField(fmText, "video_transcript");
+    const hasGeneratedOutput = this.hasMeaningfulYamlField(fmText, "summary") || this.hasMeaningfulYamlField(fmText, "video_transcript") || content.includes(TRANSCRIPT_FOLD_START);
     return this.resolveProcessingStatus(
       (field) => this.readYamlScalar(fmText, field),
       hasGeneratedOutput
@@ -3596,7 +3613,7 @@ var VideoUtils = class {
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!fmMatch) return false;
     const fmText = fmMatch[1];
-    return this.hasMeaningfulYamlField(fmText, "summary") || this.hasMeaningfulYamlField(fmText, "video_transcript");
+    return this.hasMeaningfulYamlField(fmText, "summary") || this.hasMeaningfulYamlField(fmText, "video_transcript") || content.includes(TRANSCRIPT_FOLD_START);
   }
   /**
    * 小红书详情 URL 本身不能区分图文与视频；旧笔记必须有真实媒体证据才进入视频库。
@@ -3870,7 +3887,7 @@ var PLATFORM_COVER_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
 var PLATFORM_COVER_CACHE_LIMIT = 500;
 var PLATFORM_COVER_CACHE_SAVE_DELAY_MS = 1e3;
 var NoteIndex = class {
-  constructor(app, coverCachePath) {
+  constructor(app, coverCachePath, artifactFor) {
     this.entries = /* @__PURE__ */ new Map();
     this.listeners = /* @__PURE__ */ new Set();
     this.bodyScanQueue = [];
@@ -3888,7 +3905,21 @@ var NoteIndex = class {
     this.pendingCoverLinks = /* @__PURE__ */ new Set();
     this.app = app;
     this.coverCachePath = coverCachePath;
+    this.artifactFor = artifactFor;
     void this.loadPlatformCoverCache();
+  }
+  /** The note ↔ record map changed: fill in record ids the notes themselves do not carry. */
+  refreshArtifactIds() {
+    if (!this.artifactFor) return;
+    let changed = false;
+    for (const entry of this.entries.values()) {
+      const id = this.artifactFor(entry.path);
+      if (id && entry.artifactId !== id) {
+        entry.artifactId = id;
+        changed = true;
+      }
+    }
+    if (changed) this.emit();
   }
   /** 插件卸载时把还没落盘的封面写进缓存文件。 */
   flush() {
@@ -4078,7 +4109,7 @@ var NoteIndex = class {
       title: typeof frontmatter?.video_title === "string" ? frontmatter.video_title : void 0,
       cover,
       duration: readString2(frontmatter?.video_duration),
-      artifactId: readString2(frontmatter?.video_artifact_id),
+      artifactId: readString2(frontmatter?.video_artifact_id) || this.artifactFor?.(file.path),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
     };
@@ -4095,7 +4126,7 @@ var NoteIndex = class {
       link,
       platform: link ? detectPlatform2(link) : void 0,
       cover,
-      artifactId: readFrontmatterScalar(content, "video_artifact_id"),
+      artifactId: readFrontmatterScalar(content, "video_artifact_id") || this.artifactFor?.(file.path),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime
     };
@@ -5275,11 +5306,6 @@ function buildRichFrontmatterFields(result) {
     safeRemoteImageUrl(result.video_cover) || safeInlineRasterDataUrl(result.video_cover)
   );
   assignNonEmptyString(fields, "summary", result.summary);
-  assignNonEmptyString(fields, "video_transcript", result.video_transcript);
-  assignNonEmptyString(fields, "video_artifact_id", result.artifact?.artifact_id);
-  assignNonEmptyString(fields, "video_content_type", result.content_type);
-  assignNonEmptyString(fields, "video_attention_action", result.attention?.action);
-  assignNonEmptyString(fields, "video_processing_depth", result.artifact?.processing_depth);
   const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
   if (learningItems > 0) fields.video_learning_items = learningItems;
   return fields;
@@ -5542,7 +5568,7 @@ var NoteFactory = class {
     const lines = ["---"];
     if (draft.input.url) lines.push(`link: ${yamlEscape(draft.input.url)}`);
     lines.push("video_summary: true");
-    lines.push("source_type: video");
+    lines.push(`source_type: ${draft.input.url || draft.input.localFile ? "video" : "article"}`);
     lines.push("video_summary_status: pending");
     lines.push("status: pending");
     lines.push(`video_title: ${yamlEscape(draft.title)}`);
@@ -6581,7 +6607,7 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
           }
         );
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-        const frontmatterArtifactId = scalarText(frontmatter?.video_artifact_id).trim();
+        const frontmatterArtifactId = scalarText(frontmatter?.video_artifact_id).trim() || this.plugin.noteLinks.get(file.path)?.artifactId || "";
         let linkedArtifact = reusableArtifacts.get(file.path);
         if (!linkedArtifact && frontmatterArtifactId) {
           try {
@@ -6602,14 +6628,6 @@ var BatchProcessingModal = class extends import_obsidian6.Modal {
             artifactId = linkedArtifact.artifact_id;
             reusableArtifacts.set(file.path, linkedArtifact);
             this.plugin.memoryIndex.upsert(linkedArtifact);
-            if (artifactId !== frontmatterArtifactId) {
-              await this.app.fileManager.processFrontMatter(
-                file,
-                (current) => {
-                  current.video_artifact_id = artifactId;
-                }
-              );
-            }
           } catch (error) {
             console.warn(`\u8BFE\u7A0B\u5DE5\u4EF6\u5173\u8054\u5931\u8D25: ${file.path}`, error);
           }
@@ -12893,18 +12911,23 @@ function renderHistoryRow(container, ctx, row) {
     if (row.durationMs) sub.createSpan({ text: formatElapsed(row.durationMs), cls: "vs-mono" });
     if (!row.time && !row.durationMs) sub.createSpan({ text: modeLabel(row.mode) });
   }
-  body.addEventListener("click", () => {
+  const openDetails = () => {
     if (row.job) {
       ctx.openDetail({ kind: "job", id: row.job.id });
     } else if (row.record) {
       ctx.openDetail({ kind: "history", file: row.record.file, time: row.record.time });
     }
+  };
+  const notePath = row.state === "success" ? notePathFor(ctx, row, entry?.path) : null;
+  body.addEventListener("click", () => {
+    if (notePath) void ctx.openNote(notePath);
+    else openDetails();
   });
   body.tabIndex = 0;
   body.setAttribute("role", "button");
   body.setAttribute(
     "aria-label",
-    tr(`\u67E5\u770B\u4EFB\u52A1\u8BE6\u60C5\uFF1A${displayTitle}`, `Job details: ${displayTitle}`)
+    notePath ? tr(`\u6253\u5F00\u7B14\u8BB0\uFF1A${displayTitle}`, `Open the note: ${displayTitle}`) : tr(`\u67E5\u770B\u4EFB\u52A1\u8BE6\u60C5\uFF1A${displayTitle}`, `Job details: ${displayTitle}`)
   );
   body.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -12921,6 +12944,7 @@ function renderHistoryRow(container, ctx, row) {
   statePill.addClass("vs-row-status");
   if (row.state === "error" && row.error) renderNextStep(container, ctx, row);
   const actions = item.createDiv({ cls: "vs-row-actions" });
+  if (notePath) iconButton(actions, "info", tr("\u4EFB\u52A1\u8BE6\u60C5", "Job details"), openDetails);
   iconButton(actions, "more-horizontal", tr("\u66F4\u591A\u64CD\u4F5C", "More actions"), (event) => {
     showMenu(event, [
       {
@@ -13068,6 +13092,13 @@ async function rerun(ctx, row) {
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
   ctx.renderPanels();
+}
+function notePathFor(ctx, row, indexed) {
+  const vault = ctx.plugin.app.vault;
+  for (const candidate of [row.job?.notePath, indexed]) {
+    if (candidate && vault.getAbstractFileByPath(candidate) instanceof import_obsidian11.TFile) return candidate;
+  }
+  return findNote(ctx, row.title)?.path ?? null;
 }
 function openNoteByName(ctx, name) {
   const file = findNote(ctx, name);
@@ -15433,6 +15464,16 @@ var RESERVED_KEYS = /* @__PURE__ */ new Set([
 function isReserved(key) {
   return RESERVED_KEYS.has(key) || key.startsWith("video_");
 }
+function defaultsForSource(defaults, isArticle, articleTags) {
+  if (!isArticle) return defaults;
+  const rest = defaults.filter((item) => item.key !== "tags");
+  const tags = splitList("tags", articleTags || "");
+  return tags.length ? [...rest, { key: "tags", values: tags, list: true }] : rest;
+}
+function isArticleNote(frontmatter) {
+  const filled = (value) => typeof value === "string" && value.trim() !== "";
+  return !filled(frontmatter.link) && !filled(frontmatter.local_file);
+}
 function parseDefaultProperties(text2) {
   const byKey = /* @__PURE__ */ new Map();
   for (const rawLine of (text2 || "").split("\n")) {
@@ -15652,6 +15693,13 @@ function unlinkPart(text2, exists) {
 }
 
 // utils/NoteProcessor.ts
+var INTERNAL_PROPERTIES = [
+  "video_transcript",
+  "video_artifact_id",
+  "video_content_type",
+  "video_attention_action",
+  "video_processing_depth"
+];
 var NoteProcessor = class {
   constructor(vault, cssClass = () => "", prefs = () => ({ successText: "success", defaultProperties: "" })) {
     this.vault = vault;
@@ -15726,7 +15774,7 @@ ${body}`;
     if (typeof existing === "string" && existing.trim()) {
       return existing.trim();
     }
-    return null;
+    return readTranscriptFold(content);
   }
   /**
    * 从笔记内容中提取本地文件名
@@ -15790,10 +15838,17 @@ ${body}`;
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
     fm.video_summary = true;
+    const article = isArticleNote(fm);
+    if (article && (!fm.source_type || fm.source_type === "video")) fm.source_type = "article";
     if (!fm.source_type) fm.source_type = "video";
     withCssClass(fm, this.cssClass());
     const prefs = this.prefs();
-    applyDefaultProperties(fm, parseDefaultProperties(prefs.defaultProperties), {
+    const defaults = defaultsForSource(
+      parseDefaultProperties(prefs.defaultProperties),
+      article,
+      prefs.articleTags || ""
+    );
+    applyDefaultProperties(fm, defaults, {
       title: result.note_title,
       tldr: result.tldr,
       summary: result.summary,
@@ -15817,6 +15872,7 @@ ${body}`;
         };
       }
     }
+    for (const key of INTERNAL_PROPERTIES) delete fm[key];
     Object.assign(fm, buildRichFrontmatterFields(result));
     const learningItems = (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
     if (learningItems > 0 && !fm.video_review_due) {
@@ -15826,6 +15882,13 @@ ${body}`;
     delete fm.processing_error_code;
     delete fm.processing_error_at;
     if (fm.provided_transcript) delete fm.provided_transcript;
+    if (Array.isArray(fm.tags)) {
+      fm.tags = fm.tags.filter((tag) => tag !== "video-summary/inbox");
+      if (fm.tags.length === 0) delete fm.tags;
+    }
+    for (const key of ["local_file", "video_review_due"]) {
+      if (fm[key] === null || fm[key] === "") delete fm[key];
+    }
     let newBody = body;
     newBody = this.removeProcessingErrorBlock(newBody);
     const sourceUrl = typeof fm.link === "string" ? fm.link : "";
@@ -16605,7 +16668,8 @@ async function streamChat(transport, request, onText, signal) {
       model: request.model,
       messages: request.messages,
       stream: true,
-      temperature: 0.3
+      // Same as the backend's chat model node.
+      temperature: 0.4
     };
     if (jsonMode) body.response_format = { type: "json_object" };
     const response2 = await transport(
@@ -16750,12 +16814,25 @@ function liteDecision(enabled, hasModel, input, mode) {
   if (mode === "summary" && !hasModel) return { lite: false, why: "no-key" };
   return { lite: true };
 }
+function pageVideoDetails(params) {
+  const details = {};
+  const author = (params.author || "").trim();
+  if (author && author.length <= 200 && !/[\r\n]/.test(author)) details.video_author = author;
+  const duration = (params.duration || "").trim();
+  if (/^\d{1,3}(?::\d{2}){1,2}$/.test(duration)) details.video_duration = duration;
+  const cover = (params.cover || "").trim();
+  if (/^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover)) details.video_cover = cover;
+  return details;
+}
 function str(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-async function runLiteJob(deps, input, mode, language, report, signal, title) {
+async function runLiteJob(deps, input, mode, language, report, signal, meta = {}) {
   const sourceUrl = input.url || input.sourceUrl || "";
   const base = { transcript_source: "provided_transcript" };
+  if (meta.author) base.video_author = meta.author;
+  if (meta.duration) base.video_duration = meta.duration;
+  if (meta.cover) base.video_cover = meta.cover;
   if (sourceUrl) base.video_platform = detectPlatform2(sourceUrl);
   report({ stageLabel: tr("\u8BFB\u53D6\u6587\u7A3F", "Reading the transcript") });
   const segments = parseTranscriptSegments(input.transcript || "", sourceUrl).map(
@@ -16784,7 +16861,8 @@ async function runLiteJob(deps, input, mode, language, report, signal, title) {
       apiKey: deps.apiKey,
       model: deps.model,
       segments,
-      title,
+      title: meta.title,
+      author: meta.author,
       language,
       metadata: {
         content_type: input.contentType || "auto",
@@ -16802,7 +16880,7 @@ async function runLiteJob(deps, input, mode, language, report, signal, title) {
     base.summary = str(json.summary);
     base.note_title = str(json.note_title);
     base.tldr = str(json.tldr);
-    base.video_title = base.video_title || str(json.video_title);
+    base.video_title = sourceUrl && meta.title || str(json.video_title);
   }
   return normalizeRichProcessingResult(base, payload, {
     sourceUrl,
@@ -16993,12 +17071,22 @@ var ArtifactStore = class {
     }
     this.migrateOnLoad = options.migrateOnLoad !== false;
     this.now = options.now || (() => /* @__PURE__ */ new Date());
+    this.onSaved = options.onSaved;
   }
   /**
    * Save an artifact after canonicalizing its source identity, hashes and id.
    * The input object is never mutated.
    */
   async save(input) {
+    const saved = await this.saveOnce(input);
+    try {
+      this.onSaved?.(cloneArtifact(saved));
+    } catch (error) {
+      console.warn("[ArtifactStore] onSaved listener failed", error);
+    }
+    return saved;
+  }
+  async saveOnce(input) {
     const normalized = await normalizeForSave(input, this.now());
     validateVideoKnowledgeArtifact(normalized);
     const path = this.pathFor(normalized.artifact_id);
@@ -19474,6 +19562,9 @@ ${buildInsertionContent(result)}`
     }
   }
   async fileForArtifactId(artifactId) {
+    const known = this.plugin.noteLinks.pathFor(artifactId);
+    const knownFile = known ? this.plugin.app.vault.getAbstractFileByPath(known) : null;
+    if (knownFile instanceof import_obsidian19.TFile) return knownFile;
     for (const file of this.plugin.app.vault.getMarkdownFiles()) {
       const cached = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
       let current = stringValue(cached?.video_artifact_id);
@@ -19605,6 +19696,18 @@ ${buildInsertionContent(result)}`
       12e3
     );
   }
+  /** Title, uploader, duration and cover already on the job's note, as the backend would have them. */
+  videoMetaFor(job) {
+    const file = this.fileFor(job);
+    const fm = file ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter : void 0;
+    const text2 = (value) => typeof value === "string" && value.trim() ? value.trim() : void 0;
+    return {
+      title: text2(fm?.video_title) || job.title,
+      author: text2(fm?.video_author),
+      duration: text2(fm?.video_duration),
+      cover: text2(fm?.video_cover)
+    };
+  }
   /** Light tier: the job's transcript, then the person's model, streamed. */
   async runLite(job, report) {
     const { settings } = this.plugin;
@@ -19639,7 +19742,7 @@ ${buildInsertionContent(result)}`
         job.language,
         throttled,
         controller.signal,
-        job.title
+        this.videoMetaFor(job)
       );
     } finally {
       this.liteControllers.delete(job.id);
@@ -21258,6 +21361,74 @@ function drawModelRows(root, host, options) {
     }
   );
 }
+
+// core/NoteArtifactLinks.ts
+var NoteArtifactLinks = class _NoteArtifactLinks {
+  constructor() {
+    this.byPath = /* @__PURE__ */ new Map();
+    this.listeners = /* @__PURE__ */ new Set();
+  }
+  static fromArtifact(artifact) {
+    return {
+      artifactId: artifact.artifact_id,
+      contentType: artifact.content_type || void 0,
+      attentionAction: artifact.attention?.action || void 0,
+      processingDepth: artifact.provenance?.processing_depth || void 0
+    };
+  }
+  rebuild(artifacts) {
+    this.byPath.clear();
+    const sorted = [...artifacts].sort(
+      (a, b) => String(a.updated_at || "").localeCompare(String(b.updated_at || ""))
+    );
+    for (const artifact of sorted) {
+      const path = artifact.source?.note_path;
+      if (path) this.byPath.set(path, _NoteArtifactLinks.fromArtifact(artifact));
+    }
+    this.emit();
+  }
+  record(artifact) {
+    const path = artifact.source?.note_path;
+    if (!path) {
+      let changed = false;
+      for (const [key, link] of this.byPath) {
+        if (link.artifactId === artifact.artifact_id) changed = this.byPath.delete(key) || changed;
+      }
+      if (changed) this.emit();
+      return;
+    }
+    for (const [key, link] of this.byPath) {
+      if (link.artifactId === artifact.artifact_id && key !== path) this.byPath.delete(key);
+    }
+    this.byPath.set(path, _NoteArtifactLinks.fromArtifact(artifact));
+    this.emit();
+  }
+  rename(oldPath, newPath) {
+    const link = this.byPath.get(oldPath);
+    if (!link) return;
+    this.byPath.delete(oldPath);
+    this.byPath.set(newPath, link);
+    this.emit();
+  }
+  remove(path) {
+    if (this.byPath.delete(path)) this.emit();
+  }
+  get(path) {
+    return this.byPath.get(path);
+  }
+  /** The note a record belongs to, if this map knows it. */
+  pathFor(artifactId) {
+    for (const [path, link] of this.byPath) if (link.artifactId === artifactId) return path;
+    return void 0;
+  }
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  emit() {
+    this.listeners.forEach((listener) => listener());
+  }
+};
 
 // core/ClaimLab.ts
 var CLAIM_LAB_CONTRACT_VERSION = "claim-lab-v1";
@@ -23712,9 +23883,8 @@ async function createCaptureNoteDraft(input) {
     video_platform: source.platform,
     video_source_identity: source.identity,
     video_source_hash: source.source_hash,
-    // A predicted id is useful for queue hand-off, but video_artifact_id means
-    // a real persisted artifact and must stay empty until processing succeeds.
-    video_artifact_id: null,
+    // A predicted id is useful for queue hand-off. The real record id is kept by the
+    // plugin (NoteArtifactLinks), not in the note.
     video_expected_artifact_id: source.artifact_id,
     video_capture_action: input.action,
     video_captured_at: capturedAt,
@@ -24009,12 +24179,6 @@ function buildBaseBody(options) {
     "    displayName: Title",
     "  video_platform:",
     "    displayName: Platform",
-    "  video_attention_action:",
-    "    displayName: Attention",
-    "  video_content_type:",
-    "    displayName: Content Type",
-    "  video_artifact_id:",
-    "    displayName: Artifact",
     "  video_expected_artifact_id:",
     "    displayName: Expected Artifact",
     "  link:",
@@ -24041,8 +24205,6 @@ function appendStatusView(lines, name, statuses) {
     "      - video_summary_status",
     "      - video_title",
     "      - video_platform",
-    "      - video_content_type",
-    "      - video_attention_action",
     "      - video_review_due",
     "      - link",
     "    sort:",
@@ -24058,16 +24220,12 @@ function appendReadyView(lines) {
     "      or:",
     `        - 'video_summary_status == "ready"'`,
     `        - 'video_summary_status == "success"'`,
-    `        - 'video_artifact_id != null'`,
     "    order:",
     "      - file.name",
     "      - video_summary_status",
     "      - video_title",
     "      - video_platform",
-    "      - video_content_type",
-    "      - video_attention_action",
     "      - video_review_due",
-    "      - video_artifact_id",
     "      - link",
     "    sort:",
     "      - property: file.mtime",
@@ -24091,7 +24249,6 @@ function appendReviewView(lines) {
     "      - video_summary_status",
     "      - video_title",
     "      - video_platform",
-    "      - video_artifact_id",
     "      - link",
     "    sort:",
     "      - property: video_review_due",
@@ -24543,6 +24700,8 @@ var SETTINGS_SEARCH_TERMS = [
   "Note CSS class",
   "\u9ED8\u8BA4\u5C5E\u6027",
   "Default properties",
+  "\u6587\u7AE0\u7684\u6807\u7B7E",
+  "Article tags",
   "\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE",
   "Keep only links to existing notes",
   "\u4E3B\u9898\u6807\u8BB0",
@@ -24613,6 +24772,8 @@ var SETTINGS_SEARCH_TERMS = [
 var VideoSummaryPlugin = class extends import_obsidian27.Plugin {
   constructor() {
     super(...arguments);
+    /** Which stored record belongs to which note; notes no longer carry the id themselves. */
+    this.noteLinks = new NoteArtifactLinks();
     this.captureLocks = /* @__PURE__ */ new Map();
     this.capturedEntries = /* @__PURE__ */ new Map();
     this.captureProcessingLocks = /* @__PURE__ */ new Map();
@@ -24628,7 +24789,8 @@ var VideoSummaryPlugin = class extends import_obsidian27.Plugin {
         successText: this.settings.successStatusValue ?? "success",
         defaultProperties: this.settings.defaultNoteProperties ?? "",
         linkExists: this.settings.unlinkMissingNotes ? (linkpath, sourcePath) => !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath) : void 0,
-        themeMarks: this.settings.themeMarks ?? false
+        themeMarks: this.settings.themeMarks ?? false,
+        articleTags: this.settings.articleTags ?? ""
       })
     );
   }
@@ -24641,7 +24803,8 @@ var VideoSummaryPlugin = class extends import_obsidian27.Plugin {
     const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
     this.artifactStore = new ArtifactStore(
       this.app.vault.adapter,
-      `${pluginDir}/data/knowledge-artifacts`
+      `${pluginDir}/data/knowledge-artifacts`,
+      { onSaved: (artifact) => this.noteLinks.record(artifact) }
     );
     this.memoryIndex = new CrossModalMemoryIndex();
     this.learningStore = new LearningProgressStore(
@@ -24665,8 +24828,16 @@ var VideoSummaryPlugin = class extends import_obsidian27.Plugin {
     this.backend.attach();
     this.installer = new BackendInstaller(this);
     this.addBackendStatusBar();
-    this.noteIndex = new NoteIndex(this.app, `${pluginDir}/data/cache/platform-covers.json`);
+    this.noteIndex = new NoteIndex(
+      this.app,
+      `${pluginDir}/data/cache/platform-covers.json`,
+      (path) => this.noteLinks.get(path)?.artifactId
+    );
+    this.noteLinks.subscribe(() => this.noteIndex.refreshArtifactIds());
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
+    this.app.workspace.onLayoutReady(() => {
+      void this.artifactStore.list().then((artifacts) => this.noteLinks.rebuild(artifacts)).catch((error) => console.warn("[Video Summary] \u7B14\u8BB0\u4E0E\u8BB0\u5F55\u5BF9\u5E94\u8868\u91CD\u5EFA\u5931\u8D25", error));
+    });
     this.app.workspace.onLayoutReady(() => {
       void this.memoryIndex.rebuildFromStore(this.artifactStore).catch((error) => {
         console.warn("[Video Summary] \u8DE8\u6A21\u6001\u8BB0\u5FC6\u7D22\u5F15\u91CD\u5EFA\u5931\u8D25", error);
@@ -26367,6 +26538,8 @@ Suggestion: ${result.hint}`) : "";
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     const direct = String(frontmatter?.video_artifact_id || "").trim();
     if (direct) return direct;
+    const linked = this.noteLinks.get(file.path)?.artifactId;
+    if (linked) return linked;
     const artifact = (await this.artifactStore.list()).find(
       (item) => item.source.note_path === file.path
     );
@@ -26587,10 +26760,14 @@ Suggestion: ${result.hint}`) : "";
       }
       const transcript = (params.transcript || "").trim();
       if (transcript && rawUrl) {
+        const details = pageVideoDetails(params);
         await this.app.fileManager.processFrontMatter(
           file,
           (frontmatter) => {
             frontmatter.provided_transcript = transcript;
+            for (const [key, value] of Object.entries(details)) {
+              if (!frontmatter[key]) frontmatter[key] = value;
+            }
           }
         );
       }
@@ -27732,6 +27909,17 @@ Suggestion: ${res.hint}`) : "";
       area.inputEl.rows = 3;
       area.inputEl.addClass("vs-properties-input");
     });
+    new import_obsidian27.Setting(section3).setName(tr("\u6587\u7AE0\u7684\u6807\u7B7E", "Article tags")).setDesc(
+      tr(
+        "\u7C98\u8D34\u7684\u6587\u7AE0\u6216\u6587\u7A3F\uFF08\u6CA1\u6709\u89C6\u9891\u94FE\u63A5\uFF09\u7528\u8FD9\u91CC\u7684\u6807\u7B7E\uFF0C\u4EE3\u66FF\u9ED8\u8BA4\u5C5E\u6027\u91CC\u7684 tags\u3002\u591A\u4E2A\u7528\u9017\u53F7\u9694\u5F00\uFF0C\u7559\u7A7A\u5C31\u4E0D\u52A0\u3002",
+        "Pasted articles and transcripts (no video link) get these tags instead of the tags in the default properties. Separate several with commas; leave empty for none."
+      )
+    ).addText(
+      (text2) => text2.setPlaceholder("type/article").setValue(this.plugin.settings.articleTags ?? "").onChange(async (value) => {
+        this.plugin.settings.articleTags = value.trim();
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian27.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(
       tr(
         "\u7B14\u8BB0\u91CC\u7684 [[\u53CC\u94FE]] \u6307\u5411\u5E93\u91CC\u6CA1\u6709\u7684\u7B14\u8BB0\u65F6\uFF0C\u6539\u6210\u7EAF\u6587\u5B57\u3002",

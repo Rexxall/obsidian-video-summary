@@ -66,7 +66,7 @@ void test('capture actions emit standard Properties and stay inbox until a real 
   assert.equal(frontmatter.source_type, 'video');
   assert.equal(frontmatter.video_summary_status, 'inbox');
   assert.equal(frontmatter.video_review_due, null);
-  assert.equal(frontmatter.video_artifact_id, null);
+  assert.equal('video_artifact_id' in frontmatter, false);
   assert.match(String(frontmatter.video_expected_artifact_id), /^vka-[a-f0-9]{32}$/);
   assert.equal(frontmatter.video_capture_action, 'capture-only');
   assert.match(String(frontmatter.link), /offline\.invalid\/video\/123\?a=1&b=2$/);

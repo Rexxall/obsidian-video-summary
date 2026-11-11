@@ -34,6 +34,27 @@ function isReserved(key: string): boolean {
   return RESERVED_KEYS.has(key) || key.startsWith('video_');
 }
 
+/**
+ * For a pasted article or transcript (no video link, no local file) the video tags in the
+ * defaults do not fit: they are replaced by the article tags setting; '' adds no tag.
+ */
+export function defaultsForSource(
+  defaults: DefaultProperty[],
+  isArticle: boolean,
+  articleTags: string,
+): DefaultProperty[] {
+  if (!isArticle) return defaults;
+  const rest = defaults.filter((item) => item.key !== 'tags');
+  const tags = splitList('tags', articleTags || '');
+  return tags.length ? [...rest, { key: 'tags', values: tags, list: true }] : rest;
+}
+
+/** A note made from a pasted article or transcript rather than from a video. */
+export function isArticleNote(frontmatter: Record<string, unknown>): boolean {
+  const filled = (value: unknown) => typeof value === 'string' && value.trim() !== '';
+  return !filled(frontmatter.link) && !filled(frontmatter.local_file);
+}
+
 export function parseDefaultProperties(text: string): DefaultProperty[] {
   const byKey = new Map<string, DefaultProperty>();
   for (const rawLine of (text || '').split('\n')) {

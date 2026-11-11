@@ -70,10 +70,32 @@ export class NoteIndex {
   /** 缓存文件读完前请求的封面，读完再决定要不要联网。 */
   private pendingCoverLinks = new Set<string>();
 
-  constructor(app: App, coverCachePath?: string) {
+  /** The record id of a note that no longer carries video_artifact_id. */
+  private readonly artifactFor?: (path: string) => string | undefined;
+
+  constructor(
+    app: App,
+    coverCachePath?: string,
+    artifactFor?: (path: string) => string | undefined,
+  ) {
     this.app = app;
     this.coverCachePath = coverCachePath;
+    this.artifactFor = artifactFor;
     void this.loadPlatformCoverCache();
+  }
+
+  /** The note ↔ record map changed: fill in record ids the notes themselves do not carry. */
+  refreshArtifactIds(): void {
+    if (!this.artifactFor) return;
+    let changed = false;
+    for (const entry of this.entries.values()) {
+      const id = this.artifactFor(entry.path);
+      if (id && entry.artifactId !== id) {
+        entry.artifactId = id;
+        changed = true;
+      }
+    }
+    if (changed) this.emit();
   }
 
   /** 插件卸载时把还没落盘的封面写进缓存文件。 */
@@ -294,7 +316,7 @@ export class NoteIndex {
       title: typeof frontmatter?.video_title === 'string' ? frontmatter.video_title : undefined,
       cover,
       duration: readString(frontmatter?.video_duration),
-      artifactId: readString(frontmatter?.video_artifact_id),
+      artifactId: readString(frontmatter?.video_artifact_id) || this.artifactFor?.(file.path),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
     };
@@ -313,7 +335,8 @@ export class NoteIndex {
       link,
       platform: link ? detectPlatform(link) : undefined,
       cover,
-      artifactId: readFrontmatterScalar(content, 'video_artifact_id'),
+      artifactId:
+        readFrontmatterScalar(content, 'video_artifact_id') || this.artifactFor?.(file.path),
       ctime: file.stat.ctime,
       mtime: file.stat.mtime,
     };

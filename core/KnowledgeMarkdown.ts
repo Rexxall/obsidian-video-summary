@@ -150,11 +150,9 @@ export function buildRichFrontmatterFields(
     safeRemoteImageUrl(result.video_cover) || safeInlineRasterDataUrl(result.video_cover),
   );
   assignNonEmptyString(fields, 'summary', result.summary);
-  assignNonEmptyString(fields, 'video_transcript', result.video_transcript);
-  assignNonEmptyString(fields, 'video_artifact_id', result.artifact?.artifact_id);
-  assignNonEmptyString(fields, 'video_content_type', result.content_type);
-  assignNonEmptyString(fields, 'video_attention_action', result.attention?.action);
-  assignNonEmptyString(fields, 'video_processing_depth', result.artifact?.processing_depth);
+  // The transcript goes in a folded callout at the end of the note, and the artifact id,
+  // content type, attention and depth stay in the plugin's own records (NoteArtifactLinks):
+  // properties hold only what a person reads or filters by.
   const learningItems =
     (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
   if (learningItems > 0) fields.video_learning_items = learningItems;

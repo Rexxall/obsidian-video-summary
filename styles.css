@@ -2180,6 +2180,15 @@ body {
   min-width: 0;
   cursor: pointer;
 }
+/* Pressing a row answers at once, before the note opens */
+.video-summary-view .vs-row-body:active {
+  opacity: 0.6;
+}
+.video-summary-view .vs-row-body:focus-visible {
+  outline: 2px solid var(--vs-accent);
+  outline-offset: 2px;
+  border-radius: var(--vs-radius);
+}
 .video-summary-view :is(.vs-row-title, .vs-row-sub) {
   overflow: hidden;
   text-overflow: ellipsis;

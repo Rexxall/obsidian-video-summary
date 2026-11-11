@@ -4,6 +4,7 @@
  * purpose, so it shows exactly what a processed note looks like.
  */
 import { tr } from '../utils/i18n';
+import { renderTranscriptFold } from '../utils/NoteOutput';
 
 const DEMO_TRANSCRIPT =
   '主持人：欢迎收听本期节目。今天我们聊一聊“如何读一篇论文”。很多同学拿到论文就从第一页读到最后一页，结果一下午过去了，什么也没记住。\n\n嘉宾：对，我推荐三遍读法。第一遍只花五到十分钟，读标题、摘要、引言和结论，再扫一眼图表。读完要能回答五个问题：这篇属于什么类型，和哪些已有工作相关，结论看起来对不对，主要贡献是什么，写得清不清楚。\n\n主持人：第二遍呢？\n\n嘉宾：第二遍大约一小时，认真看图和表，注意坐标轴和误差线，把不懂的参考文献标出来。这一遍不用管证明细节。读完之后，你应该能把论文的主要论证讲给别人听。\n\n主持人：第三遍是不是就是逐字逐句了？\n\n嘉宾：第三遍是“虚拟复现”：假设你是作者，自己从头把工作重做一遍，再和原文对比。这样最容易发现隐藏的假设和缺陷。一般要四到五个小时，只有审稿或者要在这篇基础上做研究时才需要。\n\n主持人：最后给大家一个建议？\n\n嘉宾：读完每篇论文，都用三句话写下它解决了什么问题、怎么解决、还有什么没解决。积累下来就是你自己的文献综述。';
@@ -18,11 +19,6 @@ export const DEMO_NOTE_NAME = () =>
   tr('视频总结示例（演示，可删除）.md', 'Video Summary example (demo, safe to delete).md');
 
 export function demoNoteContent(): string {
-  const yamlBlock = (text: string) =>
-    text
-      .split('\n')
-      .map((line) => (line ? `  ${line}` : ''))
-      .join('\n');
   return [
     '---',
     'video_summary: true',
@@ -32,8 +28,6 @@ export function demoNoteContent(): string {
     'status: success',
     `video_title: ${tr('论文三遍读法（演示）', 'Reading a paper in three passes (demo)')}`,
     `summary: ${JSON.stringify(DEMO_SUMMARY)}`,
-    'video_transcript: |',
-    yamlBlock(DEMO_TRANSCRIPT),
     '---',
     tr(
       '> [!info] 这是视频总结的演示笔记，没有连接任何后端，可以直接删除。\n> 下面是插件处理一段访谈后写进笔记的真实样子。想处理自己的视频，打开 设置 → 视频总结 → 首次配置。',
@@ -41,5 +35,7 @@ export function demoNoteContent(): string {
     ),
     '',
     DEMO_BODY,
+    `<!-- video-summary-transcript:start -->\n${renderTranscriptFold(DEMO_TRANSCRIPT)}\n<!-- video-summary-transcript:end -->`,
+    '',
   ].join('\n');
 }

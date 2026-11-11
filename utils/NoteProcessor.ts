@@ -10,10 +10,25 @@ import {
 import { errorMessage } from './errors';
 import { asRecord, type JsonRecord } from './json';
 import { withCssClass } from './noteCssClass';
-import { applyDefaultProperties, parseDefaultProperties } from './noteProperties';
+import {
+  applyDefaultProperties,
+  parseDefaultProperties,
+  defaultsForSource,
+  isArticleNote,
+} from './noteProperties';
 import { writePluginStatus } from './successStatus';
 import { addDoneStamp, markNoteBody, readExistingMarks } from './themeMarks';
 import { unlinkMissingNotes } from './wikiLinks';
+import { readTranscriptFold } from './NoteOutput';
+
+/** Written into properties by older versions; kept in the plugin's own records since. */
+const INTERNAL_PROPERTIES = [
+  'video_transcript',
+  'video_artifact_id',
+  'video_content_type',
+  'video_attention_action',
+  'video_processing_depth',
+];
 export interface NoteWritePrefs {
   /** 成功时写进 status 的文字 */
   successText: string;
@@ -23,6 +38,8 @@ export interface NoteWritePrefs {
   linkExists?: (linkpath: string, sourcePath: string) => boolean;
   /** 主题标记：副题、红笔圈、✅ 印章（见 themeMarks.ts） */
   themeMarks?: boolean;
+  /** 粘贴的文章或文稿用的标签，代替默认属性里的 tags */
+  articleTags?: string;
 }
 
 export class NoteProcessor {
@@ -107,11 +124,12 @@ export class NoteProcessor {
     if (typeof provided === 'string' && provided.trim()) {
       return provided.trim();
     }
+    // Notes written before the transcript moved to the end of the note keep it in a property.
     const existing = fm.video_transcript;
     if (typeof existing === 'string' && existing.trim()) {
       return existing.trim();
     }
-    return null;
+    return readTranscriptFold(content);
   }
 
   /**
@@ -190,10 +208,18 @@ export class NoteProcessor {
 
     // 插件状态与用户自己的通用 status 分离；旧插件笔记仍由 setProcessingStatus 兼容。
     fm.video_summary = true;
+    // A pasted article or transcript is not a video: say so, and use the article tags.
+    const article = isArticleNote(fm);
+    if (article && (!fm.source_type || fm.source_type === 'video')) fm.source_type = 'article';
     if (!fm.source_type) fm.source_type = 'video';
     withCssClass(fm, this.cssClass());
     const prefs = this.prefs();
-    applyDefaultProperties(fm, parseDefaultProperties(prefs.defaultProperties), {
+    const defaults = defaultsForSource(
+      parseDefaultProperties(prefs.defaultProperties),
+      article,
+      prefs.articleTags || '',
+    );
+    applyDefaultProperties(fm, defaults, {
       title: result.note_title,
       tldr: result.tldr,
       summary: result.summary,
@@ -219,6 +245,8 @@ export class NoteProcessor {
     }
 
     // 复杂证据保存在 sidecar；frontmatter 只写可安全序列化的标量投影。
+    // Older versions also wrote these; the plugin's own records hold them now.
+    for (const key of INTERNAL_PROPERTIES) delete fm[key];
     Object.assign(fm, buildRichFrontmatterFields(result));
     const learningItems =
       (result.learning?.flashcards?.length || 0) + (result.learning?.questions?.length || 0);
@@ -231,6 +259,14 @@ export class NoteProcessor {
 
     // 清理 provided_transcript
     if (fm.provided_transcript) delete fm.provided_transcript;
+    // A note captured from outside leaves the inbox once it is written: no inbox tag, no empty fields.
+    if (Array.isArray(fm.tags)) {
+      fm.tags = (fm.tags as unknown[]).filter((tag) => tag !== 'video-summary/inbox');
+      if ((fm.tags as unknown[]).length === 0) delete fm.tags;
+    }
+    for (const key of ['local_file', 'video_review_due']) {
+      if (fm[key] === null || fm[key] === '') delete fm[key];
+    }
 
     // 更新正文
     let newBody = body;

@@ -1035,7 +1035,10 @@ export class BatchProcessingModal extends Modal {
           },
         );
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-        const frontmatterArtifactId = scalarText(frontmatter?.video_artifact_id).trim();
+        const frontmatterArtifactId =
+          scalarText(frontmatter?.video_artifact_id).trim() ||
+          this.plugin.noteLinks.get(file.path)?.artifactId ||
+          '';
         let linkedArtifact = reusableArtifacts.get(file.path);
         if (!linkedArtifact && frontmatterArtifactId) {
           try {
@@ -1057,14 +1060,6 @@ export class BatchProcessingModal extends Modal {
             artifactId = linkedArtifact.artifact_id;
             reusableArtifacts.set(file.path, linkedArtifact);
             this.plugin.memoryIndex.upsert(linkedArtifact);
-            if (artifactId !== frontmatterArtifactId) {
-              await this.app.fileManager.processFrontMatter(
-                file,
-                (current: Record<string, unknown>) => {
-                  current.video_artifact_id = artifactId;
-                },
-              );
-            }
           } catch (error) {
             console.warn(`课程工件关联失败: ${file.path}`, error);
           }

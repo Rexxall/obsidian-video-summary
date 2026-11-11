@@ -41,7 +41,8 @@ void test('generated .base is valid YAML with standard properties and five table
   assert.match(serialized, /video_summary_status == \\"running\\"/);
   assert.match(serialized, /video_summary_status == \\"ready\\"/);
   assert.match(serialized, /video_summary_status == \\"success\\"/);
-  assert.match(serialized, /video_artifact_id != null/);
+  // Internal ids are no longer properties, so no view filters or shows them.
+  assert.doesNotMatch(serialized, /video_artifact_id|video_content_type|video_attention_action/);
   assert.match(serialized, /video_summary_status == \\"error\\"/);
   assert.match(serialized, /video_review_due <= now\(\)/);
   assert.doesNotMatch(serialized, /video_review_due <= today\(\)/);

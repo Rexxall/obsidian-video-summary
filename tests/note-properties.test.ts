@@ -1,7 +1,12 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { applyDefaultProperties, parseDefaultProperties } from '../utils/noteProperties';
+import {
+  applyDefaultProperties,
+  defaultsForSource,
+  isArticleNote,
+  parseDefaultProperties,
+} from '../utils/noteProperties';
 import { unlinkMissingNotes } from '../utils/wikiLinks';
 import {
   normalizeSuccessStatusText,
@@ -140,4 +145,24 @@ void test('links to notes that do not exist become plain text', () => {
     ].join('\n'),
   );
   assert.equal(unlinkMissingNotes('no links here', exists), 'no links here');
+});
+
+test('a pasted article gets the article tags instead of the video tags', () => {
+  const defaults = parseDefaultProperties('learning_status: raw\ntags: Type/笔记/视频笔记');
+  const article = defaultsForSource(defaults, true, 'Type/笔记/文章, reading');
+  assert.deepEqual(
+    article.map((d) => [d.key, d.values]),
+    [
+      ['learning_status', ['raw']],
+      ['tags', ['Type/笔记/文章', 'reading']],
+    ],
+  );
+  assert.deepEqual(
+    defaultsForSource(defaults, true, '').map((d) => d.key),
+    ['learning_status'],
+  );
+  assert.equal(defaultsForSource(defaults, false, 'x'), defaults);
+  assert.equal(isArticleNote({ link: '' }), true);
+  assert.equal(isArticleNote({ link: 'https://youtu.be/x' }), false);
+  assert.equal(isArticleNote({ local_file: 'a.mp4' }), false);
 });

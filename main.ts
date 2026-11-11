@@ -67,6 +67,8 @@ import { BackendControl } from './core/BackendControl';
 import { BackendInstaller } from './core/BackendInstaller';
 import { renderBackendSettings, renderModelSettings } from './views/BackendSettings';
 import { readSecret, resolveLlm } from './core/ModelSettings';
+import { NoteArtifactLinks } from './core/NoteArtifactLinks';
+import { pageVideoDetails } from './core/LiteRunner';
 import { BackendHealthModal } from './views/BackendHealthModal';
 import { faultReason, statusClass, statusWord } from './views/backendText';
 import { NoteIndex } from './core/NoteIndex';
@@ -122,6 +124,8 @@ export default class VideoSummaryPlugin extends Plugin {
   jobService: JobService;
   noteIndex: NoteIndex;
   artifactStore: ArtifactStore;
+  /** Which stored record belongs to which note; notes no longer carry the id themselves. */
+  readonly noteLinks = new NoteArtifactLinks();
   /** Rebuilt from versioned sidecars after restart; never scrapes arbitrary notes. */
   memoryIndex: CrossModalMemoryIndex;
   learningStore: LearningProgressStore;
@@ -153,6 +157,7 @@ export default class VideoSummaryPlugin extends Plugin {
               !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath)
           : undefined,
         themeMarks: this.settings.themeMarks ?? false,
+        articleTags: this.settings.articleTags ?? '',
       }),
     );
   }
@@ -173,6 +178,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.artifactStore = new ArtifactStore(
       this.app.vault.adapter,
       `${pluginDir}/data/knowledge-artifacts`,
+      { onSaved: (artifact) => this.noteLinks.record(artifact) },
     );
     this.memoryIndex = new CrossModalMemoryIndex();
     this.learningStore = new LearningProgressStore(
@@ -198,8 +204,19 @@ export default class VideoSummaryPlugin extends Plugin {
     this.backend.attach();
     this.installer = new BackendInstaller(this);
     this.addBackendStatusBar();
-    this.noteIndex = new NoteIndex(this.app, `${pluginDir}/data/cache/platform-covers.json`);
+    this.noteIndex = new NoteIndex(
+      this.app,
+      `${pluginDir}/data/cache/platform-covers.json`,
+      (path) => this.noteLinks.get(path)?.artifactId,
+    );
+    this.noteLinks.subscribe(() => this.noteIndex.refreshArtifactIds());
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
+    this.app.workspace.onLayoutReady(() => {
+      void this.artifactStore
+        .list()
+        .then((artifacts) => this.noteLinks.rebuild(artifacts))
+        .catch((error) => console.warn('[Video Summary] 笔记与记录对应表重建失败', error));
+    });
     this.app.workspace.onLayoutReady(() => {
       void this.memoryIndex.rebuildFromStore(this.artifactStore).catch((error) => {
         console.warn('[Video Summary] 跨模态记忆索引重建失败', error);
@@ -2238,6 +2255,8 @@ export default class VideoSummaryPlugin extends Plugin {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     const direct = String(frontmatter?.video_artifact_id || '').trim();
     if (direct) return direct;
+    const linked = this.noteLinks.get(file.path)?.artifactId;
+    if (linked) return linked;
     const artifact = (await this.artifactStore.list()).find(
       (item) => item.source.note_path === file.path,
     );
@@ -2497,10 +2516,15 @@ export default class VideoSummaryPlugin extends Plugin {
       // is watching. Kept on the note, so the light tier can write it without a backend.
       const transcript = (params.transcript || '').trim();
       if (transcript && rawUrl) {
+        const details = pageVideoDetails(params);
         await this.app.fileManager.processFrontMatter(
           file,
           (frontmatter: Record<string, unknown>) => {
             frontmatter.provided_transcript = transcript;
+            // The uploader, duration and cover the backend would read with yt-dlp, from the page.
+            for (const [key, value] of Object.entries(details)) {
+              if (!frontmatter[key]) frontmatter[key] = value;
+            }
           },
         );
       }
@@ -3884,6 +3908,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
         area.inputEl.rows = 3;
         area.inputEl.addClass('vs-properties-input');
       });
+
+    new Setting(section)
+      .setName(tr('文章的标签', 'Article tags'))
+      .setDesc(
+        tr(
+          '粘贴的文章或文稿（没有视频链接）用这里的标签，代替默认属性里的 tags。多个用逗号隔开，留空就不加。',
+          'Pasted articles and transcripts (no video link) get these tags instead of the tags in the default properties. Separate several with commas; leave empty for none.',
+        ),
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder('type/article')
+          .setValue(this.plugin.settings.articleTags ?? '')
+          .onChange(async (value) => {
+            this.plugin.settings.articleTags = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
 
     new Setting(section)
       .setName(tr('只保留指向已有笔记的双链', 'Keep only links to existing notes'))

@@ -50,9 +50,12 @@ Every artifact records:
 - playlist/course membership;
 - searchable text and visual descriptors.
 
-Markdown frontmatter stores only stable lookup and filter fields such as
-`video_artifact_id`, `video_content_type`, `video_attention_action`,
-`video_review_due`, and `video_summary_status`.
+Markdown frontmatter stores only fields a person reads or filters by, such as
+`video_title`, `summary`, `video_review_due`, and `video_summary_status`. The artifact id,
+content type, attention action and processing depth stay in the artifact; the plugin finds a
+note's artifact by the note path the artifact records (older notes that still carry
+`video_artifact_id` keep working). The transcript is a folded `> [!quote]-` callout at the
+end of the note body, not a property.
 
 Learning attempts, mastery, and review schedules are user-owned state stored separately in:
 

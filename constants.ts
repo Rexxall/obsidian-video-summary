@@ -129,6 +129,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   outputFolder: '',
   noteCssClass: '',
   defaultNoteProperties: '',
+  articleTags: '',
   unlinkMissingNotes: false,
   themeMarks: false,
   autoRenameEnabled: true,

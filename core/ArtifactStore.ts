@@ -35,6 +35,8 @@ export interface ArtifactStoreOptions {
   migrateOnLoad?: boolean;
   /** Injectable clock for deterministic tests. */
   now?: () => Date;
+  /** Told about every artifact once it is saved, e.g. to keep the note ↔ artifact map current. */
+  onSaved?: (artifact: VideoKnowledgeArtifact) => void;
 }
 
 export interface ArtifactListOptions {
@@ -98,6 +100,7 @@ export class ArtifactStore {
   private readonly rootPath: string;
   private readonly migrateOnLoad: boolean;
   private readonly now: () => Date;
+  private readonly onSaved?: (artifact: VideoKnowledgeArtifact) => void;
   private readonly locks = new Map<string, Promise<unknown>>();
   private tempSequence = 0;
 
@@ -109,6 +112,7 @@ export class ArtifactStore {
     }
     this.migrateOnLoad = options.migrateOnLoad !== false;
     this.now = options.now || (() => new Date());
+    this.onSaved = options.onSaved;
   }
 
   /**
@@ -116,6 +120,16 @@ export class ArtifactStore {
    * The input object is never mutated.
    */
   async save(input: VideoKnowledgeArtifact): Promise<VideoKnowledgeArtifact> {
+    const saved = await this.saveOnce(input);
+    try {
+      this.onSaved?.(cloneArtifact(saved));
+    } catch (error) {
+      console.warn('[ArtifactStore] onSaved listener failed', error);
+    }
+    return saved;
+  }
+
+  private async saveOnce(input: VideoKnowledgeArtifact): Promise<VideoKnowledgeArtifact> {
     const normalized = await normalizeForSave(input, this.now());
     validateVideoKnowledgeArtifact(normalized);
     const path = this.pathFor(normalized.artifact_id);

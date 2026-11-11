@@ -52,6 +52,26 @@ export interface LiteDeps {
   model: string;
 }
 
+/** Video details the note already has: title, uploader, duration as yt-dlp writes it, cover. */
+export interface LiteVideoMeta {
+  title?: string;
+  author?: string;
+  duration?: string;
+  cover?: string;
+}
+
+/** Video details the browser extension read from the page, kept only when they look right. */
+export function pageVideoDetails(params: Record<string, string>): Record<string, string> {
+  const details: Record<string, string> = {};
+  const author = (params.author || '').trim();
+  if (author && author.length <= 200 && !/[\r\n]/.test(author)) details.video_author = author;
+  const duration = (params.duration || '').trim();
+  if (/^\d{1,3}(?::\d{2}){1,2}$/.test(duration)) details.video_duration = duration;
+  const cover = (params.cover || '').trim();
+  if (/^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover)) details.video_cover = cover;
+  return details;
+}
+
 export interface LiteProgress {
   stageLabel?: string;
   liveText?: string;
@@ -70,10 +90,14 @@ export async function runLiteJob(
   language: SupportedLanguage,
   report: (progress: LiteProgress) => void,
   signal?: AbortSignal,
-  title?: string,
+  meta: LiteVideoMeta = {},
 ): Promise<ProcessingResult> {
   const sourceUrl = input.url || input.sourceUrl || '';
+  // What the backend gets from yt-dlp, here from the note (the extension wrote it from the page).
   const base: ProcessingResult = { transcript_source: 'provided_transcript' };
+  if (meta.author) base.video_author = meta.author;
+  if (meta.duration) base.video_duration = meta.duration;
+  if (meta.cover) base.video_cover = meta.cover;
   if (sourceUrl) base.video_platform = detectPlatform(sourceUrl);
   report({ stageLabel: tr('读取文稿', 'Reading the transcript') });
   const segments: LiteSegment[] = parseTranscriptSegments(input.transcript || '', sourceUrl).map(
@@ -104,7 +128,8 @@ export async function runLiteJob(
       apiKey: deps.apiKey,
       model: deps.model,
       segments,
-      title,
+      title: meta.title,
+      author: meta.author,
       language,
       metadata: {
         content_type: input.contentType || 'auto',
@@ -122,7 +147,9 @@ export async function runLiteJob(
     base.summary = str(json.summary);
     base.note_title = str(json.note_title);
     base.tldr = str(json.tldr);
-    base.video_title = base.video_title || str(json.video_title);
+    // Like the backend, a video keeps its own title (yt-dlp's there, the page's here); a pasted
+    // text gets the model's.
+    base.video_title = (sourceUrl && meta.title) || str(json.video_title);
   }
 
   return normalizeRichProcessingResult(base, payload, {

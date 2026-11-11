@@ -250,7 +250,8 @@ export async function streamChat(
       model: request.model,
       messages: request.messages,
       stream: true,
-      temperature: 0.3,
+      // Same as the backend's chat model node.
+      temperature: 0.4,
     };
     if (jsonMode) body.response_format = { type: 'json_object' };
     const response = await transport(

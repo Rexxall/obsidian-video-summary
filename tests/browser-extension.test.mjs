@@ -218,12 +218,24 @@ test('captions travel with the link: as a link parameter and as note frontmatter
   const U = loadUtils();
   const { parse } = await import('yaml');
   const transcript = '[00:01] first line: with a colon\n[00:25] "quoted" # not a comment';
-  const item = { title: 'Video', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', transcript };
+  const item = {
+    title: 'Video',
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    transcript,
+    videoAuthor: 'Rick Astley',
+    videoDuration: U.durationString(213),
+    videoCover: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+  };
+  assert.equal(U.durationString(213), '3:33');
+  assert.equal(U.durationString(6980), '1:56:20');
   const uri = U.buildObsidianProcessUri('Vault', item, { defaultMode: 'summary' });
   assert.equal(new URL(uri).searchParams.get('transcript'), transcript);
   const note = U.buildPendingNoteContent(item, { quickAction: 'create-pending-note' });
   const frontmatter = parse(note.split('---\n')[1]);
   assert.equal(frontmatter.provided_transcript, transcript);
+  assert.equal(frontmatter.video_author, 'Rick Astley');
+  assert.equal(frontmatter.video_duration, '3:33');
+  assert.equal(new URL(uri).searchParams.get('duration'), '3:33');
   const plain = U.buildPendingNoteContent({ ...item, transcript: '' }, {});
   assert.equal(plain.includes('provided_transcript'), false);
 });
