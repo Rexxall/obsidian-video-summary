@@ -10,7 +10,13 @@
  * (youtube-transcript-api issue #592), and getting round that would mean getting
  * round YouTube's bot checks.
  */
-import { noteImagesFor, promptVersionFor } from './NoteStyle';
+import {
+  fillNoteStyle,
+  noteImagesFor,
+  promptVersionFor,
+  stampDate,
+  youTubeVideoId,
+} from './NoteStyle';
 import type { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 import { detectPlatform } from './Platform';
 import { type LiteSegment, type StreamTransport, generateNote, transcriptText } from './LiteTier';
@@ -136,8 +142,17 @@ export async function runLiteJob(
         content_type: input.contentType || 'auto',
         attention_assessment: input.attentionAssessment !== false,
         generate_learning: input.generateLearning === true,
-        ...(deps.noteStyle?.trim() ? { note_style: deps.noteStyle } : {}),
-        note_images: noteImagesFor(sourceUrl),
+        ...(deps.noteStyle?.trim()
+          ? {
+              note_style: fillNoteStyle(deps.noteStyle, {
+                channel: meta.author,
+                date: stampDate(),
+                duration: meta.duration,
+                videoId: youTubeVideoId(sourceUrl) || '',
+              }),
+            }
+          : {}),
+        note_images: noteImagesFor(sourceUrl, meta.duration),
       },
       onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
       signal,

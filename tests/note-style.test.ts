@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { noteMessages } from '../core/LiteTier';
 import {
   ITHACA_NOTE_STYLE,
+  fillNoteStyle,
   NOTE_PROMPT_VERSION,
   linkTimestamps,
   separateTables,
@@ -91,4 +92,26 @@ test('a table right under a line gets the blank line Obsidian needs', () => {
   assert.equal(separateTables(quoted), quoted);
   const fenced = 'x\n```\n| a |\n```';
   assert.equal(separateTables(fenced), fenced);
+});
+
+test("the Ithaca style gets the video's channel, date, length and id; frames get their times", () => {
+  const filled = fillNoteStyle(ITHACA_NOTE_STYLE, {
+    channel: 'バイエンス',
+    date: '2026.11.11',
+    duration: '9:46',
+    videoId: 'lAxKiwd1QLo',
+  });
+  assert.match(filled, /<span class="ih-postmark">バイエンス<br>2026\.11\.11<\/span>/);
+  assert.match(filled, /<span class="ih-barcode">9:46 · lAxKiwd1QLo<\/span>/);
+  assert.doesNotMatch(filled, /\{\{/);
+  assert.match(
+    fillNoteStyle('{{channel}}', { channel: '<b>x\ny' }),
+    /^b x y\/b$|^ b x y\/b $|b x y/,
+  );
+  assert.equal(fillNoteStyle('', { channel: 'x' }), '');
+  const frames = noteImagesFor('https://youtu.be/lAxKiwd1QLo', '9:46');
+  assert.deepEqual(
+    frames.map((f) => f.label),
+    ['cover', 'frame near [02:27]', 'frame near [04:53]', 'frame near [07:20]'],
+  );
 });

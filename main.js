@@ -41,29 +41,60 @@ module.exports = __toCommonJS(main_exports);
 // core/NoteStyle.ts
 var NOTE_PROMPT_VERSION = "video-note-prompt-v6";
 var ITHACA_NOTE_STYLE = [
-  'The vault uses the theme "Ithaca \u6574\u672C\u624B\u8D26". Use its elements wherever they fit; each draws something different on the page.',
-  "- Headings: no emoji; the theme numbers the ## headings itself.",
-  '- The summary callout is titled "\u6838\u5FC3\u6458\u8981".',
-  '- The single most important conclusion, or a common misconception the video corrects: one "> [!important] <short title>" callout (black paper).',
-  '- The one or two best concrete examples (a story, an experiment, a case): "> [!example] <short name>", 2 or 3 sentences each, under the section they prove (taped slips of paper).',
-  '- Short background (who a person is, a date, where a study comes from): footnotes [^1] with the text at the end; the theme moves them into the right margin in handwriting. A longer mechanism a reader may skip: a folded "> [!info]- <topic>" callout.',
-  '- Your own thoughts as handwritten margin notes right after the line they are about: <span class="ih-mg">a short sentence</span> for a connection or open question; <span class="ih-mg is-red">a short sentence</span> in red pen where the argument is weak, overstated or lacks evidence; <span class="ih-mg ih-sticky">a few words</span> for something small to try. At most three in all, and none when nothing is worth saying.',
-  '- Things to do from the video: one "> [!todo] \u884C\u52A8\u6E05\u5355" callout with "- [ ]" items. A question the video leaves open: one "> [!question] \u7559\u7ED9\u81EA\u5DF1\u7684\u95EE\u9898" callout. Both only when the video gives them.',
-  '- Quotes: "> [!receipt] \u539F\u8BDD" callouts at the end, one line each, with its time; a translation on the next line when the languages differ.',
-  "- Pictures: the cover as ![\u7167\u7247 right <channel>|260](url) under the summary; a frame as ![\u7167\u7247 <what is happening>|320](url) in the section it belongs to.",
-  "- Between two big parts you may put a line with --- (a \u2767 ornament); at most twice.",
-  '- Put <span class="ih-circ">...</span> around the single most important phrase of the note, once. ==highlight== at most two other phrases.'
+  'The vault uses the theme "Ithaca \u6574\u672C\u624B\u8D26". Its elements are drawn as paper, stamps and pen on the page; use them where they fit and skip any that do not.',
+  "Order: postmark and sticker, photo wall, summary, diagram, body, pinned notes, quotes, barcode.",
+  '- First line of the note: <span class="ih-postmark">{{channel}}<br>{{date}}</span> followed in the same paragraph by one sticker <span class="ih-sticker">\u503C\u5F97\u770B</span> (or \u53EF\u7565\u8BFB / \u53EF\u8DF3\u8FC7, by your attention judgement; add class is-red only for \u503C\u5F97\u770B). The postmark lines hold at most 7 Chinese characters or 14 Latin letters each: shorten the channel name if needed. Leave the postmark out when the channel is empty.',
+  '- Then a photo wall of the pictures offered above: "> [!photos]" with one line per picture, "> - ![](url) caption", the caption being its time like [04:30] or a few words; cover first.',
+  '- Headings: no emoji; the theme numbers the ## headings itself. The summary callout is titled "\u6838\u5FC3\u6458\u8981".',
+  '- The single most important conclusion, or a misconception the video corrects: one "> [!important] <short title>" (black paper).',
+  '- The one or two best concrete examples: "> [!example] <short name>", 2 or 3 sentences each (taped slips).',
+  '- Stages in time (a story, a history, a career): "> [!timeline] <title>" with 2 to 6 lines "> - **<year or step>** <what happened>" (cards left and right). The title is required.',
+  '- An exchange between people (interviews, debates): "> [!chat] <show or topic>" with one line per turn, "> - **<speaker>\uFF1A** <words>", alternating sides; merge consecutive lines of the same speaker. The title is required. Use it for the best 4 to 8 turns, not the whole conversation.',
+  '- Old background (a date long ago, where an idea came from): "> [!old] <era>" with one short paragraph (yellowed paper). Short facts instead: footnotes [^1], which the theme moves into the margin.',
+  '- Where one block leads to the next (a cause, a so-what): a paragraph of its own, <span class="ih-arrow">\u6240\u4EE5</span>, 2 to 8 characters; at most twice.',
+  '- Your own thoughts beside a line: <span class="ih-mg">a short sentence</span>; in red pen <span class="ih-mg is-red">\u2026</span> where the argument is weak or lacks evidence. At most three in all.',
+  '- Thoughts and things to try after the video: "> [!pinned]" with 1 to 5 lines "> - <a few words>" (pinned sticky notes). Things to do from the video: "> [!todo] \u884C\u52A8\u6E05\u5355" with "- [ ]" items, only when the video gives them.',
+  '- Quotes: "> [!receipt] \u539F\u8BDD" callouts, one line each with its time; a translation on the next line when the languages differ.',
+  '- Last line of the note, a paragraph of its own: <span class="ih-barcode">{{duration}} \xB7 {{video_id}}</span> (leave out an empty part).',
+  '- Put <span class="ih-circ">...</span> around the single most important phrase, once. ==highlight== at most two other phrases.'
 ].join("\n");
-function noteImagesFor(url) {
+function fillNoteStyle(style, values) {
+  const text2 = (style || "").trim();
+  if (!text2) return "";
+  const clean = (value) => (value || "").replace(/[<>\n]/g, " ").trim();
+  return text2.replace(/\{\{channel\}\}/g, clean(values.channel)).replace(/\{\{date\}\}/g, clean(values.date)).replace(/\{\{duration\}\}/g, clean(values.duration)).replace(/\{\{video_id\}\}/g, clean(values.videoId));
+}
+function stampDate(now = /* @__PURE__ */ new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
+}
+function noteImagesFor(url, duration) {
   const id = youTubeId(url);
   if (!id) return [];
   const base = `https://i.ytimg.com/vi/${id}/`;
+  const total = durationSeconds(duration);
+  const at = (part, words) => total ? `frame near [${clockOf(Math.round(total * part))}]` : `frame ${words}`;
   return [
     { url: `${base}hqdefault.jpg`, label: "cover" },
-    { url: `${base}hq1.jpg`, label: "frame about a quarter into the video" },
-    { url: `${base}hq2.jpg`, label: "frame about halfway" },
-    { url: `${base}hq3.jpg`, label: "frame about three quarters in" }
+    { url: `${base}hq1.jpg`, label: at(0.25, "about a quarter into the video") },
+    { url: `${base}hq2.jpg`, label: at(0.5, "about halfway") },
+    { url: `${base}hq3.jpg`, label: at(0.75, "about three quarters in") }
   ];
+}
+function youTubeVideoId(url) {
+  return youTubeId(url);
+}
+function durationSeconds(text2) {
+  const parts = String(text2 || "").trim().split(":").map(Number);
+  if (parts.length < 2 || parts.length > 3 || parts.some((n) => !Number.isFinite(n))) return 0;
+  return parts.reduce((total, n) => total * 60 + n, 0);
+}
+function clockOf(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor(seconds % 3600 / 60);
+  const s = seconds % 60;
+  const two = (n) => String(n).padStart(2, "0");
+  return h ? `${h}:${two(m)}:${two(s)}` : `${two(m)}:${two(s)}`;
 }
 function youTubeId(url) {
   if (!url) return null;
@@ -10600,8 +10631,12 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     const contract = buildContentRoutingPromptContract(contentType, autoRoute);
     metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
     metadata.prompt_version = promptVersionFor(this.analysisDefaults.noteStyle);
-    if (this.analysisDefaults.noteStyle.trim())
-      metadata.note_style = this.analysisDefaults.noteStyle;
+    if (this.analysisDefaults.noteStyle.trim()) {
+      metadata.note_style = fillNoteStyle(this.analysisDefaults.noteStyle, {
+        date: stampDate(),
+        videoId: youTubeVideoId(input.url || input.sourceUrl) || ""
+      });
+    }
     const images = noteImagesFor(input.url || input.sourceUrl);
     if (images.length) metadata.note_images = images;
     metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
@@ -17003,8 +17038,15 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
         content_type: input.contentType || "auto",
         attention_assessment: input.attentionAssessment !== false,
         generate_learning: input.generateLearning === true,
-        ...deps.noteStyle?.trim() ? { note_style: deps.noteStyle } : {},
-        note_images: noteImagesFor(sourceUrl)
+        ...deps.noteStyle?.trim() ? {
+          note_style: fillNoteStyle(deps.noteStyle, {
+            channel: meta.author,
+            date: stampDate(),
+            duration: meta.duration,
+            videoId: youTubeVideoId(sourceUrl) || ""
+          })
+        } : {},
+        note_images: noteImagesFor(sourceUrl, meta.duration)
       },
       onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
       signal
@@ -18347,9 +18389,9 @@ function boundInput(input) {
     limitations.push(`\u63A8\u5E7F\u63D0\u793A\u8D85\u8FC7 ${limits.maxPromotionalCues} \u6761\uFF0C\u5DF2\u622A\u65AD\u3002`);
   }
   const rawDuration = input.durationSeconds;
-  let durationSeconds;
+  let durationSeconds2;
   if (typeof rawDuration === "number" && Number.isFinite(rawDuration) && rawDuration > 0 && rawDuration <= limits.maxDurationSeconds) {
-    durationSeconds = rawDuration;
+    durationSeconds2 = rawDuration;
   } else if (rawDuration !== void 0 && rawDuration !== null) {
     limitations.push("\u603B\u65F6\u957F\u65E0\u6548\u6216\u8D85\u51FA 24 \u5C0F\u65F6\u8FB9\u754C\uFF0C\u672A\u7528\u4E8E\u8BC4\u5206\u3002");
   }
@@ -18378,7 +18420,7 @@ function boundInput(input) {
   return {
     segments,
     claims,
-    durationSeconds,
+    durationSeconds: durationSeconds2,
     repetitionRatio,
     evidenceCoverage,
     promotionalCues,
@@ -18553,13 +18595,13 @@ function calculateScore(metrics) {
     )
   };
 }
-function chooseAction(score, confidence, promotionalRatio, durationSeconds) {
+function chooseAction(score, confidence, promotionalRatio, durationSeconds2) {
   const thresholds = ATTENTION_ENGINE_POLICY.actionThresholds;
   if (confidence < thresholds.minimumDecisionConfidence) return "skim";
   if (promotionalRatio >= thresholds.highPromotion && score < thresholds.highPromotionMaximumScore) {
     return "skip";
   }
-  if (durationSeconds !== void 0 && durationSeconds <= thresholds.shortVideoSeconds && score >= thresholds.shortVideoWatchScore && promotionalRatio < 0.45) {
+  if (durationSeconds2 !== void 0 && durationSeconds2 <= thresholds.shortVideoSeconds && score >= thresholds.shortVideoWatchScore && promotionalRatio < 0.45) {
     return "watch";
   }
   if (score >= thresholds.watch) return "watch";
@@ -18709,27 +18751,27 @@ function supportedEvidenceSegmentIds(input) {
     )
   ).filter((id) => validIds.has(id));
 }
-function deriveTimingCoverage(segments, durationSeconds) {
+function deriveTimingCoverage(segments, durationSeconds2) {
   if (!segments.length) return 0;
-  const timed = timedSegments(segments, durationSeconds);
-  if (durationSeconds) {
+  const timed = timedSegments(segments, durationSeconds2);
+  if (durationSeconds2) {
     return clamp01(
       mergedDuration(
         timed.map((segment) => ({
           start: segment.start,
           end: segment.end
         }))
-      ) / durationSeconds
+      ) / durationSeconds2
     );
   }
   return timed.length / segments.length;
 }
-function timedSegments(segments, durationSeconds) {
+function timedSegments(segments, durationSeconds2) {
   return segments.filter(
     (segment) => finiteNonNegative(segment.start) && finiteNonNegative(segment.end) && segment.end > segment.start && segment.timing_quality !== "none" && segment.timing_quality !== "estimated"
   ).map((segment) => {
-    if (!durationSeconds || segment.end <= durationSeconds) return segment;
-    return { ...segment, end: durationSeconds };
+    if (!durationSeconds2 || segment.end <= durationSeconds2) return segment;
+    return { ...segment, end: durationSeconds2 };
   }).filter((segment) => segment.end > segment.start);
 }
 function estimateRepetition(texts) {

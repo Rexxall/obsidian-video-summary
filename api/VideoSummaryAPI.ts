@@ -1,4 +1,10 @@
-import { noteImagesFor, promptVersionFor } from '../core/NoteStyle';
+import {
+  fillNoteStyle,
+  noteImagesFor,
+  promptVersionFor,
+  stampDate,
+  youTubeVideoId,
+} from '../core/NoteStyle';
 import {
   ProcessingMode,
   SupportedLanguage,
@@ -684,8 +690,13 @@ export class VideoSummaryAPI {
     const contract = buildContentRoutingPromptContract(contentType, autoRoute);
     metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
     metadata.prompt_version = promptVersionFor(this.analysisDefaults.noteStyle);
-    if (this.analysisDefaults.noteStyle.trim())
-      metadata.note_style = this.analysisDefaults.noteStyle;
+    if (this.analysisDefaults.noteStyle.trim()) {
+      // The backend learns the channel and duration only later; what is known is filled in.
+      metadata.note_style = fillNoteStyle(this.analysisDefaults.noteStyle, {
+        date: stampDate(),
+        videoId: youTubeVideoId(input.url || input.sourceUrl) || '',
+      });
+    }
     const images = noteImagesFor(input.url || input.sourceUrl);
     if (images.length) metadata.note_images = images;
     metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
