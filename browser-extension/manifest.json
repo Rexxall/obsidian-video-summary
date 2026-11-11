@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Video Summary Capture",
   "version": "0.8.0",
-  "description": "Capture video links and timestamps from the browser and send them to Obsidian or your Video Summary backend.",
+  "description": "Press ⌘⇧S on a YouTube video: its captions go to your Obsidian vault, where Video Summary writes the note.",
   "permissions": ["activeTab", "clipboardWrite", "contextMenus", "scripting", "storage"],
   "host_permissions": [
     "http://localhost/*",
