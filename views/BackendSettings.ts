@@ -25,6 +25,8 @@ export interface BackendSettingsHost {
 }
 
 const ORBSTACK_URL = 'https://orbstack.dev/download';
+/** Redraws the Backend group when the model group changes something it depends on (the key). */
+let refreshBackendGroup: (() => void) | null = null;
 const DOCKER_DESKTOP_URL = 'https://www.docker.com/products/docker-desktop/';
 
 /**
@@ -56,6 +58,7 @@ export function renderBackendSettings(parent: HTMLElement, host: BackendSettings
       snapshot.step,
       snapshot.diagnosis?.fault,
       plugin.hasBackend(),
+      !!readSecret(host.app, plugin.settings.llmKeySecret),
     ]);
   };
   const draw = () => {
@@ -71,14 +74,90 @@ export function renderBackendSettings(parent: HTMLElement, host: BackendSettings
 
   const offInstaller = installer.subscribe(maybeDraw);
   const offMonitor = backend.monitor.subscribe(maybeDraw);
+  refreshBackendGroup = maybeDraw;
   draw();
   if (installer.supported()) void installer.refreshFacts();
   void backend.monitor.check(30_000);
 
   return () => {
     disposed = true;
+    if (refreshBackendGroup === maybeDraw) refreshBackendGroup = null;
     offInstaller();
     offMonitor();
+  };
+}
+
+/** The plugin runs the packaged backend, so the model and keys chosen here reach it. */
+function isManaged(plugin: VideoSummaryPlugin): boolean {
+  const facts = plugin.installer.facts();
+  // While Docker is off that cannot be seen, so a backend the plugin has already handed settings to still counts.
+  return (
+    !!facts?.bundled || (!!facts && !facts.container && !!plugin.settings.backendAppliedConfig)
+  );
+}
+
+/** A remote backend or someone's own n8n keeps its model and keys on its side. */
+function isExternal(plugin: VideoSummaryPlugin): boolean {
+  const facts = plugin.installer.facts();
+  return !!facts && !isManaged(plugin) && plugin.hasBackend();
+}
+
+/**
+ * The Model group: summary model and keys, used by both tiers, and the light-tier
+ * switch. Shown whatever state the backend is in, so a new person can make a first
+ * note with a key alone. Returns a function that stops it following the backend.
+ */
+export function renderModelSettings(parent: HTMLElement, host: BackendSettingsHost): () => void {
+  const { plugin } = host;
+  const root = parent.createDiv({ cls: 'vs-settings-section vs-model-settings' });
+  let disposed = false;
+  let lastKey = '';
+  const stateKey = () => JSON.stringify([isManaged(plugin), isExternal(plugin)]);
+  const draw = () => {
+    if (disposed) return;
+    lastKey = stateKey();
+    root.empty();
+    const managed = isManaged(plugin);
+    if (isExternal(plugin)) {
+      root.createEl('p', {
+        cls: 'setting-item-description vs-backend-external',
+        text: tr(
+          '你的后端用它自己的模型和密钥（n8n 的凭据或它的 .env）；这里的只给轻量档用。',
+          'Your backend uses its own model and keys (its n8n credentials or its .env); the ones here are for the light tier only.',
+        ),
+      });
+    }
+    drawModelRows(root, host, {
+      applyToBackend: managed,
+      disabled: false,
+      onChange: () => {
+        draw();
+        refreshBackendGroup?.();
+      },
+    });
+    new Setting(root)
+      .setName(tr('轻量档', 'Light tier'))
+      .setDesc(
+        tr(
+          'YouTube 有字幕的视频和粘贴的文稿直接交给总结模型，不经过后端，边写边显示。',
+          'YouTube videos with captions and pasted transcripts go straight to the summary model, without the backend, and appear as they are written.',
+        ),
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(plugin.settings.liteTierEnabled !== false).onChange(async (value) => {
+          plugin.settings.liteTierEnabled = value;
+          await plugin.saveSettings();
+        }),
+      );
+  };
+  const maybeDraw = () => {
+    if (!disposed && stateKey() !== lastKey) draw();
+  };
+  const offInstaller = plugin.installer.subscribe(maybeDraw);
+  draw();
+  return () => {
+    disposed = true;
+    offInstaller();
   };
 }
 
@@ -100,7 +179,7 @@ function drawBackend(root: HTMLElement, host: BackendSettingsHost, redraw: () =>
     drawFirstRun(root, host, redraw);
     return;
   }
-  drawInstalled(root, host, redraw);
+  drawInstalled(root, host);
 }
 
 /** One line of progress for install, update and the automatic check that follows. */
@@ -218,8 +297,7 @@ function drawFirstRun(root: HTMLElement, host: BackendSettingsHost, redraw: () =
     return;
   }
 
-  // Docker runs: choose the model and keys, then one button does the rest.
-  drawModelRows(root, host, { applyToBackend: false, disabled: false, onChange: redraw });
+  // Docker runs: the model and keys are chosen in the Model group above; one button does the rest.
   const ready = !!readSecret(host.app, plugin.settings.llmKeySecret);
   new Setting(root)
     .setName(tr('安装并启动', 'Install and start'))
@@ -229,7 +307,7 @@ function drawFirstRun(root: HTMLElement, host: BackendSettingsHost, redraw: () =
             `写好后端文件夹（${installer.backendDir()}），再打开终端，由你按回车下载约 550 MB 的后端镜像。之后的检查和试跑自动完成。`,
             `Writes the backend folder (${installer.backendDir()}), then opens Terminal, where you press Return to download the backend image (about 550 MB). The check and the trial run follow by themselves.`,
           )
-        : tr('先选一把总结密钥。', 'Choose a summary key first.'),
+        : tr('先在上面选一把总结密钥。', 'Choose a summary key above first.'),
     )
     .addButton((button) =>
       button
@@ -249,19 +327,14 @@ function drawFailure(root: HTMLElement, host: BackendSettingsHost) {
   }
 }
 
-/** The backend exists: status, model and keys, Bilibili, start at login, three buttons. */
-function drawInstalled(root: HTMLElement, host: BackendSettingsHost, redraw: () => void) {
+/** The backend exists: status, Bilibili, start at login, three buttons. The model is in its own group. */
+function drawInstalled(root: HTMLElement, host: BackendSettingsHost) {
   const { plugin } = host;
   const { installer, backend } = plugin;
   const facts = installer.facts();
   const snapshot = backend.monitor.snapshot();
   const progress = installer.progress();
-  // Managed: the container runs the packaged backend. While Docker is off that cannot be seen,
-  // so a backend the plugin has already handed settings to still counts.
-  const managed =
-    !!facts?.bundled || (!!facts && !facts.container && !!plugin.settings.backendAppliedConfig);
-  // A remote backend or someone's own n8n keeps its model and keys on its side.
-  const external = !!facts && !managed && plugin.hasBackend();
+  const managed = isManaged(plugin);
 
   if (progress.phase === 'failed') drawFailure(root, host);
   if (progress.phase === 'done') {
@@ -270,18 +343,6 @@ function drawInstalled(root: HTMLElement, host: BackendSettingsHost, redraw: () 
       text: progress.message,
     });
   }
-
-  if (external) {
-    root.createEl('p', {
-      cls: 'setting-item-description vs-backend-external',
-      text: tr(
-        '这个后端用它自己的凭据，下面的模型和密钥改了不生效。要换，到它那边（n8n 的凭据，或它的 .env）去改。',
-        'This backend uses its own credentials; changing the model and keys below has no effect. Change them on its side (its n8n credentials, or its .env).',
-      ),
-    });
-  }
-
-  drawModelRows(root, host, { applyToBackend: managed, disabled: external, onChange: redraw });
 
   host.renderBilibili(root);
 

@@ -159,6 +159,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   webhookHistory: [],
   historyLimit: DEFAULT_HISTORY_LIMIT,
   preflightCheckEnabled: true, // 处理前先 ping 后端，失败时提示/建议切换
+  liteTierEnabled: true, // 轻量档：YouTube 有字幕和粘贴的文稿直接调总结模型，不经过后端
   expandShortLinks: true, // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
   llmProvider: 'deepseek',
   llmModel: '',

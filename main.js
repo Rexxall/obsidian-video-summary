@@ -1998,6 +1998,8 @@ var DEFAULT_SETTINGS = {
   historyLimit: DEFAULT_HISTORY_LIMIT,
   preflightCheckEnabled: true,
   // 处理前先 ping 后端，失败时提示/建议切换
+  liteTierEnabled: true,
+  // 轻量档：YouTube 有字幕和粘贴的文稿直接调总结模型，不经过后端
   expandShortLinks: true,
   // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
   llmProvider: "deepseek",
@@ -5071,7 +5073,7 @@ function titleForLocalFile(path) {
 }
 function titleForTranscript(text2) {
   const now = /* @__PURE__ */ new Date();
-  const stamp = [
+  const stamp2 = [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, "0"),
     String(now.getDate()).padStart(2, "0"),
@@ -5082,7 +5084,7 @@ function titleForTranscript(text2) {
   ].join("");
   const firstLine = text2.split("\n").map((line) => proseOf(line.replace(/^#+\s*/, ""))).find((line) => line.length > 0) || "";
   const snippet = firstLine.substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
-  return snippet ? `\u6587\u7A3F_${stamp}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp}`;
+  return snippet ? `\u6587\u7A3F_${stamp2}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp2}`;
 }
 function buildInput(parts) {
   const input = {};
@@ -6869,7 +6871,7 @@ async function pollQrLogin(key) {
   }
 }
 
-// node_modules/qrcode-generator/dist/qrcode.mjs
+// ../../../Obsidian/Projects/.plugin-dev/video-summary-plugin/node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
   const PAD1 = 17;
@@ -8309,8 +8311,8 @@ var base64EncodeOutputStream = function() {
   };
   return _this;
 };
-var base64DecodeInputStream = function(str) {
-  const _str = str;
+var base64DecodeInputStream = function(str2) {
+  const _str = str2;
   let _pos = 0;
   let _buffer = 0;
   let _buflen = 0;
@@ -11576,12 +11578,13 @@ async function launchBackend(deps) {
 }
 
 // views/backendText.ts
-function statusWord(snapshot) {
+function statusWord(snapshot, liteReady = false) {
   switch (snapshot.status) {
     case "online":
       return tr("\u5728\u7EBF", "online");
     case "offline":
-      return snapshot.diagnosis?.fault === "not-configured" ? tr("\u672A\u5B89\u88C5", "not set up") : tr("\u79BB\u7EBF", "offline");
+      if (snapshot.diagnosis?.fault !== "not-configured") return tr("\u79BB\u7EBF", "offline");
+      return liteReady ? tr("\u672A\u5B89\u88C5 \xB7 \u8F7B\u91CF\u6863\u53EF\u7528", "not set up \xB7 light tier ready") : tr("\u672A\u5B89\u88C5", "not set up");
     case "starting":
       return tr("\u542F\u52A8\u4E2D", "starting");
     case "checking":
@@ -11590,9 +11593,11 @@ function statusWord(snapshot) {
       return tr("\u672A\u68C0\u67E5", "not checked");
   }
 }
-function statusClass(snapshot) {
+function statusClass(snapshot, liteReady = false) {
   if (snapshot.status === "online") return "is-online";
-  if (snapshot.status === "offline") return "is-offline";
+  if (snapshot.status === "offline") {
+    return liteReady && snapshot.diagnosis?.fault === "not-configured" ? "is-unknown" : "is-offline";
+  }
   if (snapshot.status === "unknown") return "is-unknown";
   return "is-checking";
 }
@@ -12008,8 +12013,11 @@ function renderBackendLine(root, ctx) {
   const paint = () => {
     const snapshot = backend.monitor.snapshot();
     const endpoint = backend.endpoint();
-    dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
-    const word = tr(`\u540E\u7AEF${statusWord(snapshot)}`, `Backend ${statusWord(snapshot)}`);
+    dot.className = `vs-backend-dot ${statusClass(snapshot, ctx.plugin.liteReady())}`;
+    const word = tr(
+      `\u540E\u7AEF${statusWord(snapshot, ctx.plugin.liteReady())}`,
+      `Backend ${statusWord(snapshot, ctx.plugin.liteReady())}`
+    );
     const reason = snapshot.status === "offline" && snapshot.diagnosis?.fault !== "not-configured" ? faultReason(snapshot.diagnosis, endpoint) : snapshot.status === "starting" ? snapshot.step || "" : "";
     label.setText(reason ? `${word} \xB7 ${reason}` : word);
     status.setAttr(
@@ -12542,6 +12550,22 @@ function diagnoseSource(error, options) {
 
 // views/panels/JobsPanel.ts
 var import_obsidian11 = require("obsidian");
+
+// views/liveText.ts
+function readableLive(markdown) {
+  return markdown.split("\n").map((line) => {
+    let text2 = line.replace(/^(\s*>)+\s?/, "");
+    text2 = text2.replace(/^\[![\w-]+\][-+]?\s*/, "");
+    text2 = text2.replace(/^#{1,6}\s+/, "");
+    if (/^\|?\s*:?-{3,}/.test(text2)) return null;
+    if (/^\|.*\|\s*$/.test(text2)) {
+      text2 = text2.replace(/^\||\|\s*$/g, "").split("|").map((cell) => cell.trim()).join(" \xB7 ");
+    }
+    return text2.replace(/==([^=]+)==/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1");
+  }).filter((line) => line !== null).join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+// views/panels/JobsPanel.ts
 var RECENT_HISTORY_LIMIT = 3;
 var historyExpanded = false;
 function renderJobsPanel(container, ctx) {
@@ -12559,6 +12583,7 @@ function renderJobsPanel(container, ctx) {
   }
   if (active.length > 0) {
     active.forEach((job) => renderActiveJob(container, ctx, job));
+    if (active.some((job) => job.lite)) followLiveText(container, ctx);
   }
   if (review.length > 0) {
     review.forEach((job) => renderReviewJob(container, ctx, job));
@@ -12678,6 +12703,14 @@ function renderActiveJob(container, ctx, job) {
   });
   const sub = info.createDiv({ cls: "vs-job-sub" });
   platformText(sub, job.platform, platformLabel(job.platform));
+  if (job.lite) {
+    sub.createSpan({
+      text: tr("\u8F7B\u91CF\u6863", "Light tier"),
+      attr: {
+        title: tr("\u4E0D\u7ECF\u8FC7\u540E\u7AEF\uFF0C\u76F4\u63A5\u7528\u4F60\u7684\u603B\u7ED3\u6A21\u578B", "Straight to your summary model, no backend")
+      }
+    });
+  }
   if (job.startedAt) {
     sub.createSpan({
       text: tr(
@@ -12691,7 +12724,7 @@ function renderActiveJob(container, ctx, job) {
   const side = body.createDiv({ cls: "vs-job-side" });
   statusPill(side, job.state === "queued" ? "queued" : "running", {
     label: job.state === "queued" ? ctx.plugin.jobs.isHeld() ? tr("\u7B49\u5F85\u540E\u7AEF", "Waiting for backend") : tr("\u6392\u961F\u4E2D", "Queued") : job.stageLabel || tr("\u5904\u7406\u4E2D", "Processing"),
-    title: job.stageLabel ? void 0 : tr(
+    title: job.stageLabel || job.lite ? void 0 : tr(
       "\u8BE5\u540E\u7AEF\u4E0D\u4E0A\u62A5\u5904\u7406\u9636\u6BB5\uFF0C\u4EC5\u663E\u793A\u8BA1\u65F6",
       "This backend does not report stages; only the timer is shown"
     )
@@ -12710,6 +12743,33 @@ function renderActiveJob(container, ctx, job) {
     cls: `vs-progress-fill${job.progress === void 0 ? " is-indeterminate" : ""}`
   });
   if (job.progress !== void 0) fill2.style.width = `${Math.round(job.progress * 100)}%`;
+  if (job.liveText) {
+    const live = card.createDiv({
+      cls: "vs-job-live",
+      attr: {
+        "aria-label": tr("\u6B63\u5728\u5199\u7684\u7B14\u8BB0", "The note being written"),
+        "aria-busy": "true",
+        "data-job": job.id
+      }
+    });
+    live.createDiv({ cls: "vs-job-live-text", text: readableLive(job.liveText) });
+    window.requestAnimationFrame(() => {
+      live.scrollTop = live.scrollHeight;
+    });
+  }
+}
+function followLiveText(container, ctx) {
+  const off = ctx.plugin.jobs.subscribeLive((id, text2) => {
+    const live = Array.from(container.querySelectorAll(".vs-job-live")).find(
+      (el) => el.dataset.job === id
+    );
+    const body = live?.querySelector(".vs-job-live-text");
+    if (!live || !body) return;
+    const atEnd = live.scrollHeight - live.scrollTop - live.clientHeight < 24;
+    body.setText(readableLive(text2));
+    if (atEnd) live.scrollTop = live.scrollHeight;
+  });
+  ctx.registerPanelCleanup(off);
 }
 function renderReviewJob(container, ctx, job) {
   const card = container.createDiv({ cls: "vs-job-card is-review" });
@@ -16048,6 +16108,8 @@ var JobStore = class {
   constructor() {
     this.jobs = [];
     this.listeners = /* @__PURE__ */ new Set();
+    /** Told about each new piece of a light-tier note, without redrawing the whole panel. */
+    this.liveListeners = /* @__PURE__ */ new Set();
     this.runner = null;
     this.running = 0;
     this.seq = 0;
@@ -16078,6 +16140,10 @@ var JobStore = class {
   subscribe(listener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+  subscribeLive(listener) {
+    this.liveListeners.add(listener);
+    return () => this.liveListeners.delete(listener);
   }
   emit() {
     this.listeners.forEach((listener) => {
@@ -16111,6 +16177,7 @@ var JobStore = class {
       useCache: spec.useCache,
       platform: spec.platform,
       awaitingWrite: spec.awaitingWrite === true,
+      lite: spec.lite === true,
       state: "queued",
       createdAt: Date.now(),
       logs: []
@@ -16212,9 +16279,9 @@ var JobStore = class {
     this.emit();
   }
   pump() {
-    if (!this.runner || this.held) return;
+    if (!this.runner) return;
     while (this.running < this.concurrency) {
-      const next = this.jobs.filter((job) => job.state === "queued").pop();
+      const next = this.jobs.filter((job) => job.state === "queued" && (!this.held || job.lite)).pop();
       if (!next) return;
       void this.run(next);
     }
@@ -16228,8 +16295,15 @@ var JobStore = class {
     this.emit();
     try {
       const result = await this.runner(job, (progress) => {
+        const textOnly = progress.liveText !== void 0 && !!job.liveText && !!progress.liveText && !progress.message && progress.progress === void 0 && (progress.stageLabel === void 0 || progress.stageLabel === job.stageLabel);
         if (progress.stageLabel !== void 0) job.stageLabel = progress.stageLabel;
         if (progress.progress !== void 0) job.progress = progress.progress;
+        if (progress.liveText !== void 0) job.liveText = progress.liveText;
+        if (textOnly) {
+          const text2 = job.liveText || "";
+          this.liveListeners.forEach((listener) => listener(job.id, text2));
+          return;
+        }
         if (progress.message) this.log(job.id, progress.message);
         this.emit();
       });
@@ -16248,6 +16322,7 @@ var JobStore = class {
       job.endedAt = Date.now();
       job.progress = void 0;
       job.stageLabel = void 0;
+      job.liveText = void 0;
       this.running -= 1;
       this.emit();
       this.pump();
@@ -16257,6 +16332,634 @@ var JobStore = class {
 
 // core/JobService.ts
 var import_obsidian19 = require("obsidian");
+
+// tools/note-prompt.mjs
+var NOTE_SYSTEM_MESSAGE = [
+  "You turn video transcripts into notes for Obsidian.",
+  "Write only what the transcript supports. When something is missing, say it is not in the video instead of filling the gap.",
+  "Reply with one JSON object and nothing else."
+].join("\n");
+function buildNotePrompt(input) {
+  const MARKER = "VIDEO_NOTE_PROMPT_V5";
+  const languages = {
+    zh: {
+      name: "Simplified Chinese",
+      summary: "\u6458\u8981",
+      points: "\u8981\u70B9",
+      details: "\u5C55\u5F00\u7EC6\u8282",
+      missing: "\u89C6\u9891\u91CC\u6CA1\u6709\u63D0\u5230"
+    },
+    en: {
+      name: "English",
+      summary: "Summary",
+      points: "Key points",
+      details: "More detail",
+      missing: "Not in the video"
+    },
+    ja: {
+      name: "Japanese",
+      summary: "\u8981\u7D04",
+      points: "\u8981\u70B9",
+      details: "\u8A73\u3057\u304F",
+      missing: "\u52D5\u753B\u3067\u306F\u89E6\u308C\u3089\u308C\u3066\u3044\u306A\u3044"
+    }
+  };
+  const lang = languages[input.language] || languages.zh;
+  const metadata = input.metadata && typeof input.metadata === "object" ? input.metadata : {};
+  const contentType = metadata.content_type || "auto";
+  const assessAttention = metadata.attention_assessment !== false;
+  const makeLearning = metadata.generate_learning === true;
+  const segments = Array.isArray(input.segments) ? input.segments.filter(function(segment) {
+    return segment && segment.id && segment.text;
+  }) : [];
+  const transcript = String(input.transcript || "");
+  const long = transcript.length > 12e3;
+  function clock2(seconds) {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const minutes = Math.floor(total / 60);
+    const rest = total % 60;
+    return (minutes < 10 ? "0" : "") + minutes + ":" + (rest < 10 ? "0" : "") + rest;
+  }
+  const transcriptText2 = segments.length ? segments.map(function(segment) {
+    const time = Number.isFinite(Number(segment.start)) ? "[" + clock2(segment.start) + "] " : "";
+    return time + "(" + segment.id + ") " + segment.text;
+  }).join("\n") : transcript;
+  const lines = [
+    "// " + MARKER,
+    "Write a note about this video in " + lang.name + ". Every heading, callout title and table header is in " + lang.name + " too.",
+    "",
+    "Title: " + (input.title || "(none)"),
+    "Author: " + (input.author || "(none)"),
+    "Requested content type: " + contentType,
+    "",
+    segments.length ? "Transcript (each line: time, segment id in parentheses, words):" : "Transcript:",
+    "---",
+    transcriptText2,
+    "---",
+    "",
+    'NOTE SHAPE (the "note" field, Markdown)',
+    '1. Start with "> [!summary] ' + lang.summary + '": 2 to 4 sentences saying what the video is about and what it concludes.',
+    '2. Then "## ' + lang.points + '": ' + (long ? "6 to 10" : "4 to 6") + " bullets, one line each, the points a viewer should remember. Start a bullet with its time, like [12:34], when the transcript has times.",
+    '3. Then the sections for the content type below, as ## headings with short bullets or a table. Put long explanations, quotes and worked examples inside folded callouts ("> [!note]- ' + lang.details + '"); keep blank lines inside a callout as ">".',
+    "4. Do not retell the transcript. The plugin adds the full timestamped transcript under the note, so the note keeps only what is worth rereading. Aim for " + (long ? "about 1,200 words (2,000 Chinese or Japanese characters) at most" : "about a quarter of the transcript length") + ".",
+    "5. Use a table when comparing three or more things. Use ==highlight== for at most five key terms. Put a space between Chinese or Japanese text and Latin words or numbers.",
+    "6. Write terms and names as plain text, never as [[wiki links]]: the reader decides which notes to link.",
+    "",
+    "CONTENT TYPES. If the requested type is not auto, use it. Otherwise pick one from the title and transcript; use general when unsure.",
+    "- course: learning goals, key concepts (term and meaning), walkthrough, questions to check understanding. A language lesson also gets a vocabulary table: word, reading, meaning, example sentence from the video.",
+    "- interview: who is talking and why, topics, views by speaker, key questions and answers, open questions. A question from the host is not a claim by the guest.",
+    "- tutorial: goal and prerequisites, setup, numbered steps (commands in code blocks), how to check it worked and fix problems. Do not add steps the video does not show.",
+    "- news: what happened, timeline, who is involved and their sources, what is confirmed versus claimed versus unknown, what comes next.",
+    "- meeting: context, decisions, action items (item, owner, due, status), discussion, open issues.",
+    "- review: what was tested and how, facts about the product, strengths, weaknesses and trade-offs, who it suits.",
+    "- general: overview, main points, evidence and limits, takeaways.",
+    "The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
+    'Write "' + lang.missing + '" where a section has nothing to go on.',
+    "",
+    "JSON FIELDS",
+    "- video_title: a clear title, at most 15 Chinese/Japanese characters or 8 English words, no special symbols.",
+    "- note_title: a readable title for the note in " + lang.name + ", at most 20 Chinese/Japanese characters or 10 English words, naming what the video teaches or argues rather than the channel or episode number. It may differ from video_title.",
+    "- tldr: one sentence in " + lang.name + " with the main takeaway, written fresh: do not copy or cut a sentence from the transcript or the summary, and do not end with an ellipsis.",
+    "- summary: one or two sentences for a list view.",
+    '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
+    "- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.",
+    '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return []. A quote is copied from the transcript in its own language, never translated; the claim is in the language of the note.'
+  ];
+  if (assessAttention) {
+    lines.push(
+      '- attention: {"action":"watch, skim or skip","score":0 to 1,"confidence":0 to 1,"rationale":"one sentence","information_density":0 to 1,"originality":0 to 1,"actionability":0 to 1,"promotional_ratio":0 to 1,"evidence_segment_ids":[],"limitations":[]}.'
+    );
+  }
+  if (makeLearning) {
+    lines.push(
+      '- learning: {"flashcards":[{"front":"...","back":"...","evidence_segment_ids":[]}],"questions":[],"feynman_prompts":[]}, 3 to 8 cards, ids only from the transcript.'
+    );
+  }
+  lines.push(
+    "",
+    "Times: never invent 0:00 or start=0 when there is no time; use null.",
+    "A statement inferred from the transcript but not said in it gets review_state inference or needs-review."
+  );
+  if (Number(input.retryCount) > 0 && input.parseError) {
+    lines.push(
+      "",
+      "Your previous reply could not be parsed: " + String(input.parseError).slice(0, 300),
+      "Reply again with valid JSON only: no code fence, no text before or after, newlines inside strings escaped."
+    );
+  }
+  return lines.join("\n");
+}
+
+// core/LiteTier.ts
+var SINGLE_PASS_CHARS = 8e4;
+var CHUNK_CHARS = 4e4;
+function clock(seconds) {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor(total % 3600 / 60);
+  const s = total % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+function stamp(segment) {
+  return segment.start === null ? "" : `[${clock(segment.start)}] `;
+}
+function transcriptText(segments) {
+  return segments.map((segment) => `${stamp(segment)}${segment.text}`).join("\n");
+}
+function promptLength(segments) {
+  return segments.reduce((sum, segment) => sum + segment.text.length + 20, 0);
+}
+function chunkSegments(segments, size = CHUNK_CHARS) {
+  const parts = [];
+  let current = [];
+  let length = 0;
+  for (const segment of segments) {
+    const add = segment.text.length + 20;
+    if (current.length && length + add > size) {
+      parts.push(current);
+      current = [];
+      length = 0;
+    }
+    current.push(segment);
+    length += add;
+  }
+  if (current.length) parts.push(current);
+  return parts;
+}
+function noteMessages(request) {
+  return [
+    { role: "system", content: NOTE_SYSTEM_MESSAGE },
+    {
+      role: "user",
+      content: buildNotePrompt({
+        segments: request.segments,
+        transcript: transcriptText(request.segments),
+        title: request.title,
+        author: request.author,
+        language: request.language,
+        metadata: request.metadata,
+        retryCount: request.retryCount,
+        parseError: request.parseError
+      })
+    }
+  ];
+}
+function condenseMessages(part, index, total) {
+  const lines = part.map((s) => `${stamp(s)}(${s.id}) ${s.text}`).join("\n");
+  return [
+    {
+      role: "system",
+      content: "You shorten part of a long video transcript so a later step can write one note from all parts. Keep facts, names, numbers, steps and conclusions; drop filler and repetition."
+    },
+    {
+      role: "user",
+      content: [
+        `Part ${index + 1} of ${total}. Each line: time, segment id in parentheses, words.`,
+        "---",
+        lines,
+        "---",
+        "Reply with plain lines, about a fifth of the length above, in the language of the transcript.",
+        "Each line: the time and the id of the passage it comes from, exactly as given, then the point. Example: [12:34] (seg-0042) The speaker compares A and B and prefers B because it is cheaper."
+      ].join("\n")
+    }
+  ];
+}
+function parseCondensed(text2, known) {
+  const out = [];
+  for (const line of text2.split("\n")) {
+    const match = line.match(/\(([A-Za-z0-9_-]{4,})\)\s*(.+)$/);
+    if (!match) continue;
+    const source = known.get(match[1]);
+    const point = match[2].trim();
+    if (source && point) out.push({ ...source, text: point });
+  }
+  return out;
+}
+var SseReader = class {
+  constructor() {
+    this.buffer = "";
+    this.text = "";
+    /** Characters of a reasoning model's thinking (`reasoning_content`), which comes before the reply. */
+    this.reasoning = 0;
+    this.done = false;
+  }
+  push(chunk) {
+    this.buffer += chunk;
+    let added = "";
+    let newline = this.buffer.indexOf("\n");
+    while (newline >= 0) {
+      const line = this.buffer.slice(0, newline).trim();
+      this.buffer = this.buffer.slice(newline + 1);
+      newline = this.buffer.indexOf("\n");
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") {
+        this.done = true;
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(data);
+        const thinking = parsed.choices?.[0]?.delta?.reasoning_content;
+        if (thinking) {
+          this.reasoning += thinking.length;
+          added += " ";
+        }
+        const piece = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.message?.content ?? "";
+        if (piece) {
+          added += piece;
+          this.text += piece;
+        }
+      } catch {
+      }
+    }
+    return added;
+  }
+};
+var ModelCallError = class extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+    this.name = "ModelCallError";
+  }
+};
+function modelErrorText(status, body = "") {
+  let detail = "";
+  try {
+    const parsed = JSON.parse(body);
+    detail = (typeof parsed.error === "string" ? parsed.error : parsed.error?.message) || parsed.message || "";
+  } catch {
+    detail = body.slice(0, 200);
+  }
+  detail = detail.replace(/\b(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, "\u2022\u2022\u2022\u2022");
+  if (status === 401 || status === 403) return `\u5BC6\u94A5\u65E0\u6548\u6216\u6CA1\u6709\u6743\u9650\uFF08HTTP ${status}\uFF09`;
+  if (status === 402) return `\u6A21\u578B\u670D\u52A1\u4F59\u989D\u4E0D\u8DB3\uFF08HTTP ${status}\uFF09`;
+  if (status === 429) return `\u6A21\u578B\u670D\u52A1\u9650\u6D41\uFF0C\u7A0D\u540E\u518D\u8BD5\uFF08HTTP ${status}\uFF09`;
+  return `\u6A21\u578B\u670D\u52A1\u8FD4\u56DE HTTP ${status}${detail ? `\uFF1A${detail}` : ""}`;
+}
+async function streamChat(transport, request, onText, signal) {
+  const attempt = async (jsonMode) => {
+    const reader = new SseReader();
+    const body = {
+      model: request.model,
+      messages: request.messages,
+      stream: true,
+      temperature: 0.3
+    };
+    if (jsonMode) body.response_format = { type: "json_object" };
+    const response2 = await transport(
+      {
+        url: `${request.baseUrl.replace(/\/+$/, "")}/chat/completions`,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${request.apiKey}`
+        },
+        body: JSON.stringify(body)
+      },
+      (chunk) => {
+        if (reader.push(chunk)) onText(reader.text, reader.reasoning);
+      },
+      signal
+    );
+    reader.push("\n");
+    return { response: response2, text: reader.text };
+  };
+  let { response, text: text2 } = await attempt(request.jsonMode);
+  if (request.jsonMode && response.status === 400) {
+    ({ response, text: text2 } = await attempt(false));
+  }
+  if (response.status >= 400) {
+    throw new ModelCallError(response.status, modelErrorText(response.status, response.errorText));
+  }
+  if (!text2.trim()) throw new ModelCallError(response.status, "\u6A21\u578B\u6CA1\u6709\u56DE\u5185\u5BB9");
+  return text2;
+}
+function partialJsonString(buffer, key) {
+  const match = new RegExp(`"${key}"\\s*:\\s*"`).exec(buffer);
+  if (!match) return "";
+  let out = "";
+  for (let i = match.index + match[0].length; i < buffer.length; i += 1) {
+    const char = buffer[i];
+    if (char === '"') return out;
+    if (char !== "\\") {
+      out += char;
+      continue;
+    }
+    const next = buffer[i + 1];
+    if (next === void 0) return out;
+    i += 1;
+    if (next === "n") out += "\n";
+    else if (next === "t") out += "	";
+    else if (next === "r") continue;
+    else if (next === "u") {
+      const hex = buffer.slice(i + 1, i + 5);
+      if (hex.length < 4) return out;
+      out += String.fromCharCode(parseInt(hex, 16));
+      i += 4;
+    } else out += next;
+  }
+  return out;
+}
+function parseNoteJson(text2) {
+  const trimmed = text2.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const first = trimmed.indexOf("{");
+  const last = trimmed.lastIndexOf("}");
+  if (first < 0 || last <= first) throw new Error("\u56DE\u590D\u91CC\u6CA1\u6709 JSON");
+  const value = JSON.parse(trimmed.slice(first, last + 1));
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("\u56DE\u590D\u4E0D\u662F JSON \u5BF9\u8C61");
+  }
+  const note = value.note;
+  if (typeof note !== "string" || !note.trim()) throw new Error("\u56DE\u590D\u91CC\u6CA1\u6709 note");
+  return value;
+}
+async function generateNote(options) {
+  const chat = (messages, jsonMode, onText) => streamChat(
+    options.transport,
+    {
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+      model: options.model,
+      messages,
+      jsonMode
+    },
+    onText,
+    options.signal
+  );
+  let segments = options.segments;
+  if (promptLength(segments) > SINGLE_PASS_CHARS) {
+    const known = new Map(segments.map((segment) => [segment.id, segment]));
+    const parts = chunkSegments(segments);
+    const condensed = [];
+    for (let i = 0; i < parts.length; i += 1) {
+      options.onProgress({ stage: `\u957F\u89C6\u9891\uFF0C\u5148\u538B\u7F29\u7B2C ${i + 1}/${parts.length} \u6BB5` });
+      const text2 = await chat(condenseMessages(parts[i], i, parts.length), false, () => void 0);
+      const lines = parseCondensed(text2, known);
+      condensed.push(...lines.length ? lines : parts[i].slice(0, 20));
+    }
+    segments = condensed;
+  }
+  const request = {
+    segments,
+    title: options.title,
+    author: options.author,
+    language: options.language,
+    metadata: options.metadata
+  };
+  options.onProgress({ stage: "\u6B63\u5728\u8BFB\u6587\u7A3F", live: "" });
+  const show = (full, reasoning) => {
+    const tldr = partialJsonString(full, "tldr");
+    const note = partialJsonString(full, "note");
+    const live = [tldr, note].filter(Boolean).join("\n\n");
+    if (!live && reasoning > 0) {
+      options.onProgress({ stage: "\u6B63\u5728\u8BFB\u6587\u7A3F" });
+      return;
+    }
+    options.onProgress({ stage: "\u6B63\u5728\u5199\u7B14\u8BB0", live });
+  };
+  const reply = await chat(noteMessages(request), true, show);
+  try {
+    return parseNoteJson(reply);
+  } catch (error) {
+    options.onProgress({ stage: "\u56DE\u590D\u683C\u5F0F\u4E0D\u5BF9\uFF0C\u91CD\u5199\u4E00\u6B21", live: "" });
+    const again = await chat(
+      noteMessages({
+        ...request,
+        retryCount: 1,
+        parseError: error instanceof Error ? error.message : String(error)
+      }),
+      true,
+      show
+    );
+    return parseNoteJson(again);
+  }
+}
+
+// core/LiteRunner.ts
+var LITE_PROMPT_VERSION = "video-note-prompt-v5";
+function liteDecision(enabled, hasModel, input, mode) {
+  if (!enabled) return { lite: false, why: "off" };
+  if (mode === "info-only") return { lite: false, why: "mode" };
+  if (input.localFile || input.localFiles?.length) return { lite: false, why: "local" };
+  if (input.skipSourceFetch || input.persistedSegments?.length) {
+    return { lite: false, why: "reprocess" };
+  }
+  if (!input.transcript?.trim()) return { lite: false, why: "no-transcript" };
+  if (mode === "summary" && !hasModel) return { lite: false, why: "no-key" };
+  return { lite: true };
+}
+function str(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+async function runLiteJob(deps, input, mode, language, report, signal, title) {
+  const sourceUrl = input.url || input.sourceUrl || "";
+  const base = { transcript_source: "provided_transcript" };
+  if (sourceUrl) base.video_platform = detectPlatform2(sourceUrl);
+  report({ stageLabel: tr("\u8BFB\u53D6\u6587\u7A3F", "Reading the transcript") });
+  const segments = parseTranscriptSegments(input.transcript || "", sourceUrl).map(
+    (segment) => ({
+      id: segment.id,
+      start: segment.start,
+      end: segment.end ?? null,
+      text: segment.text
+    })
+  );
+  const timing = segments.some((segment) => segment.start !== null) ? "exact" : "none";
+  if (segments.length === 0) throw new Error(tr("\u6587\u7A3F\u662F\u7A7A\u7684", "The transcript is empty"));
+  base.video_transcript = transcriptText(segments);
+  const payload = {
+    video_segments: segments.map((segment) => ({
+      ...segment,
+      source: "speech",
+      timing_quality: segment.start === null ? "none" : timing
+    })),
+    timing_quality: timing
+  };
+  if (mode === "summary") {
+    const json = await generateNote({
+      transport: deps.transport,
+      baseUrl: deps.baseUrl,
+      apiKey: deps.apiKey,
+      model: deps.model,
+      segments,
+      title,
+      language,
+      metadata: {
+        content_type: input.contentType || "auto",
+        attention_assessment: input.attentionAssessment !== false,
+        generate_learning: input.generateLearning === true
+      },
+      onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
+      signal
+    });
+    Object.assign(payload, json, {
+      video_segments: payload.video_segments,
+      timing_quality: timing
+    });
+    base.note = str(json.note);
+    base.summary = str(json.summary);
+    base.note_title = str(json.note_title);
+    base.tldr = str(json.tldr);
+    base.video_title = base.video_title || str(json.video_title);
+  }
+  return normalizeRichProcessingResult(base, payload, {
+    sourceUrl,
+    model: deps.model,
+    processingDepth: input.processingDepth,
+    promptVersion: LITE_PROMPT_VERSION,
+    requestedContentType: input.contentType,
+    autoRoute: input.autoRoute
+  });
+}
+var nodeStreamTransport = (request, onData, signal) => new Promise((resolve, reject) => {
+  const url = new URL(request.url);
+  const http = desktopRequire(url.protocol === "http:" ? "http" : "https");
+  if (!http?.request) {
+    reject(new Error(tr("\u8F7B\u91CF\u6863\u9700\u8981\u684C\u9762\u7248 Obsidian", "The light tier needs desktop Obsidian")));
+    return;
+  }
+  const length = new TextEncoder().encode(request.body).length;
+  const req = http.request(
+    url,
+    { method: "POST", headers: { ...request.headers, "Content-Length": length } },
+    (response) => {
+      const status = response.statusCode || 0;
+      let errorText = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        if (status >= 400) errorText += chunk;
+        else onData(chunk);
+      });
+      response.on("end", () => resolve({ status, errorText }));
+      response.on("error", reject);
+    }
+  );
+  req.on("error", reject);
+  req.setTimeout(
+    12e4,
+    () => req.destroy(
+      new Error(tr("\u6A21\u578B\u670D\u52A1\u4E24\u5206\u949F\u6CA1\u6709\u56DE\u5E94", "The model service went quiet for two minutes"))
+    )
+  );
+  if (signal) {
+    if (signal.aborted) {
+      req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88"));
+      return;
+    }
+    signal.addEventListener("abort", () => req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88")), { once: true });
+  }
+  req.write(request.body);
+  req.end();
+});
+
+// core/ModelSettings.ts
+var LLM_PROVIDERS = [
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    defaultModel: "deepseek-flash",
+    models: ["deepseek-flash"],
+    keyUrl: "https://platform.deepseek.com/api_keys"
+  },
+  {
+    id: "siliconflow",
+    label: "SiliconFlow",
+    labelZh: "\u7845\u57FA\u6D41\u52A8",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    defaultModel: "deepseek-ai/DeepSeek-V4.1-Flash",
+    models: ["deepseek-ai/DeepSeek-V4.1-Flash"],
+    keyUrl: "https://cloud.siliconflow.cn/account/ak"
+  },
+  {
+    id: "qwen",
+    label: "Qwen (DashScope)",
+    labelZh: "\u901A\u4E49\u5343\u95EE",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    defaultModel: "qwen-plus",
+    models: ["qwen-plus"],
+    keyUrl: "https://bailian.console.aliyun.com/?tab=model#/api-key"
+  },
+  {
+    id: "kimi",
+    label: "Kimi",
+    baseUrl: "https://api.moonshot.cn/v1",
+    defaultModel: "",
+    models: [],
+    keyUrl: "https://platform.moonshot.cn/console/api-keys"
+  },
+  {
+    id: "gemini",
+    label: "Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultModel: "gemini-flash-latest",
+    models: ["gemini-flash-latest"],
+    keyUrl: "https://aistudio.google.com/apikey"
+  },
+  {
+    id: "custom",
+    label: "Other",
+    labelZh: "\u5176\u4ED6",
+    baseUrl: "",
+    defaultModel: "",
+    models: [],
+    keyUrl: ""
+  }
+];
+var SPEECH_DEFAULTS = {
+  baseUrl: "https://api.siliconflow.cn/v1",
+  model: "FunAudioLLM/SenseVoiceSmall",
+  keyUrl: "https://cloud.siliconflow.cn/account/ak"
+};
+function llmProvider(id) {
+  return LLM_PROVIDERS.find((provider) => provider.id === id) ?? LLM_PROVIDERS[0];
+}
+function resolveLlm(settings) {
+  const provider = llmProvider(settings.llmProvider);
+  const baseUrl = (provider.id === "custom" ? settings.llmBaseUrl : provider.baseUrl).trim().replace(/\/+$/, "");
+  return { provider, baseUrl, model: (settings.llmModel || "").trim() || provider.defaultModel };
+}
+function resolveSpeech(settings) {
+  return {
+    baseUrl: ((settings.speechBaseUrl || "").trim() || SPEECH_DEFAULTS.baseUrl).replace(/\/+$/, ""),
+    model: (settings.speechModel || "").trim() || SPEECH_DEFAULTS.model
+  };
+}
+function hasSecretStorage(app) {
+  return typeof app.secretStorage?.getSecret === "function";
+}
+function readSecret(app, name) {
+  const id = (name || "").trim();
+  if (!id || !hasSecretStorage(app)) return null;
+  try {
+    return app.secretStorage.getSecret(id)?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+function backendModelConfig(app, settings) {
+  const llm = resolveLlm(settings);
+  const chatKey = readSecret(app, settings.llmKeySecret);
+  const speechKey = readSecret(app, settings.speechKeySecret);
+  const config = { chat: {}, speech: {} };
+  if (chatKey) {
+    config.chat.key = chatKey;
+    if (llm.baseUrl) config.chat.base = llm.baseUrl;
+    if (llm.model) config.chat.model = llm.model;
+  }
+  if (speechKey) {
+    const speech = resolveSpeech(settings);
+    config.speech = { key: speechKey, base: speech.baseUrl, model: speech.model };
+  }
+  return config;
+}
+async function modelConfigFingerprint(config) {
+  const bytes = new TextEncoder().encode(JSON.stringify(config));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest).slice(0, 12)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 // core/ArtifactStore.ts
 var VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION = 3;
@@ -18480,6 +19183,8 @@ var JobCancelledError = class extends Error {
 var JobService = class {
   constructor(plugin, store) {
     this.courseProgressLocks = /* @__PURE__ */ new Map();
+    /** Light-tier jobs talk to the model directly; cancelling aborts that request. */
+    this.liteControllers = /* @__PURE__ */ new Map();
     this.plugin = plugin;
     this.store = store;
     this.noteProcessor = plugin.createNoteProcessor();
@@ -18499,7 +19204,10 @@ var JobService = class {
       }
     }
     if (runnableDrafts.length === 0) return jsonCreated;
-    await this.plugin.backend.readyOrHold();
+    const liteFlags = runnableDrafts.map(
+      (draft) => this.liteFor(withAnalysisOptions(draft.input, options), options.mode).lite
+    );
+    if (liteFlags.some((lite) => !lite)) await this.waitForBackendOrExplain();
     let queued = 0;
     for (const draft of runnableDrafts) {
       const file = await this.noteFactory.createStubNote(draft, {
@@ -18518,7 +19226,8 @@ var JobService = class {
         useCache: options.useCache,
         notePath: file.path,
         platform: draft.platform,
-        awaitingWrite: options.previewBeforeWrite
+        awaitingWrite: options.previewBeforeWrite,
+        lite: liteFlags[runnableDrafts.indexOf(draft)]
       });
       queued += 1;
     }
@@ -18541,10 +19250,12 @@ var JobService = class {
       );
       return null;
     }
-    await this.plugin.backend.readyOrHold();
+    const lite = this.liteFor(withAnalysisOptions(input, options), options.mode).lite;
+    if (!lite) await this.waitForBackendOrExplain();
     await this.updateCourseProgressForFile(file, "queued", 0, input.artifactId);
     try {
       return this.store.enqueue({
+        lite,
         title: file.basename,
         input: withAnalysisOptions(input, options),
         mode: options.mode,
@@ -18561,6 +19272,7 @@ var JobService = class {
   }
   async cancel(job) {
     this.store.cancel(job.id);
+    this.liteControllers.get(job.id)?.abort();
     const noteName = job.notePath ? basenameOf(job.notePath) : job.title;
     await this.plugin.api.cancelByNoteName(noteName);
     const file = this.fileFor(job);
@@ -18797,7 +19509,7 @@ ${buildInsertionContent(result)}`
     }
     try {
       this.assertNotCancelled(job);
-      const result = await withBackendWatch(
+      const result = job.lite ? await this.runLite(job, report) : await withBackendWatch(
         this.plugin.api.processVideo(
           noteName,
           job.input,
@@ -18852,7 +19564,7 @@ ${buildInsertionContent(result)}`
       let failure = error;
       if (error instanceof BackendLostError) {
         this.plugin.backend.lostWhileRunning();
-      } else if (mayMeanBackendGone(messageOf3(error)) && await this.plugin.backend.goneAfterFailure()) {
+      } else if (!job.lite && mayMeanBackendGone(messageOf3(error)) && await this.plugin.backend.goneAfterFailure()) {
         failure = new BackendLostError(backendLostText());
       }
       const message = messageOf3(failure);
@@ -18867,6 +19579,70 @@ ${buildInsertionContent(result)}`
         durationMs: job.startedAt ? Date.now() - job.startedAt : void 0
       });
       throw failure;
+    }
+  }
+  /** Whether the light tier takes this input: on in settings, a transcript, a summary key. */
+  liteFor(input, mode) {
+    const enabled = this.plugin.settings.liteTierEnabled !== false;
+    return liteDecision(enabled, this.plugin.liteReady(), input, mode);
+  }
+  /**
+   * Before queueing a job that needs the backend. With no backend at all, says what the
+   * full tier is for and holds the job; otherwise the usual check, which holds the queue
+   * and offers Start backend when the backend is off.
+   */
+  async waitForBackendOrExplain() {
+    if (this.plugin.hasBackend() || this.plugin.settings.liteTierEnabled === false) {
+      await this.plugin.backend.readyOrHold();
+      return;
+    }
+    this.plugin.jobs.setHeld(true);
+    new import_obsidian19.Notice(
+      tr(
+        "\u8FD9\u6761\u8981\u5B8C\u6574\u6863\uFF1A\u53EA\u6709\u94FE\u63A5\u6216\u672C\u5730\u6587\u4EF6\u65F6\uFF0C\u7531\u540E\u7AEF\u4E0B\u8F7D\u5E76\u8F6C\u5199\u3002\u88C5\u597D\u540E\u7AEF\u540E\u5B83\u4F1A\u81EA\u52A8\u5F00\u59CB\u3002\n\u4E0D\u88C5\u540E\u7AEF\uFF1A\u5728 YouTube \u9875\u9762\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u53D1\u9001\uFF0C\u6216\u8D34\u6587\u7A3F\u3002",
+        "This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube page with the browser extension, or paste a transcript."
+      ),
+      12e3
+    );
+  }
+  /** Light tier: the job's transcript, then the person's model, streamed. */
+  async runLite(job, report) {
+    const { settings } = this.plugin;
+    const llm = resolveLlm(settings);
+    const controller = new AbortController();
+    this.liteControllers.set(job.id, controller);
+    let lastLive = 0;
+    let lastStage = "";
+    const throttled = (progress) => {
+      if (progress.liveText === void 0 && !progress.message) {
+        if (progress.stageLabel === lastStage) return;
+        lastStage = progress.stageLabel || "";
+      }
+      if (progress.liveText !== void 0 && !progress.message) {
+        lastStage = progress.stageLabel || "";
+        const now = Date.now();
+        if (now - lastLive < 150 && progress.liveText) return;
+        lastLive = now;
+      }
+      report(progress);
+    };
+    try {
+      return await runLiteJob(
+        {
+          transport: nodeStreamTransport,
+          baseUrl: llm.baseUrl,
+          apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || "",
+          model: llm.model
+        },
+        job.input,
+        job.mode,
+        job.language,
+        throttled,
+        controller.signal,
+        job.title
+      );
+    } finally {
+      this.liteControllers.delete(job.id);
     }
   }
   assertNotCancelled(job) {
@@ -19639,113 +20415,6 @@ async function applyModelConfig(run, containerId, config) {
   return { ok: true };
 }
 
-// core/ModelSettings.ts
-var LLM_PROVIDERS = [
-  {
-    id: "deepseek",
-    label: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    defaultModel: "deepseek-flash",
-    models: ["deepseek-flash"],
-    keyUrl: "https://platform.deepseek.com/api_keys"
-  },
-  {
-    id: "siliconflow",
-    label: "SiliconFlow",
-    labelZh: "\u7845\u57FA\u6D41\u52A8",
-    baseUrl: "https://api.siliconflow.cn/v1",
-    defaultModel: "deepseek-ai/DeepSeek-V4.1-Flash",
-    models: ["deepseek-ai/DeepSeek-V4.1-Flash"],
-    keyUrl: "https://cloud.siliconflow.cn/account/ak"
-  },
-  {
-    id: "qwen",
-    label: "Qwen (DashScope)",
-    labelZh: "\u901A\u4E49\u5343\u95EE",
-    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    defaultModel: "qwen-plus",
-    models: ["qwen-plus"],
-    keyUrl: "https://bailian.console.aliyun.com/?tab=model#/api-key"
-  },
-  {
-    id: "kimi",
-    label: "Kimi",
-    baseUrl: "https://api.moonshot.cn/v1",
-    defaultModel: "",
-    models: [],
-    keyUrl: "https://platform.moonshot.cn/console/api-keys"
-  },
-  {
-    id: "gemini",
-    label: "Gemini",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    defaultModel: "gemini-flash-latest",
-    models: ["gemini-flash-latest"],
-    keyUrl: "https://aistudio.google.com/apikey"
-  },
-  {
-    id: "custom",
-    label: "Other",
-    labelZh: "\u5176\u4ED6",
-    baseUrl: "",
-    defaultModel: "",
-    models: [],
-    keyUrl: ""
-  }
-];
-var SPEECH_DEFAULTS = {
-  baseUrl: "https://api.siliconflow.cn/v1",
-  model: "FunAudioLLM/SenseVoiceSmall",
-  keyUrl: "https://cloud.siliconflow.cn/account/ak"
-};
-function llmProvider(id) {
-  return LLM_PROVIDERS.find((provider) => provider.id === id) ?? LLM_PROVIDERS[0];
-}
-function resolveLlm(settings) {
-  const provider = llmProvider(settings.llmProvider);
-  const baseUrl = (provider.id === "custom" ? settings.llmBaseUrl : provider.baseUrl).trim().replace(/\/+$/, "");
-  return { provider, baseUrl, model: (settings.llmModel || "").trim() || provider.defaultModel };
-}
-function resolveSpeech(settings) {
-  return {
-    baseUrl: ((settings.speechBaseUrl || "").trim() || SPEECH_DEFAULTS.baseUrl).replace(/\/+$/, ""),
-    model: (settings.speechModel || "").trim() || SPEECH_DEFAULTS.model
-  };
-}
-function hasSecretStorage(app) {
-  return typeof app.secretStorage?.getSecret === "function";
-}
-function readSecret(app, name) {
-  const id = (name || "").trim();
-  if (!id || !hasSecretStorage(app)) return null;
-  try {
-    return app.secretStorage.getSecret(id)?.trim() || null;
-  } catch {
-    return null;
-  }
-}
-function backendModelConfig(app, settings) {
-  const llm = resolveLlm(settings);
-  const chatKey = readSecret(app, settings.llmKeySecret);
-  const speechKey = readSecret(app, settings.speechKeySecret);
-  const config = { chat: {}, speech: {} };
-  if (chatKey) {
-    config.chat.key = chatKey;
-    if (llm.baseUrl) config.chat.base = llm.baseUrl;
-    if (llm.model) config.chat.model = llm.model;
-  }
-  if (speechKey) {
-    const speech = resolveSpeech(settings);
-    config.speech = { key: speechKey, base: speech.baseUrl, model: speech.model };
-  }
-  return config;
-}
-async function modelConfigFingerprint(config) {
-  const bytes = new TextEncoder().encode(JSON.stringify(config));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest).slice(0, 12)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 // core/BackendInstaller.ts
 var import_obsidian22 = require("obsidian");
 var ONLINE_WAIT_MS = 30 * 6e4;
@@ -20169,6 +20838,7 @@ function sleep(ms) {
 var import_obsidian23 = require("obsidian");
 var import_obsidian24 = require("obsidian");
 var ORBSTACK_URL = "https://orbstack.dev/download";
+var refreshBackendGroup = null;
 var DOCKER_DESKTOP_URL = "https://www.docker.com/products/docker-desktop/";
 function renderBackendSettings(parent, host) {
   const { plugin } = host;
@@ -20192,7 +20862,8 @@ function renderBackendSettings(parent, host) {
       snapshot.status,
       snapshot.step,
       snapshot.diagnosis?.fault,
-      plugin.hasBackend()
+      plugin.hasBackend(),
+      !!readSecret(host.app, plugin.settings.llmKeySecret)
     ]);
   };
   const draw = () => {
@@ -20206,13 +20877,73 @@ function renderBackendSettings(parent, host) {
   };
   const offInstaller = installer.subscribe(maybeDraw);
   const offMonitor = backend.monitor.subscribe(maybeDraw);
+  refreshBackendGroup = maybeDraw;
   draw();
   if (installer.supported()) void installer.refreshFacts();
   void backend.monitor.check(3e4);
   return () => {
     disposed = true;
+    if (refreshBackendGroup === maybeDraw) refreshBackendGroup = null;
     offInstaller();
     offMonitor();
+  };
+}
+function isManaged(plugin) {
+  const facts = plugin.installer.facts();
+  return !!facts?.bundled || !!facts && !facts.container && !!plugin.settings.backendAppliedConfig;
+}
+function isExternal(plugin) {
+  const facts = plugin.installer.facts();
+  return !!facts && !isManaged(plugin) && plugin.hasBackend();
+}
+function renderModelSettings(parent, host) {
+  const { plugin } = host;
+  const root = parent.createDiv({ cls: "vs-settings-section vs-model-settings" });
+  let disposed = false;
+  let lastKey = "";
+  const stateKey = () => JSON.stringify([isManaged(plugin), isExternal(plugin)]);
+  const draw = () => {
+    if (disposed) return;
+    lastKey = stateKey();
+    root.empty();
+    const managed = isManaged(plugin);
+    if (isExternal(plugin)) {
+      root.createEl("p", {
+        cls: "setting-item-description vs-backend-external",
+        text: tr(
+          "\u4F60\u7684\u540E\u7AEF\u7528\u5B83\u81EA\u5DF1\u7684\u6A21\u578B\u548C\u5BC6\u94A5\uFF08n8n \u7684\u51ED\u636E\u6216\u5B83\u7684 .env\uFF09\uFF1B\u8FD9\u91CC\u7684\u53EA\u7ED9\u8F7B\u91CF\u6863\u7528\u3002",
+          "Your backend uses its own model and keys (its n8n credentials or its .env); the ones here are for the light tier only."
+        )
+      });
+    }
+    drawModelRows(root, host, {
+      applyToBackend: managed,
+      disabled: false,
+      onChange: () => {
+        draw();
+        refreshBackendGroup?.();
+      }
+    });
+    new import_obsidian23.Setting(root).setName(tr("\u8F7B\u91CF\u6863", "Light tier")).setDesc(
+      tr(
+        "YouTube \u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u7C98\u8D34\u7684\u6587\u7A3F\u76F4\u63A5\u4EA4\u7ED9\u603B\u7ED3\u6A21\u578B\uFF0C\u4E0D\u7ECF\u8FC7\u540E\u7AEF\uFF0C\u8FB9\u5199\u8FB9\u663E\u793A\u3002",
+        "YouTube videos with captions and pasted transcripts go straight to the summary model, without the backend, and appear as they are written."
+      )
+    ).addToggle(
+      (toggle) => toggle.setValue(plugin.settings.liteTierEnabled !== false).onChange(async (value) => {
+        plugin.settings.liteTierEnabled = value;
+        await plugin.saveSettings();
+      })
+    );
+  };
+  const maybeDraw = () => {
+    if (!disposed && stateKey() !== lastKey) draw();
+  };
+  const offInstaller = plugin.installer.subscribe(maybeDraw);
+  draw();
+  return () => {
+    disposed = true;
+    offInstaller();
   };
 }
 function drawBackend(root, host, redraw) {
@@ -20228,7 +20959,7 @@ function drawBackend(root, host, redraw) {
     drawFirstRun(root, host, redraw);
     return;
   }
-  drawInstalled(root, host, redraw);
+  drawInstalled(root, host);
 }
 function drawProgress(root, host) {
   const { installer } = host.plugin;
@@ -20327,13 +21058,12 @@ function drawFirstRun(root, host, redraw) {
     );
     return;
   }
-  drawModelRows(root, host, { applyToBackend: false, disabled: false, onChange: redraw });
   const ready = !!readSecret(host.app, plugin.settings.llmKeySecret);
   new import_obsidian23.Setting(root).setName(tr("\u5B89\u88C5\u5E76\u542F\u52A8", "Install and start")).setDesc(
     ready ? tr(
       `\u5199\u597D\u540E\u7AEF\u6587\u4EF6\u5939\uFF08${installer.backendDir()}\uFF09\uFF0C\u518D\u6253\u5F00\u7EC8\u7AEF\uFF0C\u7531\u4F60\u6309\u56DE\u8F66\u4E0B\u8F7D\u7EA6 550 MB \u7684\u540E\u7AEF\u955C\u50CF\u3002\u4E4B\u540E\u7684\u68C0\u67E5\u548C\u8BD5\u8DD1\u81EA\u52A8\u5B8C\u6210\u3002`,
       `Writes the backend folder (${installer.backendDir()}), then opens Terminal, where you press Return to download the backend image (about 550 MB). The check and the trial run follow by themselves.`
-    ) : tr("\u5148\u9009\u4E00\u628A\u603B\u7ED3\u5BC6\u94A5\u3002", "Choose a summary key first.")
+    ) : tr("\u5148\u5728\u4E0A\u9762\u9009\u4E00\u628A\u603B\u7ED3\u5BC6\u94A5\u3002", "Choose a summary key above first.")
   ).addButton(
     (button) => button.setButtonText(tr("\u5B89\u88C5\u5E76\u542F\u52A8", "Install and start")).setCta().setDisabled(!ready).onClick(() => void installer.install())
   );
@@ -20346,14 +21076,13 @@ function drawFailure(root, host) {
     host.renderSteps(box.createDiv({ cls: "setup-check-list" }), progress.steps);
   }
 }
-function drawInstalled(root, host, redraw) {
+function drawInstalled(root, host) {
   const { plugin } = host;
   const { installer, backend } = plugin;
   const facts = installer.facts();
   const snapshot = backend.monitor.snapshot();
   const progress = installer.progress();
-  const managed = !!facts?.bundled || !!facts && !facts.container && !!plugin.settings.backendAppliedConfig;
-  const external = !!facts && !managed && plugin.hasBackend();
+  const managed = isManaged(plugin);
   if (progress.phase === "failed") drawFailure(root, host);
   if (progress.phase === "done") {
     root.createDiv({ cls: "vs-install is-done" }).createDiv({
@@ -20361,16 +21090,6 @@ function drawInstalled(root, host, redraw) {
       text: progress.message
     });
   }
-  if (external) {
-    root.createEl("p", {
-      cls: "setting-item-description vs-backend-external",
-      text: tr(
-        "\u8FD9\u4E2A\u540E\u7AEF\u7528\u5B83\u81EA\u5DF1\u7684\u51ED\u636E\uFF0C\u4E0B\u9762\u7684\u6A21\u578B\u548C\u5BC6\u94A5\u6539\u4E86\u4E0D\u751F\u6548\u3002\u8981\u6362\uFF0C\u5230\u5B83\u90A3\u8FB9\uFF08n8n \u7684\u51ED\u636E\uFF0C\u6216\u5B83\u7684 .env\uFF09\u53BB\u6539\u3002",
-        "This backend uses its own credentials; changing the model and keys below has no effect. Change them on its side (its n8n credentials, or its .env)."
-      )
-    });
-  }
-  drawModelRows(root, host, { applyToBackend: managed, disabled: external, onChange: redraw });
   host.renderBilibili(root);
   if (managed && facts?.container) {
     new import_obsidian23.Setting(root).setName(tr("\u5F00\u673A\u540E\u81EA\u52A8\u542F\u52A8", "Start with the computer")).setDesc(
@@ -23779,6 +24498,8 @@ var SETTINGS_SEARCH_TERMS = [
   "\u2462 Trial run",
   "\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09",
   "\u2463 Bilibili login (optional)",
+  "\u6A21\u578B",
+  "\u8F7B\u91CF\u6863",
   "\u540E\u7AEF",
   "\u603B\u7ED3\u6A21\u578B",
   "Summary model",
@@ -25203,9 +25924,17 @@ Suggestion: ${result.hint}`) : "";
     const word = item.createSpan();
     const paint = () => {
       const snapshot = this.backend.monitor.snapshot();
-      dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
-      const label = tr(`\u89C6\u9891\u540E\u7AEF${statusWord(snapshot)}`, `Video backend ${statusWord(snapshot)}`);
-      word.setText(tr(`\u89C6\u9891 ${statusWord(snapshot)}`, `Video ${statusWord(snapshot)}`));
+      dot.className = `vs-backend-dot ${statusClass(snapshot, this.liteReady())}`;
+      const label = tr(
+        `\u89C6\u9891\u540E\u7AEF${statusWord(snapshot, this.liteReady())}`,
+        `Video backend ${statusWord(snapshot, this.liteReady())}`
+      );
+      word.setText(
+        tr(
+          `\u89C6\u9891 ${statusWord(snapshot, this.liteReady())}`,
+          `Video ${statusWord(snapshot, this.liteReady())}`
+        )
+      );
       item.setAttr("aria-label", label);
     };
     paint();
@@ -25248,6 +25977,12 @@ Suggestion: ${result.hint}`) : "";
    * true once this vault points at some backend: a connection code is in place, or the address
    * was changed from the default (a self-hosted backend without a token).
    */
+  /** The light tier can make notes now: it is on and a summary model and key are set. */
+  liteReady() {
+    if (this.settings.liteTierEnabled === false) return false;
+    const llm = resolveLlm(this.settings);
+    return !!llm.baseUrl && !!llm.model && !!readSecret(this.app, this.settings.llmKeySecret);
+  }
   hasBackend() {
     const profile = this.getActiveWebhookProfile();
     const url = profile?.url?.trim() || "";
@@ -25850,6 +26585,15 @@ Suggestion: ${result.hint}`) : "";
       if (!(file instanceof import_obsidian27.TFile)) {
         throw new Error(`\u6355\u83B7\u4ED3\u50A8\u8FD4\u56DE\u7684\u7B14\u8BB0\u4E0D\u5B58\u5728\uFF1A${result.entry.path}`);
       }
+      const transcript = (params.transcript || "").trim();
+      if (transcript && rawUrl) {
+        await this.app.fileManager.processFrontMatter(
+          file,
+          (frontmatter) => {
+            frontmatter.provided_transcript = transcript;
+          }
+        );
+      }
       await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
         new import_obsidian27.Notice(
@@ -25959,6 +26703,8 @@ var VideoSummarySettingTab = class extends import_obsidian27.PluginSettingTab {
     this.stopLoginPolling = null;
     /** Stops the Backend group following the backend's state once the page is closed. */
     this.stopBackendSection = null;
+    /** Stops the Model group following the backend's state once the page is closed. */
+    this.stopModelSection = null;
     this.plugin = plugin;
   }
   /**
@@ -25994,6 +26740,8 @@ var VideoSummarySettingTab = class extends import_obsidian27.PluginSettingTab {
     if (this.host) this.renderPage(this.host);
   }
   hide() {
+    this.stopModelSection?.();
+    this.stopModelSection = null;
     this.stopBackendSection?.();
     this.stopBackendSection = null;
     this.stopGroupMarks?.();
@@ -26001,19 +26749,25 @@ var VideoSummarySettingTab = class extends import_obsidian27.PluginSettingTab {
     this.stopLoginPolling?.();
     this.stopLoginPolling = null;
   }
+  backendSettingsHost() {
+    return {
+      app: this.app,
+      plugin: this.plugin,
+      renderSteps: (container, steps) => this.renderSetupSteps(container, steps),
+      renderBilibili: (container) => this.createBilibiliLoginStep(container, tr("\u54D4\u54E9\u54D4\u54E9\u767B\u5F55", "Bilibili login"))
+    };
+  }
   renderPage(containerEl) {
     this.host = containerEl;
     containerEl.empty();
     containerEl.addClass("vs-settings", "ap", "ap-settings");
     this.renderSettingsHeader(containerEl);
+    this.group(containerEl, tr("\u6A21\u578B", "Model"));
+    this.stopModelSection?.();
+    this.stopModelSection = renderModelSettings(containerEl, this.backendSettingsHost());
     this.group(containerEl, tr("\u540E\u7AEF", "Backend"));
     this.stopBackendSection?.();
-    this.stopBackendSection = renderBackendSettings(containerEl, {
-      app: this.app,
-      plugin: this.plugin,
-      renderSteps: (container, steps) => this.renderSetupSteps(container, steps),
-      renderBilibili: (container) => this.createBilibiliLoginStep(container, tr("\u54D4\u54E9\u54D4\u54E9\u767B\u5F55", "Bilibili login"))
-    });
+    this.stopBackendSection = renderBackendSettings(containerEl, this.backendSettingsHost());
     if (!this.plugin.installer.supported()) this.createSetupGuideSection(containerEl);
     this.group(containerEl, tr("\u8F93\u51FA", "Output"));
     this.createOutputSection(containerEl);
@@ -26057,9 +26811,12 @@ var VideoSummarySettingTab = class extends import_obsidian27.PluginSettingTab {
     const { backend } = this.plugin;
     const paint = () => {
       const snapshot = backend.monitor.snapshot();
-      dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
+      dot.className = `vs-backend-dot ${statusClass(snapshot, this.plugin.liteReady())}`;
       const reason = snapshot.status === "offline" && snapshot.diagnosis?.fault !== "not-configured" ? faultReason(snapshot.diagnosis, backend.endpoint()) : snapshot.status === "starting" ? snapshot.step || "" : "";
-      const word = tr(`\u540E\u7AEF${statusWord(snapshot)}`, `Backend ${statusWord(snapshot)}`);
+      const word = tr(
+        `\u540E\u7AEF${statusWord(snapshot, this.plugin.liteReady())}`,
+        `Backend ${statusWord(snapshot, this.plugin.liteReady())}`
+      );
       label.setText(reason ? `${word} \xB7 ${reason}` : word);
     };
     paint();

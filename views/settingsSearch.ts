@@ -14,6 +14,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   '③ Trial run',
   '④ 哔哩哔哩登录（可选）',
   '④ Bilibili login (optional)',
+  '模型',
+  '轻量档',
   '后端',
   '总结模型',
   'Summary model',

@@ -1,0 +1,9 @@
+{
+  "wireMagic": "pb3",
+  "events": [
+    { "tStartMs": 0, "dDurationMs": 2500, "segs": [ { "utf8": "こんにちは。" } ] },
+    { "tStartMs": 9000, "dDurationMs": 3000, "segs": [ { "utf8": "今日は" }, { "utf8": "字幕の", "tOffsetMs": 400 }, { "utf8": "話をします。", "tOffsetMs": 900 } ] },
+    { "tStartMs": 12100, "dDurationMs": 2000, "segs": [ { "utf8": "まず" } ] },
+    { "tStartMs": 14100, "dDurationMs": 2000, "segs": [ { "utf8": "仕組みから。" } ] }
+  ]
+}

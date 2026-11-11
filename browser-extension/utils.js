@@ -21,6 +21,9 @@
     defaultLanguage: 'zh',
     quickAction: 'create-pending-note',
     autoClose: false,
+    // Send the captions YouTube's player loaded on the page, so Obsidian can write the note
+    // without a backend (the plugin's light tier).
+    sendCaptions: true,
   });
 
   // Unified host list from the shared source (previously a local 5-host subset).
@@ -96,6 +99,75 @@
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
+  function clockText(seconds) {
+    const total = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(total / 3600);
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+    const s = String(total % 60).padStart(2, '0');
+    return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
+  }
+
+  /**
+   * YouTube's json3 captions → one "[mm:ss] text" line per passage of about 20 seconds,
+   * ending at a sentence when there is one. Automatic captions repeat a line as it
+   * scrolls; exact repeats are dropped. '' when there is nothing to read.
+   */
+  function captionTranscriptFromJson3(text, maxSeconds = 20, minSeconds = 8) {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return '';
+    }
+    const events = data && Array.isArray(data.events) ? data.events : [];
+    const cues = [];
+    for (const event of events) {
+      if (!event || !Array.isArray(event.segs)) continue;
+      const line = event.segs
+        .map((seg) => String((seg && seg.utf8) || ''))
+        .join('')
+        .replace(/\s*\n\s*/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      const start = Number(event.tStartMs) / 1000;
+      if (!line || !Number.isFinite(start)) continue;
+      const duration = Number(event.dDurationMs) / 1000;
+      cues.push({ start, end: start + (Number.isFinite(duration) ? duration : 0), text: line });
+    }
+    const sentenceEnd = /[.!?。！？…]["'」』）)]?$/;
+    const cjk = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
+    const passages = [];
+    let current = null;
+    let last = '';
+    for (const cue of cues) {
+      if (cue.text === last) continue;
+      last = cue.text;
+      if (!current) {
+        current = { ...cue };
+        continue;
+      }
+      const atSentence = sentenceEnd.test(current.text) && cue.start - current.start >= minSeconds;
+      if (cue.end - current.start > maxSeconds || atSentence) {
+        passages.push(current);
+        current = { ...cue };
+      } else {
+        const joiner = cjk.test(current.text.slice(-1)) || cjk.test(cue.text[0]) ? '' : ' ';
+        current.text = `${current.text}${joiner}${cue.text}`;
+        current.end = Math.max(current.end, cue.end);
+      }
+    }
+    if (current) passages.push(current);
+    return passages.map((p) => `[${clockText(p.start)}] ${p.text}`).join('\n');
+  }
+
+  /** A YAML block scalar, safe for any text. */
+  function yamlBlock(value) {
+    return `|-\n${String(value)
+      .split('\n')
+      .map((line) => `  ${line}`)
+      .join('\n')}`;
+  }
+
   function encodeObsidianParam(value) {
     return encodeURIComponent(value).replace(
       /[!'()*]/g,
@@ -122,7 +194,11 @@
       ? `video_timestamp: ${Math.floor(item.timestamp)}\ntimestamp_link: ${yamlQuote(timestampUrl)}\n`
       : '';
 
-    return `---\nlink: ${yamlQuote(baseUrl)}\nstatus: pending\nsource: browser-extension\ncapture_route: ${yamlQuote(settings.quickAction || 'create-pending-note')}\nvideo_title: ${yamlQuote(title)}\nvideo_platform: ${yamlQuote(platform)}\n${timestampLines}captured_at: ${yamlQuote(capturedAt)}\n---\n# ${title}\n\n${buildMarkdownLink({ ...item, title, url: baseUrl, timestampUrl })}\n`;
+    const transcriptLines = item.transcript
+      ? `provided_transcript: ${yamlBlock(item.transcript)}\n`
+      : '';
+
+    return `---\nlink: ${yamlQuote(baseUrl)}\nstatus: pending\nsource: browser-extension\ncapture_route: ${yamlQuote(settings.quickAction || 'create-pending-note')}\nvideo_title: ${yamlQuote(title)}\nvideo_platform: ${yamlQuote(platform)}\n${timestampLines}${transcriptLines}captured_at: ${yamlQuote(capturedAt)}\n---\n# ${title}\n\n${buildMarkdownLink({ ...item, title, url: baseUrl, timestampUrl })}\n`;
   }
 
   function buildObsidianNewUri(vaultName, folder, item, settings) {
@@ -158,6 +234,7 @@
     if (timestampUrl && timestampUrl !== baseUrl) {
       params.push(`timestamp_link=${encodeObsidianParam(timestampUrl)}`);
     }
+    if (item.transcript) params.push(`transcript=${encodeObsidianParam(item.transcript)}`);
     return `obsidian://video-summary?${params.join('&')}`;
   }
 
@@ -254,6 +331,7 @@
     buildObsidianAppendUri,
     buildObsidianNewUri,
     buildObsidianProcessUri,
+    captionTranscriptFromJson3,
     buildPendingNoteContent,
     buildUnifiedPayload,
     cleanTitle,

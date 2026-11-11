@@ -1,0 +1,12 @@
+data: {"id":"1","choices":[{"index":0,"delta":{"role":"assistant","content":""}}]}
+
+data: {"id":"1","choices":[{"index":0,"delta":{"content":"{\"video_title\":\"规则\",\"note_title\":\"规则与承诺\",\"tldr\":\"讲的是"}}]}
+
+data: {"id":"1","choices":[{"index":0,"delta":{"content":"承诺。\",\"summary\":\"一首关于承诺的歌。\",\"note\":\"> [!summary] 摘要\\n> 歌手"}}]}
+
+: keep-alive
+
+data: {"id":"1","choices":[{"index":0,"delta":{"content":"承诺不放弃。\\n\\n## 要点\\n- [00:08] (vs-1) \\\"规则\\\"\",\"content_type\":\"general\",\"evidence_claims\":[]}"}}]}
+
+data: [DONE]
+

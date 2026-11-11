@@ -39,6 +39,7 @@ const els = {
     folder: $('setting-folder'),
     appendPath: $('setting-append'),
     quickAction: $('setting-quick'),
+    sendCaptions: $('setting-captions'),
     n8nWebhookUrl: $('setting-n8n'),
     webhookFormat: $('setting-webhook-format'),
     defaultMode: $('setting-mode'),
@@ -276,6 +277,7 @@ function renderSettings() {
   els.settings.folder.value = s.folder || '';
   els.settings.appendPath.value = s.appendPath || '';
   els.settings.quickAction.value = s.quickAction || 'create-pending-note';
+  els.settings.sendCaptions.value = s.sendCaptions === false ? 'off' : 'on';
   els.settings.n8nWebhookUrl.value = '';
   els.settings.n8nWebhookUrl.placeholder = s.n8nToken
     ? `已保存：${s.n8nWebhookUrl}`
@@ -405,6 +407,7 @@ async function saveSettings() {
     folder: els.settings.folder.value.trim(),
     appendPath: els.settings.appendPath.value.trim(),
     quickAction: els.settings.quickAction.value,
+    sendCaptions: els.settings.sendCaptions.value !== 'off',
     n8nWebhookUrl: state.settings.n8nWebhookUrl,
     n8nToken: state.settings.n8nToken || '',
     ...backendFromInput(els.settings.n8nWebhookUrl.value),

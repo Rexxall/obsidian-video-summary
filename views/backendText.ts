@@ -2,15 +2,19 @@ import { BackendDiagnosis, BackendSnapshot, isLocalEndpoint } from '../core/Back
 import { LaunchResult } from '../core/BackendLauncher';
 import { tr } from '../utils/i18n';
 
-/** One word for the status bar and the side panel. */
-export function statusWord(snapshot: BackendSnapshot): string {
+/**
+ * One word for the status bar and the side panel. liteReady: the light tier can make notes
+ * without a backend, so a backend that was never set up is not a fault.
+ */
+export function statusWord(snapshot: BackendSnapshot, liteReady = false): string {
   switch (snapshot.status) {
     case 'online':
       return tr('在线', 'online');
     case 'offline':
-      return snapshot.diagnosis?.fault === 'not-configured'
-        ? tr('未安装', 'not set up')
-        : tr('离线', 'offline');
+      if (snapshot.diagnosis?.fault !== 'not-configured') return tr('离线', 'offline');
+      return liteReady
+        ? tr('未安装 · 轻量档可用', 'not set up · light tier ready')
+        : tr('未安装', 'not set up');
     case 'starting':
       return tr('启动中', 'starting');
     case 'checking':
@@ -20,9 +24,13 @@ export function statusWord(snapshot: BackendSnapshot): string {
   }
 }
 
-export function statusClass(snapshot: BackendSnapshot): string {
+export function statusClass(snapshot: BackendSnapshot, liteReady = false): string {
   if (snapshot.status === 'online') return 'is-online';
-  if (snapshot.status === 'offline') return 'is-offline';
+  if (snapshot.status === 'offline') {
+    return liteReady && snapshot.diagnosis?.fault === 'not-configured'
+      ? 'is-unknown'
+      : 'is-offline';
+  }
   if (snapshot.status === 'unknown') return 'is-unknown';
   return 'is-checking';
 }

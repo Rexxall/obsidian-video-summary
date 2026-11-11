@@ -208,8 +208,11 @@ function renderBackendLine(root: HTMLElement, ctx: ViewContext) {
   const paint = () => {
     const snapshot = backend.monitor.snapshot();
     const endpoint = backend.endpoint();
-    dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
-    const word = tr(`后端${statusWord(snapshot)}`, `Backend ${statusWord(snapshot)}`);
+    dot.className = `vs-backend-dot ${statusClass(snapshot, ctx.plugin.liteReady())}`;
+    const word = tr(
+      `后端${statusWord(snapshot, ctx.plugin.liteReady())}`,
+      `Backend ${statusWord(snapshot, ctx.plugin.liteReady())}`,
+    );
     const reason =
       snapshot.status === 'offline' && snapshot.diagnosis?.fault !== 'not-configured'
         ? faultReason(snapshot.diagnosis, endpoint)

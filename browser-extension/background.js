@@ -129,6 +129,7 @@ function normalizeCaptureItem(item) {
     platform: U.detectPlatform(url),
     sourceTabUrl: item?.sourceTabUrl || '',
     source: item?.source || 'browser',
+    transcript: typeof item?.transcript === 'string' ? item.transcript : '',
   };
 }
 
@@ -153,6 +154,154 @@ async function getTimestamp(tabId) {
     return null;
   }
 }
+
+/**
+ * Runs in the YouTube page. Reads the captions the page's own player loaded: the
+ * player's caption request carries the page's proof token, which a request from
+ * anywhere else does not have, so the text is fetched again from the page with
+ * that same request. When the person has captions off, the player is asked to load
+ * the track and captions are switched off again afterwards. Nothing else is sent.
+ */
+async function readPlayerCaptions(videoId) {
+  const started = Date.now();
+  const player = document.querySelector('#movie_player');
+  const response = player && player.getPlayerResponse ? player.getPlayerResponse() : null;
+  if (!response || (response.videoDetails && response.videoDetails.videoId !== videoId)) {
+    return { ok: false, reason: 'no-player' };
+  }
+  const renderer = response.captions && response.captions.playerCaptionsTracklistRenderer;
+  const tracks = (renderer && renderer.captionTracks) || [];
+  if (tracks.length === 0) return { ok: false, reason: 'no-captions' };
+  // The spoken language: the automatic captions are always in it. A dubbed video has one
+  // automatic track per dubbed language; then the player's mark for the original audio
+  // decides. Without automatic captions the mark is all there is (it may follow the
+  // viewer's language). Captions a person wrote in the spoken language come first.
+  const base = (code) =>
+    String(code || '')
+      .toLowerCase()
+      .split('-')[0];
+  const automatic = tracks.filter((t) => t.kind === 'asr');
+  const audio = (renderer.audioTracks || [])[renderer.defaultAudioTrackIndex || 0];
+  const marked = audio ? tracks[audio.defaultCaptionTrackIndex] : undefined;
+  const spoken = automatic.length === 1 ? automatic[0] : marked || automatic[0];
+  const written = tracks.filter((t) => t.kind !== 'asr');
+  const track =
+    (spoken && written.find((t) => base(t.languageCode) === base(spoken.languageCode))) ||
+    spoken ||
+    written[0];
+  const loaded = () =>
+    performance
+      .getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .filter((name) => name.includes('/api/timedtext') && name.includes(`v=${videoId}`))
+      .filter((name) => name.includes('pot='))
+      .pop();
+  let url = loaded();
+  let switchedOn = false;
+  const ask = () => {
+    try {
+      player.loadModule('captions');
+      player.setOption('captions', 'track', {
+        languageCode: track.languageCode,
+        ...(track.kind ? { kind: track.kind } : {}),
+      });
+      switchedOn = true;
+    } catch {
+      // An older player without this API: nothing to read.
+    }
+  };
+  if (!url) {
+    ask();
+    // A player that has only just started may ignore the first request; ask again every 2 s.
+    for (let i = 1; i <= 40 && !url; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      url = loaded();
+      if (!url && i % 8 === 0) ask();
+    }
+  }
+  const switchOff = () => {
+    if (!switchedOn) return;
+    try {
+      player.setOption('captions', 'track', {});
+      player.unloadModule('captions');
+    } catch {
+      // Leave the player as it is.
+    }
+  };
+  if (!url) {
+    switchOff();
+    return { ok: false, reason: 'not-loaded', ms: Date.now() - started };
+  }
+  const fetchText = async (target) => {
+    try {
+      const reply = await fetch(target, { credentials: 'include' });
+      return reply.ok ? await reply.text() : '';
+    } catch {
+      return '';
+    }
+  };
+  const wanted = new URL(url);
+  wanted.searchParams.set('fmt', 'json3');
+  wanted.searchParams.delete('tlang');
+  wanted.searchParams.set('lang', track.languageCode);
+  if (track.kind) wanted.searchParams.set('kind', track.kind);
+  else wanted.searchParams.delete('kind');
+  let text = await fetchText(wanted.toString());
+  if (!text) {
+    // The loaded request as it was, in json3.
+    const asLoaded = new URL(url);
+    asLoaded.searchParams.set('fmt', 'json3');
+    text = await fetchText(asLoaded.toString());
+  }
+  switchOff();
+  return text
+    ? {
+        ok: true,
+        json3: text,
+        lang: track.languageCode,
+        kind: track.kind || '',
+        ms: Date.now() - started,
+      }
+    : { ok: false, reason: 'empty', ms: Date.now() - started };
+}
+
+function youTubeVideoId(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.endsWith('youtu.be')) return parsed.pathname.slice(1, 12) || null;
+    if (!parsed.hostname.endsWith('youtube.com')) return null;
+    if (parsed.pathname === '/watch') return parsed.searchParams.get('v');
+    const match = parsed.pathname.match(/^\/(?:shorts|live)\/([^/?#]+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The transcript of the YouTube video in this tab, from its player; '' when there is none. */
+async function getYouTubeTranscript(tab) {
+  const videoId = youTubeVideoId(tab?.url || '');
+  if (!tab?.id || !videoId) return { transcript: '', reason: 'not-youtube' };
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      func: readPlayerCaptions,
+      args: [videoId],
+    });
+    const result = results && results[0] ? results[0].result : null;
+    if (!result || !result.ok) return { transcript: '', reason: result?.reason || 'failed' };
+    const transcript = U.captionTranscriptFromJson3(result.json3);
+    return transcript
+      ? { transcript, lang: result.lang, kind: result.kind, ms: result.ms }
+      : { transcript: '', reason: 'empty' };
+  } catch {
+    return { transcript: '', reason: 'failed' };
+  }
+}
+
+/** Operations that put the video into Obsidian, where the captions can be used. */
+const CAPTION_OPERATIONS = ['create-pending-note', 'process-via-plugin', 'create-pending-rest'];
 
 async function getCurrentTabCapture() {
   const tab = await getCurrentTab();
@@ -338,8 +487,22 @@ async function syncCookies(platform) {
 async function transferMany(items, operation) {
   const settings = await getSettings();
   const results = [];
-  for (const item of items) {
+  for (const original of items) {
+    let item = original;
     try {
+      // The popup's "current video" button: bring the captions of the page it came from.
+      if (
+        settings.sendCaptions !== false &&
+        CAPTION_OPERATIONS.includes(operation) &&
+        item?.source === 'current-tab' &&
+        !item.transcript
+      ) {
+        const tab = await getCurrentTab();
+        if (tab?.url && tab.url === item.sourceTabUrl) {
+          const captions = await getYouTubeTranscript(tab);
+          if (captions.transcript) item = { ...item, transcript: captions.transcript };
+        }
+      }
       results.push(await transferOne(item, operation, settings));
     } catch (error) {
       const normalized = normalizeCaptureItem(item);
@@ -503,13 +666,20 @@ async function runQuickAction(tab) {
   const settings = await getSettings();
   const capture = await getCurrentTabCapture();
   if (!capture) throw new Error('No current tab to capture.');
+  if (settings.sendCaptions !== false && CAPTION_OPERATIONS.includes(settings.quickAction)) {
+    const captions = await getYouTubeTranscript(tab);
+    if (captions.transcript) capture.transcript = captions.transcript;
+  }
   if (settings.quickAction === 'queue') {
     const result = await addToQueue(capture);
     await showToast(tab.id, result.added ? `Queued (${result.count})` : 'Already queued');
     return result;
   }
   const result = await transferOne(capture, settings.quickAction, settings);
-  await showToast(tab.id, result.status === 'success' ? 'Sent' : 'Failed');
+  await showToast(
+    tab.id,
+    result.status !== 'success' ? 'Failed' : capture.transcript ? 'Sent with captions' : 'Sent',
+  );
   return result;
 }
 

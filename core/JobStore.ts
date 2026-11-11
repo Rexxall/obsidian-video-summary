@@ -31,6 +31,10 @@ export interface Job {
   platform?: string;
   /** 结果已拿到但还没写入笔记（预览后手动确认时用） */
   awaitingWrite?: boolean;
+  /** 轻量档任务：不经过后端，后端不在时也照常跑 */
+  lite?: boolean;
+  /** 轻量档边写边显示的笔记正文 */
+  liveText?: string;
 }
 
 export interface JobSpec {
@@ -43,12 +47,14 @@ export interface JobSpec {
   platform?: string;
   /** 结果先进预览、不直接写笔记。必须在入队时就定，否则任务可能已经跑起来了 */
   awaitingWrite?: boolean;
+  lite?: boolean;
 }
 
 export interface JobProgress {
   stageLabel?: string;
   progress?: number;
   message?: string;
+  liveText?: string;
 }
 
 export type JobRunner = (
@@ -63,6 +69,8 @@ export type JobRunner = (
 export class JobStore {
   private jobs: Job[] = [];
   private listeners = new Set<() => void>();
+  /** Told about each new piece of a light-tier note, without redrawing the whole panel. */
+  private liveListeners = new Set<(id: string, text: string) => void>();
   private runner: JobRunner | null = null;
   private running = 0;
   private seq = 0;
@@ -97,6 +105,11 @@ export class JobStore {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeLive(listener: (id: string, text: string) => void): () => void {
+    this.liveListeners.add(listener);
+    return () => this.liveListeners.delete(listener);
   }
 
   private emit() {
@@ -136,6 +149,7 @@ export class JobStore {
       useCache: spec.useCache,
       platform: spec.platform,
       awaitingWrite: spec.awaitingWrite === true,
+      lite: spec.lite === true,
       state: 'queued',
       createdAt: Date.now(),
       logs: [],
@@ -249,9 +263,12 @@ export class JobStore {
   }
 
   private pump() {
-    if (!this.runner || this.held) return;
+    if (!this.runner) return;
     while (this.running < this.concurrency) {
-      const next = this.jobs.filter((job) => job.state === 'queued').pop();
+      // 队列被按住时，只有轻量档任务（不需要后端）照常往下走
+      const next = this.jobs
+        .filter((job) => job.state === 'queued' && (!this.held || job.lite))
+        .pop();
       if (!next) return;
       void this.run(next);
     }
@@ -267,8 +284,23 @@ export class JobStore {
 
     try {
       const result = await this.runner(job, (progress) => {
+        // More text for a note already on screen only updates that text: a full redraw several
+        // times a second would rebuild the card and its cover image each time.
+        const textOnly =
+          progress.liveText !== undefined &&
+          !!job.liveText &&
+          !!progress.liveText &&
+          !progress.message &&
+          progress.progress === undefined &&
+          (progress.stageLabel === undefined || progress.stageLabel === job.stageLabel);
         if (progress.stageLabel !== undefined) job.stageLabel = progress.stageLabel;
         if (progress.progress !== undefined) job.progress = progress.progress;
+        if (progress.liveText !== undefined) job.liveText = progress.liveText;
+        if (textOnly) {
+          const text = job.liveText || '';
+          this.liveListeners.forEach((listener) => listener(job.id, text));
+          return;
+        }
         if (progress.message) this.log(job.id, progress.message);
         this.emit();
       });
@@ -287,6 +319,7 @@ export class JobStore {
       job.endedAt = Date.now();
       job.progress = undefined;
       job.stageLabel = undefined;
+      job.liveText = undefined;
       this.running -= 1;
       this.emit();
       this.pump();

@@ -20,6 +20,7 @@ import {
 } from '../ui';
 import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
 import { openSettings } from './ActionBar';
+import { readableLive } from '../liveText';
 
 import { fire } from '../../utils/fire';
 import { errorMessage } from '../../utils/errors';
@@ -44,6 +45,7 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
   }
   if (active.length > 0) {
     active.forEach((job) => renderActiveJob(container, ctx, job));
+    if (active.some((job) => job.lite)) followLiveText(container, ctx);
   }
 
   if (review.length > 0) {
@@ -176,6 +178,14 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   });
   const sub = info.createDiv({ cls: 'vs-job-sub' });
   platformText(sub, job.platform, platformLabel(job.platform));
+  if (job.lite) {
+    sub.createSpan({
+      text: tr('轻量档', 'Light tier'),
+      attr: {
+        title: tr('不经过后端，直接用你的总结模型', 'Straight to your summary model, no backend'),
+      },
+    });
+  }
   if (job.startedAt) {
     sub.createSpan({
       text: tr(
@@ -196,12 +206,13 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
           ? tr('等待后端', 'Waiting for backend')
           : tr('排队中', 'Queued')
         : job.stageLabel || tr('处理中', 'Processing'),
-    title: job.stageLabel
-      ? undefined
-      : tr(
-          '该后端不上报处理阶段，仅显示计时',
-          'This backend does not report stages; only the timer is shown',
-        ),
+    title:
+      job.stageLabel || job.lite
+        ? undefined
+        : tr(
+            '该后端不上报处理阶段，仅显示计时',
+            'This backend does not report stages; only the timer is shown',
+          ),
   });
   iconButton(
     side,
@@ -218,6 +229,38 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
     cls: `vs-progress-fill${job.progress === undefined ? ' is-indeterminate' : ''}`,
   });
   if (job.progress !== undefined) fill.style.width = `${Math.round(job.progress * 100)}%`;
+
+  // Light tier: the note as it is being written, newest lines in view.
+  if (job.liveText) {
+    const live = card.createDiv({
+      cls: 'vs-job-live',
+      attr: {
+        'aria-label': tr('正在写的笔记', 'The note being written'),
+        'aria-busy': 'true',
+        'data-job': job.id,
+      },
+    });
+    live.createDiv({ cls: 'vs-job-live-text', text: readableLive(job.liveText) });
+    window.requestAnimationFrame(() => {
+      live.scrollTop = live.scrollHeight;
+    });
+  }
+}
+
+/** New text for a note being written goes straight into its box. */
+function followLiveText(container: HTMLElement, ctx: ViewContext) {
+  const off = ctx.plugin.jobs.subscribeLive((id, text) => {
+    const live = Array.from(container.querySelectorAll<HTMLElement>('.vs-job-live')).find(
+      (el) => el.dataset.job === id,
+    );
+    const body = live?.querySelector('.vs-job-live-text');
+    if (!live || !body) return;
+    // Keep following the end unless the person scrolled up to read.
+    const atEnd = live.scrollHeight - live.scrollTop - live.clientHeight < 24;
+    body.setText(readableLive(text));
+    if (atEnd) live.scrollTop = live.scrollHeight;
+  });
+  ctx.registerPanelCleanup(off);
 }
 
 function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {

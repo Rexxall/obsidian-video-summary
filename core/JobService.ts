@@ -11,7 +11,9 @@ import {
   VideoInput,
   VideoKnowledgeArtifact,
 } from '../types';
-import { Job, JobStore } from './JobStore';
+import { Job, JobProgress, JobStore } from './JobStore';
+import { liteDecision, nodeStreamTransport, runLiteJob } from './LiteRunner';
+import { readSecret, resolveLlm } from './ModelSettings';
 import { JobDraft } from './InputParser';
 import { NoteFactory, buildInsertionContent, extractVideoInputFromPayload } from './NoteFactory';
 import { detectPlatform } from './NoteIndex';
@@ -66,6 +68,8 @@ export class JobService {
   private noteProcessor: NoteProcessor;
   private noteFactory: NoteFactory;
   private readonly courseProgressLocks = new Map<string, Promise<unknown>>();
+  /** Light-tier jobs talk to the model directly; cancelling aborts that request. */
+  private readonly liteControllers = new Map<string, AbortController>();
 
   constructor(plugin: VideoSummaryPlugin, store: JobStore) {
     this.plugin = plugin;
@@ -92,8 +96,11 @@ export class JobService {
 
     if (runnableDrafts.length === 0) return jsonCreated;
 
-    // 后端不在也照样入队：队列被按住，后端一应答就按顺序接着跑
-    await this.plugin.backend.readyOrHold();
+    const liteFlags = runnableDrafts.map(
+      (draft) => this.liteFor(withAnalysisOptions(draft.input, options), options.mode).lite,
+    );
+    // 轻量档任务不经过后端；只有要后端的任务才去问后端在不在
+    if (liteFlags.some((lite) => !lite)) await this.waitForBackendOrExplain();
 
     let queued = 0;
     for (const draft of runnableDrafts) {
@@ -114,6 +121,7 @@ export class JobService {
         notePath: file.path,
         platform: draft.platform,
         awaitingWrite: options.previewBeforeWrite,
+        lite: liteFlags[runnableDrafts.indexOf(draft)],
       });
       queued += 1;
     }
@@ -142,11 +150,13 @@ export class JobService {
       );
       return null;
     }
-    await this.plugin.backend.readyOrHold();
+    const lite = this.liteFor(withAnalysisOptions(input, options), options.mode).lite;
+    if (!lite) await this.waitForBackendOrExplain();
 
     await this.updateCourseProgressForFile(file, 'queued', 0, input.artifactId);
     try {
       return this.store.enqueue({
+        lite,
         title: file.basename,
         input: withAnalysisOptions(input, options),
         mode: options.mode,
@@ -164,6 +174,7 @@ export class JobService {
 
   async cancel(job: Job) {
     this.store.cancel(job.id);
+    this.liteControllers.get(job.id)?.abort();
     const noteName = job.notePath ? basenameOf(job.notePath) : job.title;
     await this.plugin.api.cancelByNoteName(noteName);
     const file = this.fileFor(job);
@@ -429,24 +440,26 @@ export class JobService {
     try {
       this.assertNotCancelled(job);
       // 处理中每 45 秒问一次后端还在不在；连着两次没应答就立刻失败，不等总超时
-      const result = await withBackendWatch(
-        this.plugin.api.processVideo(
-          noteName,
-          job.input,
-          job.mode,
-          job.language,
-          job.useCache,
-          report,
-        ),
-        {
-          ping: () => this.plugin.api.pingService(),
-          onLost: () => {
-            void this.plugin.api.cancelByNoteName(noteName);
-            this.plugin.backend.lostWhileRunning();
-          },
-          lostMessage: backendLostText(),
-        },
-      );
+      const result = job.lite
+        ? await this.runLite(job, report)
+        : await withBackendWatch(
+            this.plugin.api.processVideo(
+              noteName,
+              job.input,
+              job.mode,
+              job.language,
+              job.useCache,
+              report,
+            ),
+            {
+              ping: () => this.plugin.api.pingService(),
+              onLost: () => {
+                void this.plugin.api.cancelByNoteName(noteName);
+                this.plugin.backend.lostWhileRunning();
+              },
+              lostMessage: backendLostText(),
+            },
+          );
       // Some remote workers cannot abort an already-running job. Never persist
       // or write a late response after the local user has cancelled it.
       this.assertNotCancelled(job);
@@ -494,6 +507,7 @@ export class JobService {
       if (error instanceof BackendLostError) {
         this.plugin.backend.lostWhileRunning();
       } else if (
+        !job.lite &&
         mayMeanBackendGone(messageOf(error)) &&
         (await this.plugin.backend.goneAfterFailure())
       ) {
@@ -511,6 +525,78 @@ export class JobService {
         durationMs: job.startedAt ? Date.now() - job.startedAt : undefined,
       });
       throw failure;
+    }
+  }
+
+  /** Whether the light tier takes this input: on in settings, a transcript, a summary key. */
+  liteFor(input: VideoInput, mode: ProcessingMode) {
+    const enabled = this.plugin.settings.liteTierEnabled !== false;
+    return liteDecision(enabled, this.plugin.liteReady(), input, mode);
+  }
+
+  /**
+   * Before queueing a job that needs the backend. With no backend at all, says what the
+   * full tier is for and holds the job; otherwise the usual check, which holds the queue
+   * and offers Start backend when the backend is off.
+   */
+  private async waitForBackendOrExplain() {
+    if (this.plugin.hasBackend() || this.plugin.settings.liteTierEnabled === false) {
+      await this.plugin.backend.readyOrHold();
+      return;
+    }
+    this.plugin.jobs.setHeld(true);
+    new Notice(
+      tr(
+        '这条要完整档：只有链接或本地文件时，由后端下载并转写。装好后端后它会自动开始。\n不装后端：在 YouTube 页面用浏览器扩展发送，或贴文稿。',
+        'This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube page with the browser extension, or paste a transcript.',
+      ),
+      12_000,
+    );
+  }
+
+  /** Light tier: the job's transcript, then the person's model, streamed. */
+  private async runLite(
+    job: Job,
+    report: (progress: JobProgress) => void,
+  ): Promise<ProcessingResult> {
+    const { settings } = this.plugin;
+    const llm = resolveLlm(settings);
+    const controller = new AbortController();
+    this.liteControllers.set(job.id, controller);
+    // The note grows a few characters at a time; redraw the panel at most a few times a second.
+    let lastLive = 0;
+    let lastStage = '';
+    const throttled = (progress: JobProgress) => {
+      // While a reasoning model thinks, the same stage arrives many times a second.
+      if (progress.liveText === undefined && !progress.message) {
+        if (progress.stageLabel === lastStage) return;
+        lastStage = progress.stageLabel || '';
+      }
+      if (progress.liveText !== undefined && !progress.message) {
+        lastStage = progress.stageLabel || '';
+        const now = Date.now();
+        if (now - lastLive < 150 && progress.liveText) return;
+        lastLive = now;
+      }
+      report(progress);
+    };
+    try {
+      return await runLiteJob(
+        {
+          transport: nodeStreamTransport,
+          baseUrl: llm.baseUrl,
+          apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || '',
+          model: llm.model,
+        },
+        job.input,
+        job.mode,
+        job.language,
+        throttled,
+        controller.signal,
+        job.title,
+      );
+    } finally {
+      this.liteControllers.delete(job.id);
     }
   }
 

@@ -65,7 +65,8 @@ import { JobStore } from './core/JobStore';
 import { JobService } from './core/JobService';
 import { BackendControl } from './core/BackendControl';
 import { BackendInstaller } from './core/BackendInstaller';
-import { renderBackendSettings } from './views/BackendSettings';
+import { renderBackendSettings, renderModelSettings } from './views/BackendSettings';
+import { readSecret, resolveLlm } from './core/ModelSettings';
 import { BackendHealthModal } from './views/BackendHealthModal';
 import { faultReason, statusClass, statusWord } from './views/backendText';
 import { NoteIndex } from './core/NoteIndex';
@@ -1719,9 +1720,17 @@ export default class VideoSummaryPlugin extends Plugin {
     const word = item.createSpan();
     const paint = () => {
       const snapshot = this.backend.monitor.snapshot();
-      dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
-      const label = tr(`视频后端${statusWord(snapshot)}`, `Video backend ${statusWord(snapshot)}`);
-      word.setText(tr(`视频 ${statusWord(snapshot)}`, `Video ${statusWord(snapshot)}`));
+      dot.className = `vs-backend-dot ${statusClass(snapshot, this.liteReady())}`;
+      const label = tr(
+        `视频后端${statusWord(snapshot, this.liteReady())}`,
+        `Video backend ${statusWord(snapshot, this.liteReady())}`,
+      );
+      word.setText(
+        tr(
+          `视频 ${statusWord(snapshot, this.liteReady())}`,
+          `Video ${statusWord(snapshot, this.liteReady())}`,
+        ),
+      );
       item.setAttr('aria-label', label);
     };
     paint();
@@ -1774,6 +1783,13 @@ export default class VideoSummaryPlugin extends Plugin {
    * true once this vault points at some backend: a connection code is in place, or the address
    * was changed from the default (a self-hosted backend without a token).
    */
+  /** The light tier can make notes now: it is on and a summary model and key are set. */
+  liteReady(): boolean {
+    if (this.settings.liteTierEnabled === false) return false;
+    const llm = resolveLlm(this.settings);
+    return !!llm.baseUrl && !!llm.model && !!readSecret(this.app, this.settings.llmKeySecret);
+  }
+
   hasBackend(): boolean {
     const profile = this.getActiveWebhookProfile();
     const url = profile?.url?.trim() || '';
@@ -2477,6 +2493,17 @@ export default class VideoSummaryPlugin extends Plugin {
       if (!(file instanceof TFile)) {
         throw new Error(`捕获仓储返回的笔记不存在：${result.entry.path}`);
       }
+      // The browser extension sends the captions it read from the YouTube page the person
+      // is watching. Kept on the note, so the light tier can write it without a backend.
+      const transcript = (params.transcript || '').trim();
+      if (transcript && rawUrl) {
+        await this.app.fileManager.processFrontMatter(
+          file,
+          (frontmatter: Record<string, unknown>) => {
+            frontmatter.provided_transcript = transcript;
+          },
+        );
+      }
       await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
         new Notice(
@@ -2633,13 +2660,29 @@ class VideoSummarySettingTab extends PluginSettingTab {
   /** Stops the Backend group following the backend's state once the page is closed. */
   private stopBackendSection: (() => void) | null = null;
 
+  /** Stops the Model group following the backend's state once the page is closed. */
+  private stopModelSection: (() => void) | null = null;
+
   hide(): void {
+    this.stopModelSection?.();
+    this.stopModelSection = null;
     this.stopBackendSection?.();
     this.stopBackendSection = null;
     this.stopGroupMarks?.();
     this.stopGroupMarks = null;
     this.stopLoginPolling?.();
     this.stopLoginPolling = null;
+  }
+
+  private backendSettingsHost() {
+    return {
+      app: this.app,
+      plugin: this.plugin,
+      renderSteps: (container: HTMLElement, steps: SetupStep[]) =>
+        this.renderSetupSteps(container, steps),
+      renderBilibili: (container: HTMLElement) =>
+        this.createBilibiliLoginStep(container, tr('哔哩哔哩登录', 'Bilibili login')),
+    };
   }
 
   private renderPage(containerEl: HTMLElement): void {
@@ -2649,16 +2692,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
 
     this.renderSettingsHeader(containerEl);
 
-    // 一页三段：先有后端，再定写到哪，最后是怎么处理；不常动的收进“高级”
+    // 先是模型（两档共用，只填一把密钥就能用轻量档），再是后端、写到哪、怎么处理；不常动的收进“高级”
+    this.group(containerEl, tr('模型', 'Model'));
+    this.stopModelSection?.();
+    this.stopModelSection = renderModelSettings(containerEl, this.backendSettingsHost());
     this.group(containerEl, tr('后端', 'Backend'));
     this.stopBackendSection?.();
-    this.stopBackendSection = renderBackendSettings(containerEl, {
-      app: this.app,
-      plugin: this.plugin,
-      renderSteps: (container, steps) => this.renderSetupSteps(container, steps),
-      renderBilibili: (container) =>
-        this.createBilibiliLoginStep(container, tr('哔哩哔哩登录', 'Bilibili login')),
-    });
+    this.stopBackendSection = renderBackendSettings(containerEl, this.backendSettingsHost());
     // 这台设备不能由插件安装后端时（Windows），连接码这条老路留在外面
     if (!this.plugin.installer.supported()) this.createSetupGuideSection(containerEl);
 
@@ -2712,14 +2752,17 @@ class VideoSummarySettingTab extends PluginSettingTab {
     const { backend } = this.plugin;
     const paint = () => {
       const snapshot = backend.monitor.snapshot();
-      dot.className = `vs-backend-dot ${statusClass(snapshot)}`;
+      dot.className = `vs-backend-dot ${statusClass(snapshot, this.plugin.liteReady())}`;
       const reason =
         snapshot.status === 'offline' && snapshot.diagnosis?.fault !== 'not-configured'
           ? faultReason(snapshot.diagnosis, backend.endpoint())
           : snapshot.status === 'starting'
             ? snapshot.step || ''
             : '';
-      const word = tr(`后端${statusWord(snapshot)}`, `Backend ${statusWord(snapshot)}`);
+      const word = tr(
+        `后端${statusWord(snapshot, this.plugin.liteReady())}`,
+        `Backend ${statusWord(snapshot, this.plugin.liteReady())}`,
+      );
       label.setText(reason ? `${word} · ${reason}` : word);
     };
     paint();

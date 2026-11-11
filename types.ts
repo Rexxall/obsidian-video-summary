@@ -353,6 +353,8 @@ export interface VideoSummarySettings {
 
   // 处理前后端自检
   preflightCheckEnabled: boolean;
+  /** YouTube videos with captions and pasted transcripts go straight to the summary model, without the backend */
+  liteTierEnabled: boolean;
 
   // 短链自动展开
   expandShortLinks: boolean;

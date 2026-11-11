@@ -182,3 +182,145 @@ test('syncing without a Bilibili login explains what to do', async () => {
   assert.equal(response.ok, false);
   assert.match(response.error, /还没有登录/);
 });
+
+function loadUtils() {
+  const context = { console, URL, URLSearchParams };
+  context.self = context;
+  vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('vendor/shared.global.js', dir), 'utf8'), context);
+  vm.runInContext(readFileSync(new URL('utils.js', dir), 'utf8'), context);
+  return context.VideoCaptureUtils;
+}
+
+const fixture = (name) =>
+  readFileSync(new URL(`../tests/fixtures/lite/${name}`, import.meta.url), 'utf8');
+
+test('YouTube json3 captions become timed passages, without scroll repeats', () => {
+  const U = loadUtils();
+  const lines = U.captionTranscriptFromJson3(fixture('captions-auto.json3')).split('\n');
+  assert.deepEqual(lines, [
+    "[00:01] we're no strangers to love you know the rules & so do I",
+    "[00:25] a full commitment's what I'm thinking of",
+  ]);
+});
+
+test('Japanese captions join without spaces and break at a sentence after 8 seconds', () => {
+  const U = loadUtils();
+  assert.equal(
+    U.captionTranscriptFromJson3(fixture('captions-ja.json3')),
+    '[00:00] こんにちは。\n[00:09] 今日は字幕の話をします。まず仕組みから。',
+  );
+  assert.equal(U.captionTranscriptFromJson3('not json'), '');
+  assert.equal(U.captionTranscriptFromJson3('{"events":[]}'), '');
+});
+
+test('captions travel with the link: as a link parameter and as note frontmatter', async () => {
+  const U = loadUtils();
+  const { parse } = await import('yaml');
+  const transcript = '[00:01] first line: with a colon\n[00:25] "quoted" # not a comment';
+  const item = { title: 'Video', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', transcript };
+  const uri = U.buildObsidianProcessUri('Vault', item, { defaultMode: 'summary' });
+  assert.equal(new URL(uri).searchParams.get('transcript'), transcript);
+  const note = U.buildPendingNoteContent(item, { quickAction: 'create-pending-note' });
+  const frontmatter = parse(note.split('---\n')[1]);
+  assert.equal(frontmatter.provided_transcript, transcript);
+  const plain = U.buildPendingNoteContent({ ...item, transcript: '' }, {});
+  assert.equal(plain.includes('provided_transcript'), false);
+});
+
+/** Runs the page-side caption reader against a fake YouTube player. */
+async function readWithPlayer(response, { loadedLang } = {}) {
+  const source = readFileSync(new URL('background.js', dir), 'utf8');
+  const start = source.indexOf('async function readPlayerCaptions');
+  const end = source.indexOf('\nfunction youTubeVideoId');
+  const entries = [];
+  const calls = [];
+  const fetched = [];
+  const player = {
+    getPlayerResponse: () => response,
+    loadModule: (name) => calls.push(['loadModule', name]),
+    unloadModule: (name) => calls.push(['unloadModule', name]),
+    setOption: (module, option, value) => {
+      calls.push(['setOption', JSON.stringify(value)]);
+      // The player fetches the chosen track with its proof token.
+      if (value.languageCode) {
+        entries.push({
+          name: `https://www.youtube.com/api/timedtext?v=vid00000001&lang=${loadedLang || value.languageCode}&pot=TOKEN&fmt=srv3`,
+        });
+      }
+    },
+  };
+  const context = {
+    URL,
+    document: { querySelector: () => player },
+    performance: { getEntriesByType: () => entries },
+    setTimeout: (fn) => setTimeout(fn, 0),
+    fetch: async (url) => {
+      fetched.push(url);
+      return { ok: true, text: async () => '{"events":[{"tStartMs":0,"segs":[{"utf8":"hi"}]}]}' };
+    },
+  };
+  vm.createContext(context);
+  vm.runInContext(`${source.slice(start, end)}; this.read = readPlayerCaptions;`, context);
+  const result = await context.read('vid00000001');
+  return { result, calls, fetched };
+}
+
+const track = (languageCode, kind) => ({
+  languageCode,
+  ...(kind ? { kind } : {}),
+  baseUrl: `https://www.youtube.com/api/timedtext?lang=${languageCode}&exp=xpe`,
+});
+
+test('the caption reader picks the spoken language, not the viewer’s', async () => {
+  const response = (tracks, audioTracks, defaultAudioTrackIndex = 0) => ({
+    videoDetails: { videoId: 'vid00000001' },
+    captions: {
+      playerCaptionsTracklistRenderer: {
+        captionTracks: tracks,
+        audioTracks,
+        defaultAudioTrackIndex,
+      },
+    },
+  });
+  // A written English track beats a Chinese translation the player recommends to a Chinese viewer.
+  const en = await readWithPlayer(
+    response([track('zh'), track('en'), track('en', 'asr')], [{ defaultCaptionTrackIndex: 0 }]),
+  );
+  assert.equal(en.result.lang, 'en');
+  assert.equal(en.result.kind, '');
+  // Dubbed: one automatic track per dub; the mark for the original audio decides.
+  const dubbed = await readWithPlayer(
+    response(
+      [track('pl', 'asr'), track('ja', 'asr'), track('en', 'asr')],
+      [{ defaultCaptionTrackIndex: 2 }, { defaultCaptionTrackIndex: 2 }],
+      1,
+    ),
+  );
+  assert.equal(dubbed.result.lang, 'en');
+  assert.equal(dubbed.result.kind, 'asr');
+  // No automatic captions: the marked track.
+  const marked = await readWithPlayer(
+    response([track('de'), track('en')], [{ defaultCaptionTrackIndex: 1 }]),
+  );
+  assert.equal(marked.result.lang, 'en');
+  const none = await readWithPlayer(response([], []));
+  assert.deepEqual({ ...none.result }, { ok: false, reason: 'no-captions' });
+});
+
+test('the reader asks the page’s player for the track, refetches it as json3 and switches captions off again', async () => {
+  const { result, calls, fetched } = await readWithPlayer({
+    videoDetails: { videoId: 'vid00000001' },
+    captions: { playerCaptionsTracklistRenderer: { captionTracks: [track('ja', 'asr')] } },
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls[0], ['loadModule', 'captions']);
+  assert.deepEqual(calls.at(-1), ['unloadModule', 'captions']);
+  const url = new URL(fetched[0]);
+  assert.equal(url.searchParams.get('fmt'), 'json3');
+  assert.equal(url.searchParams.get('pot'), 'TOKEN');
+  assert.equal(url.searchParams.get('kind'), 'asr');
+  // Another video's player response is never read.
+  const other = await readWithPlayer({ videoDetails: { videoId: 'different01' } });
+  assert.equal(other.result.reason, 'no-player');
+});
