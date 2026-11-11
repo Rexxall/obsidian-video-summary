@@ -3,8 +3,13 @@
   "name": "Video Summary Capture",
   "version": "0.8.0",
   "description": "Capture video links and timestamps from the browser and send them to Obsidian or your Video Summary backend.",
-  "permissions": ["activeTab", "clipboardWrite", "contextMenus", "scripting", "storage", "tabs"],
-  "host_permissions": ["http://*/*", "https://*/*"],
+  "permissions": ["activeTab", "clipboardWrite", "contextMenus", "scripting", "storage"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://localhost/*",
+    "https://127.0.0.1/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -57,5 +62,6 @@
       "description": "Add hovered, focused, or selected link to the queue"
     }
   },
-  "optional_permissions": ["cookies"]
+  "optional_permissions": ["cookies"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"]
 }

@@ -299,6 +299,22 @@
   }
 
   /** The backend start script's connection code: `<webhook URL>#token=<token>`. */
+  /**
+   * The site permission a backend address needs, or null when the manifest already covers it
+   * (this computer). The extension asks for it when the address is saved, not at install.
+   */
+  function backendOriginPattern(raw) {
+    let url;
+    try {
+      url = new URL(String(raw || '').trim());
+    } catch {
+      return null;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return null;
+    return `${url.protocol}//${url.hostname}/*`;
+  }
+
   function parseConnectionCode(raw) {
     const text = String(raw || '').trim();
     let parsed;
@@ -362,6 +378,7 @@
     detectPlatform,
     formatTimestamp,
     isVideoUrl,
+    backendOriginPattern,
     parseConnectionCode,
     sanitizeFilename,
     stripTimestamp,

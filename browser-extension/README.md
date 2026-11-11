@@ -35,10 +35,12 @@ Change them at `chrome://extensions/shortcuts`.
 
 ## Privacy
 
+- **Site access:** the extension reads only the tab you use it on (toolbar button, shortcut or right-click menu), and talks to Obsidian and a backend on this computer. For a backend on another computer, Chrome asks for that one site when you save its address. Installing asks for no access to all websites.
 - Settings sync with your browser profile, except the Obsidian REST token, which stays on this device.
 - Queue and history are stored locally in the browser.
 - Video links go only to the targets you choose: Obsidian on this computer, or the backend URL you set.
 - YouTube captions are read from the page you are on and go only to Obsidian with the link; the extension makes no request of its own to anyone else.
+- The full policy is in [PRIVACY.md](PRIVACY.md).
 
 ## Development
 

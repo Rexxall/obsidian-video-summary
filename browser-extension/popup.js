@@ -402,6 +402,10 @@ async function syncBilibiliLogin() {
 }
 
 async function saveSettings() {
+  // A backend on another computer needs that site's permission; ask while the click counts.
+  const backend = backendFromInput(els.settings.n8nWebhookUrl.value).n8nWebhookUrl;
+  const origin = backend ? U.backendOriginPattern(backend) : null;
+  const allowed = origin ? await chrome.permissions.request({ origins: [origin] }) : true;
   const settings = {
     vaultName: els.settings.vault.value.trim(),
     folder: els.settings.folder.value.trim(),
@@ -421,7 +425,10 @@ async function saveSettings() {
   const response = await send('SAVE_SETTINGS', { settings });
   state.settings = response.settings;
   renderSettings();
-  setStatus('已保存。', 'success');
+  setStatus(
+    allowed ? '已保存。' : '已保存，但没有允许访问这个后端地址，发送到后端会失败。',
+    allowed ? 'success' : 'error',
+  );
 }
 
 /** “送去总结”：按设置里选的路线发送；路线是“队列”时只加入队列 */

@@ -357,3 +357,21 @@ test('the reader asks the page’s player for the track, refetches it as json3 a
   const other = await readWithPlayer({ videoDetails: { videoId: 'different01' } });
   assert.equal(other.result.reason, 'no-player');
 });
+
+test('the extension asks for site access only for a backend on another computer', () => {
+  const U = loadUtils();
+  const manifest = JSON.parse(readFileSync(new URL('manifest.json', dir), 'utf8'));
+  // Installing asks for no access to every site; this computer is covered.
+  assert.equal(
+    manifest.host_permissions.some((p) => p.includes('*/*') && !/localhost|127\.0\.0\.1/.test(p)),
+    false,
+  );
+  assert.equal(manifest.permissions.includes('tabs'), false);
+  assert.equal(U.backendOriginPattern('http://127.0.0.1:5678/webhook/x'), null);
+  assert.equal(U.backendOriginPattern('http://localhost:5678/webhook/x'), null);
+  assert.equal(
+    U.backendOriginPattern('https://n8n.example.org/webhook/x'),
+    'https://n8n.example.org/*',
+  );
+  assert.equal(U.backendOriginPattern('not a url'), null);
+});
