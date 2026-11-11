@@ -119,6 +119,22 @@ function timeLinker(url) {
   }
   return null;
 }
+function separateTables(note) {
+  return note.split(/(^```[\s\S]*?^```)/m).map((part, index) => {
+    if (index % 2 === 1) return part;
+    const lines = part.split("\n");
+    const out = [];
+    lines.forEach((line, i) => {
+      const prev = i > 0 ? lines[i - 1] : "";
+      const isRow = /^\s*\|/.test(line);
+      const prevRow = /^\s*\|/.test(prev);
+      if (isRow && !prevRow && prev.trim() && !/^\s*>/.test(line)) out.push("");
+      if (!isRow && prevRow && line.trim() && !/^\s*>/.test(prev)) out.push("");
+      out.push(line);
+    });
+    return out.join("\n");
+  }).join("");
+}
 
 // utils/NoteOutput.ts
 function cleanVideoScaffold(body) {
@@ -15959,7 +15975,7 @@ ${body}`;
     }
     if (result.note) {
       const link = typeof fm.link === "string" ? fm.link : void 0;
-      result = { ...result, note: linkTimestamps(result.note, link) };
+      result = { ...result, note: separateTables(linkTimestamps(result.note, link)) };
     }
     if (prefs.themeMarks) {
       addDoneStamp(fm);

@@ -6,6 +6,7 @@ import {
   ITHACA_NOTE_STYLE,
   NOTE_PROMPT_VERSION,
   linkTimestamps,
+  separateTables,
   noteImagesFor,
   promptVersionFor,
 } from '../core/NoteStyle';
@@ -78,4 +79,16 @@ test('a note the model already circled keeps one circle', () => {
   });
   assert.equal(moved.match(/class="ih-circ"/g)?.length, 1);
   assert.match(moved, /<span class="ih-circ">another<\/span>/);
+});
+
+test('a table right under a line gets the blank line Obsidian needs', () => {
+  const note = '**The point.**\n| a | b |\n|---|---|\n| 1 | 2 |\n- after';
+  assert.equal(
+    separateTables(note),
+    '**The point.**\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n- after',
+  );
+  const quoted = '> [!info] x\n> | a |\n> |---|';
+  assert.equal(separateTables(quoted), quoted);
+  const fenced = 'x\n```\n| a |\n```';
+  assert.equal(separateTables(fenced), fenced);
 });

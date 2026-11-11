@@ -112,3 +112,27 @@ function timeLinker(url: string | undefined): ((seconds: number) => string) | nu
   }
   return null;
 }
+
+/**
+ * A table needs a blank line before it, or Obsidian shows its pipes as text; models often
+ * put one right under a bold line. Code and diagrams stay as written.
+ */
+export function separateTables(note: string): string {
+  return note
+    .split(/(^```[\s\S]*?^```)/m)
+    .map((part, index) => {
+      if (index % 2 === 1) return part;
+      const lines = part.split('\n');
+      const out: string[] = [];
+      lines.forEach((line, i) => {
+        const prev = i > 0 ? lines[i - 1] : '';
+        const isRow = /^\s*\|/.test(line);
+        const prevRow = /^\s*\|/.test(prev);
+        if (isRow && !prevRow && prev.trim() && !/^\s*>/.test(line)) out.push('');
+        if (!isRow && prevRow && line.trim() && !/^\s*>/.test(prev)) out.push('');
+        out.push(line);
+      });
+      return out.join('\n');
+    })
+    .join('');
+}
