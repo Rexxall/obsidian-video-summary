@@ -1,5 +1,5 @@
 import { BackendLostError, mayMeanBackendGone, withBackendWatch } from './BackendHealth';
-import { Notice, TFile } from 'obsidian';
+import { Notice, TFile, getFrontMatterInfo, parseYaml } from 'obsidian';
 import VideoSummaryPlugin from '../main';
 import { NoteProcessor } from '../utils/NoteProcessor';
 import {
@@ -559,9 +559,21 @@ export class JobService {
   }
 
   /** Title, uploader, duration and cover already on the job's note, as the backend would have them. */
-  private videoMetaFor(job: Job): LiteVideoMeta {
+  private async videoMetaFor(job: Job): Promise<LiteVideoMeta> {
     const file = this.fileFor(job);
-    const fm = file ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter : undefined;
+    let fm: Record<string, unknown> | undefined = file
+      ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter
+      : undefined;
+    // Right after Obsidian starts (a link can be what starts it) the cache may not have the
+    // note yet; read it, or the note's file name would replace the video's title.
+    if (file && !fm) {
+      try {
+        const info = getFrontMatterInfo(await this.plugin.app.vault.read(file));
+        fm = info.exists ? (parseYaml(info.frontmatter) as Record<string, unknown>) : undefined;
+      } catch {
+        fm = undefined;
+      }
+    }
     const text = (value: unknown) =>
       typeof value === 'string' && value.trim() ? value.trim() : undefined;
     return {
@@ -611,7 +623,7 @@ export class JobService {
         job.language,
         throttled,
         controller.signal,
-        this.videoMetaFor(job),
+        await this.videoMetaFor(job),
       );
     } finally {
       this.liteControllers.delete(job.id);

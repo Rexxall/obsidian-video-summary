@@ -19697,9 +19697,17 @@ ${buildInsertionContent(result)}`
     );
   }
   /** Title, uploader, duration and cover already on the job's note, as the backend would have them. */
-  videoMetaFor(job) {
+  async videoMetaFor(job) {
     const file = this.fileFor(job);
-    const fm = file ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter : void 0;
+    let fm = file ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter : void 0;
+    if (file && !fm) {
+      try {
+        const info = (0, import_obsidian19.getFrontMatterInfo)(await this.plugin.app.vault.read(file));
+        fm = info.exists ? (0, import_obsidian19.parseYaml)(info.frontmatter) : void 0;
+      } catch {
+        fm = void 0;
+      }
+    }
     const text2 = (value) => typeof value === "string" && value.trim() ? value.trim() : void 0;
     return {
       title: text2(fm?.video_title) || job.title,
@@ -19742,7 +19750,7 @@ ${buildInsertionContent(result)}`
         job.language,
         throttled,
         controller.signal,
-        this.videoMetaFor(job)
+        await this.videoMetaFor(job)
       );
     } finally {
       this.liteControllers.delete(job.id);
