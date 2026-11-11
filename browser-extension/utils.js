@@ -243,8 +243,9 @@
       `url=${encodeObsidianParam(baseUrl)}`,
       `title=${encodeObsidianParam(title)}`,
       `mode=${encodeObsidianParam(mode)}`,
-      // Without it the plugin only files the link in its inbox.
-      'action=process',
+      // Without it the plugin only files the link in its inbox. Not `action`: Obsidian
+      // replaces that parameter with the handler's name.
+      'process=1',
     ];
     if (settings.folder) params.push(`folder=${encodeObsidianParam(settings.folder)}`);
     if (timestampUrl && timestampUrl !== baseUrl) {

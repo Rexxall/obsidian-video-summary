@@ -9,6 +9,7 @@ import {
   CaptureNoteDraft,
   canonicalizeCaptureSource,
   createCaptureNoteDraft,
+  protocolCaptureAction,
 } from '../core/CaptureInbox';
 
 const CAPTURED_AT = '2026-07-29T10:00:00.000Z';
@@ -189,3 +190,14 @@ class MemoryCaptureRepository implements CaptureInboxRepository {
     return { created: true, entry: { ...entry } };
   }
 }
+
+test('a link asks for processing with process=1, since Obsidian overwrites its action', () => {
+  // What Obsidian hands the handler for ...?action=process&process=1
+  assert.equal(
+    protocolCaptureAction({ action: 'video-summary', process: '1' }),
+    'capture-and-process',
+  );
+  assert.equal(protocolCaptureAction({ action: 'video-summary' }), 'capture-only');
+  assert.equal(protocolCaptureAction({ action: 'capture-and-process' }), 'capture-and-process');
+  assert.equal(protocolCaptureAction({ process: 'no' }), 'capture-only');
+});

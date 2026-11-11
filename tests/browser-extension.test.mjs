@@ -231,7 +231,8 @@ test('captions travel with the link: as a link parameter and as note frontmatter
   const uri = U.buildObsidianProcessUri('Vault', item, { defaultMode: 'summary' });
   assert.equal(new URL(uri).searchParams.get('transcript'), transcript);
   // “Send to the plugin” must ask it to process, not only to file the link.
-  assert.equal(new URL(uri).searchParams.get('action'), 'process');
+  assert.equal(new URL(uri).searchParams.get('process'), '1');
+  assert.equal(new URL(uri).searchParams.has('action'), false);
   const note = U.buildPendingNoteContent(item, { quickAction: 'create-pending-note' });
   const frontmatter = parse(note.split('---\n')[1]);
   assert.equal(frontmatter.provided_transcript, transcript);

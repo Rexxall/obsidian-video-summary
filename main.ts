@@ -81,8 +81,8 @@ import {
   CaptureInbox,
   CaptureInboxEntry,
   CaptureInboxRepositoryResult,
-  CaptureInboxAction,
   CaptureNoteDraft,
+  protocolCaptureAction,
 } from './core/CaptureInbox';
 import { normalizeVideoSummaryBaseFolder, upsertVideoSummaryBase } from './core/BasesGenerator';
 import { restoreReprocessPayload } from './core/ReproducibilityManifest';
@@ -2472,7 +2472,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
   /**
    * Global capture entry. Default is offline `capture-only`; processing must be
-   * requested explicitly with action=capture-and-process (or action=process).
+   * requested explicitly with process=1 (see protocolCaptureAction).
    */
   private async handleProtocolRequest(params: Record<string, string>) {
     try {
@@ -2488,18 +2488,7 @@ export default class VideoSummaryPlugin extends Plugin {
         );
         return;
       }
-      const requestedAction = String(params.action || '')
-        .trim()
-        .toLowerCase();
-      const action: CaptureInboxAction = [
-        'capture-and-process',
-        'process',
-        'process-now',
-        '1',
-        'true',
-      ].includes(requestedAction)
-        ? 'capture-and-process'
-        : 'capture-only';
+      const action = protocolCaptureAction(params);
       const result = await this.captureInbox.capture({
         url: rawUrl || undefined,
         local_file: localFile || undefined,

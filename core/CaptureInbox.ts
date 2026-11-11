@@ -349,3 +349,18 @@ function escapeMarkdownText(value: string): string {
 function escapeMarkdownDestination(value: string): string {
   return value.replace(/</g, '%3C').replace(/>/g, '%3E').replace(/\r?\n/g, '');
 }
+
+/**
+ * What an obsidian://video-summary link asks for. Obsidian overwrites the link's `action`
+ * parameter with the handler's name ("video-summary"), so processing is asked with
+ * `process=1`; an `action` that did survive (other callers of the handler) still counts.
+ */
+export function protocolCaptureAction(params: Record<string, string>): CaptureInboxAction {
+  const wants = (value: string | undefined) =>
+    ['capture-and-process', 'process', 'process-now', '1', 'true', 'yes'].includes(
+      String(value || '')
+        .trim()
+        .toLowerCase(),
+    );
+  return wants(params.process) || wants(params.action) ? 'capture-and-process' : 'capture-only';
+}

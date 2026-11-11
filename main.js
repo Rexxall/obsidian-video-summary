@@ -24059,6 +24059,12 @@ function escapeMarkdownText2(value) {
 function escapeMarkdownDestination2(value) {
   return value.replace(/</g, "%3C").replace(/>/g, "%3E").replace(/\r?\n/g, "");
 }
+function protocolCaptureAction(params) {
+  const wants = (value) => ["capture-and-process", "process", "process-now", "1", "true", "yes"].includes(
+    String(value || "").trim().toLowerCase()
+  );
+  return wants(params.process) || wants(params.action) ? "capture-and-process" : "capture-only";
+}
 
 // core/BasesGenerator.ts
 var VIDEO_SUMMARY_BASE_VERSION = 1;
@@ -26722,7 +26728,7 @@ Suggestion: ${result.hint}`) : "";
   }
   /**
    * Global capture entry. Default is offline `capture-only`; processing must be
-   * requested explicitly with action=capture-and-process (or action=process).
+   * requested explicitly with process=1 (see protocolCaptureAction).
    */
   async handleProtocolRequest(params) {
     try {
@@ -26738,14 +26744,7 @@ Suggestion: ${result.hint}`) : "";
         );
         return;
       }
-      const requestedAction = String(params.action || "").trim().toLowerCase();
-      const action = [
-        "capture-and-process",
-        "process",
-        "process-now",
-        "1",
-        "true"
-      ].includes(requestedAction) ? "capture-and-process" : "capture-only";
+      const action = protocolCaptureAction(params);
       const result = await this.captureInbox.capture({
         url: rawUrl || void 0,
         local_file: localFile || void 0,
