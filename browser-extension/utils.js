@@ -243,6 +243,8 @@
       `url=${encodeObsidianParam(baseUrl)}`,
       `title=${encodeObsidianParam(title)}`,
       `mode=${encodeObsidianParam(mode)}`,
+      // Without it the plugin only files the link in its inbox.
+      'action=process',
     ];
     if (settings.folder) params.push(`folder=${encodeObsidianParam(settings.folder)}`);
     if (timestampUrl && timestampUrl !== baseUrl) {
