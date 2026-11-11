@@ -197,13 +197,23 @@ async function readPlayerCaptions(videoId) {
       .getEntriesByType('resource')
       .map((entry) => entry.name)
       .filter((name) => name.includes('/api/timedtext') && name.includes(`v=${videoId}`))
-      .filter((name) => name.includes('pot='))
+      // Some players sign the request with pot=, others with signature=; both work.
+      .sort((a, b) => Number(a.includes('pot=')) - Number(b.includes('pot=')))
       .pop();
   let url = loaded();
   let switchedOn = false;
-  const ask = () => {
+  let before = {};
+  try {
+    before = player.getOption('captions', 'track') || {};
+  } catch {
+    // Captions module not loaded yet: they were off.
+  }
+  const ask = async () => {
     try {
       player.loadModule('captions');
+      // With the track already on, the player would not ask again: turn it off first.
+      player.setOption('captions', 'track', {});
+      await new Promise((resolve) => setTimeout(resolve, 150));
       player.setOption('captions', 'track', {
         languageCode: track.languageCode,
         ...(track.kind ? { kind: track.kind } : {}),
@@ -214,19 +224,23 @@ async function readPlayerCaptions(videoId) {
     }
   };
   if (!url) {
-    ask();
+    await ask();
     // A player that has only just started may ignore the first request; ask again every 2 s.
     for (let i = 1; i <= 40 && !url; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 250));
       url = loaded();
-      if (!url && i % 8 === 0) ask();
+      if (!url && i % 8 === 0) await ask();
     }
   }
   const switchOff = () => {
     if (!switchedOn) return;
     try {
-      player.setOption('captions', 'track', {});
-      player.unloadModule('captions');
+      // Leave the captions as the viewer had them.
+      if (before.languageCode) player.setOption('captions', 'track', before);
+      else {
+        player.setOption('captions', 'track', {});
+        player.unloadModule('captions');
+      }
     } catch {
       // Leave the player as it is.
     }

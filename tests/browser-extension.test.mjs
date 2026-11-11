@@ -243,23 +243,29 @@ test('captions travel with the link: as a link parameter and as note frontmatter
 });
 
 /** Runs the page-side caption reader against a fake YouTube player. */
-async function readWithPlayer(response, { loadedLang } = {}) {
+async function readWithPlayer(response, { loadedLang, signed = false, showing = null } = {}) {
   const source = readFileSync(new URL('background.js', dir), 'utf8');
   const start = source.indexOf('async function readPlayerCaptions');
   const end = source.indexOf('\nfunction youTubeVideoId');
   const entries = [];
   const calls = [];
   const fetched = [];
+  // The track the viewer already has on; the player only fetches when the track changes.
+  let current = showing || {};
   const player = {
     getPlayerResponse: () => response,
+    getOption: () => current,
     loadModule: (name) => calls.push(['loadModule', name]),
     unloadModule: (name) => calls.push(['unloadModule', name]),
     setOption: (module, option, value) => {
       calls.push(['setOption', JSON.stringify(value)]);
-      // The player fetches the chosen track with its proof token.
-      if (value.languageCode) {
+      const changed = value.languageCode !== current.languageCode || value.kind !== current.kind;
+      current = value;
+      // The player fetches the chosen track, signed with a proof token or a signature.
+      if (value.languageCode && changed) {
+        const proof = signed ? 'signature=SIG' : 'pot=TOKEN';
         entries.push({
-          name: `https://www.youtube.com/api/timedtext?v=vid00000001&lang=${loadedLang || value.languageCode}&pot=TOKEN&fmt=srv3`,
+          name: `https://www.youtube.com/api/timedtext?v=vid00000001&lang=${loadedLang || value.languageCode}&${proof}&fmt=srv3`,
         });
       }
     },
@@ -320,6 +326,18 @@ test('the caption reader picks the spoken language, not the viewer’s', async (
   assert.equal(marked.result.lang, 'en');
   const none = await readWithPlayer(response([], []));
   assert.deepEqual({ ...none.result }, { ok: false, reason: 'no-captions' });
+});
+
+test('the reader also takes signature-signed requests and refetches a track that was already on', async () => {
+  const response = {
+    videoDetails: { videoId: 'vid00000001' },
+    captions: { playerCaptionsTracklistRenderer: { captionTracks: [track('en', 'asr')] } },
+  };
+  const showing = { languageCode: 'en', kind: 'asr' };
+  const { result, calls } = await readWithPlayer(response, { signed: true, showing });
+  assert.equal(result.ok, true);
+  // The viewer’s captions are left on, as they were.
+  assert.deepEqual(calls.at(-1), ['setOption', JSON.stringify(showing)]);
 });
 
 test('the reader asks the page’s player for the track, refetches it as json3 and switches captions off again', async () => {
