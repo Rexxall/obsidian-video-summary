@@ -148,7 +148,7 @@ void test('a reply that is not JSON is retried once with the parse error, like t
   });
   assert.equal(json.note_title, '规则与承诺');
   assert.equal(call, 2);
-  assert.match(prompts[0], /VIDEO_NOTE_PROMPT_V5/);
+  assert.match(prompts[0], /VIDEO_NOTE_PROMPT_V6/);
   assert.match(prompts[0], /\[00:08\] \(vs-1\) you know the rules/);
   assert.match(prompts[1], /could not be parsed/);
   assert.ok(stages.includes('回复格式不对，重写一次'));
@@ -169,7 +169,7 @@ void test('a very long transcript is condensed part by part, keeping the real pa
   const transport: StreamTransport = async (request, onData) => {
     const body = JSON.parse(request.body) as { messages: { content: string }[] };
     const prompt = body.messages[1].content;
-    if (prompt.includes('VIDEO_NOTE_PROMPT_V5')) {
+    if (prompt.includes('VIDEO_NOTE_PROMPT_V6')) {
       finalPrompt = prompt;
       onData(sseOf(JSON.stringify(NOTE)));
     } else {

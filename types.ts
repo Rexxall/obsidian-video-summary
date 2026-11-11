@@ -311,6 +311,8 @@ export interface VideoSummarySettings {
   defaultNoteProperties: string;
   /** Tags for notes made from a pasted article or transcript, instead of the default tags */
   articleTags: string;
+  /** The reader's own way of writing notes, sent to the model with every note request. */
+  noteStyle: string;
   /** AI 写的 [[双链]] 指向不存在的笔记时改成纯文字 */
   unlinkMissingNotes: boolean;
   /** 给认识 ih-sub / ih-circ / ih-stamp-done 的主题加标记 */

@@ -1,3 +1,4 @@
+import { ITHACA_NOTE_STYLE } from './core/NoteStyle';
 import { relinkVideoJobs } from './utils/NoteOutput';
 import {
   App,
@@ -1673,6 +1674,7 @@ export default class VideoSummaryPlugin extends Plugin {
       autoRoute: this.settings.autoRouteContent,
       attentionAssessment: this.settings.attentionAssessmentEnabled,
       generateLearning: this.settings.generateLearningArtifacts,
+      noteStyle: this.settings.noteStyle ?? '',
     });
 
     if (this.settings.enableCache !== false) {
@@ -3915,6 +3917,51 @@ class VideoSummarySettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    const styleSetting = new Setting(section)
+      .setClass('vs-setting-stacked')
+      .setName(tr('写作风格', 'Writing style'))
+      .setDesc(
+        tr(
+          '告诉模型你想要的笔记写法：用哪些 callout、要不要页边批注、引语怎么放。优先于默认写法，轻量档和后端都用。留空就用默认写法。',
+          'How you want notes written: which callouts, margin notes, how quotes look. It is followed over the default way, by the light tier and the backend alike. Leave empty for the default.',
+        ),
+      );
+    let styleArea: HTMLTextAreaElement | null = null;
+    styleSetting.addTextArea((area) => {
+      area
+        .setPlaceholder(
+          tr(
+            '例如：例子放进 > [!example]，引语放进 > [!quote]。',
+            'For example: examples in > [!example], quotes in > [!quote].',
+          ),
+        )
+        .setValue(this.plugin.settings.noteStyle ?? '')
+        .onChange(async (value) => {
+          this.plugin.settings.noteStyle = value;
+          this.plugin.api.setAnalysisDefaults({ noteStyle: value });
+          await this.plugin.saveSettings();
+        });
+      area.inputEl.rows = 5;
+      area.inputEl.addClass('vs-properties-input');
+      styleArea = area.inputEl;
+    });
+    styleSetting.addButton((button) =>
+      button
+        .setButtonText(tr('用 Ithaca 整本手账', 'Use Ithaca notebook'))
+        .setTooltip(
+          tr(
+            '填入给 Ithaca 主题写的风格：黑纸结论、胶带例子、页边批注、原话小票、相片。会替换框里现有的内容。',
+            'Fill in the style written for the Ithaca theme: black-paper conclusion, taped examples, margin notes, quote receipts, photos. Replaces what is in the box.',
+          ),
+        )
+        .onClick(async () => {
+          this.plugin.settings.noteStyle = ITHACA_NOTE_STYLE;
+          this.plugin.api.setAnalysisDefaults({ noteStyle: ITHACA_NOTE_STYLE });
+          await this.plugin.saveSettings();
+          if (styleArea) styleArea.value = ITHACA_NOTE_STYLE;
+        }),
+    );
 
     new Setting(section)
       .setName(tr('只保留指向已有笔记的双链', 'Keep only links to existing notes'))

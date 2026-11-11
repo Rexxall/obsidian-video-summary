@@ -10,14 +10,13 @@
  * (youtube-transcript-api issue #592), and getting round that would mean getting
  * round YouTube's bot checks.
  */
+import { noteImagesFor, promptVersionFor } from './NoteStyle';
 import type { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 import { detectPlatform } from './Platform';
 import { type LiteSegment, type StreamTransport, generateNote, transcriptText } from './LiteTier';
 import { normalizeRichProcessingResult, parseTranscriptSegments } from './KnowledgeModel';
 import { desktopRequire } from '../utils/desktop';
 import { tr } from '../utils/i18n';
-
-export const LITE_PROMPT_VERSION = 'video-note-prompt-v5';
 
 export type LiteDecision =
   | { lite: true }
@@ -50,6 +49,8 @@ export interface LiteDeps {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** The reader's writing style, followed over the prompt's defaults. */
+  noteStyle?: string;
 }
 
 /** Video details the note already has: title, uploader, duration as yt-dlp writes it, cover. */
@@ -135,6 +136,8 @@ export async function runLiteJob(
         content_type: input.contentType || 'auto',
         attention_assessment: input.attentionAssessment !== false,
         generate_learning: input.generateLearning === true,
+        ...(deps.noteStyle?.trim() ? { note_style: deps.noteStyle } : {}),
+        note_images: noteImagesFor(sourceUrl),
       },
       onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
       signal,
@@ -156,7 +159,7 @@ export async function runLiteJob(
     sourceUrl,
     model: deps.model,
     processingDepth: input.processingDepth,
-    promptVersion: LITE_PROMPT_VERSION,
+    promptVersion: promptVersionFor(deps.noteStyle),
     requestedContentType: input.contentType,
     autoRoute: input.autoRoute,
   });

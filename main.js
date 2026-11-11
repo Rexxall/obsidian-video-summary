@@ -38,6 +38,88 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 
+// core/NoteStyle.ts
+var NOTE_PROMPT_VERSION = "video-note-prompt-v6";
+var ITHACA_NOTE_STYLE = [
+  'The vault uses the theme "Ithaca \u6574\u672C\u624B\u8D26". Use its elements wherever they fit; each draws something different on the page.',
+  "- Headings: no emoji; the theme numbers the ## headings itself.",
+  '- The summary callout is titled "\u6838\u5FC3\u6458\u8981".',
+  '- The single most important conclusion, or a common misconception the video corrects: one "> [!important] <short title>" callout (black paper).',
+  '- The one or two best concrete examples (a story, an experiment, a case): "> [!example] <short name>", 2 or 3 sentences each, under the section they prove (taped slips of paper).',
+  '- Short background (who a person is, a date, where a study comes from): footnotes [^1] with the text at the end; the theme moves them into the right margin in handwriting. A longer mechanism a reader may skip: a folded "> [!info]- <topic>" callout.',
+  '- Your own thoughts as handwritten margin notes right after the line they are about: <span class="ih-mg">a short sentence</span> for a connection or open question; <span class="ih-mg is-red">a short sentence</span> in red pen where the argument is weak, overstated or lacks evidence; <span class="ih-mg ih-sticky">a few words</span> for something small to try. At most three in all, and none when nothing is worth saying.',
+  '- Things to do from the video: one "> [!todo] \u884C\u52A8\u6E05\u5355" callout with "- [ ]" items. A question the video leaves open: one "> [!question] \u7559\u7ED9\u81EA\u5DF1\u7684\u95EE\u9898" callout. Both only when the video gives them.',
+  '- Quotes: "> [!receipt] \u539F\u8BDD" callouts at the end, one line each, with its time; a translation on the next line when the languages differ.',
+  "- Pictures: the cover as ![\u7167\u7247 right <channel>|260](url) under the summary; a frame as ![\u7167\u7247 <what is happening>|320](url) in the section it belongs to.",
+  "- Between two big parts you may put a line with --- (a \u2767 ornament); at most twice.",
+  '- Put <span class="ih-circ">...</span> around the single most important phrase of the note, once. ==highlight== at most two other phrases.'
+].join("\n");
+function noteImagesFor(url) {
+  const id = youTubeId(url);
+  if (!id) return [];
+  const base = `https://i.ytimg.com/vi/${id}/`;
+  return [
+    { url: `${base}hqdefault.jpg`, label: "cover" },
+    { url: `${base}hq1.jpg`, label: "frame about a quarter into the video" },
+    { url: `${base}hq2.jpg`, label: "frame about halfway" },
+    { url: `${base}hq3.jpg`, label: "frame about three quarters in" }
+  ];
+}
+function youTubeId(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\.|^m\./, "");
+    let id = null;
+    if (host === "youtu.be") id = parsed.pathname.slice(1);
+    else if (host === "youtube.com" || host === "music.youtube.com") {
+      id = parsed.searchParams.get("v") || parsed.pathname.match(/^\/(?:shorts|live|embed)\/([^/]+)/)?.[1] || null;
+    }
+    return id && /^[\w-]{11}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+function promptVersionFor(style) {
+  const text2 = (style || "").trim();
+  if (!text2) return NOTE_PROMPT_VERSION;
+  let hash = 2166136261;
+  for (let i = 0; i < text2.length; i += 1) {
+    hash ^= text2.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${NOTE_PROMPT_VERSION}+style-${(hash >>> 0).toString(16)}`;
+}
+function linkTimestamps(note, url) {
+  const link = timeLinker(url);
+  if (!link) return note;
+  return note.split(/(^```[\s\S]*?^```)/m).map(
+    (part, index) => index % 2 === 1 ? part : part.replace(
+      /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\](?!\()/g,
+      (match, a, b, c) => {
+        const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
+        return `[${match.slice(1, -1)}](${link(seconds)})`;
+      }
+    )
+  ).join("");
+}
+function timeLinker(url) {
+  const id = youTubeId(url);
+  if (id) return (s) => `https://www.youtube.com/watch?v=${id}&t=${s}`;
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (/(^|\.)bilibili\.com$/.test(parsed.hostname) && /^\/video\//.test(parsed.pathname)) {
+      const page = parsed.searchParams.get("p");
+      const base = `https://www.bilibili.com${parsed.pathname.replace(/\/$/, "")}`;
+      return (s) => `${base}?${page ? `p=${page}&` : ""}t=${s}`;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 // utils/NoteOutput.ts
 function cleanVideoScaffold(body) {
   const normalized = body.replace(/\r\n/g, "\n");
@@ -1976,6 +2058,7 @@ var DEFAULT_SETTINGS = {
   noteCssClass: "",
   defaultNoteProperties: "",
   articleTags: "",
+  noteStyle: "",
   unlinkMissingNotes: false,
   themeMarks: false,
   autoRenameEnabled: true,
@@ -10037,7 +10120,6 @@ function withBackendWatch(work, options) {
 
 // api/VideoSummaryAPI.ts
 var CACHE_ARTIFACT_SCHEMA_VERSION = 3;
-var CACHE_PROMPT_VERSION = "video-note-prompt-v5";
 var NO_SUMMARY = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u603B\u7ED3";
 var NO_TRANSCRIPT = "\u670D\u52A1\u5668\u6CA1\u6709\u8FD4\u56DE\u8F6C\u5F55\u6587\u672C";
 var BACKEND_ERROR = "\u540E\u7AEF\u62A5\u9519";
@@ -10069,7 +10151,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       contentType: "auto",
       autoRoute: true,
       attentionAssessment: true,
-      generateLearning: false
+      generateLearning: false,
+      noteStyle: ""
     };
     this.lastWebhookResult = null;
     this.webhookHistory = [];
@@ -10470,7 +10553,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       visual,
       attention: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
       learning: input.generateLearning ?? this.analysisDefaults.generateLearning,
-      promptVersion: CACHE_PROMPT_VERSION
+      promptVersion: promptVersionFor(this.analysisDefaults.noteStyle)
     });
   }
   withCacheFingerprint(result, fingerprint) {
@@ -10500,7 +10583,11 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     const autoRoute = input.autoRoute ?? this.analysisDefaults.autoRoute;
     const contract = buildContentRoutingPromptContract(contentType, autoRoute);
     metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
-    metadata.prompt_version = CACHE_PROMPT_VERSION;
+    metadata.prompt_version = promptVersionFor(this.analysisDefaults.noteStyle);
+    if (this.analysisDefaults.noteStyle.trim())
+      metadata.note_style = this.analysisDefaults.noteStyle;
+    const images = noteImagesFor(input.url || input.sourceUrl);
+    if (images.length) metadata.note_images = images;
     metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
     metadata.content_type = contentType;
     metadata.auto_route = autoRoute;
@@ -10744,7 +10831,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
       backend: "n8n",
       model: this.aiModel,
       processingDepth: input.processingDepth,
-      promptVersion: CACHE_PROMPT_VERSION,
+      promptVersion: promptVersionFor(this.analysisDefaults.noteStyle),
       requestedContentType: input.contentType,
       autoRoute: input.autoRoute
     });
@@ -15623,8 +15710,16 @@ function readExistingMarks(body) {
 }
 function markNoteBody(note, takeaway, existing = { subOutside: false, circleOutside: false }) {
   let body = note || "";
+  const circled = /<span class="ih-circ">/.test(body);
   if (!existing.circleOutside) {
-    body = existing.circleInside !== void 0 ? circleText(body, existing.circleInside) : circleFirstHighlight(body);
+    if (existing.circleInside !== void 0) {
+      body = circleText(
+        body.replace(/<span class="ih-circ">(.*?)<\/span>/g, "$1"),
+        existing.circleInside
+      );
+    } else if (!circled) {
+      body = circleFirstHighlight(body);
+    }
   }
   if (!existing.subOutside) {
     const line = existing.subInside !== void 0 ? existing.subInside : escapeHtml((takeaway || "").replace(/\s+/g, " ").trim());
@@ -15861,6 +15956,10 @@ ${body}`;
         ...result,
         note: unlinkMissingNotes(result.note, (linkpath) => linkExists(linkpath, file.path))
       };
+    }
+    if (result.note) {
+      const link = typeof fm.link === "string" ? fm.link : void 0;
+      result = { ...result, note: linkTimestamps(result.note, link) };
     }
     if (prefs.themeMarks) {
       addDoneStamp(fm);
@@ -16403,28 +16502,28 @@ var NOTE_SYSTEM_MESSAGE = [
   "Reply with one JSON object and nothing else."
 ].join("\n");
 function buildNotePrompt(input) {
-  const MARKER = "VIDEO_NOTE_PROMPT_V5";
+  const MARKER = "VIDEO_NOTE_PROMPT_V6";
   const languages = {
     zh: {
       name: "Simplified Chinese",
       summary: "\u6458\u8981",
-      points: "\u8981\u70B9",
-      details: "\u5C55\u5F00\u7EC6\u8282",
-      missing: "\u89C6\u9891\u91CC\u6CA1\u6709\u63D0\u5230"
+      missing: "\u89C6\u9891\u91CC\u6CA1\u6709\u63D0\u5230",
+      example: "\u8EAB\u4F53\u5F71\u54CD\u5927\u8111",
+      generic: "\u8981\u70B9\u3001\u6838\u5FC3\u6982\u5FF5\u3001\u4E3B\u8981\u5185\u5BB9\u3001\u603B\u7ED3"
     },
     en: {
       name: "English",
       summary: "Summary",
-      points: "Key points",
-      details: "More detail",
-      missing: "Not in the video"
+      missing: "Not in the video",
+      example: "Body shapes the brain",
+      generic: "Key points, Main ideas, Summary"
     },
     ja: {
       name: "Japanese",
       summary: "\u8981\u7D04",
-      points: "\u8981\u70B9",
-      details: "\u8A73\u3057\u304F",
-      missing: "\u52D5\u753B\u3067\u306F\u89E6\u308C\u3089\u308C\u3066\u3044\u306A\u3044"
+      missing: "\u52D5\u753B\u3067\u306F\u89E6\u308C\u3089\u308C\u3066\u3044\u306A\u3044",
+      example: "\u4F53\u304C\u8133\u3092\u5909\u3048\u308B",
+      generic: "\u8981\u70B9\u3001\u4E3B\u306A\u5185\u5BB9\u3001\u307E\u3068\u3081"
     }
   };
   const lang = languages[input.language] || languages.zh;
@@ -16432,6 +16531,10 @@ function buildNotePrompt(input) {
   const contentType = metadata.content_type || "auto";
   const assessAttention = metadata.attention_assessment !== false;
   const makeLearning = metadata.generate_learning === true;
+  const style = String(metadata.note_style || "").trim().slice(0, 4e3);
+  const images = (Array.isArray(metadata.note_images) ? metadata.note_images : []).filter(function(image) {
+    return image && typeof image.url === "string" && /^https:\/\//.test(image.url);
+  }).slice(0, 6);
   const segments = Array.isArray(input.segments) ? input.segments.filter(function(segment) {
     return segment && segment.id && segment.text;
   }) : [];
@@ -16460,24 +16563,41 @@ function buildNotePrompt(input) {
     transcriptText2,
     "---",
     "",
-    'NOTE SHAPE (the "note" field, Markdown)',
-    '1. Start with "> [!summary] ' + lang.summary + '": 2 to 4 sentences saying what the video is about and what it concludes.',
-    '2. Then "## ' + lang.points + '": ' + (long ? "6 to 10" : "4 to 6") + " bullets, one line each, the points a viewer should remember. Start a bullet with its time, like [12:34], when the transcript has times.",
-    '3. Then the sections for the content type below, as ## headings with short bullets or a table. Put long explanations, quotes and worked examples inside folded callouts ("> [!note]- ' + lang.details + '"); keep blank lines inside a callout as ">".',
-    "4. Do not retell the transcript. The plugin adds the full timestamped transcript under the note, so the note keeps only what is worth rereading. Aim for " + (long ? "about 1,200 words (2,000 Chinese or Japanese characters) at most" : "about a quarter of the transcript length") + ".",
-    "5. Use a table when comparing three or more things. Use ==highlight== for at most five key terms. Put a space between Chinese or Japanese text and Latin words or numbers.",
-    "6. Write terms and names as plain text, never as [[wiki links]]: the reader decides which notes to link.",
+    'NOTE SHAPE (the "note" field, Markdown for Obsidian). The reader rereads these notes in a personal knowledge base. They want to see the structure of the video at a glance and read little prose: diagrams, tables, lists and callouts carry the content; sentences are the glue.',
     "",
-    "CONTENT TYPES. If the requested type is not auto, use it. Otherwise pick one from the title and transcript; use general when unsure.",
-    "- course: learning goals, key concepts (term and meaning), walkthrough, questions to check understanding. A language lesson also gets a vocabulary table: word, reading, meaning, example sentence from the video.",
-    "- interview: who is talking and why, topics, views by speaker, key questions and answers, open questions. A question from the host is not a claim by the guest.",
-    "- tutorial: goal and prerequisites, setup, numbered steps (commands in code blocks), how to check it worked and fix problems. Do not add steps the video does not show.",
-    "- news: what happened, timeline, who is involved and their sources, what is confirmed versus claimed versus unknown, what comes next.",
-    "- meeting: context, decisions, action items (item, owner, due, status), discussion, open issues.",
-    "- review: what was tested and how, facts about the product, strengths, weaknesses and trade-offs, who it suits.",
-    "- general: overview, main points, evidence and limits, takeaways.",
-    "The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
-    'Write "' + lang.missing + '" where a section has nothing to go on.',
+    "Step 1. Decide what the video mainly is; do not write this step down. A requested content type other than auto is a strong hint. argument: it argues a thesis. method: it teaches how to do something or gives strategies. breakdown: it analyses a work or a thing part by part. story: what happened to a person, company, event or idea over time. explainer: how something works or what it is. conversation: an interview or a discussion.",
+    "",
+    "Step 2. Write the note.",
+    '- Top: "> [!summary] ' + lang.summary + '" with at most 2 sentences: what the video takes on and what it concludes. Never "this video introduces".',
+    '- Then always one picture of the whole video as a Mermaid diagram in a ```mermaid block. argument: flowchart of how the claims lead to the conclusion. method: flowchart from the problem to its cause to the strategies. breakdown: mindmap of the parts. story: timeline of the stages. explainer: flowchart from the simplest idea up to the hardest. conversation: mindmap of topics with the person who spoke to each. 4 to 8 nodes. Use flowchart LR only for up to 5 nodes, otherwise flowchart TD. Every node label in double quotes, like A["' + lang.example + '"], at most 16 characters or 8 words, with no parentheses, colons or quotes inside; ids are plain ASCII.',
+    "- Body: one ## section per part of that picture. Each heading names the actual content in the video's own terms, never a generic label like " + lang.generic + ". Under each heading: first one line in bold with the point of this part; then the content in the most visual form that fits: 2 to 5 short bullets, a table when three or more things share the same attributes, numbered steps for a procedure, a checklist for things to do. At most 2 sentences of prose per section. " + (long ? "3 to 6" : "2 to 4") + " sections.",
+    "- By kind: method puts its strategies in one table (strategy, when to use it, what to do, why it works); explainer adds a table of key terms (term, one-line meaning, example from the video); conversation adds a table of topics with what each person said; story gives each stage its date or order when the video says it.",
+    `- End, only what the video gives: things to do as "- [ ]" items, and 1 to 3 quotes worth keeping, verbatim in the transcript's language with their time. Leave out what the video does not give; never write a section only to fill a slot.`,
+    "",
+    "RULES",
+    "- Leave out logistics and housekeeping: schedules, exam dates, credits, sponsors, greetings, calls to subscribe, jokes that carry no idea.",
+    "- Say each idea once; the summary and the body do not repeat each other.",
+    "- Bold the key terms; when the note is in another language than the video, give a term's original form in parentheses.",
+    "- Write 3 to 6 central concepts as [[wiki links]] the first time they appear (links to notes the reader does not have are turned back into text).",
+    "- Put the time like [12:34] after the bullet or line it supports, when the transcript has times.",
+    "- Put a space between Chinese or Japanese text and Latin words or numbers. Formulas in $...$; code in fenced blocks with the language named.",
+    "- Length: at most about " + (long ? "1,500 Chinese or Japanese characters (900 English words)" : "800 Chinese or Japanese characters (500 English words)") + " of text; diagrams and tables are not counted.",
+    "- The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
+    '- Write "' + lang.missing + '" only where a fact the reader would expect is not in the video.'
+  ];
+  if (images.length) {
+    lines.push(
+      "",
+      "PICTURES you may place where they fit (at most one per section; the first is the cover). Write each as ![caption](url):"
+    );
+    images.forEach(function(image) {
+      lines.push("- " + image.url + (image.label ? " (" + image.label + ")" : ""));
+    });
+  }
+  if (style) {
+    lines.push("", "WRITING STYLE (the reader's own; follow it over the defaults above):", style);
+  }
+  lines.push(
     "",
     "JSON FIELDS",
     "- video_title: a clear title, at most 15 Chinese/Japanese characters or 8 English words, no special symbols.",
@@ -16487,7 +16607,7 @@ function buildNotePrompt(input) {
     '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
     "- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.",
     '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return []. A quote is copied from the transcript in its own language, never translated; the claim is in the language of the note.'
-  ];
+  );
   if (assessAttention) {
     lines.push(
       '- attention: {"action":"watch, skim or skip","score":0 to 1,"confidence":0 to 1,"rationale":"one sentence","information_density":0 to 1,"originality":0 to 1,"actionability":0 to 1,"promotional_ratio":0 to 1,"evidence_segment_ids":[],"limitations":[]}.'
@@ -16802,7 +16922,6 @@ async function generateNote(options) {
 }
 
 // core/LiteRunner.ts
-var LITE_PROMPT_VERSION = "video-note-prompt-v5";
 function liteDecision(enabled, hasModel, input, mode) {
   if (!enabled) return { lite: false, why: "off" };
   if (mode === "info-only") return { lite: false, why: "mode" };
@@ -16867,7 +16986,9 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
       metadata: {
         content_type: input.contentType || "auto",
         attention_assessment: input.attentionAssessment !== false,
-        generate_learning: input.generateLearning === true
+        generate_learning: input.generateLearning === true,
+        ...deps.noteStyle?.trim() ? { note_style: deps.noteStyle } : {},
+        note_images: noteImagesFor(sourceUrl)
       },
       onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
       signal
@@ -16886,7 +17007,7 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
     sourceUrl,
     model: deps.model,
     processingDepth: input.processingDepth,
-    promptVersion: LITE_PROMPT_VERSION,
+    promptVersion: promptVersionFor(deps.noteStyle),
     requestedContentType: input.contentType,
     autoRoute: input.autoRoute
   });
@@ -19743,7 +19864,8 @@ ${buildInsertionContent(result)}`
           transport: nodeStreamTransport,
           baseUrl: llm.baseUrl,
           apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || "",
-          model: llm.model
+          model: llm.model,
+          noteStyle: settings.noteStyle
         },
         job.input,
         job.mode,
@@ -24715,6 +24837,8 @@ var SETTINGS_SEARCH_TERMS = [
   "\u9ED8\u8BA4\u5C5E\u6027",
   "Default properties",
   "\u6587\u7AE0\u7684\u6807\u7B7E",
+  "\u5199\u4F5C\u98CE\u683C",
+  "Writing style",
   "Article tags",
   "\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE",
   "Keep only links to existing notes",
@@ -26049,7 +26173,8 @@ Suggestion: ${result.hint}`) : "";
       contentType: this.settings.defaultContentType,
       autoRoute: this.settings.autoRouteContent,
       attentionAssessment: this.settings.attentionAssessmentEnabled,
-      generateLearning: this.settings.generateLearningArtifacts
+      generateLearning: this.settings.generateLearningArtifacts,
+      noteStyle: this.settings.noteStyle ?? ""
     });
     if (this.settings.enableCache !== false) {
       this.api.setCacheConfig(1e3, this.settings.cacheExpiryDays);
@@ -27925,6 +28050,41 @@ Suggestion: ${res.hint}`) : "";
       (text2) => text2.setPlaceholder("type/article").setValue(this.plugin.settings.articleTags ?? "").onChange(async (value) => {
         this.plugin.settings.articleTags = value.trim();
         await this.plugin.saveSettings();
+      })
+    );
+    const styleSetting = new import_obsidian27.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u5199\u4F5C\u98CE\u683C", "Writing style")).setDesc(
+      tr(
+        "\u544A\u8BC9\u6A21\u578B\u4F60\u60F3\u8981\u7684\u7B14\u8BB0\u5199\u6CD5\uFF1A\u7528\u54EA\u4E9B callout\u3001\u8981\u4E0D\u8981\u9875\u8FB9\u6279\u6CE8\u3001\u5F15\u8BED\u600E\u4E48\u653E\u3002\u4F18\u5148\u4E8E\u9ED8\u8BA4\u5199\u6CD5\uFF0C\u8F7B\u91CF\u6863\u548C\u540E\u7AEF\u90FD\u7528\u3002\u7559\u7A7A\u5C31\u7528\u9ED8\u8BA4\u5199\u6CD5\u3002",
+        "How you want notes written: which callouts, margin notes, how quotes look. It is followed over the default way, by the light tier and the backend alike. Leave empty for the default."
+      )
+    );
+    let styleArea = null;
+    styleSetting.addTextArea((area) => {
+      area.setPlaceholder(
+        tr(
+          "\u4F8B\u5982\uFF1A\u4F8B\u5B50\u653E\u8FDB > [!example]\uFF0C\u5F15\u8BED\u653E\u8FDB > [!quote]\u3002",
+          "For example: examples in > [!example], quotes in > [!quote]."
+        )
+      ).setValue(this.plugin.settings.noteStyle ?? "").onChange(async (value) => {
+        this.plugin.settings.noteStyle = value;
+        this.plugin.api.setAnalysisDefaults({ noteStyle: value });
+        await this.plugin.saveSettings();
+      });
+      area.inputEl.rows = 5;
+      area.inputEl.addClass("vs-properties-input");
+      styleArea = area.inputEl;
+    });
+    styleSetting.addButton(
+      (button) => button.setButtonText(tr("\u7528 Ithaca \u6574\u672C\u624B\u8D26", "Use Ithaca notebook")).setTooltip(
+        tr(
+          "\u586B\u5165\u7ED9 Ithaca \u4E3B\u9898\u5199\u7684\u98CE\u683C\uFF1A\u9ED1\u7EB8\u7ED3\u8BBA\u3001\u80F6\u5E26\u4F8B\u5B50\u3001\u9875\u8FB9\u6279\u6CE8\u3001\u539F\u8BDD\u5C0F\u7968\u3001\u76F8\u7247\u3002\u4F1A\u66FF\u6362\u6846\u91CC\u73B0\u6709\u7684\u5185\u5BB9\u3002",
+          "Fill in the style written for the Ithaca theme: black-paper conclusion, taped examples, margin notes, quote receipts, photos. Replaces what is in the box."
+        )
+      ).onClick(async () => {
+        this.plugin.settings.noteStyle = ITHACA_NOTE_STYLE;
+        this.plugin.api.setAnalysisDefaults({ noteStyle: ITHACA_NOTE_STYLE });
+        await this.plugin.saveSettings();
+        if (styleArea) styleArea.value = ITHACA_NOTE_STYLE;
       })
     );
     new import_obsidian27.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(

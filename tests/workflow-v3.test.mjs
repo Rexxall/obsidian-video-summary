@@ -97,7 +97,7 @@ test('the AI prompt is evaluated, not sent as source code, and follows the reque
   assert.doesNotMatch(text, /核心摘要|95%/);
 });
 
-test('the reply carries a readable note title and a one-line tldr, and the note has no wiki links', () => {
+test('the reply carries a readable note title and a one-line tldr, and links a few central concepts', () => {
   const workflow = JSON.parse(readFileSync(DEFAULT_WORKFLOW_PATH, 'utf8'));
   const agent = workflow.nodes.find((node) => node.name === 'AI: Write Note');
   const prompt = evaluatePromptExpression(agent.parameters.text, {
@@ -106,24 +106,47 @@ test('the reply carries a readable note title and a one-line tldr, and the note 
   });
   assert.match(prompt, /- note_title: a readable title for the note in Simplified Chinese/);
   assert.match(prompt, /- tldr: one sentence in Simplified Chinese/);
-  assert.match(prompt, /never as \[\[wiki links\]\]/);
+  assert.match(prompt, /3 to 6 central concepts as \[\[wiki links\]\]/);
   const summary = workflow.nodes.find((node) => node.name === 'Set: Summary');
   const names = summary.parameters.assignments.assignments.map((item) => item.name);
   assert.ok(names.includes('note_title') && names.includes('tldr'));
 });
 
-test('the prompt asks for a summary and key points, not a retelling', () => {
+test('the prompt shapes the note by what the video is, with a diagram and little prose', () => {
   const short = buildNotePrompt({ transcript: 'x'.repeat(2000), language: 'en' });
   const long = buildNotePrompt({ transcript: 'x'.repeat(60000), language: 'en' });
-  assert.match(short, /4 to 6 bullets/);
-  assert.match(long, /6 to 10 bullets/);
-  assert.match(long, /about 1,200 words/);
-  assert.match(long, /Do not retell the transcript/);
+  for (const kind of ['argument', 'method', 'breakdown', 'story', 'explainer', 'conversation']) {
+    assert.match(short, new RegExp(`${kind}: `), kind);
+  }
+  assert.match(short, /always one picture of the whole video as a Mermaid diagram/);
+  assert.match(short, /flowchart LR only for up to 5 nodes/);
+  assert.match(short, /2 to 4 sections/);
+  assert.match(long, /3 to 6 sections/);
+  assert.match(short, /never write a section only to fill a slot/);
+  assert.match(short, /Leave out logistics/);
   const retry = buildNotePrompt({ transcript: 'x', retryCount: 1, parseError: 'Unexpected token' });
   assert.match(retry, /could not be parsed: Unexpected token/);
   const learning = buildNotePrompt({ transcript: 'x', metadata: { generate_learning: true } });
   assert.match(learning, /- learning:/);
   assert.doesNotMatch(buildNotePrompt({ transcript: 'x' }), /- learning:/);
+});
+
+test("the reader's writing style and the video's pictures reach the prompt", () => {
+  const plain = buildNotePrompt({ transcript: 'x' });
+  assert.doesNotMatch(plain, /WRITING STYLE|PICTURES/);
+  const styled = buildNotePrompt({
+    transcript: 'x',
+    metadata: {
+      note_style: 'Quotes go in > [!receipt] callouts.',
+      note_images: [
+        { url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg', label: 'cover' },
+        { url: 'javascript:alert(1)', label: 'bad' },
+      ],
+    },
+  });
+  assert.match(styled, /WRITING STYLE[^\n]*\nQuotes go in > \[!receipt\] callouts\./);
+  assert.match(styled, /- https:\/\/i\.ytimg\.com\/vi\/abc\/hqdefault\.jpg \(cover\)/);
+  assert.doesNotMatch(styled, /javascript:/);
 });
 
 test('timed transcripts are sent once, with segment ids on each line', () => {
@@ -135,11 +158,12 @@ test('timed transcripts are sent once, with segment ids on each line', () => {
   assert.equal(prompt.split('So in college,').length - 1, 1);
 });
 
-test('the prompt carries every content type and the no-frames limit', () => {
+test('the prompt keeps the content types, the no-frames limit and verbatim quotes', () => {
   const prompt = buildNotePrompt({ transcript: 'x', language: 'zh' });
-  for (const route of ['course', 'interview', 'tutorial', 'news', 'meeting', 'review', 'general']) {
-    assert.match(prompt, new RegExp(`- ${route}: `), route);
-  }
+  assert.match(
+    prompt,
+    /content_type: course, interview, tutorial, news, meeting, review or general/,
+  );
   assert.match(prompt, /does not receive video frames/);
   assert.match(prompt, /quote is copied from the transcript in its own language, never translated/);
 });

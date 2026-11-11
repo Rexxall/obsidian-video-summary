@@ -64,11 +64,18 @@ export function markNoteBody(
   existing: ExistingMarks = { subOutside: false, circleOutside: false },
 ): string {
   let body = note || '';
+  // A style may have the model circle the phrase itself; one circle per page.
+  const circled = /<span class="ih-circ">/.test(body);
   if (!existing.circleOutside) {
-    body =
-      existing.circleInside !== undefined
-        ? circleText(body, existing.circleInside)
-        : circleFirstHighlight(body);
+    if (existing.circleInside !== undefined) {
+      // The reader moved the circle last time: theirs wins over the model's.
+      body = circleText(
+        body.replace(/<span class="ih-circ">(.*?)<\/span>/g, '$1'),
+        existing.circleInside,
+      );
+    } else if (!circled) {
+      body = circleFirstHighlight(body);
+    }
   }
   if (!existing.subOutside) {
     const line =

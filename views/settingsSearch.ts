@@ -60,6 +60,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   '默认属性',
   'Default properties',
   '文章的标签',
+  '写作风格',
+  'Writing style',
   'Article tags',
   '只保留指向已有笔记的双链',
   'Keep only links to existing notes',

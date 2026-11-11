@@ -1,3 +1,4 @@
+import { noteImagesFor, promptVersionFor } from '../core/NoteStyle';
 import {
   ProcessingMode,
   SupportedLanguage,
@@ -40,7 +41,6 @@ import {
   endpointOrigin,
 } from '../core/BackendHealth';
 const CACHE_ARTIFACT_SCHEMA_VERSION = 3;
-const CACHE_PROMPT_VERSION = 'video-note-prompt-v5';
 
 export interface EndpointProbeResult {
   ok: boolean;
@@ -99,12 +99,14 @@ export class VideoSummaryAPI {
     autoRoute: boolean;
     attentionAssessment: boolean;
     generateLearning: boolean;
+    noteStyle: string;
   } = {
     processingDepth: 'evidence',
     contentType: 'auto',
     autoRoute: true,
     attentionAssessment: true,
     generateLearning: false,
+    noteStyle: '',
   };
 
   setAiModel(model: string) {
@@ -639,7 +641,7 @@ export class VideoSummaryAPI {
       visual,
       attention: input.attentionAssessment ?? this.analysisDefaults.attentionAssessment,
       learning: input.generateLearning ?? this.analysisDefaults.generateLearning,
-      promptVersion: CACHE_PROMPT_VERSION,
+      promptVersion: promptVersionFor(this.analysisDefaults.noteStyle),
     });
   }
 
@@ -681,7 +683,11 @@ export class VideoSummaryAPI {
     const autoRoute = input.autoRoute ?? this.analysisDefaults.autoRoute;
     const contract = buildContentRoutingPromptContract(contentType, autoRoute);
     metadata.artifact_schema_version = CACHE_ARTIFACT_SCHEMA_VERSION;
-    metadata.prompt_version = CACHE_PROMPT_VERSION;
+    metadata.prompt_version = promptVersionFor(this.analysisDefaults.noteStyle);
+    if (this.analysisDefaults.noteStyle.trim())
+      metadata.note_style = this.analysisDefaults.noteStyle;
+    const images = noteImagesFor(input.url || input.sourceUrl);
+    if (images.length) metadata.note_images = images;
     metadata.processing_depth = input.processingDepth || this.analysisDefaults.processingDepth;
     metadata.content_type = contentType;
     metadata.auto_route = autoRoute;
@@ -977,7 +983,7 @@ export class VideoSummaryAPI {
       backend: 'n8n',
       model: this.aiModel,
       processingDepth: input.processingDepth,
-      promptVersion: CACHE_PROMPT_VERSION,
+      promptVersion: promptVersionFor(this.analysisDefaults.noteStyle),
       requestedContentType: input.contentType,
       autoRoute: input.autoRoute,
     });

@@ -20,6 +20,7 @@ import { writePluginStatus } from './successStatus';
 import { addDoneStamp, markNoteBody, readExistingMarks } from './themeMarks';
 import { unlinkMissingNotes } from './wikiLinks';
 import { readTranscriptFold } from './NoteOutput';
+import { linkTimestamps } from '../core/NoteStyle';
 
 /** Written into properties by older versions; kept in the plugin's own records since. */
 const INTERNAL_PROPERTIES = [
@@ -232,6 +233,11 @@ export class NoteProcessor {
         ...result,
         note: unlinkMissingNotes(result.note, (linkpath) => linkExists(linkpath, file.path)),
       };
+    }
+    if (result.note) {
+      // [12:34] becomes a link to that second of the video.
+      const link = typeof fm.link === 'string' ? fm.link : undefined;
+      result = { ...result, note: linkTimestamps(result.note, link) };
     }
     if (prefs.themeMarks) {
       addDoneStamp(fm);

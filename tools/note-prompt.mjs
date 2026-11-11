@@ -6,7 +6,7 @@
  * self-contained function: no imports, no template literals, no `}}` in its source.
  */
 
-export const NOTE_PROMPT_MARKER = 'VIDEO_NOTE_PROMPT_V5';
+export const NOTE_PROMPT_MARKER = 'VIDEO_NOTE_PROMPT_V6';
 
 export const NOTE_SYSTEM_MESSAGE = [
   'You turn video transcripts into notes for Obsidian.',
@@ -15,28 +15,28 @@ export const NOTE_SYSTEM_MESSAGE = [
 ].join('\n');
 
 export function buildNotePrompt(input) {
-  const MARKER = 'VIDEO_NOTE_PROMPT_V5';
+  const MARKER = 'VIDEO_NOTE_PROMPT_V6';
   const languages = {
     zh: {
       name: 'Simplified Chinese',
       summary: '摘要',
-      points: '要点',
-      details: '展开细节',
       missing: '视频里没有提到',
+      example: '身体影响大脑',
+      generic: '要点、核心概念、主要内容、总结',
     },
     en: {
       name: 'English',
       summary: 'Summary',
-      points: 'Key points',
-      details: 'More detail',
       missing: 'Not in the video',
+      example: 'Body shapes the brain',
+      generic: 'Key points, Main ideas, Summary',
     },
     ja: {
       name: 'Japanese',
       summary: '要約',
-      points: '要点',
-      details: '詳しく',
       missing: '動画では触れられていない',
+      example: '体が脳を変える',
+      generic: '要点、主な内容、まとめ',
     },
   };
   const lang = languages[input.language] || languages.zh;
@@ -44,6 +44,16 @@ export function buildNotePrompt(input) {
   const contentType = metadata.content_type || 'auto';
   const assessAttention = metadata.attention_assessment !== false;
   const makeLearning = metadata.generate_learning === true;
+  // The reader's own way of writing notes (a setting); it is followed over the defaults.
+  const style = String(metadata.note_style || '')
+    .trim()
+    .slice(0, 4000);
+  // Pictures of the video the note may place: the cover and a few frames.
+  const images = (Array.isArray(metadata.note_images) ? metadata.note_images : [])
+    .filter(function (image) {
+      return image && typeof image.url === 'string' && /^https:\/\//.test(image.url);
+    })
+    .slice(0, 6);
   const segments = Array.isArray(input.segments)
     ? input.segments.filter(function (segment) {
         return segment && segment.id && segment.text;
@@ -88,36 +98,53 @@ export function buildNotePrompt(input) {
     transcriptText,
     '---',
     '',
-    'NOTE SHAPE (the "note" field, Markdown)',
-    '1. Start with "> [!summary] ' +
-      lang.summary +
-      '": 2 to 4 sentences saying what the video is about and what it concludes.',
-    '2. Then "## ' +
-      lang.points +
-      '": ' +
-      (long ? '6 to 10' : '4 to 6') +
-      ' bullets, one line each, the points a viewer should remember. Start a bullet with its time, like [12:34], when the transcript has times.',
-    '3. Then the sections for the content type below, as ## headings with short bullets or a table. Put long explanations, quotes and worked examples inside folded callouts ("> [!note]- ' +
-      lang.details +
-      '"); keep blank lines inside a callout as ">".',
-    '4. Do not retell the transcript. The plugin adds the full timestamped transcript under the note, so the note keeps only what is worth rereading. Aim for ' +
-      (long
-        ? 'about 1,200 words (2,000 Chinese or Japanese characters) at most'
-        : 'about a quarter of the transcript length') +
-      '.',
-    '5. Use a table when comparing three or more things. Use ==highlight== for at most five key terms. Put a space between Chinese or Japanese text and Latin words or numbers.',
-    '6. Write terms and names as plain text, never as [[wiki links]]: the reader decides which notes to link.',
+    'NOTE SHAPE (the "note" field, Markdown for Obsidian). The reader rereads these notes in a personal knowledge base. They want to see the structure of the video at a glance and read little prose: diagrams, tables, lists and callouts carry the content; sentences are the glue.',
     '',
-    'CONTENT TYPES. If the requested type is not auto, use it. Otherwise pick one from the title and transcript; use general when unsure.',
-    '- course: learning goals, key concepts (term and meaning), walkthrough, questions to check understanding. A language lesson also gets a vocabulary table: word, reading, meaning, example sentence from the video.',
-    '- interview: who is talking and why, topics, views by speaker, key questions and answers, open questions. A question from the host is not a claim by the guest.',
-    '- tutorial: goal and prerequisites, setup, numbered steps (commands in code blocks), how to check it worked and fix problems. Do not add steps the video does not show.',
-    '- news: what happened, timeline, who is involved and their sources, what is confirmed versus claimed versus unknown, what comes next.',
-    '- meeting: context, decisions, action items (item, owner, due, status), discussion, open issues.',
-    '- review: what was tested and how, facts about the product, strengths, weaknesses and trade-offs, who it suits.',
-    '- general: overview, main points, evidence and limits, takeaways.',
-    "The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
-    'Write "' + lang.missing + '" where a section has nothing to go on.',
+    'Step 1. Decide what the video mainly is; do not write this step down. A requested content type other than auto is a strong hint. argument: it argues a thesis. method: it teaches how to do something or gives strategies. breakdown: it analyses a work or a thing part by part. story: what happened to a person, company, event or idea over time. explainer: how something works or what it is. conversation: an interview or a discussion.',
+    '',
+    'Step 2. Write the note.',
+    '- Top: "> [!summary] ' +
+      lang.summary +
+      '" with at most 2 sentences: what the video takes on and what it concludes. Never "this video introduces".',
+    '- Then always one picture of the whole video as a Mermaid diagram in a ```mermaid block. argument: flowchart of how the claims lead to the conclusion. method: flowchart from the problem to its cause to the strategies. breakdown: mindmap of the parts. story: timeline of the stages. explainer: flowchart from the simplest idea up to the hardest. conversation: mindmap of topics with the person who spoke to each. 4 to 8 nodes. Use flowchart LR only for up to 5 nodes, otherwise flowchart TD. Every node label in double quotes, like A["' +
+      lang.example +
+      '"], at most 16 characters or 8 words, with no parentheses, colons or quotes inside; ids are plain ASCII.',
+    "- Body: one ## section per part of that picture. Each heading names the actual content in the video's own terms, never a generic label like " +
+      lang.generic +
+      '. Under each heading: first one line in bold with the point of this part; then the content in the most visual form that fits: 2 to 5 short bullets, a table when three or more things share the same attributes, numbered steps for a procedure, a checklist for things to do. At most 2 sentences of prose per section. ' +
+      (long ? '3 to 6' : '2 to 4') +
+      ' sections.',
+    '- By kind: method puts its strategies in one table (strategy, when to use it, what to do, why it works); explainer adds a table of key terms (term, one-line meaning, example from the video); conversation adds a table of topics with what each person said; story gives each stage its date or order when the video says it.',
+    '- End, only what the video gives: things to do as "- [ ]" items, and 1 to 3 quotes worth keeping, verbatim in the transcript\'s language with their time. Leave out what the video does not give; never write a section only to fill a slot.',
+    '',
+    'RULES',
+    '- Leave out logistics and housekeeping: schedules, exam dates, credits, sponsors, greetings, calls to subscribe, jokes that carry no idea.',
+    '- Say each idea once; the summary and the body do not repeat each other.',
+    "- Bold the key terms; when the note is in another language than the video, give a term's original form in parentheses.",
+    '- Write 3 to 6 central concepts as [[wiki links]] the first time they appear (links to notes the reader does not have are turned back into text).',
+    '- Put the time like [12:34] after the bullet or line it supports, when the transcript has times.',
+    '- Put a space between Chinese or Japanese text and Latin words or numbers. Formulas in $...$; code in fenced blocks with the language named.',
+    '- Length: at most about ' +
+      (long
+        ? '1,500 Chinese or Japanese characters (900 English words)'
+        : '800 Chinese or Japanese characters (500 English words)') +
+      ' of text; diagrams and tables are not counted.',
+    "- The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
+    '- Write "' + lang.missing + '" only where a fact the reader would expect is not in the video.',
+  ];
+  if (images.length) {
+    lines.push(
+      '',
+      'PICTURES you may place where they fit (at most one per section; the first is the cover). Write each as ![caption](url):',
+    );
+    images.forEach(function (image) {
+      lines.push('- ' + image.url + (image.label ? ' (' + image.label + ')' : ''));
+    });
+  }
+  if (style) {
+    lines.push('', "WRITING STYLE (the reader's own; follow it over the defaults above):", style);
+  }
+  lines.push(
     '',
     'JSON FIELDS',
     '- video_title: a clear title, at most 15 Chinese/Japanese characters or 8 English words, no special symbols.',
@@ -131,7 +158,7 @@ export function buildNotePrompt(input) {
     '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
     '- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.',
     '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return []. A quote is copied from the transcript in its own language, never translated; the claim is in the language of the note.',
-  ];
+  );
   if (assessAttention) {
     lines.push(
       '- attention: {"action":"watch, skim or skip","score":0 to 1,"confidence":0 to 1,"rationale":"one sentence","information_density":0 to 1,"originality":0 to 1,"actionability":0 to 1,"promotional_ratio":0 to 1,"evidence_segment_ids":[],"limitations":[]}.',

@@ -617,6 +617,7 @@ export class JobService {
           baseUrl: llm.baseUrl,
           apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || '',
           model: llm.model,
+          noteStyle: settings.noteStyle,
         },
         job.input,
         job.mode,
