@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## 2.13.2
+
+- **A bare YouTube link says how to skip the backend.** When the light tier is ready and the backend is off, a YouTube link sent on its own still waits for the backend, but the notice and the job card now say that pressing ⌘⇧S (Ctrl+Shift+S) on the video's page sends the captions and lets the light tier write the note.
+- **The Ithaca style suits a wide screen.** Diagrams go left to right (flowchart LR) up to 8 nodes. Quotes sit side by side as a row of receipts, a `> [!receipts]` callout holding `> > [!receipt]` callouts. Pinned notes get a second line saying why, or what to try. Press **Use Ithaca notebook** again in settings to take the new style; a style you edited stays as it is.
+
 ## 2.13.1
 
 - Requires Obsidian 1.11.4 or later. The API key fields added in 2.13.0 use Obsidian's secret storage, which arrived in 1.11.4; on an older Obsidian the plugin stays at 2.12.5.
