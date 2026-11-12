@@ -50,6 +50,26 @@ export function liteDecision(
   return { lite: true };
 }
 
+/**
+ * A YouTube link with nothing else, while the light tier is ready: sent from the video's own
+ * page with the browser extension, it would carry the captions and need no backend.
+ */
+export function linkWantsPageCapture(
+  input: VideoInput,
+  liteReady: boolean,
+  mode: ProcessingMode = 'summary',
+): boolean {
+  if (!liteReady || mode === 'info-only') return false;
+  if (input.transcript?.trim() || input.localFile || input.localFiles?.length) return false;
+  if (input.skipSourceFetch || input.persistedSegments?.length) return false;
+  return !!youTubeVideoId(input.url);
+}
+
+/** The extension's shortcut as this computer writes it. */
+export function captureShortcut(isMac: boolean): string {
+  return isMac ? '⌘⇧S' : 'Ctrl+Shift+S';
+}
+
 export interface LiteDeps {
   transport: StreamTransport;
   baseUrl: string;

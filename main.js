@@ -12721,6 +12721,580 @@ function readableLive(markdown) {
   }).filter((line) => line !== null).join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
+// tools/note-prompt.mjs
+var NOTE_SYSTEM_MESSAGE = [
+  "You turn video transcripts into notes for Obsidian.",
+  "Write only what the transcript supports. When something is missing, say it is not in the video instead of filling the gap.",
+  "Reply with one JSON object and nothing else."
+].join("\n");
+function buildNotePrompt(input) {
+  const MARKER = "VIDEO_NOTE_PROMPT_V6";
+  const languages = {
+    zh: {
+      name: "Simplified Chinese",
+      summary: "\u6458\u8981",
+      missing: "\u89C6\u9891\u91CC\u6CA1\u6709\u63D0\u5230",
+      example: "\u8EAB\u4F53\u5F71\u54CD\u5927\u8111",
+      generic: "\u8981\u70B9\u3001\u6838\u5FC3\u6982\u5FF5\u3001\u4E3B\u8981\u5185\u5BB9\u3001\u603B\u7ED3"
+    },
+    en: {
+      name: "English",
+      summary: "Summary",
+      missing: "Not in the video",
+      example: "Body shapes the brain",
+      generic: "Key points, Main ideas, Summary"
+    },
+    ja: {
+      name: "Japanese",
+      summary: "\u8981\u7D04",
+      missing: "\u52D5\u753B\u3067\u306F\u89E6\u308C\u3089\u308C\u3066\u3044\u306A\u3044",
+      example: "\u4F53\u304C\u8133\u3092\u5909\u3048\u308B",
+      generic: "\u8981\u70B9\u3001\u4E3B\u306A\u5185\u5BB9\u3001\u307E\u3068\u3081"
+    }
+  };
+  const lang = languages[input.language] || languages.zh;
+  const metadata = input.metadata && typeof input.metadata === "object" ? input.metadata : {};
+  const contentType = metadata.content_type || "auto";
+  const assessAttention = metadata.attention_assessment !== false;
+  const makeLearning = metadata.generate_learning === true;
+  const style = String(metadata.note_style || "").trim().slice(0, 4e3);
+  const images = (Array.isArray(metadata.note_images) ? metadata.note_images : []).filter(function(image) {
+    return image && typeof image.url === "string" && /^https:\/\//.test(image.url);
+  }).slice(0, 6);
+  const segments = Array.isArray(input.segments) ? input.segments.filter(function(segment) {
+    return segment && segment.id && segment.text;
+  }) : [];
+  const transcript = String(input.transcript || "");
+  const long = transcript.length > 12e3;
+  function clock2(seconds) {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const minutes = Math.floor(total / 60);
+    const rest = total % 60;
+    return (minutes < 10 ? "0" : "") + minutes + ":" + (rest < 10 ? "0" : "") + rest;
+  }
+  const transcriptText2 = segments.length ? segments.map(function(segment) {
+    const time = Number.isFinite(Number(segment.start)) ? "[" + clock2(segment.start) + "] " : "";
+    return time + "(" + segment.id + ") " + segment.text;
+  }).join("\n") : transcript;
+  const lines = [
+    "// " + MARKER,
+    "Write a note about this video in " + lang.name + ". Every heading, callout title and table header is in " + lang.name + " too.",
+    "",
+    "Title: " + (input.title || "(none)"),
+    "Author: " + (input.author || "(none)"),
+    "Requested content type: " + contentType,
+    "",
+    segments.length ? "Transcript (each line: time, segment id in parentheses, words):" : "Transcript:",
+    "---",
+    transcriptText2,
+    "---",
+    "",
+    'NOTE SHAPE (the "note" field, Markdown for Obsidian). The reader rereads these notes in a personal knowledge base. They want to see the structure of the video at a glance and read little prose: diagrams, tables, lists and callouts carry the content; sentences are the glue.',
+    "",
+    "Step 1. Decide what the video mainly is; do not write this step down. A requested content type other than auto is a strong hint. argument: it argues a thesis. method: it teaches how to do something or gives strategies. breakdown: it analyses a work or a thing part by part. story: what happened to a person, company, event or idea over time. explainer: how something works or what it is. conversation: an interview or a discussion.",
+    "",
+    "Step 2. Write the note.",
+    '- Top: "> [!summary] ' + lang.summary + '" with at most 2 sentences: what the video takes on and what it concludes. Never "this video introduces".',
+    '- Then always one picture of the whole video as a Mermaid diagram in a ```mermaid block. argument: flowchart of how the claims lead to the conclusion. method: flowchart from the problem to its cause to the strategies. breakdown: mindmap of the parts. story: timeline of the stages. explainer: flowchart from the simplest idea up to the hardest. conversation: mindmap of topics with the person who spoke to each. 4 to 8 nodes. Use flowchart LR only for up to 5 nodes, otherwise flowchart TD. Every node label in double quotes, like A["' + lang.example + '"], at most 16 characters or 8 words, with no parentheses, colons or quotes inside; ids are plain ASCII.',
+    "- Body: one ## section per part of that picture. Each heading names the actual content in the video's own terms, never a generic label like " + lang.generic + ". Under each heading: first one line in bold with the point of this part; then the content in the most visual form that fits: 2 to 5 short bullets, a table when three or more things share the same attributes, numbered steps for a procedure, a checklist for things to do. At most 2 sentences of prose per section. " + (long ? "3 to 6" : "2 to 4") + " sections.",
+    "- By kind: method puts its strategies in one table (strategy, when to use it, what to do, why it works); explainer adds a table of key terms (term, one-line meaning, example from the video); conversation adds a table of topics with what each person said; story gives each stage its date or order when the video says it.",
+    `- End, only what the video gives: things to do as "- [ ]" items, and 1 to 3 quotes worth keeping, verbatim in the transcript's language with their time. Leave out what the video does not give; never write a section only to fill a slot.`,
+    "",
+    "RULES",
+    "- Leave out logistics and housekeeping: schedules, exam dates, credits, sponsors, greetings, calls to subscribe, jokes that carry no idea.",
+    "- Say each idea once; the summary and the body do not repeat each other.",
+    "- Bold the key terms; when the note is in another language than the video, give a term's original form in parentheses.",
+    "- Write 3 to 6 central concepts as [[wiki links]] the first time they appear (links to notes the reader does not have are turned back into text).",
+    "- Put the time like [12:34] after the bullet or line it supports, when the transcript has times.",
+    "- Put a space between Chinese or Japanese text and Latin words or numbers. Formulas in $...$; code in fenced blocks with the language named.",
+    "- Length: at most about " + (long ? "1,500 Chinese or Japanese characters (900 English words)" : "800 Chinese or Japanese characters (500 English words)") + " of text; diagrams and tables are not counted.",
+    "- The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
+    '- Write "' + lang.missing + '" only where a fact the reader would expect is not in the video.'
+  ];
+  if (images.length) {
+    lines.push(
+      "",
+      "PICTURES you may place where they fit (at most one per section; the first is the cover). Write each as ![caption](url):"
+    );
+    images.forEach(function(image) {
+      lines.push("- " + image.url + (image.label ? " (" + image.label + ")" : ""));
+    });
+  }
+  if (style) {
+    lines.push("", "WRITING STYLE (the reader's own; follow it over the defaults above):", style);
+  }
+  lines.push(
+    "",
+    "JSON FIELDS",
+    "- video_title: a clear title, at most 15 Chinese/Japanese characters or 8 English words, no special symbols.",
+    "- note_title: a readable title for the note in " + lang.name + ", at most 20 Chinese/Japanese characters or 10 English words, naming what the video teaches or argues rather than the channel or episode number. It may differ from video_title.",
+    "- tldr: one sentence in " + lang.name + " with the main takeaway, written fresh: do not copy or cut a sentence from the transcript or the summary, and do not end with an ellipsis.",
+    "- summary: one or two sentences for a list view.",
+    '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
+    "- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.",
+    '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return []. A quote is copied from the transcript in its own language, never translated; the claim is in the language of the note.'
+  );
+  if (assessAttention) {
+    lines.push(
+      '- attention: {"action":"watch, skim or skip","score":0 to 1,"confidence":0 to 1,"rationale":"one sentence","information_density":0 to 1,"originality":0 to 1,"actionability":0 to 1,"promotional_ratio":0 to 1,"evidence_segment_ids":[],"limitations":[]}.'
+    );
+  }
+  if (makeLearning) {
+    lines.push(
+      '- learning: {"flashcards":[{"front":"...","back":"...","evidence_segment_ids":[]}],"questions":[],"feynman_prompts":[]}, 3 to 8 cards, ids only from the transcript.'
+    );
+  }
+  lines.push(
+    "",
+    "Times: never invent 0:00 or start=0 when there is no time; use null.",
+    "A statement inferred from the transcript but not said in it gets review_state inference or needs-review."
+  );
+  if (Number(input.retryCount) > 0 && input.parseError) {
+    lines.push(
+      "",
+      "Your previous reply could not be parsed: " + String(input.parseError).slice(0, 300),
+      "Reply again with valid JSON only: no code fence, no text before or after, newlines inside strings escaped."
+    );
+  }
+  return lines.join("\n");
+}
+
+// core/LiteTier.ts
+var SINGLE_PASS_CHARS = 8e4;
+var CHUNK_CHARS = 4e4;
+function clock(seconds) {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor(total % 3600 / 60);
+  const s = total % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+function stamp(segment) {
+  return segment.start === null ? "" : `[${clock(segment.start)}] `;
+}
+function transcriptText(segments) {
+  return segments.map((segment) => `${stamp(segment)}${segment.text}`).join("\n");
+}
+function promptLength(segments) {
+  return segments.reduce((sum, segment) => sum + segment.text.length + 20, 0);
+}
+function chunkSegments(segments, size = CHUNK_CHARS) {
+  const parts = [];
+  let current = [];
+  let length = 0;
+  for (const segment of segments) {
+    const add = segment.text.length + 20;
+    if (current.length && length + add > size) {
+      parts.push(current);
+      current = [];
+      length = 0;
+    }
+    current.push(segment);
+    length += add;
+  }
+  if (current.length) parts.push(current);
+  return parts;
+}
+function noteMessages(request) {
+  return [
+    { role: "system", content: NOTE_SYSTEM_MESSAGE },
+    {
+      role: "user",
+      content: buildNotePrompt({
+        segments: request.segments,
+        transcript: transcriptText(request.segments),
+        title: request.title,
+        author: request.author,
+        language: request.language,
+        metadata: request.metadata,
+        retryCount: request.retryCount,
+        parseError: request.parseError
+      })
+    }
+  ];
+}
+function condenseMessages(part, index, total) {
+  const lines = part.map((s) => `${stamp(s)}(${s.id}) ${s.text}`).join("\n");
+  return [
+    {
+      role: "system",
+      content: "You shorten part of a long video transcript so a later step can write one note from all parts. Keep facts, names, numbers, steps and conclusions; drop filler and repetition."
+    },
+    {
+      role: "user",
+      content: [
+        `Part ${index + 1} of ${total}. Each line: time, segment id in parentheses, words.`,
+        "---",
+        lines,
+        "---",
+        "Reply with plain lines, about a fifth of the length above, in the language of the transcript.",
+        "Each line: the time and the id of the passage it comes from, exactly as given, then the point. Example: [12:34] (seg-0042) The speaker compares A and B and prefers B because it is cheaper."
+      ].join("\n")
+    }
+  ];
+}
+function parseCondensed(text2, known) {
+  const out = [];
+  for (const line of text2.split("\n")) {
+    const match = line.match(/\(([A-Za-z0-9_-]{4,})\)\s*(.+)$/);
+    if (!match) continue;
+    const source = known.get(match[1]);
+    const point = match[2].trim();
+    if (source && point) out.push({ ...source, text: point });
+  }
+  return out;
+}
+var SseReader = class {
+  constructor() {
+    this.buffer = "";
+    this.text = "";
+    /** Characters of a reasoning model's thinking (`reasoning_content`), which comes before the reply. */
+    this.reasoning = 0;
+    this.done = false;
+  }
+  push(chunk) {
+    this.buffer += chunk;
+    let added = "";
+    let newline = this.buffer.indexOf("\n");
+    while (newline >= 0) {
+      const line = this.buffer.slice(0, newline).trim();
+      this.buffer = this.buffer.slice(newline + 1);
+      newline = this.buffer.indexOf("\n");
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") {
+        this.done = true;
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(data);
+        const thinking = parsed.choices?.[0]?.delta?.reasoning_content;
+        if (thinking) {
+          this.reasoning += thinking.length;
+          added += " ";
+        }
+        const piece = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.message?.content ?? "";
+        if (piece) {
+          added += piece;
+          this.text += piece;
+        }
+      } catch {
+      }
+    }
+    return added;
+  }
+};
+var ModelCallError = class extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+    this.name = "ModelCallError";
+  }
+};
+function modelErrorText(status, body = "") {
+  let detail = "";
+  try {
+    const parsed = JSON.parse(body);
+    detail = (typeof parsed.error === "string" ? parsed.error : parsed.error?.message) || parsed.message || "";
+  } catch {
+    detail = body.slice(0, 200);
+  }
+  detail = detail.replace(/\b(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, "\u2022\u2022\u2022\u2022");
+  if (status === 401 || status === 403) return `\u5BC6\u94A5\u65E0\u6548\u6216\u6CA1\u6709\u6743\u9650\uFF08HTTP ${status}\uFF09`;
+  if (status === 402) return `\u6A21\u578B\u670D\u52A1\u4F59\u989D\u4E0D\u8DB3\uFF08HTTP ${status}\uFF09`;
+  if (status === 429) return `\u6A21\u578B\u670D\u52A1\u9650\u6D41\uFF0C\u7A0D\u540E\u518D\u8BD5\uFF08HTTP ${status}\uFF09`;
+  return `\u6A21\u578B\u670D\u52A1\u8FD4\u56DE HTTP ${status}${detail ? `\uFF1A${detail}` : ""}`;
+}
+async function streamChat(transport, request, onText, signal) {
+  const attempt = async (jsonMode) => {
+    const reader = new SseReader();
+    const body = {
+      model: request.model,
+      messages: request.messages,
+      stream: true,
+      // Same as the backend's chat model node.
+      temperature: 0.4
+    };
+    if (jsonMode) body.response_format = { type: "json_object" };
+    const response2 = await transport(
+      {
+        url: `${request.baseUrl.replace(/\/+$/, "")}/chat/completions`,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${request.apiKey}`
+        },
+        body: JSON.stringify(body)
+      },
+      (chunk) => {
+        if (reader.push(chunk)) onText(reader.text, reader.reasoning);
+      },
+      signal
+    );
+    reader.push("\n");
+    return { response: response2, text: reader.text };
+  };
+  let { response, text: text2 } = await attempt(request.jsonMode);
+  if (request.jsonMode && response.status === 400) {
+    ({ response, text: text2 } = await attempt(false));
+  }
+  if (response.status >= 400) {
+    throw new ModelCallError(response.status, modelErrorText(response.status, response.errorText));
+  }
+  if (!text2.trim()) throw new ModelCallError(response.status, "\u6A21\u578B\u6CA1\u6709\u56DE\u5185\u5BB9");
+  return text2;
+}
+function partialJsonString(buffer, key) {
+  const match = new RegExp(`"${key}"\\s*:\\s*"`).exec(buffer);
+  if (!match) return "";
+  let out = "";
+  for (let i = match.index + match[0].length; i < buffer.length; i += 1) {
+    const char = buffer[i];
+    if (char === '"') return out;
+    if (char !== "\\") {
+      out += char;
+      continue;
+    }
+    const next = buffer[i + 1];
+    if (next === void 0) return out;
+    i += 1;
+    if (next === "n") out += "\n";
+    else if (next === "t") out += "	";
+    else if (next === "r") continue;
+    else if (next === "u") {
+      const hex = buffer.slice(i + 1, i + 5);
+      if (hex.length < 4) return out;
+      out += String.fromCharCode(parseInt(hex, 16));
+      i += 4;
+    } else out += next;
+  }
+  return out;
+}
+function parseNoteJson(text2) {
+  const trimmed = text2.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const first = trimmed.indexOf("{");
+  const last = trimmed.lastIndexOf("}");
+  if (first < 0 || last <= first) throw new Error("\u56DE\u590D\u91CC\u6CA1\u6709 JSON");
+  const value = JSON.parse(trimmed.slice(first, last + 1));
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("\u56DE\u590D\u4E0D\u662F JSON \u5BF9\u8C61");
+  }
+  const note = value.note;
+  if (typeof note !== "string" || !note.trim()) throw new Error("\u56DE\u590D\u91CC\u6CA1\u6709 note");
+  return value;
+}
+async function generateNote(options) {
+  const chat = (messages, jsonMode, onText) => streamChat(
+    options.transport,
+    {
+      baseUrl: options.baseUrl,
+      apiKey: options.apiKey,
+      model: options.model,
+      messages,
+      jsonMode
+    },
+    onText,
+    options.signal
+  );
+  let segments = options.segments;
+  if (promptLength(segments) > SINGLE_PASS_CHARS) {
+    const known = new Map(segments.map((segment) => [segment.id, segment]));
+    const parts = chunkSegments(segments);
+    const condensed = [];
+    for (let i = 0; i < parts.length; i += 1) {
+      options.onProgress({ stage: `\u957F\u89C6\u9891\uFF0C\u5148\u538B\u7F29\u7B2C ${i + 1}/${parts.length} \u6BB5` });
+      const text2 = await chat(condenseMessages(parts[i], i, parts.length), false, () => void 0);
+      const lines = parseCondensed(text2, known);
+      condensed.push(...lines.length ? lines : parts[i].slice(0, 20));
+    }
+    segments = condensed;
+  }
+  const request = {
+    segments,
+    title: options.title,
+    author: options.author,
+    language: options.language,
+    metadata: options.metadata
+  };
+  options.onProgress({ stage: "\u6B63\u5728\u8BFB\u6587\u7A3F", live: "" });
+  const show = (full, reasoning) => {
+    const tldr = partialJsonString(full, "tldr");
+    const note = partialJsonString(full, "note");
+    const live = [tldr, note].filter(Boolean).join("\n\n");
+    if (!live && reasoning > 0) {
+      options.onProgress({ stage: "\u6B63\u5728\u8BFB\u6587\u7A3F" });
+      return;
+    }
+    options.onProgress({ stage: "\u6B63\u5728\u5199\u7B14\u8BB0", live });
+  };
+  const reply = await chat(noteMessages(request), true, show);
+  try {
+    return parseNoteJson(reply);
+  } catch (error) {
+    options.onProgress({ stage: "\u56DE\u590D\u683C\u5F0F\u4E0D\u5BF9\uFF0C\u91CD\u5199\u4E00\u6B21", live: "" });
+    const again = await chat(
+      noteMessages({
+        ...request,
+        retryCount: 1,
+        parseError: error instanceof Error ? error.message : String(error)
+      }),
+      true,
+      show
+    );
+    return parseNoteJson(again);
+  }
+}
+
+// core/LiteRunner.ts
+function liteDecision(enabled, hasModel, input, mode) {
+  if (!enabled) return { lite: false, why: "off" };
+  if (mode === "info-only") return { lite: false, why: "mode" };
+  if (input.localFile || input.localFiles?.length) return { lite: false, why: "local" };
+  if (input.skipSourceFetch || input.persistedSegments?.length) {
+    return { lite: false, why: "reprocess" };
+  }
+  if (!input.transcript?.trim()) return { lite: false, why: "no-transcript" };
+  if (mode === "summary" && !hasModel) return { lite: false, why: "no-key" };
+  return { lite: true };
+}
+function linkWantsPageCapture(input, liteReady, mode = "summary") {
+  if (!liteReady || mode === "info-only") return false;
+  if (input.transcript?.trim() || input.localFile || input.localFiles?.length) return false;
+  if (input.skipSourceFetch || input.persistedSegments?.length) return false;
+  return !!youTubeVideoId(input.url);
+}
+function captureShortcut(isMac) {
+  return isMac ? "\u2318\u21E7S" : "Ctrl+Shift+S";
+}
+function pageVideoDetails(params) {
+  const details = {};
+  const author = (params.author || "").trim();
+  if (author && author.length <= 200 && !/[\r\n]/.test(author)) details.video_author = author;
+  const duration = (params.duration || "").trim();
+  if (/^\d{1,3}(?::\d{2}){1,2}$/.test(duration)) details.video_duration = duration;
+  const cover = (params.cover || "").trim();
+  if (/^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover)) details.video_cover = cover;
+  return details;
+}
+function str(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+async function runLiteJob(deps, input, mode, language, report, signal, meta = {}) {
+  const sourceUrl = input.url || input.sourceUrl || "";
+  const base = { transcript_source: "provided_transcript" };
+  if (meta.author) base.video_author = meta.author;
+  if (meta.duration) base.video_duration = meta.duration;
+  if (meta.cover) base.video_cover = meta.cover;
+  if (sourceUrl) base.video_platform = detectPlatform2(sourceUrl);
+  report({ stageLabel: tr("\u8BFB\u53D6\u6587\u7A3F", "Reading the transcript") });
+  const segments = parseTranscriptSegments(input.transcript || "", sourceUrl).map(
+    (segment) => ({
+      id: segment.id,
+      start: segment.start,
+      end: segment.end ?? null,
+      text: segment.text
+    })
+  );
+  const timing = segments.some((segment) => segment.start !== null) ? "exact" : "none";
+  if (segments.length === 0) throw new Error(tr("\u6587\u7A3F\u662F\u7A7A\u7684", "The transcript is empty"));
+  base.video_transcript = transcriptText(segments);
+  const payload = {
+    video_segments: segments.map((segment) => ({
+      ...segment,
+      source: "speech",
+      timing_quality: segment.start === null ? "none" : timing
+    })),
+    timing_quality: timing
+  };
+  if (mode === "summary") {
+    const json = await generateNote({
+      transport: deps.transport,
+      baseUrl: deps.baseUrl,
+      apiKey: deps.apiKey,
+      model: deps.model,
+      segments,
+      title: meta.title,
+      author: meta.author,
+      language,
+      metadata: {
+        content_type: input.contentType || "auto",
+        attention_assessment: input.attentionAssessment !== false,
+        generate_learning: input.generateLearning === true,
+        ...deps.noteStyle?.trim() ? {
+          note_style: fillNoteStyle(deps.noteStyle, {
+            channel: meta.author,
+            date: stampDate(),
+            duration: meta.duration,
+            videoId: youTubeVideoId(sourceUrl) || ""
+          })
+        } : {},
+        note_images: noteImagesFor(sourceUrl, meta.duration)
+      },
+      onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
+      signal
+    });
+    Object.assign(payload, json, {
+      video_segments: payload.video_segments,
+      timing_quality: timing
+    });
+    base.note = str(json.note);
+    base.summary = str(json.summary);
+    base.note_title = str(json.note_title);
+    base.tldr = str(json.tldr);
+    base.video_title = sourceUrl && meta.title || str(json.video_title);
+  }
+  return normalizeRichProcessingResult(base, payload, {
+    sourceUrl,
+    model: deps.model,
+    processingDepth: input.processingDepth,
+    promptVersion: promptVersionFor(deps.noteStyle),
+    requestedContentType: input.contentType,
+    autoRoute: input.autoRoute
+  });
+}
+var nodeStreamTransport = (request, onData, signal) => new Promise((resolve, reject) => {
+  const url = new URL(request.url);
+  const http = desktopRequire(url.protocol === "http:" ? "http" : "https");
+  if (!http?.request) {
+    reject(new Error(tr("\u8F7B\u91CF\u6863\u9700\u8981\u684C\u9762\u7248 Obsidian", "The light tier needs desktop Obsidian")));
+    return;
+  }
+  const length = new TextEncoder().encode(request.body).length;
+  const req = http.request(
+    url,
+    { method: "POST", headers: { ...request.headers, "Content-Length": length } },
+    (response) => {
+      const status = response.statusCode || 0;
+      let errorText = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        if (status >= 400) errorText += chunk;
+        else onData(chunk);
+      });
+      response.on("end", () => resolve({ status, errorText }));
+      response.on("error", reject);
+    }
+  );
+  req.on("error", reject);
+  req.setTimeout(
+    12e4,
+    () => req.destroy(
+      new Error(tr("\u6A21\u578B\u670D\u52A1\u4E24\u5206\u949F\u6CA1\u6709\u56DE\u5E94", "The model service went quiet for two minutes"))
+    )
+  );
+  if (signal) {
+    if (signal.aborted) {
+      req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88"));
+      return;
+    }
+    signal.addEventListener("abort", () => req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88")), { once: true });
+  }
+  req.write(request.body);
+  req.end();
+});
+
 // views/panels/JobsPanel.ts
 var RECENT_HISTORY_LIMIT = 3;
 var historyExpanded = false;
@@ -12899,6 +13473,15 @@ function renderActiveJob(container, ctx, job) {
     cls: `vs-progress-fill${job.progress === void 0 ? " is-indeterminate" : ""}`
   });
   if (job.progress !== void 0) fill2.style.width = `${Math.round(job.progress * 100)}%`;
+  if (job.state === "queued" && !job.lite && ctx.plugin.jobs.isHeld() && linkWantsPageCapture(job.input, ctx.plugin.liteReady(), job.mode)) {
+    card.createDiv({
+      cls: "vs-job-hint",
+      text: tr(
+        `\u4E0D\u60F3\u5F00\u540E\u7AEF\uFF1A\u53D6\u6D88\u8FD9\u6761\uFF0C\u5728\u89C6\u9891\u9875\u6309 ${captureShortcut(import_obsidian11.Platform.isMacOS)}\u3002`,
+        `No backend? Cancel this one and press ${captureShortcut(import_obsidian11.Platform.isMacOS)} on the video page.`
+      )
+    });
+  }
   if (job.liveText) {
     const live = card.createDiv({
       cls: "vs-job-live",
@@ -16546,571 +17129,6 @@ var JobStore = class {
 // core/JobService.ts
 var import_obsidian19 = require("obsidian");
 
-// tools/note-prompt.mjs
-var NOTE_SYSTEM_MESSAGE = [
-  "You turn video transcripts into notes for Obsidian.",
-  "Write only what the transcript supports. When something is missing, say it is not in the video instead of filling the gap.",
-  "Reply with one JSON object and nothing else."
-].join("\n");
-function buildNotePrompt(input) {
-  const MARKER = "VIDEO_NOTE_PROMPT_V6";
-  const languages = {
-    zh: {
-      name: "Simplified Chinese",
-      summary: "\u6458\u8981",
-      missing: "\u89C6\u9891\u91CC\u6CA1\u6709\u63D0\u5230",
-      example: "\u8EAB\u4F53\u5F71\u54CD\u5927\u8111",
-      generic: "\u8981\u70B9\u3001\u6838\u5FC3\u6982\u5FF5\u3001\u4E3B\u8981\u5185\u5BB9\u3001\u603B\u7ED3"
-    },
-    en: {
-      name: "English",
-      summary: "Summary",
-      missing: "Not in the video",
-      example: "Body shapes the brain",
-      generic: "Key points, Main ideas, Summary"
-    },
-    ja: {
-      name: "Japanese",
-      summary: "\u8981\u7D04",
-      missing: "\u52D5\u753B\u3067\u306F\u89E6\u308C\u3089\u308C\u3066\u3044\u306A\u3044",
-      example: "\u4F53\u304C\u8133\u3092\u5909\u3048\u308B",
-      generic: "\u8981\u70B9\u3001\u4E3B\u306A\u5185\u5BB9\u3001\u307E\u3068\u3081"
-    }
-  };
-  const lang = languages[input.language] || languages.zh;
-  const metadata = input.metadata && typeof input.metadata === "object" ? input.metadata : {};
-  const contentType = metadata.content_type || "auto";
-  const assessAttention = metadata.attention_assessment !== false;
-  const makeLearning = metadata.generate_learning === true;
-  const style = String(metadata.note_style || "").trim().slice(0, 4e3);
-  const images = (Array.isArray(metadata.note_images) ? metadata.note_images : []).filter(function(image) {
-    return image && typeof image.url === "string" && /^https:\/\//.test(image.url);
-  }).slice(0, 6);
-  const segments = Array.isArray(input.segments) ? input.segments.filter(function(segment) {
-    return segment && segment.id && segment.text;
-  }) : [];
-  const transcript = String(input.transcript || "");
-  const long = transcript.length > 12e3;
-  function clock2(seconds) {
-    const total = Math.max(0, Math.floor(Number(seconds) || 0));
-    const minutes = Math.floor(total / 60);
-    const rest = total % 60;
-    return (minutes < 10 ? "0" : "") + minutes + ":" + (rest < 10 ? "0" : "") + rest;
-  }
-  const transcriptText2 = segments.length ? segments.map(function(segment) {
-    const time = Number.isFinite(Number(segment.start)) ? "[" + clock2(segment.start) + "] " : "";
-    return time + "(" + segment.id + ") " + segment.text;
-  }).join("\n") : transcript;
-  const lines = [
-    "// " + MARKER,
-    "Write a note about this video in " + lang.name + ". Every heading, callout title and table header is in " + lang.name + " too.",
-    "",
-    "Title: " + (input.title || "(none)"),
-    "Author: " + (input.author || "(none)"),
-    "Requested content type: " + contentType,
-    "",
-    segments.length ? "Transcript (each line: time, segment id in parentheses, words):" : "Transcript:",
-    "---",
-    transcriptText2,
-    "---",
-    "",
-    'NOTE SHAPE (the "note" field, Markdown for Obsidian). The reader rereads these notes in a personal knowledge base. They want to see the structure of the video at a glance and read little prose: diagrams, tables, lists and callouts carry the content; sentences are the glue.',
-    "",
-    "Step 1. Decide what the video mainly is; do not write this step down. A requested content type other than auto is a strong hint. argument: it argues a thesis. method: it teaches how to do something or gives strategies. breakdown: it analyses a work or a thing part by part. story: what happened to a person, company, event or idea over time. explainer: how something works or what it is. conversation: an interview or a discussion.",
-    "",
-    "Step 2. Write the note.",
-    '- Top: "> [!summary] ' + lang.summary + '" with at most 2 sentences: what the video takes on and what it concludes. Never "this video introduces".',
-    '- Then always one picture of the whole video as a Mermaid diagram in a ```mermaid block. argument: flowchart of how the claims lead to the conclusion. method: flowchart from the problem to its cause to the strategies. breakdown: mindmap of the parts. story: timeline of the stages. explainer: flowchart from the simplest idea up to the hardest. conversation: mindmap of topics with the person who spoke to each. 4 to 8 nodes. Use flowchart LR only for up to 5 nodes, otherwise flowchart TD. Every node label in double quotes, like A["' + lang.example + '"], at most 16 characters or 8 words, with no parentheses, colons or quotes inside; ids are plain ASCII.',
-    "- Body: one ## section per part of that picture. Each heading names the actual content in the video's own terms, never a generic label like " + lang.generic + ". Under each heading: first one line in bold with the point of this part; then the content in the most visual form that fits: 2 to 5 short bullets, a table when three or more things share the same attributes, numbered steps for a procedure, a checklist for things to do. At most 2 sentences of prose per section. " + (long ? "3 to 6" : "2 to 4") + " sections.",
-    "- By kind: method puts its strategies in one table (strategy, when to use it, what to do, why it works); explainer adds a table of key terms (term, one-line meaning, example from the video); conversation adds a table of topics with what each person said; story gives each stage its date or order when the video says it.",
-    `- End, only what the video gives: things to do as "- [ ]" items, and 1 to 3 quotes worth keeping, verbatim in the transcript's language with their time. Leave out what the video does not give; never write a section only to fill a slot.`,
-    "",
-    "RULES",
-    "- Leave out logistics and housekeeping: schedules, exam dates, credits, sponsors, greetings, calls to subscribe, jokes that carry no idea.",
-    "- Say each idea once; the summary and the body do not repeat each other.",
-    "- Bold the key terms; when the note is in another language than the video, give a term's original form in parentheses.",
-    "- Write 3 to 6 central concepts as [[wiki links]] the first time they appear (links to notes the reader does not have are turned back into text).",
-    "- Put the time like [12:34] after the bullet or line it supports, when the transcript has times.",
-    "- Put a space between Chinese or Japanese text and Latin words or numbers. Formulas in $...$; code in fenced blocks with the language named.",
-    "- Length: at most about " + (long ? "1,500 Chinese or Japanese characters (900 English words)" : "800 Chinese or Japanese characters (500 English words)") + " of text; diagrams and tables are not counted.",
-    "- The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
-    '- Write "' + lang.missing + '" only where a fact the reader would expect is not in the video.'
-  ];
-  if (images.length) {
-    lines.push(
-      "",
-      "PICTURES you may place where they fit (at most one per section; the first is the cover). Write each as ![caption](url):"
-    );
-    images.forEach(function(image) {
-      lines.push("- " + image.url + (image.label ? " (" + image.label + ")" : ""));
-    });
-  }
-  if (style) {
-    lines.push("", "WRITING STYLE (the reader's own; follow it over the defaults above):", style);
-  }
-  lines.push(
-    "",
-    "JSON FIELDS",
-    "- video_title: a clear title, at most 15 Chinese/Japanese characters or 8 English words, no special symbols.",
-    "- note_title: a readable title for the note in " + lang.name + ", at most 20 Chinese/Japanese characters or 10 English words, naming what the video teaches or argues rather than the channel or episode number. It may differ from video_title.",
-    "- tldr: one sentence in " + lang.name + " with the main takeaway, written fresh: do not copy or cut a sentence from the transcript or the summary, and do not end with an ellipsis.",
-    "- summary: one or two sentences for a list view.",
-    '- note: the Markdown note above, as one JSON string (escape newlines as \\n and quotes as \\").',
-    "- content_type: course, interview, tutorial, news, meeting, review or general; it matches the shape of the note.",
-    '- evidence_claims: up to 8 checkable statements: {"id":"claim-1","claim":"...","evidence":[{"segment_id":"an id in parentheses from the transcript","source":"speech","quote":"the exact words"}],"start":seconds or null,"end":seconds or null,"confidence":0 to 1,"review_state":"supported, needs-review or inference"}. Use only those ids; when the transcript has none, return []. A quote is copied from the transcript in its own language, never translated; the claim is in the language of the note.'
-  );
-  if (assessAttention) {
-    lines.push(
-      '- attention: {"action":"watch, skim or skip","score":0 to 1,"confidence":0 to 1,"rationale":"one sentence","information_density":0 to 1,"originality":0 to 1,"actionability":0 to 1,"promotional_ratio":0 to 1,"evidence_segment_ids":[],"limitations":[]}.'
-    );
-  }
-  if (makeLearning) {
-    lines.push(
-      '- learning: {"flashcards":[{"front":"...","back":"...","evidence_segment_ids":[]}],"questions":[],"feynman_prompts":[]}, 3 to 8 cards, ids only from the transcript.'
-    );
-  }
-  lines.push(
-    "",
-    "Times: never invent 0:00 or start=0 when there is no time; use null.",
-    "A statement inferred from the transcript but not said in it gets review_state inference or needs-review."
-  );
-  if (Number(input.retryCount) > 0 && input.parseError) {
-    lines.push(
-      "",
-      "Your previous reply could not be parsed: " + String(input.parseError).slice(0, 300),
-      "Reply again with valid JSON only: no code fence, no text before or after, newlines inside strings escaped."
-    );
-  }
-  return lines.join("\n");
-}
-
-// core/LiteTier.ts
-var SINGLE_PASS_CHARS = 8e4;
-var CHUNK_CHARS = 4e4;
-function clock(seconds) {
-  const total = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor(total % 3600 / 60);
-  const s = total % 60;
-  const mm = String(m).padStart(2, "0");
-  const ss = String(s).padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-function stamp(segment) {
-  return segment.start === null ? "" : `[${clock(segment.start)}] `;
-}
-function transcriptText(segments) {
-  return segments.map((segment) => `${stamp(segment)}${segment.text}`).join("\n");
-}
-function promptLength(segments) {
-  return segments.reduce((sum, segment) => sum + segment.text.length + 20, 0);
-}
-function chunkSegments(segments, size = CHUNK_CHARS) {
-  const parts = [];
-  let current = [];
-  let length = 0;
-  for (const segment of segments) {
-    const add = segment.text.length + 20;
-    if (current.length && length + add > size) {
-      parts.push(current);
-      current = [];
-      length = 0;
-    }
-    current.push(segment);
-    length += add;
-  }
-  if (current.length) parts.push(current);
-  return parts;
-}
-function noteMessages(request) {
-  return [
-    { role: "system", content: NOTE_SYSTEM_MESSAGE },
-    {
-      role: "user",
-      content: buildNotePrompt({
-        segments: request.segments,
-        transcript: transcriptText(request.segments),
-        title: request.title,
-        author: request.author,
-        language: request.language,
-        metadata: request.metadata,
-        retryCount: request.retryCount,
-        parseError: request.parseError
-      })
-    }
-  ];
-}
-function condenseMessages(part, index, total) {
-  const lines = part.map((s) => `${stamp(s)}(${s.id}) ${s.text}`).join("\n");
-  return [
-    {
-      role: "system",
-      content: "You shorten part of a long video transcript so a later step can write one note from all parts. Keep facts, names, numbers, steps and conclusions; drop filler and repetition."
-    },
-    {
-      role: "user",
-      content: [
-        `Part ${index + 1} of ${total}. Each line: time, segment id in parentheses, words.`,
-        "---",
-        lines,
-        "---",
-        "Reply with plain lines, about a fifth of the length above, in the language of the transcript.",
-        "Each line: the time and the id of the passage it comes from, exactly as given, then the point. Example: [12:34] (seg-0042) The speaker compares A and B and prefers B because it is cheaper."
-      ].join("\n")
-    }
-  ];
-}
-function parseCondensed(text2, known) {
-  const out = [];
-  for (const line of text2.split("\n")) {
-    const match = line.match(/\(([A-Za-z0-9_-]{4,})\)\s*(.+)$/);
-    if (!match) continue;
-    const source = known.get(match[1]);
-    const point = match[2].trim();
-    if (source && point) out.push({ ...source, text: point });
-  }
-  return out;
-}
-var SseReader = class {
-  constructor() {
-    this.buffer = "";
-    this.text = "";
-    /** Characters of a reasoning model's thinking (`reasoning_content`), which comes before the reply. */
-    this.reasoning = 0;
-    this.done = false;
-  }
-  push(chunk) {
-    this.buffer += chunk;
-    let added = "";
-    let newline = this.buffer.indexOf("\n");
-    while (newline >= 0) {
-      const line = this.buffer.slice(0, newline).trim();
-      this.buffer = this.buffer.slice(newline + 1);
-      newline = this.buffer.indexOf("\n");
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (data === "[DONE]") {
-        this.done = true;
-        continue;
-      }
-      try {
-        const parsed = JSON.parse(data);
-        const thinking = parsed.choices?.[0]?.delta?.reasoning_content;
-        if (thinking) {
-          this.reasoning += thinking.length;
-          added += " ";
-        }
-        const piece = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.message?.content ?? "";
-        if (piece) {
-          added += piece;
-          this.text += piece;
-        }
-      } catch {
-      }
-    }
-    return added;
-  }
-};
-var ModelCallError = class extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-    this.name = "ModelCallError";
-  }
-};
-function modelErrorText(status, body = "") {
-  let detail = "";
-  try {
-    const parsed = JSON.parse(body);
-    detail = (typeof parsed.error === "string" ? parsed.error : parsed.error?.message) || parsed.message || "";
-  } catch {
-    detail = body.slice(0, 200);
-  }
-  detail = detail.replace(/\b(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, "\u2022\u2022\u2022\u2022");
-  if (status === 401 || status === 403) return `\u5BC6\u94A5\u65E0\u6548\u6216\u6CA1\u6709\u6743\u9650\uFF08HTTP ${status}\uFF09`;
-  if (status === 402) return `\u6A21\u578B\u670D\u52A1\u4F59\u989D\u4E0D\u8DB3\uFF08HTTP ${status}\uFF09`;
-  if (status === 429) return `\u6A21\u578B\u670D\u52A1\u9650\u6D41\uFF0C\u7A0D\u540E\u518D\u8BD5\uFF08HTTP ${status}\uFF09`;
-  return `\u6A21\u578B\u670D\u52A1\u8FD4\u56DE HTTP ${status}${detail ? `\uFF1A${detail}` : ""}`;
-}
-async function streamChat(transport, request, onText, signal) {
-  const attempt = async (jsonMode) => {
-    const reader = new SseReader();
-    const body = {
-      model: request.model,
-      messages: request.messages,
-      stream: true,
-      // Same as the backend's chat model node.
-      temperature: 0.4
-    };
-    if (jsonMode) body.response_format = { type: "json_object" };
-    const response2 = await transport(
-      {
-        url: `${request.baseUrl.replace(/\/+$/, "")}/chat/completions`,
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-          Authorization: `Bearer ${request.apiKey}`
-        },
-        body: JSON.stringify(body)
-      },
-      (chunk) => {
-        if (reader.push(chunk)) onText(reader.text, reader.reasoning);
-      },
-      signal
-    );
-    reader.push("\n");
-    return { response: response2, text: reader.text };
-  };
-  let { response, text: text2 } = await attempt(request.jsonMode);
-  if (request.jsonMode && response.status === 400) {
-    ({ response, text: text2 } = await attempt(false));
-  }
-  if (response.status >= 400) {
-    throw new ModelCallError(response.status, modelErrorText(response.status, response.errorText));
-  }
-  if (!text2.trim()) throw new ModelCallError(response.status, "\u6A21\u578B\u6CA1\u6709\u56DE\u5185\u5BB9");
-  return text2;
-}
-function partialJsonString(buffer, key) {
-  const match = new RegExp(`"${key}"\\s*:\\s*"`).exec(buffer);
-  if (!match) return "";
-  let out = "";
-  for (let i = match.index + match[0].length; i < buffer.length; i += 1) {
-    const char = buffer[i];
-    if (char === '"') return out;
-    if (char !== "\\") {
-      out += char;
-      continue;
-    }
-    const next = buffer[i + 1];
-    if (next === void 0) return out;
-    i += 1;
-    if (next === "n") out += "\n";
-    else if (next === "t") out += "	";
-    else if (next === "r") continue;
-    else if (next === "u") {
-      const hex = buffer.slice(i + 1, i + 5);
-      if (hex.length < 4) return out;
-      out += String.fromCharCode(parseInt(hex, 16));
-      i += 4;
-    } else out += next;
-  }
-  return out;
-}
-function parseNoteJson(text2) {
-  const trimmed = text2.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const first = trimmed.indexOf("{");
-  const last = trimmed.lastIndexOf("}");
-  if (first < 0 || last <= first) throw new Error("\u56DE\u590D\u91CC\u6CA1\u6709 JSON");
-  const value = JSON.parse(trimmed.slice(first, last + 1));
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("\u56DE\u590D\u4E0D\u662F JSON \u5BF9\u8C61");
-  }
-  const note = value.note;
-  if (typeof note !== "string" || !note.trim()) throw new Error("\u56DE\u590D\u91CC\u6CA1\u6709 note");
-  return value;
-}
-async function generateNote(options) {
-  const chat = (messages, jsonMode, onText) => streamChat(
-    options.transport,
-    {
-      baseUrl: options.baseUrl,
-      apiKey: options.apiKey,
-      model: options.model,
-      messages,
-      jsonMode
-    },
-    onText,
-    options.signal
-  );
-  let segments = options.segments;
-  if (promptLength(segments) > SINGLE_PASS_CHARS) {
-    const known = new Map(segments.map((segment) => [segment.id, segment]));
-    const parts = chunkSegments(segments);
-    const condensed = [];
-    for (let i = 0; i < parts.length; i += 1) {
-      options.onProgress({ stage: `\u957F\u89C6\u9891\uFF0C\u5148\u538B\u7F29\u7B2C ${i + 1}/${parts.length} \u6BB5` });
-      const text2 = await chat(condenseMessages(parts[i], i, parts.length), false, () => void 0);
-      const lines = parseCondensed(text2, known);
-      condensed.push(...lines.length ? lines : parts[i].slice(0, 20));
-    }
-    segments = condensed;
-  }
-  const request = {
-    segments,
-    title: options.title,
-    author: options.author,
-    language: options.language,
-    metadata: options.metadata
-  };
-  options.onProgress({ stage: "\u6B63\u5728\u8BFB\u6587\u7A3F", live: "" });
-  const show = (full, reasoning) => {
-    const tldr = partialJsonString(full, "tldr");
-    const note = partialJsonString(full, "note");
-    const live = [tldr, note].filter(Boolean).join("\n\n");
-    if (!live && reasoning > 0) {
-      options.onProgress({ stage: "\u6B63\u5728\u8BFB\u6587\u7A3F" });
-      return;
-    }
-    options.onProgress({ stage: "\u6B63\u5728\u5199\u7B14\u8BB0", live });
-  };
-  const reply = await chat(noteMessages(request), true, show);
-  try {
-    return parseNoteJson(reply);
-  } catch (error) {
-    options.onProgress({ stage: "\u56DE\u590D\u683C\u5F0F\u4E0D\u5BF9\uFF0C\u91CD\u5199\u4E00\u6B21", live: "" });
-    const again = await chat(
-      noteMessages({
-        ...request,
-        retryCount: 1,
-        parseError: error instanceof Error ? error.message : String(error)
-      }),
-      true,
-      show
-    );
-    return parseNoteJson(again);
-  }
-}
-
-// core/LiteRunner.ts
-function liteDecision(enabled, hasModel, input, mode) {
-  if (!enabled) return { lite: false, why: "off" };
-  if (mode === "info-only") return { lite: false, why: "mode" };
-  if (input.localFile || input.localFiles?.length) return { lite: false, why: "local" };
-  if (input.skipSourceFetch || input.persistedSegments?.length) {
-    return { lite: false, why: "reprocess" };
-  }
-  if (!input.transcript?.trim()) return { lite: false, why: "no-transcript" };
-  if (mode === "summary" && !hasModel) return { lite: false, why: "no-key" };
-  return { lite: true };
-}
-function pageVideoDetails(params) {
-  const details = {};
-  const author = (params.author || "").trim();
-  if (author && author.length <= 200 && !/[\r\n]/.test(author)) details.video_author = author;
-  const duration = (params.duration || "").trim();
-  if (/^\d{1,3}(?::\d{2}){1,2}$/.test(duration)) details.video_duration = duration;
-  const cover = (params.cover || "").trim();
-  if (/^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover)) details.video_cover = cover;
-  return details;
-}
-function str(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-async function runLiteJob(deps, input, mode, language, report, signal, meta = {}) {
-  const sourceUrl = input.url || input.sourceUrl || "";
-  const base = { transcript_source: "provided_transcript" };
-  if (meta.author) base.video_author = meta.author;
-  if (meta.duration) base.video_duration = meta.duration;
-  if (meta.cover) base.video_cover = meta.cover;
-  if (sourceUrl) base.video_platform = detectPlatform2(sourceUrl);
-  report({ stageLabel: tr("\u8BFB\u53D6\u6587\u7A3F", "Reading the transcript") });
-  const segments = parseTranscriptSegments(input.transcript || "", sourceUrl).map(
-    (segment) => ({
-      id: segment.id,
-      start: segment.start,
-      end: segment.end ?? null,
-      text: segment.text
-    })
-  );
-  const timing = segments.some((segment) => segment.start !== null) ? "exact" : "none";
-  if (segments.length === 0) throw new Error(tr("\u6587\u7A3F\u662F\u7A7A\u7684", "The transcript is empty"));
-  base.video_transcript = transcriptText(segments);
-  const payload = {
-    video_segments: segments.map((segment) => ({
-      ...segment,
-      source: "speech",
-      timing_quality: segment.start === null ? "none" : timing
-    })),
-    timing_quality: timing
-  };
-  if (mode === "summary") {
-    const json = await generateNote({
-      transport: deps.transport,
-      baseUrl: deps.baseUrl,
-      apiKey: deps.apiKey,
-      model: deps.model,
-      segments,
-      title: meta.title,
-      author: meta.author,
-      language,
-      metadata: {
-        content_type: input.contentType || "auto",
-        attention_assessment: input.attentionAssessment !== false,
-        generate_learning: input.generateLearning === true,
-        ...deps.noteStyle?.trim() ? {
-          note_style: fillNoteStyle(deps.noteStyle, {
-            channel: meta.author,
-            date: stampDate(),
-            duration: meta.duration,
-            videoId: youTubeVideoId(sourceUrl) || ""
-          })
-        } : {},
-        note_images: noteImagesFor(sourceUrl, meta.duration)
-      },
-      onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
-      signal
-    });
-    Object.assign(payload, json, {
-      video_segments: payload.video_segments,
-      timing_quality: timing
-    });
-    base.note = str(json.note);
-    base.summary = str(json.summary);
-    base.note_title = str(json.note_title);
-    base.tldr = str(json.tldr);
-    base.video_title = sourceUrl && meta.title || str(json.video_title);
-  }
-  return normalizeRichProcessingResult(base, payload, {
-    sourceUrl,
-    model: deps.model,
-    processingDepth: input.processingDepth,
-    promptVersion: promptVersionFor(deps.noteStyle),
-    requestedContentType: input.contentType,
-    autoRoute: input.autoRoute
-  });
-}
-var nodeStreamTransport = (request, onData, signal) => new Promise((resolve, reject) => {
-  const url = new URL(request.url);
-  const http = desktopRequire(url.protocol === "http:" ? "http" : "https");
-  if (!http?.request) {
-    reject(new Error(tr("\u8F7B\u91CF\u6863\u9700\u8981\u684C\u9762\u7248 Obsidian", "The light tier needs desktop Obsidian")));
-    return;
-  }
-  const length = new TextEncoder().encode(request.body).length;
-  const req = http.request(
-    url,
-    { method: "POST", headers: { ...request.headers, "Content-Length": length } },
-    (response) => {
-      const status = response.statusCode || 0;
-      let errorText = "";
-      response.setEncoding("utf8");
-      response.on("data", (chunk) => {
-        if (status >= 400) errorText += chunk;
-        else onData(chunk);
-      });
-      response.on("end", () => resolve({ status, errorText }));
-      response.on("error", reject);
-    }
-  );
-  req.on("error", reject);
-  req.setTimeout(
-    12e4,
-    () => req.destroy(
-      new Error(tr("\u6A21\u578B\u670D\u52A1\u4E24\u5206\u949F\u6CA1\u6709\u56DE\u5E94", "The model service went quiet for two minutes"))
-    )
-  );
-  if (signal) {
-    if (signal.aborted) {
-      req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88"));
-      return;
-    }
-    signal.addEventListener("abort", () => req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88")), { once: true });
-  }
-  req.write(request.body);
-  req.end();
-});
-
 // core/ModelSettings.ts
 var LLM_PROVIDERS = [
   {
@@ -19474,7 +19492,12 @@ var JobService = class {
     const liteFlags = runnableDrafts.map(
       (draft) => this.liteFor(withAnalysisOptions(draft.input, options), options.mode).lite
     );
-    if (liteFlags.some((lite) => !lite)) await this.waitForBackendOrExplain();
+    if (liteFlags.some((lite) => !lite)) {
+      await this.waitForBackendOrExplain(
+        runnableDrafts.filter((_, i) => !liteFlags[i]).map((draft) => withAnalysisOptions(draft.input, options)),
+        options.mode
+      );
+    }
     let queued = 0;
     for (const draft of runnableDrafts) {
       const file = await this.noteFactory.createStubNote(draft, {
@@ -19518,7 +19541,8 @@ var JobService = class {
       return null;
     }
     const lite = this.liteFor(withAnalysisOptions(input, options), options.mode).lite;
-    if (!lite) await this.waitForBackendOrExplain();
+    if (!lite)
+      await this.waitForBackendOrExplain([withAnalysisOptions(input, options)], options.mode);
     await this.updateCourseProgressForFile(file, "queued", 0, input.artifactId);
     try {
       return this.store.enqueue({
@@ -19861,9 +19885,11 @@ ${buildInsertionContent(result)}`
    * full tier is for and holds the job; otherwise the usual check, which holds the queue
    * and offers Start backend when the backend is off.
    */
-  async waitForBackendOrExplain() {
+  async waitForBackendOrExplain(inputs, mode) {
     if (this.plugin.hasBackend() || this.plugin.settings.liteTierEnabled === false) {
-      await this.plugin.backend.readyOrHold();
+      const liteReady = this.plugin.liteReady();
+      const fromPage = inputs.some((input) => linkWantsPageCapture(input, liteReady, mode));
+      await this.plugin.backend.readyOrHold(fromPage);
       return;
     }
     this.plugin.jobs.setHeld(true);
@@ -20312,7 +20338,8 @@ var BackendControl = class {
    * queue is held and the person was told; the job is still queued and runs
    * once the backend answers.
    */
-  async readyOrHold() {
+  /** fromPage: the held job is a YouTube link the extension could send with its captions. */
+  async readyOrHold(fromPage = false) {
     if (!this.preflightOn()) return true;
     const diagnosis = await this.freshDiagnosis();
     if (diagnosis.ok) return true;
@@ -20329,7 +20356,7 @@ var BackendControl = class {
       );
       return false;
     }
-    this.tellOffline(diagnosis, true);
+    this.tellOffline(diagnosis, true, fromPage);
     return false;
   }
   /** For the older commands that do not use the queue: false means stop, and says why. */
@@ -20458,7 +20485,7 @@ var BackendControl = class {
     await this.plugin.saveSettings();
   }
   /** One notice at a time: what is wrong, the next step, and Start backend when that can help. */
-  tellOffline(diagnosis, held) {
+  tellOffline(diagnosis, held, fromPage = false) {
     this.notice?.hide();
     const endpoint = this.endpoint();
     const startable = this.canStart() && diagnosis.fault === "unreachable";
@@ -20476,6 +20503,16 @@ var BackendControl = class {
         "Start backend opens Docker and starts the backend container."
       ) : faultNextStep(diagnosis, endpoint, false)
     });
+    if (fromPage) {
+      const keys = captureShortcut(import_obsidian20.Platform.isMacOS);
+      box.createDiv({
+        cls: "vs-backend-notice-step",
+        text: tr(
+          `\u4E0D\u7528\u540E\u7AEF\uFF1A\u5728 YouTube \u89C6\u9891\u9875\u6309 ${keys}\uFF0C\u6269\u5C55\u4F1A\u5E26\u4E0A\u5B57\u5E55\uFF0C\u8D70\u8F7B\u91CF\u6863\u3002`,
+          `No backend needed: press ${keys} on the YouTube page; the extension sends the captions and the light tier writes the note.`
+        )
+      });
+    }
     if (startable) {
       const button = box.createEl("button", {
         cls: "mod-cta",

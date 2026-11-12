@@ -13,7 +13,13 @@ import {
   partialJsonString,
   streamChat,
 } from '../core/LiteTier';
-import { liteDecision, pageVideoDetails, runLiteJob } from '../core/LiteRunner';
+import {
+  captureShortcut,
+  linkWantsPageCapture,
+  liteDecision,
+  pageVideoDetails,
+  runLiteJob,
+} from '../core/LiteRunner';
 import { JobStore } from '../core/JobStore';
 import { readableLive } from '../views/liveText';
 import { statusClass, statusWord } from '../views/backendText';
@@ -465,4 +471,19 @@ void test('details from the page are kept only when they look like what yt-dlp w
     pageVideoDetails({ author: 'a\nb', duration: 'soon', cover: 'https://evil.example/x.jpg' }),
     {},
   );
+});
+
+test('a bare YouTube link points to the extension only when the light tier could take it', () => {
+  const url = 'https://www.youtube.com/watch?v=kBdfcR-8hEY';
+  assert.equal(linkWantsPageCapture({ url }, true), true);
+  assert.equal(linkWantsPageCapture({ url }, false), false);
+  assert.equal(linkWantsPageCapture({ url, transcript: '[00:01] hi' }, true), false);
+  assert.equal(linkWantsPageCapture({ url }, true, 'info-only'), false);
+  assert.equal(
+    linkWantsPageCapture({ url: 'https://www.bilibili.com/video/BV1xx411c7mD' }, true),
+    false,
+  );
+  assert.equal(linkWantsPageCapture({ localFile: '/a.mp4' }, true), false);
+  assert.equal(captureShortcut(true), '⌘⇧S');
+  assert.equal(captureShortcut(false), 'Ctrl+Shift+S');
 });

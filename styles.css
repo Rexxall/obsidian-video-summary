@@ -2128,6 +2128,13 @@ body {
   animation: vs-slide 1.4s ease-in-out infinite;
 }
 /* 轻量档：正在写的笔记，固定高度，最新一行贴底，顶部淡出 */
+.video-summary-view .vs-job-hint {
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--vs-line);
+  color: var(--vs-ink-2);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+}
 .video-summary-view .vs-job-live {
   max-height: 168px;
   overflow-y: auto;

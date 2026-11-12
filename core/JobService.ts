@@ -12,7 +12,13 @@ import {
   VideoKnowledgeArtifact,
 } from '../types';
 import { Job, JobProgress, JobStore } from './JobStore';
-import { type LiteVideoMeta, liteDecision, nodeStreamTransport, runLiteJob } from './LiteRunner';
+import {
+  type LiteVideoMeta,
+  linkWantsPageCapture,
+  liteDecision,
+  nodeStreamTransport,
+  runLiteJob,
+} from './LiteRunner';
 import { readSecret, resolveLlm } from './ModelSettings';
 import { JobDraft } from './InputParser';
 import { NoteFactory, buildInsertionContent, extractVideoInputFromPayload } from './NoteFactory';
@@ -100,7 +106,14 @@ export class JobService {
       (draft) => this.liteFor(withAnalysisOptions(draft.input, options), options.mode).lite,
     );
     // 轻量档任务不经过后端；只有要后端的任务才去问后端在不在
-    if (liteFlags.some((lite) => !lite)) await this.waitForBackendOrExplain();
+    if (liteFlags.some((lite) => !lite)) {
+      await this.waitForBackendOrExplain(
+        runnableDrafts
+          .filter((_, i) => !liteFlags[i])
+          .map((draft) => withAnalysisOptions(draft.input, options)),
+        options.mode,
+      );
+    }
 
     let queued = 0;
     for (const draft of runnableDrafts) {
@@ -151,7 +164,8 @@ export class JobService {
       return null;
     }
     const lite = this.liteFor(withAnalysisOptions(input, options), options.mode).lite;
-    if (!lite) await this.waitForBackendOrExplain();
+    if (!lite)
+      await this.waitForBackendOrExplain([withAnalysisOptions(input, options)], options.mode);
 
     await this.updateCourseProgressForFile(file, 'queued', 0, input.artifactId);
     try {
@@ -543,9 +557,11 @@ export class JobService {
    * full tier is for and holds the job; otherwise the usual check, which holds the queue
    * and offers Start backend when the backend is off.
    */
-  private async waitForBackendOrExplain() {
+  private async waitForBackendOrExplain(inputs: VideoInput[], mode: ProcessingMode) {
     if (this.plugin.hasBackend() || this.plugin.settings.liteTierEnabled === false) {
-      await this.plugin.backend.readyOrHold();
+      const liteReady = this.plugin.liteReady();
+      const fromPage = inputs.some((input) => linkWantsPageCapture(input, liteReady, mode));
+      await this.plugin.backend.readyOrHold(fromPage);
       return;
     }
     this.plugin.jobs.setHeld(true);

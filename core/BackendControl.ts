@@ -11,6 +11,7 @@ import {
   runProgram,
 } from '../utils/desktop';
 import { tr } from '../utils/i18n';
+import { captureShortcut } from './LiteRunner';
 import { fire } from '../utils/fire';
 import { faultNextStep, faultReason, launchFailureText } from '../views/backendText';
 
@@ -81,7 +82,8 @@ export class BackendControl {
    * queue is held and the person was told; the job is still queued and runs
    * once the backend answers.
    */
-  async readyOrHold(): Promise<boolean> {
+  /** fromPage: the held job is a YouTube link the extension could send with its captions. */
+  async readyOrHold(fromPage = false): Promise<boolean> {
     if (!this.preflightOn()) return true;
     const diagnosis = await this.freshDiagnosis();
     if (diagnosis.ok) return true;
@@ -99,7 +101,7 @@ export class BackendControl {
       );
       return false;
     }
-    this.tellOffline(diagnosis, true);
+    this.tellOffline(diagnosis, true, fromPage);
     return false;
   }
 
@@ -246,7 +248,7 @@ export class BackendControl {
   }
 
   /** One notice at a time: what is wrong, the next step, and Start backend when that can help. */
-  private tellOffline(diagnosis: BackendDiagnosis, held: boolean) {
+  private tellOffline(diagnosis: BackendDiagnosis, held: boolean, fromPage = false) {
     this.notice?.hide();
     const endpoint = this.endpoint();
     const startable = this.canStart() && diagnosis.fault === 'unreachable';
@@ -268,6 +270,16 @@ export class BackendControl {
           )
         : faultNextStep(diagnosis, endpoint, false),
     });
+    if (fromPage) {
+      const keys = captureShortcut(Platform.isMacOS);
+      box.createDiv({
+        cls: 'vs-backend-notice-step',
+        text: tr(
+          `不用后端：在 YouTube 视频页按 ${keys}，扩展会带上字幕，走轻量档。`,
+          `No backend needed: press ${keys} on the YouTube page; the extension sends the captions and the light tier writes the note.`,
+        ),
+      });
+    }
     if (startable) {
       const button = box.createEl('button', {
         cls: 'mod-cta',

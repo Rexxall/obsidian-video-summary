@@ -1,6 +1,6 @@
 import { tr } from '../../utils/i18n';
 import { diagnoseSource } from '../../core/SourceHealth';
-import { Notice, TFile } from 'obsidian';
+import { Notice, Platform, TFile } from 'obsidian';
 import { ViewContext } from '../context';
 import { Job } from '../../core/JobStore';
 import { ProcessingHistory } from '../../types';
@@ -21,6 +21,7 @@ import {
 import { normalizeRemoteCoverUrl, platformLabel } from '../../core/NoteIndex';
 import { openSettings } from './ActionBar';
 import { readableLive } from '../liveText';
+import { captureShortcut, linkWantsPageCapture } from '../../core/LiteRunner';
 
 import { fire } from '../../utils/fire';
 import { errorMessage } from '../../utils/errors';
@@ -229,6 +230,22 @@ function renderActiveJob(container: HTMLElement, ctx: ViewContext, job: Job) {
     cls: `vs-progress-fill${job.progress === undefined ? ' is-indeterminate' : ''}`,
   });
   if (job.progress !== undefined) fill.style.width = `${Math.round(job.progress * 100)}%`;
+
+  // Held for a backend that is off, though the extension could send this one with captions.
+  if (
+    job.state === 'queued' &&
+    !job.lite &&
+    ctx.plugin.jobs.isHeld() &&
+    linkWantsPageCapture(job.input, ctx.plugin.liteReady(), job.mode)
+  ) {
+    card.createDiv({
+      cls: 'vs-job-hint',
+      text: tr(
+        `不想开后端：取消这条，在视频页按 ${captureShortcut(Platform.isMacOS)}。`,
+        `No backend? Cancel this one and press ${captureShortcut(Platform.isMacOS)} on the video page.`,
+      ),
+    });
+  }
 
   // Light tier: the note as it is being written, newest lines in view.
   if (job.liveText) {
