@@ -186,7 +186,19 @@ async function readPlayerCaptions(videoId) {
   const automatic = tracks.filter((t) => t.kind === 'asr');
   const audio = (renderer.audioTracks || [])[renderer.defaultAudioTrackIndex || 0];
   const marked = audio ? tracks[audio.defaultCaptionTrackIndex] : undefined;
-  const spoken = automatic.length === 1 ? automatic[0] : marked || automatic[0];
+  // A dubbed video lists one automatic track per dub, the dubs first. The audio the
+  // uploader recorded is marked as the default stream ("en-US.4"); its language picks
+  // the automatic track, since the caption mark above is often missing.
+  const original = ((response.streamingData && response.streamingData.adaptiveFormats) || [])
+    .map((format) => format.audioTrack)
+    .find((track) => track && track.audioIsDefault);
+  const originalLanguage = base(
+    ((original && original.id) || (audio && audio.audioTrackId) || '').split('.')[0],
+  );
+  const byOriginal = originalLanguage
+    ? automatic.find((t) => base(t.languageCode) === originalLanguage)
+    : undefined;
+  const spoken = automatic.length === 1 ? automatic[0] : byOriginal || marked || automatic[0];
   const written = tracks.filter((t) => t.kind !== 'asr');
   const track =
     (spoken && written.find((t) => base(t.languageCode) === base(spoken.languageCode))) ||

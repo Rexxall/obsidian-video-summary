@@ -320,6 +320,21 @@ test('the caption reader picks the spoken language, not the viewer’s', async (
   );
   assert.equal(dubbed.result.lang, 'en');
   assert.equal(dubbed.result.kind, 'asr');
+  // Dubbed, with no caption mark (as YouTube serves K4tpvbkIkL4): the dubs' tracks come
+  // first, so the language of the audio stream marked as default decides, not the first track.
+  const unmarked = response(
+    [track('ar', 'asr'), track('pl', 'asr'), track('en', 'asr')],
+    [{ audioTrackId: 'ar.10' }, { audioTrackId: 'en-US.4' }, { audioTrackId: 'pl.10' }],
+    0,
+  );
+  unmarked.streamingData = {
+    adaptiveFormats: [
+      { audioTrack: { id: 'ar.10', audioIsDefault: false } },
+      { audioTrack: { id: 'en-US.4', audioIsDefault: true } },
+    ],
+  };
+  const original = await readWithPlayer(unmarked);
+  assert.equal(original.result.lang, 'en');
   // No automatic captions: the marked track.
   const marked = await readWithPlayer(
     response([track('de'), track('en')], [{ defaultCaptionTrackIndex: 1 }]),
