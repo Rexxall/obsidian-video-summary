@@ -62,8 +62,8 @@ var ITHACA_NOTE_STYLE = [
 function fillNoteStyle(style, values) {
   const text2 = (style || "").trim();
   if (!text2) return "";
-  const clean = (value) => (value || "").replace(/[<>\n]/g, " ").trim();
-  return text2.replace(/\{\{channel\}\}/g, clean(values.channel)).replace(/\{\{date\}\}/g, clean(values.date)).replace(/\{\{duration\}\}/g, clean(values.duration)).replace(/\{\{video_id\}\}/g, clean(values.videoId));
+  const clean2 = (value) => (value || "").replace(/[<>\n]/g, " ").trim();
+  return text2.replace(/\{\{channel\}\}/g, clean2(values.channel)).replace(/\{\{date\}\}/g, clean2(values.date)).replace(/\{\{duration\}\}/g, clean2(values.duration)).replace(/\{\{video_id\}\}/g, clean2(values.videoId));
 }
 function stampDate(now = /* @__PURE__ */ new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -3502,8 +3502,8 @@ function parsePlaylistUrl(url) {
   throw new Error("\u65E0\u6CD5\u4ECE B\u7AD9\u94FE\u63A5\u8BC6\u522B\u5408\u96C6\u6216\u6536\u85CF\u5939 ID");
 }
 async function obsidianRequester(request) {
-  const { requestUrl: requestUrl3 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
-  const response = await requestUrl3({
+  const { requestUrl: requestUrl4 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl4({
     url: request.url,
     method: request.method,
     headers: request.headers,
@@ -5743,7 +5743,8 @@ var NoteFactory = class {
     const lines = ["---"];
     if (draft.input.url) lines.push(`link: ${yamlEscape(draft.input.url)}`);
     lines.push("video_summary: true");
-    lines.push(`source_type: ${draft.input.url || draft.input.localFile ? "video" : "article"}`);
+    const article = draft.input.article || !(draft.input.url || draft.input.localFile);
+    lines.push(`source_type: ${article ? "article" : "video"}`);
     lines.push("video_summary_status: pending");
     lines.push("status: pending");
     lines.push(`video_title: ${yamlEscape(draft.title)}`);
@@ -11582,7 +11583,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
 };
 /** Network layer for webhook calls; Obsidian's requestUrl by default, replaceable in tests. */
-_VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl3 }) => requestUrl3(request));
+_VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl4 }) => requestUrl4(request));
 var VideoSummaryAPI = _VideoSummaryAPI;
 
 // views/VideoSummaryView.ts
@@ -16319,6 +16320,7 @@ function defaultsForSource(defaults, isArticle, articleTags) {
 }
 function isArticleNote(frontmatter) {
   const filled = (value) => typeof value === "string" && value.trim() !== "";
+  if (frontmatter.source_type === "article") return true;
   return !filled(frontmatter.link) && !filled(frontmatter.local_file);
 }
 function parseDefaultProperties(text2) {
@@ -17255,6 +17257,65 @@ var JobStore = class {
 
 // core/JobService.ts
 var import_obsidian20 = require("obsidian");
+
+// core/ArticleReader.ts
+function isArticleLink(url) {
+  if (!url) return false;
+  let parsed;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  if (detectPlatform2(parsed.href) !== "other") return false;
+  return !/\.(mp4|m4a|mp3|wav|webm|mov|mkv|flac|ogg|pdf|zip)$/i.test(parsed.pathname);
+}
+var MIN_ARTICLE_CHARS = 300;
+var DROP = [
+  "script, style, noscript, template, nav, header, footer, aside, form, iframe, svg, canvas",
+  'button, dialog, [aria-hidden="true"], [hidden]',
+  // Comments, sidebars and share or related blocks: on a short post they outweigh the post.
+  '#comments, [id^="comment"], [class*="comment"], .sidebar, .widget, [class*="related"], [class*="share"]'
+].join(", ");
+var CONTENT = ".entry-content, .post-content, .article-content, .post-body, .article-body, #js_content, .rich_media_content";
+var BLOCKS = "h1, h2, h3, h4, p, li, blockquote, pre, td";
+var clean = (text2) => (text2 || "").replace(/\s+/g, " ").trim();
+function extractArticle(doc) {
+  const meta = (selector) => clean(doc.querySelector(selector)?.getAttribute("content"));
+  const title = meta('meta[property="og:title"]') || meta('meta[name="twitter:title"]') || clean(doc.querySelector("h1")?.textContent) || clean(doc.title);
+  doc.querySelectorAll(DROP).forEach((element) => {
+    if (element === doc.body || element === doc.documentElement) return;
+    if (element.querySelector(`${CONTENT}, article, main`)) return;
+    element.remove();
+  });
+  const length = (element) => clean(element.textContent).length;
+  const longest = (selector) => Array.from(doc.querySelectorAll(selector)).sort((a, b) => length(b) - length(a))[0] || null;
+  let root = longest(CONTENT);
+  if (!root || length(root) < 200) root = longest('article, main, [role="main"]');
+  if (!root || length(root) < MIN_ARTICLE_CHARS) {
+    const score = /* @__PURE__ */ new Map();
+    doc.querySelectorAll("p").forEach((paragraph) => {
+      const parent = paragraph.parentElement;
+      if (parent) score.set(parent, (score.get(parent) || 0) + length(paragraph));
+    });
+    root = Array.from(score).sort((a, b) => b[1] - a[1])[0]?.[0] || doc.body;
+  }
+  if (!root) return { title, text: "" };
+  const lines = [];
+  root.querySelectorAll(BLOCKS).forEach((element) => {
+    const outer = element.parentElement?.closest(BLOCKS);
+    if (outer && root?.contains(outer)) return;
+    const text2 = clean(element.textContent);
+    if (!text2) return;
+    const tag = element.tagName.toLowerCase();
+    if (/^h[1-4]$/.test(tag)) lines.push(`${"#".repeat(Number(tag[1]) + 1)} ${text2}`);
+    else if (tag === "li") lines.push(`- ${text2}`);
+    else if (tag === "blockquote") lines.push(`> ${text2}`);
+    else lines.push(text2);
+  });
+  return { title, text: lines.join("\n\n") };
+}
 
 // core/ModelSettings.ts
 var LLM_PROVIDERS = [
@@ -19198,8 +19259,8 @@ function mediaAssetRoot(outputFolder) {
 }
 async function fetchLoopbackBinary(url, signal) {
   if (signal.aborted) throw new Error("Aborted");
-  const { requestUrl: requestUrl3 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
-  const response = await requestUrl3({ url, method: "GET", throw: false });
+  const { requestUrl: requestUrl4 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl4({ url, method: "GET", throw: false });
   if (signal.aborted) throw new Error("Aborted");
   if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
   const header = (name) => Object.entries(response.headers).find(([key]) => key.toLowerCase() === name)?.[1];
@@ -19616,6 +19677,7 @@ var JobService = class {
       }
     }
     if (runnableDrafts.length === 0) return jsonCreated;
+    await this.readArticles(runnableDrafts, options.mode);
     const liteFlags = runnableDrafts.map(
       (draft) => this.liteFor(withAnalysisOptions(draft.input, options), options.mode).lite
     );
@@ -20002,6 +20064,41 @@ ${buildInsertionContent(result)}`
         durationMs: job.startedAt ? Date.now() - job.startedAt : void 0
       });
       throw failure;
+    }
+  }
+  /**
+   * A link to an ordinary web page, with the light tier ready: its text is read here and the
+   * draft becomes a pasted article with its link, written without the backend. A page with too
+   * little text (a login wall, a page drawn by script) is left as it was.
+   */
+  async readArticles(drafts, mode) {
+    if (mode === "info-only" || this.plugin.settings.liteTierEnabled === false) return;
+    if (!this.plugin.liteReady()) return;
+    const pages = drafts.filter(
+      (draft) => isArticleLink(draft.input.url) && !draft.input.transcript?.trim() && !draft.input.localFile && !draft.input.localFiles?.length
+    );
+    if (pages.length === 0) return;
+    const notice = new import_obsidian20.Notice(tr("\u6B63\u5728\u8BFB\u53D6\u7F51\u9875\u6B63\u6587\u2026", "Reading the page\u2026"), 0);
+    try {
+      await Promise.all(
+        pages.map(async (draft) => {
+          const url = draft.input.url;
+          try {
+            const reply = await (0, import_obsidian20.requestUrl)({ url, method: "GET", throw: false });
+            if (reply.status >= 400 || !reply.text) return;
+            const doc = new DOMParser().parseFromString(reply.text, "text/html");
+            const { title, text: text2 } = extractArticle(doc);
+            if (text2.length < MIN_ARTICLE_CHARS) return;
+            draft.input = { ...draft.input, transcript: text2, article: true };
+            if (title) draft.title = title;
+            draft.platform = "web";
+          } catch (error) {
+            console.warn("[Video Summary] \u8BFB\u53D6\u7F51\u9875\u5931\u8D25", url, error);
+          }
+        })
+      );
+    } finally {
+      notice.hide();
     }
   }
   /** Whether the light tier takes this input: on in settings, a transcript, a summary key. */
