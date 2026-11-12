@@ -372,7 +372,7 @@
     "message": "保存しました。"
   },
   "savedNoPermission": {
-    "message": "保存しましたが、このバックエンドへのアクセスが許可されていないため送信できません。"
+    "message": "保存しましたが、Obsidian またはバックエンドへのアクセスが許可されていないため送信できません。もう一度保存して許可してください。"
   },
   "copiedText": {
     "message": "コピーしました：$1"
@@ -396,7 +396,7 @@
     "message": "履歴"
   },
   "settingBridge": {
-    "message": "Obsidian ペアリングコード"
+    "message": "ペアリングコード"
   },
   "bridgePlaceholder": {
     "message": "Obsidian の Video Summary 設定からコピー"

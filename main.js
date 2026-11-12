@@ -7405,7 +7405,7 @@ async function pollQrLogin(key) {
   }
 }
 
-// node_modules/qrcode-generator/dist/qrcode.mjs
+// ../../../../../../../Users/rex/Obsidian/Projects/.plugin-dev/video-summary-plugin/node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
   const PAD1 = 17;

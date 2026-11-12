@@ -19,7 +19,7 @@
     // Pairing code from the Obsidian plugin (Settings → Browser extension); stays on this device.
     obsidianBridge: '',
     // With a pairing code, hand videos to the plugin over 127.0.0.1 so Obsidian stays where it is.
-    sendInBackground: true,
+    sendInBackground: false,
     webhookFormat: 'unified',
     defaultMode: 'summary',
     defaultLanguage: 'zh',
@@ -328,8 +328,28 @@
       return null;
     }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    if (['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return null;
     return `${url.protocol}//${url.hostname}/*`;
+  }
+
+  /**
+   * The sites these settings send to. Nothing is granted at install, this computer included:
+   * the popup asks Chrome for these when the settings are saved, while the click counts.
+   */
+  function neededOrigins(settings) {
+    const origins = new Set();
+    if (settings.sendInBackground && parseBridgeCode(settings.obsidianBridge)) {
+      origins.add('http://127.0.0.1/*');
+    }
+    if (settings.obsidianRestToken) {
+      origins.add(`${settings.obsidianRestProtocol === 'http' ? 'http' : 'https'}://127.0.0.1/*`);
+    }
+    const usesBackend =
+      settings.n8nToken ||
+      settings.quickAction === 'send-to-n8n' ||
+      settings.webhookFormat === 'legacy';
+    const backend = usesBackend ? backendOriginPattern(settings.n8nWebhookUrl) : null;
+    if (backend) origins.add(backend);
+    return [...origins];
   }
 
   function parseConnectionCode(raw) {
@@ -396,6 +416,7 @@
     formatTimestamp,
     isVideoUrl,
     backendOriginPattern,
+    neededOrigins,
     parseBridgeCode,
     parseConnectionCode,
     pluginCaptureParams,

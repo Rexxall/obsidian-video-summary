@@ -373,7 +373,7 @@ test('the reader asks the page’s player for the track, refetches it as json3 a
   assert.equal(other.result.reason, 'no-player');
 });
 
-test('the extension asks for site access only for a backend on another computer', () => {
+test('the extension asks for site access only when a setting sends there', () => {
   const U = loadUtils();
   const manifest = JSON.parse(readFileSync(new URL('manifest.json', dir), 'utf8'));
   // Installing asks for no access to every site; this computer is covered.
@@ -382,8 +382,20 @@ test('the extension asks for site access only for a backend on another computer'
     false,
   );
   assert.equal(manifest.permissions.includes('tabs'), false);
-  assert.equal(U.backendOriginPattern('http://127.0.0.1:5678/webhook/x'), null);
-  assert.equal(U.backendOriginPattern('http://localhost:5678/webhook/x'), null);
+  // Nothing is granted at install; even this computer is asked for when a setting needs it.
+  assert.deepEqual(manifest.host_permissions, []);
+  assert.equal(U.backendOriginPattern('http://127.0.0.1:5678/webhook/x'), 'http://127.0.0.1/*');
+  assert.equal(U.backendOriginPattern('http://localhost:5678/webhook/x'), 'http://localhost/*');
+  assert.deepEqual([...U.neededOrigins({ ...U.DEFAULT_SETTINGS })], []);
+  const code = `vsb1.27183.${'a'.repeat(48)}`;
+  const paired = U.neededOrigins({
+    ...U.DEFAULT_SETTINGS,
+    sendInBackground: true,
+    obsidianBridge: code,
+  });
+  assert.deepEqual([...paired], ['http://127.0.0.1/*']);
+  // A pairing code alone asks for nothing: the background route is off until it is switched on.
+  assert.deepEqual([...U.neededOrigins({ ...U.DEFAULT_SETTINGS, obsidianBridge: code })], []);
   assert.equal(
     U.backendOriginPattern('https://n8n.example.org/webhook/x'),
     'https://n8n.example.org/*',
@@ -462,7 +474,7 @@ test('with a pairing code, a capture goes to the plugin in the background', asyn
   };
   const code = `vsb1.27183.${'c'.repeat(48)}`;
   const { send } = loadBackground({
-    sync: { vaultName: 'V', sendCaptions: false },
+    sync: { vaultName: 'V', sendCaptions: false, sendInBackground: true },
     local: { obsidianBridge: code },
     fetchImpl,
   });
@@ -484,7 +496,7 @@ test('when Obsidian does not answer, the capture falls back to the obsidian:// l
     throw new TypeError('Failed to fetch');
   };
   const { send } = loadBackground({
-    sync: { vaultName: 'V', sendCaptions: false },
+    sync: { vaultName: 'V', sendCaptions: false, sendInBackground: true },
     local: { obsidianBridge: `vsb1.27183.${'c'.repeat(48)}` },
     fetchImpl,
   });

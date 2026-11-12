@@ -320,8 +320,7 @@ function renderSettings() {
   els.settings.quickAction.value = s.quickAction || 'create-pending-note';
   els.settings.sendCaptions.checked = s.sendCaptions !== false;
   els.settings.obsidianBridge.value = s.obsidianBridge || '';
-  els.settings.sendInBackground.checked = s.sendInBackground !== false;
-  els.settings.sendInBackground.disabled = !s.obsidianBridge;
+  els.settings.sendInBackground.checked = s.sendInBackground === true;
   els.settings.n8nWebhookUrl.value = '';
   els.settings.n8nWebhookUrl.placeholder = s.n8nToken
     ? t('backendSaved', s.n8nWebhookUrl)
@@ -460,10 +459,6 @@ async function saveSettings() {
     setStatus(t('errBridgeFormat'), 'error');
     return;
   }
-  // A backend on another computer needs that site's permission; ask while the click counts.
-  const backend = backendFromInput(els.settings.n8nWebhookUrl.value).n8nWebhookUrl;
-  const origin = backend ? U.backendOriginPattern(backend) : null;
-  const allowed = origin ? await chrome.permissions.request({ origins: [origin] }) : true;
   const settings = {
     vaultName: els.settings.vault.value.trim(),
     folder: els.settings.folder.value.trim(),
@@ -482,6 +477,10 @@ async function saveSettings() {
     obsidianRestPort: Number(els.settings.obsidianRestPort.value || 27123),
     obsidianRestToken: els.settings.obsidianRestToken.value.trim(),
   };
+  // Nothing is granted at install, this computer included: ask for the sites these settings
+  // send to now, while the click still counts as the person's action.
+  const origins = U.neededOrigins(settings);
+  const allowed = origins.length ? await chrome.permissions.request({ origins }) : true;
   const response = await send('SAVE_SETTINGS', { settings });
   state.settings = response.settings;
   renderSettings();

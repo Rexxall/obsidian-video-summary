@@ -372,7 +372,7 @@
     "message": "Saved."
   },
   "savedNoPermission": {
-    "message": "Saved, but access to that backend was not allowed, so sending to it will fail."
+    "message": "Saved, but Chrome was not allowed to reach Obsidian or your backend, so sending there will fail. Save again and allow it."
   },
   "copiedText": {
     "message": "Copied: $1"

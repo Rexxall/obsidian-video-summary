@@ -372,7 +372,7 @@
     "message": "已保存。"
   },
   "savedNoPermission": {
-    "message": "已保存，但没有允许访问这个后端地址，发送到后端会失败。"
+    "message": "已保存，但没有允许 Chrome 访问 Obsidian 或后端，发送会失败。再保存一次并允许即可。"
   },
   "copiedText": {
     "message": "已复制：$1"

@@ -3453,7 +3453,9 @@ class VideoSummarySettingTab extends PluginSettingTab {
           'Paste it into the extension under Settings → Obsidian pairing code.',
         ),
       );
-    codeSetting.controlEl.createEl('code', { text: code, cls: 'vs-bridge-code' });
+    // Shown shortened: the secret stays off screen and out of screenshots; Copy takes the whole code.
+    const shown = `${code.slice(0, 16)}…${code.slice(-4)}`;
+    codeSetting.controlEl.createEl('code', { text: shown, cls: 'vs-bridge-code' });
     codeSetting
       .addButton((button) =>
         button.setButtonText(tr('复制', 'Copy')).onClick(async () => {

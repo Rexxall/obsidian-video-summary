@@ -31,7 +31,7 @@ Press ⌘⇧S (Ctrl+Shift+S) on a YouTube or Bilibili video. The extension reads
 
 - Captions in the spoken language come first, written ones before automatic ones. On a dubbed video it takes the original audio's language.
 - Queue videos, scan a page for video links, copy a link to the current moment, or append links to a reading list in your vault.
-- Pair it with the plugin and Obsidian stays in the background while the note is written.
+- Optional, off by default: pair it with the plugin and Obsidian stays in the background while the note is written.
 - For videos without captions, send the link to a Video Summary backend you run yourself.
 - Follows your browser's language (English, 简体中文, 日本語) and light or dark mode.
 
@@ -45,7 +45,7 @@ Obsidian, YouTube and Bilibili are trademarks of their respective owners. This e
 
 - 优先取原声语言的字幕，人工字幕优先于自动字幕；多语配音的视频取原声那一种。
 - 把视频加入队列、扫描页面里的视频链接、复制当前时刻的链接，或把链接追加到库里的待看清单。
-- 和插件配对后，Obsidian 留在后台写笔记，不打断你看视频。
+- 可选，默认关闭：和插件配对后，Obsidian 留在后台写笔记，不打断你看视频。
 - 没有字幕的视频，可以把链接送到你自己运行的 Video Summary 后端。
 - 界面跟随浏览器语言（English、简体中文、日本語）和浅色、深色模式。
 
@@ -59,7 +59,7 @@ YouTube や bilibili の動画ページで ⌘⇧S（Windows では Ctrl+Shift+S
 
 - 話されている言語の字幕を優先し、手動字幕を自動字幕より先に使います。吹き替えのある動画では元の音声の言語を選びます。
 - 動画をキューに追加、ページ内の動画リンクを検索、今の再生位置へのリンクをコピー、保管庫の「あとで見る」リストへリンクを追記できます。
-- プラグインとペアリングすれば、Obsidian は裏でノートを書き、動画の視聴を邪魔しません。
+- 任意（初期設定はオフ）：プラグインとペアリングすれば、Obsidian は裏でノートを書き、動画の視聴を邪魔しません。
 - 字幕のない動画は、ご自身で動かす Video Summary バックエンドへリンクを送れます。
 - 表示はブラウザの言語（English、简体中文、日本語）とライト／ダークモードに合わせます。
 
@@ -75,16 +75,15 @@ Obsidian、YouTube、bilibili はそれぞれの所有者の商標です。こ�
 
 **Permission justifications**
 
-| Field                                                  | Paste                                                                                                                                                                                                                                                                           |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `activeTab`                                            | Reads only the tab where the user presses the toolbar button, the shortcut or the right-click menu: its address, title, playback time and the captions its video player already loaded. No access to other tabs or to pages in the background.                                  |
-| `scripting`                                            | Runs the reading code in that one tab (playback time, captions, video links on the page), shows a short "Sent" notice there, and opens the obsidian:// link that hands the video to Obsidian.                                                                                   |
-| `contextMenus`                                         | Right-click entries on a page or link: send this video, add it to the queue, append it to the list file, copy a timestamped link.                                                                                                                                               |
-| `storage`                                              | Saves the user's settings, queue and send history in the browser. The Obsidian token and backend password stay in local storage on this device.                                                                                                                                 |
-| `clipboardWrite`                                       | Copies a Markdown link to the current moment of the video when the user asks for it.                                                                                                                                                                                            |
-| Host permission (`localhost`, `127.0.0.1`)             | Hands the video to the Video Summary plugin running in Obsidian on the same computer (after the user pastes its pairing code), so Obsidian is not brought forward; also reaches Obsidian's Local REST API plugin and the user's own backend when they run on the same computer. |
-| Optional host permission (`http://*/*`, `https://*/*`) | Requested for one site only, when the user saves the address of their own backend on another computer. Chrome asks the user for that single site at that moment.                                                                                                                |
-| Optional `cookies`                                     | Requested only when the user presses Sync next to Bilibili sign-in, to pass their bilibili.com login cookies to their own backend so it can fetch subtitles. Never read otherwise.                                                                                              |
+| Field                                                  | Paste                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `activeTab`                                            | Reads only the tab where the user presses the toolbar button, the shortcut or the right-click menu: its address, title, playback time and the captions its video player already loaded. No access to other tabs or to pages in the background.                                                                                |
+| `scripting`                                            | Runs the reading code in that one tab (playback time, captions, video links on the page), shows a short "Sent" notice there, and opens the obsidian:// link that hands the video to Obsidian.                                                                                                                                 |
+| `contextMenus`                                         | Right-click entries on a page or link: send this video, add it to the queue, append it to the list file, copy a timestamped link.                                                                                                                                                                                             |
+| `storage`                                              | Saves the user's settings, queue and send history in the browser. The Obsidian token and backend password stay in local storage on this device.                                                                                                                                                                               |
+| `clipboardWrite`                                       | Copies a Markdown link to the current moment of the video when the user asks for it.                                                                                                                                                                                                                                          |
+| Optional host permission (`http://*/*`, `https://*/*`) | Nothing is granted at install. When the user saves a setting that sends somewhere, the popup asks Chrome for that one site only: `127.0.0.1` for the optional background sending to the Video Summary plugin in Obsidian (off by default) or for Obsidian's Local REST API plugin, and the address of the user's own backend. |
+| Optional `cookies`                                     | Requested only when the user presses Sync next to Bilibili sign-in, to pass their bilibili.com login cookies to their own backend so it can fetch subtitles. Never read otherwise.                                                                                                                                            |
 
 **Are you using remote code?** No, I am not using remote code. All JavaScript is in the package; the extension fetches no scripts.
 
@@ -108,7 +107,7 @@ Free; all regions; Public (or Unlisted to try the store install first).
 
 ## Policy notes
 
-- One page is read, and only when the user acts; installing asks for no access to all websites.
+- One page is read, and only when the user acts; installing asks for no site access at all, this computer included.
 - No media is downloaded. The extension reads the captions the player already loaded on the page.
 - The description names four products (Obsidian, YouTube, Bilibili, Video Summary), under the five-brand keyword-spam limit.
 - Trademarks are named only to say what the extension works with, with a line that it is not made or endorsed by them.

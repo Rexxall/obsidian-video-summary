@@ -662,7 +662,7 @@ async function putObsidianRestNote(settings, item) {
  * false when nothing answers (Obsidian closed, or an older plugin): then the link is used.
  */
 async function sendToPluginInBackground(settings, item, { process }) {
-  if (settings.sendInBackground === false) return false;
+  if (settings.sendInBackground !== true) return false;
   const bridge = U.parseBridgeCode(settings.obsidianBridge);
   if (!bridge) return false;
   let response;
