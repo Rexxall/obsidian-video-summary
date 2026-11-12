@@ -52,6 +52,7 @@ export function defaultsForSource(
 /** A note made from a pasted article or transcript rather than from a video. */
 export function isArticleNote(frontmatter: Record<string, unknown>): boolean {
   const filled = (value: unknown) => typeof value === 'string' && value.trim() !== '';
+  if (frontmatter.source_type === 'article') return true;
   return !filled(frontmatter.link) && !filled(frontmatter.local_file);
 }
 

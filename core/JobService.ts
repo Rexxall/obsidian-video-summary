@@ -1,5 +1,6 @@
 import { BackendLostError, mayMeanBackendGone, withBackendWatch } from './BackendHealth';
-import { Notice, TFile, getFrontMatterInfo, parseYaml } from 'obsidian';
+import { Notice, TFile, getFrontMatterInfo, parseYaml, requestUrl } from 'obsidian';
+import { MIN_ARTICLE_CHARS, extractArticle, isArticleLink } from './ArticleReader';
 import VideoSummaryPlugin from '../main';
 import { NoteProcessor } from '../utils/NoteProcessor';
 import {
@@ -101,6 +102,7 @@ export class JobService {
     }
 
     if (runnableDrafts.length === 0) return jsonCreated;
+    await this.readArticles(runnableDrafts, options.mode);
 
     const liteFlags = runnableDrafts.map(
       (draft) => this.liteFor(withAnalysisOptions(draft.input, options), options.mode).lite,
@@ -545,6 +547,46 @@ export class JobService {
         durationMs: job.startedAt ? Date.now() - job.startedAt : undefined,
       });
       throw failure;
+    }
+  }
+
+  /**
+   * A link to an ordinary web page, with the light tier ready: its text is read here and the
+   * draft becomes a pasted article with its link, written without the backend. A page with too
+   * little text (a login wall, a page drawn by script) is left as it was.
+   */
+  private async readArticles(drafts: JobDraft[], mode: ProcessingMode) {
+    if (mode === 'info-only' || this.plugin.settings.liteTierEnabled === false) return;
+    if (!this.plugin.liteReady()) return;
+    const pages = drafts.filter(
+      (draft) =>
+        isArticleLink(draft.input.url) &&
+        !draft.input.transcript?.trim() &&
+        !draft.input.localFile &&
+        !draft.input.localFiles?.length,
+    );
+    if (pages.length === 0) return;
+    const notice = new Notice(tr('正在读取网页正文…', 'Reading the page…'), 0);
+    try {
+      await Promise.all(
+        pages.map(async (draft) => {
+          const url = draft.input.url as string;
+          try {
+            const reply = await requestUrl({ url, method: 'GET', throw: false });
+            if (reply.status >= 400 || !reply.text) return;
+            const doc = new DOMParser().parseFromString(reply.text, 'text/html');
+            const { title, text } = extractArticle(doc);
+            if (text.length < MIN_ARTICLE_CHARS) return;
+            draft.input = { ...draft.input, transcript: text, article: true };
+            if (title) draft.title = title;
+            draft.platform = 'web';
+          } catch (error) {
+            console.warn('[Video Summary] 读取网页失败', url, error);
+          }
+        }),
+      );
+    } finally {
+      notice.hide();
     }
   }
 

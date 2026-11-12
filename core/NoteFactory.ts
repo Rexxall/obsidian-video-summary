@@ -42,7 +42,8 @@ export class NoteFactory {
     if (draft.input.url) lines.push(`link: ${yamlEscape(draft.input.url)}`);
     lines.push('video_summary: true');
     // A pasted article or transcript without a link is not a video.
-    lines.push(`source_type: ${draft.input.url || draft.input.localFile ? 'video' : 'article'}`);
+    const article = draft.input.article || !(draft.input.url || draft.input.localFile);
+    lines.push(`source_type: ${article ? 'article' : 'video'}`);
     lines.push('video_summary_status: pending');
     lines.push('status: pending');
     lines.push(`video_title: ${yamlEscape(draft.title)}`);

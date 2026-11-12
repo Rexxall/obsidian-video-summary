@@ -472,6 +472,8 @@ export interface VideoInput {
   /** Stable source identity retained when the backend must not fetch the URL. */
   sourceUrl?: string;
   transcript?: string;
+  /** The transcript is a web page's text read from `url`: the note is an article. */
+  article?: boolean;
   localFile?: string;
   localFiles?: string[];
   merge?: boolean;
