@@ -1987,7 +1987,8 @@ var platformCapabilities = () => [
   }
 ];
 var DEFAULT_SETTINGS = {
-  extensionBridgeEnabled: true,
+  // Off until the person turns it on: a port open on every start is not worth it for most.
+  extensionBridgeEnabled: false,
   extensionBridgePort: 27183,
   extensionBridgeToken: "",
   n8nWebhookUrl: DEFAULT_N8N_WEBHOOK_URL,
@@ -27522,6 +27523,10 @@ Suggestion: ${result.hint}`) : "";
   /** Start, restart or stop the extension's local endpoint to match the settings. */
   async startExtensionBridge() {
     if (!import_obsidian28.Platform.isDesktopApp) return;
+    if (this.settings.extensionBridgeEnabled !== true) {
+      this.bridge?.stop();
+      return;
+    }
     if (!this.settings.extensionBridgeToken) {
       this.settings.extensionBridgeToken = newBridgeToken();
       await this.saveSettings();
@@ -27530,8 +27535,7 @@ Suggestion: ${result.hint}`) : "";
       version: this.manifest.version,
       onCapture: (params) => void this.handleProtocolRequest(params, { background: true })
     }));
-    if (this.settings.extensionBridgeEnabled === false) this.bridge.stop();
-    else this.bridge.start(this.settings.extensionBridgePort, this.settings.extensionBridgeToken);
+    this.bridge.start(this.settings.extensionBridgePort, this.settings.extensionBridgeToken);
   }
   async handleProtocolRequest(params, options = {}) {
     try {
@@ -28222,12 +28226,12 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
       `Receiving \xB7 port ${plugin.settings.extensionBridgePort}`
     ) : state === "port-in-use" ? tr("\u7AEF\u53E3\u88AB\u5360\u7528\uFF0C\u6362\u4E00\u4E2A\u7AEF\u53E3\u518D\u8BD5", "The port is in use; choose another one") : state === "unavailable" ? tr("\u8FD9\u53F0\u8BBE\u5907\u4E0D\u80FD\u63A5\u6536", "Not available on this device") : tr("\u5DF2\u5173\u95ED", "Off");
     new import_obsidian28.Setting(containerEl).setName(tr("\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian", "Receive in the background")).setDesc(stateText).addToggle(
-      (toggle) => toggle.setValue(plugin.settings.extensionBridgeEnabled !== false).onChange(async (value) => {
+      (toggle) => toggle.setValue(plugin.settings.extensionBridgeEnabled === true).onChange(async (value) => {
         plugin.settings.extensionBridgeEnabled = value;
         await restart();
       })
     );
-    if (plugin.settings.extensionBridgeEnabled === false) return;
+    if (plugin.settings.extensionBridgeEnabled !== true) return;
     const code = bridgePairingCode(
       plugin.settings.extensionBridgePort,
       plugin.settings.extensionBridgeToken

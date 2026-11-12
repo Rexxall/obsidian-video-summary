@@ -2596,6 +2596,10 @@ export default class VideoSummaryPlugin extends Plugin {
   /** Start, restart or stop the extension's local endpoint to match the settings. */
   async startExtensionBridge(): Promise<void> {
     if (!Platform.isDesktopApp) return;
+    if (this.settings.extensionBridgeEnabled !== true) {
+      this.bridge?.stop();
+      return;
+    }
     if (!this.settings.extensionBridgeToken) {
       this.settings.extensionBridgeToken = newBridgeToken();
       await this.saveSettings();
@@ -2604,8 +2608,7 @@ export default class VideoSummaryPlugin extends Plugin {
       version: this.manifest.version,
       onCapture: (params) => void this.handleProtocolRequest(params, { background: true }),
     });
-    if (this.settings.extensionBridgeEnabled === false) this.bridge.stop();
-    else this.bridge.start(this.settings.extensionBridgePort, this.settings.extensionBridgeToken);
+    this.bridge.start(this.settings.extensionBridgePort, this.settings.extensionBridgeToken);
   }
 
   private async handleProtocolRequest(
@@ -3424,15 +3427,13 @@ class VideoSummarySettingTab extends PluginSettingTab {
       .setName(tr('后台接收，不切到 Obsidian', 'Receive in the background'))
       .setDesc(stateText)
       .addToggle((toggle) =>
-        toggle
-          .setValue(plugin.settings.extensionBridgeEnabled !== false)
-          .onChange(async (value) => {
-            plugin.settings.extensionBridgeEnabled = value;
-            await restart();
-          }),
+        toggle.setValue(plugin.settings.extensionBridgeEnabled === true).onChange(async (value) => {
+          plugin.settings.extensionBridgeEnabled = value;
+          await restart();
+        }),
       );
 
-    if (plugin.settings.extensionBridgeEnabled === false) return;
+    if (plugin.settings.extensionBridgeEnabled !== true) return;
     const code = bridgePairingCode(
       plugin.settings.extensionBridgePort,
       plugin.settings.extensionBridgeToken,

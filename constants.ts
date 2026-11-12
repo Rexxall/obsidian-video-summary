@@ -102,7 +102,8 @@ export const platformCapabilities = (): PlatformCapability[] => [
 ];
 
 export const DEFAULT_SETTINGS: VideoSummarySettings = {
-  extensionBridgeEnabled: true,
+  // Off until the person turns it on: a port open on every start is not worth it for most.
+  extensionBridgeEnabled: false,
   extensionBridgePort: 27183,
   extensionBridgeToken: '',
   n8nWebhookUrl: DEFAULT_N8N_WEBHOOK_URL,
