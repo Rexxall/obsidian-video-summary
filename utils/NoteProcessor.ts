@@ -21,6 +21,7 @@ import { addDoneStamp, markNoteBody, readExistingMarks } from './themeMarks';
 import { unlinkMissingNotes } from './wikiLinks';
 import { readTranscriptFold } from './NoteOutput';
 import { linkTimestamps, separateTables } from '../core/NoteStyle';
+import { markReadingView } from '../core/ReadingViewRule';
 
 /** Written into properties by older versions; kept in the plugin's own records since. */
 const INTERNAL_PROPERTIES = [
@@ -33,6 +34,8 @@ const INTERNAL_PROPERTIES = [
 export interface NoteWritePrefs {
   /** 成功时写进 status 的文字 */
   successText: string;
+  /** 写完的笔记加 obsidianUIMode: preview，用阅读视图打开 */
+  readingView?: boolean;
   /** “新笔记默认属性”设置的原文 */
   defaultProperties: string;
   /** 给了就把指向不存在笔记的 [[双链]] 改成纯文字；参数是链接路径和这篇笔记的路径 */
@@ -322,6 +325,7 @@ export class NoteProcessor {
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
     writePluginStatus(fm, state, displayText, this.prefs().successText);
+    if (state === 'success' && this.prefs().readingView) markReadingView(fm);
     const newContent = this.buildContent(fm, body);
     await this.vault.process(file, (current) => {
       if (current !== content) throw new Error('笔记在处理期间已变化，请重试；你的修改已保留。');

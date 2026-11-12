@@ -2645,6 +2645,12 @@ function wantsReadingView(enabled, frontmatter, alreadyOpenedHere) {
   if (!VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) return false;
   return VideoUtils.getProcessingStatusFromFrontmatter(frontmatter) === "success";
 }
+var VIEW_MODE_KEY = "obsidianUIMode";
+function markReadingView(frontmatter) {
+  if (frontmatter[VIEW_MODE_KEY] === void 0 || frontmatter[VIEW_MODE_KEY] === "") {
+    frontmatter[VIEW_MODE_KEY] = "preview";
+  }
+}
 
 // core/ReadingView.ts
 function installReadingView(app, enabled, libraryStatus) {
@@ -16709,6 +16715,7 @@ ${body}`;
     const content = await this.vault.read(file);
     const { fm, body } = this.parseFrontmatter(content);
     writePluginStatus(fm, state, displayText, this.prefs().successText);
+    if (state === "success" && this.prefs().readingView) markReadingView(fm);
     const newContent = this.buildContent(fm, body);
     await this.vault.process(file, (current) => {
       if (current !== content) throw new Error("\u7B14\u8BB0\u5728\u5904\u7406\u671F\u95F4\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4F60\u7684\u4FEE\u6539\u5DF2\u4FDD\u7559\u3002");
@@ -25072,6 +25079,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       () => this.settings.noteCssClass ?? "",
       () => ({
         successText: this.settings.successStatusValue ?? "success",
+        readingView: this.settings.readingViewForVideoNotes !== false,
         defaultProperties: this.settings.defaultNoteProperties ?? "",
         linkExists: this.settings.unlinkMissingNotes ? (linkpath, sourcePath) => !!this.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath) : void 0,
         themeMarks: this.settings.themeMarks ?? false,

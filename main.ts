@@ -153,6 +153,7 @@ export default class VideoSummaryPlugin extends Plugin {
       () => this.settings.noteCssClass ?? '',
       () => ({
         successText: this.settings.successStatusValue ?? 'success',
+        readingView: this.settings.readingViewForVideoNotes !== false,
         defaultProperties: this.settings.defaultNoteProperties ?? '',
         linkExists: this.settings.unlinkMissingNotes
           ? (linkpath, sourcePath) =>

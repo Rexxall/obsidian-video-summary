@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { wantsReadingView } from '../core/ReadingViewRule';
+import { markReadingView, wantsReadingView } from '../core/ReadingViewRule';
 
 test('a finished video note opens in reading view once per tab; others are left alone', () => {
   const done = {
@@ -19,4 +19,13 @@ test('a finished video note opens in reading view once per tab; others are left 
   );
   assert.equal(wantsReadingView(true, { title: 'plain note' }, false), false);
   assert.equal(wantsReadingView(true, undefined, false), false);
+});
+
+test('a finished note asks view plugins for reading view, keeping a choice already made', () => {
+  const fm: Record<string, unknown> = { video_summary: true };
+  markReadingView(fm);
+  assert.equal(fm.obsidianUIMode, 'preview');
+  const chosen: Record<string, unknown> = { obsidianUIMode: 'source' };
+  markReadingView(chosen);
+  assert.equal(chosen.obsidianUIMode, 'source');
 });
