@@ -180,7 +180,7 @@ test('syncing without a Bilibili login explains what to do', async () => {
   });
   const response = await send({ type: 'SYNC_COOKIES', platform: 'bilibili' });
   assert.equal(response.ok, false);
-  assert.match(response.error, /还没有登录/);
+  assert.match(response.error, /not signed in/);
 });
 
 function loadUtils() {

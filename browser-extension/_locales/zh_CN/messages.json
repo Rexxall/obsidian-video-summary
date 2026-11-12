@@ -1,0 +1,398 @@
+{
+  "extName": {
+    "message": "Video Summary Capture"
+  },
+  "extDescription": {
+    "message": "在 YouTube 视频上按 ⌘⇧S，字幕连同链接送进你的 Obsidian 库，由 Video Summary 插件写成笔记。"
+  },
+  "cmdCapture": {
+    "message": "发送当前视频"
+  },
+  "cmdAppend": {
+    "message": "把当前视频链接追加到链接清单"
+  },
+  "cmdQueue": {
+    "message": "把当前视频加入队列"
+  },
+  "cmdBatch": {
+    "message": "扫描本页的视频链接"
+  },
+  "cmdCopy": {
+    "message": "复制带时间戳的 Markdown 链接"
+  },
+  "cmdQueueLink": {
+    "message": "把指向、聚焦或选中的链接加入队列"
+  },
+  "menuCapture": {
+    "message": "发送这个视频"
+  },
+  "menuAppend": {
+    "message": "追加到链接清单"
+  },
+  "menuQueue": {
+    "message": "把这个视频加入队列"
+  },
+  "menuQueueLink": {
+    "message": "把链接加入队列"
+  },
+  "menuCopy": {
+    "message": "复制时间戳链接"
+  },
+  "toastCopied": {
+    "message": "已复制时间戳链接"
+  },
+  "toastQueued": {
+    "message": "已加入队列 · $1"
+  },
+  "toastAlreadyQueued": {
+    "message": "已经在队列里"
+  },
+  "toastFailed": {
+    "message": "没发出去，打开扩展看原因"
+  },
+  "toastSentCaptions": {
+    "message": "已连同字幕发送"
+  },
+  "toastSent": {
+    "message": "已发送"
+  },
+  "toastAppended": {
+    "message": "已追加到链接清单"
+  },
+  "toastError": {
+    "message": "Video Summary Capture：$1"
+  },
+  "errNoBackendCode": {
+    "message": "先在设置里粘贴后端连接码并保存。"
+  },
+  "errNoCookiePerm": {
+    "message": "没有读取 cookie 的权限，请再点一次并允许。"
+  },
+  "errNotLoggedIn": {
+    "message": "这个浏览器还没有登录 $1。先打开 $1 登录，再同步。"
+  },
+  "errVaultRequired": {
+    "message": "请在设置里填写库名。"
+  },
+  "errAppendRequired": {
+    "message": "请在设置里填写库名和链接清单文件。"
+  },
+  "errRestToken": {
+    "message": "请在设置 → 高级里填写 Obsidian REST 令牌。"
+  },
+  "errNoEndpoint": {
+    "message": "请先在设置里粘贴后端连接码。"
+  },
+  "errRequestFailed": {
+    "message": "扩展没有响应。"
+  },
+  "detecting": {
+    "message": "正在识别当前页面…"
+  },
+  "noVideo": {
+    "message": "这一页没有视频"
+  },
+  "scanPage": {
+    "message": "找本页里的视频"
+  },
+  "btnSummarize": {
+    "message": "送去总结"
+  },
+  "btnSendN8n": {
+    "message": "发给后端"
+  },
+  "btnPendingNote": {
+    "message": "建一篇待处理笔记"
+  },
+  "btnAppend": {
+    "message": "追加到链接清单"
+  },
+  "btnQueue": {
+    "message": "加入队列"
+  },
+  "savePending": {
+    "message": "存为待看"
+  },
+  "copyLink": {
+    "message": "复制链接"
+  },
+  "copyLinkAt": {
+    "message": "复制 $1 链接"
+  },
+  "moreRoutes": {
+    "message": "其他发送方式"
+  },
+  "viaRest": {
+    "message": "经 REST 建笔记"
+  },
+  "appendList": {
+    "message": "追加到链接清单"
+  },
+  "sendN8n": {
+    "message": "发给后端"
+  },
+  "queue": {
+    "message": "队列"
+  },
+  "seeAll": {
+    "message": "全部"
+  },
+  "queueEmpty": {
+    "message": "在视频上按 ⌃Z 或用右键菜单加入队列。"
+  },
+  "back": {
+    "message": "返回"
+  },
+  "foundLinks": {
+    "message": "本页的视频链接"
+  },
+  "rescan": {
+    "message": "重新扫描"
+  },
+  "batchEmpty": {
+    "message": "这一页没有视频链接。换到频道页、播放列表或搜索结果再试。"
+  },
+  "sendSelected": {
+    "message": "发送选中的"
+  },
+  "queueSelected": {
+    "message": "加入队列"
+  },
+  "copyLinks": {
+    "message": "复制链接"
+  },
+  "clear": {
+    "message": "清空"
+  },
+  "sendAll": {
+    "message": "全部发送"
+  },
+  "copyAllLinks": {
+    "message": "复制全部链接"
+  },
+  "history": {
+    "message": "记录"
+  },
+  "historyEmpty": {
+    "message": "发送过的视频会出现在这里。"
+  },
+  "settings": {
+    "message": "设置"
+  },
+  "groupDestination": {
+    "message": "送到哪里"
+  },
+  "settingQuick": {
+    "message": "主按钮"
+  },
+  "routePlugin": {
+    "message": "在 Obsidian 里总结"
+  },
+  "routePendingUri": {
+    "message": "只建待处理笔记"
+  },
+  "routePendingRest": {
+    "message": "只建待处理笔记（REST）"
+  },
+  "routeN8n": {
+    "message": "发给后端"
+  },
+  "routeAppend": {
+    "message": "追加到链接清单"
+  },
+  "routeQueue": {
+    "message": "加入队列"
+  },
+  "settingCaptions": {
+    "message": "连同 YouTube 字幕"
+  },
+  "settingVault": {
+    "message": "库名"
+  },
+  "settingFolder": {
+    "message": "新笔记文件夹"
+  },
+  "settingAppend": {
+    "message": "链接清单文件"
+  },
+  "groupProcessing": {
+    "message": "处理"
+  },
+  "settingMode": {
+    "message": "处理方式"
+  },
+  "modeSummary": {
+    "message": "完整总结"
+  },
+  "modeTranscript": {
+    "message": "只要文稿"
+  },
+  "modeInfo": {
+    "message": "只要信息"
+  },
+  "settingLanguage": {
+    "message": "输出语言"
+  },
+  "groupBackend": {
+    "message": "后端"
+  },
+  "settingBackend": {
+    "message": "连接码"
+  },
+  "backendPlaceholder": {
+    "message": "粘贴启动脚本给的连接码"
+  },
+  "backendSaved": {
+    "message": "已保存：$1"
+  },
+  "settingBilibili": {
+    "message": "B 站登录"
+  },
+  "syncToBackend": {
+    "message": "同步"
+  },
+  "advanced": {
+    "message": "高级"
+  },
+  "settingFormat": {
+    "message": "请求格式"
+  },
+  "formatUnified": {
+    "message": "统一格式"
+  },
+  "formatLegacy": {
+    "message": "旧版 Bridge"
+  },
+  "settingRestProtocol": {
+    "message": "REST 协议"
+  },
+  "settingRestPort": {
+    "message": "REST 端口"
+  },
+  "settingRestToken": {
+    "message": "REST 令牌"
+  },
+  "restTokenPlaceholder": {
+    "message": "只存在这台电脑上"
+  },
+  "save": {
+    "message": "保存"
+  },
+  "selectAll": {
+    "message": "全选"
+  },
+  "remove": {
+    "message": "移除"
+  },
+  "removeTitle": {
+    "message": "从队列移除"
+  },
+  "copy": {
+    "message": "复制"
+  },
+  "statusFailed": {
+    "message": "失败"
+  },
+  "statusReview": {
+    "message": "待确认"
+  },
+  "statusDone": {
+    "message": "完成"
+  },
+  "jobStatus": {
+    "message": "任务：$1"
+  },
+  "removedFromQueue": {
+    "message": "已从队列移除。"
+  },
+  "copiedLink": {
+    "message": "已复制链接。"
+  },
+  "opPending": {
+    "message": "待处理笔记"
+  },
+  "opPlugin": {
+    "message": "Obsidian 插件"
+  },
+  "opPendingRest": {
+    "message": "待处理笔记（REST）"
+  },
+  "opAppend": {
+    "message": "链接清单"
+  },
+  "opN8n": {
+    "message": "后端"
+  },
+  "opQueue": {
+    "message": "队列"
+  },
+  "opUnset": {
+    "message": "未设置"
+  },
+  "scanning": {
+    "message": "正在扫描本页…"
+  },
+  "queuedN": {
+    "message": "已加入队列：$1 个。"
+  },
+  "noneSelected": {
+    "message": "没有选中任何视频。"
+  },
+  "sendingN": {
+    "message": "正在发送 $1 个到$2…"
+  },
+  "unknownReason": {
+    "message": "原因不明"
+  },
+  "needsReviewDefault": {
+    "message": "需要确认。"
+  },
+  "resultFailed": {
+    "message": "成功 $1 个，失败 $2 个：$3"
+  },
+  "resultReview": {
+    "message": "完成 $1 个，$2 个待确认：$3"
+  },
+  "resultDone": {
+    "message": "完成 $1 个。"
+  },
+  "copiedN": {
+    "message": "已复制 $1 个 Markdown 链接。"
+  },
+  "cookieDenied": {
+    "message": "没有允许读取 B 站 cookie，未同步。"
+  },
+  "syncingBilibili": {
+    "message": "正在同步 B 站登录…"
+  },
+  "syncedBilibili": {
+    "message": "已同步 $1 条 B 站 cookie 到后端。"
+  },
+  "saved": {
+    "message": "已保存。"
+  },
+  "savedNoPermission": {
+    "message": "已保存，但没有允许访问这个后端地址，发送到后端会失败。"
+  },
+  "copiedText": {
+    "message": "已复制：$1"
+  },
+  "queueCleared": {
+    "message": "队列已清空。"
+  },
+  "historyCleared": {
+    "message": "记录已清空。"
+  },
+  "noCurrentVideo": {
+    "message": "没有识别到当前页面的视频。"
+  },
+  "cantReadPage": {
+    "message": "Chrome 不允许扩展读取这个页面。"
+  },
+  "settingsTitle": {
+    "message": "设置"
+  },
+  "historyTitle": {
+    "message": "记录"
+  }
+}

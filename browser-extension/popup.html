@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <title>Video Summary Capture</title>
@@ -65,18 +65,47 @@
           --hair: 0 0 0 1px color-mix(in srgb, var(--label) 40%, transparent);
         }
       }
+      /* Reduced motion keeps colour and opacity changes, drops movement. */
       @media (prefers-reduced-motion: reduce) {
-        * {
-          transition: none !important;
+        *,
+        *::before,
+        *::after {
+          transition-property: background-color, color, opacity !important;
+        }
+        button:active {
+          transform: none !important;
         }
       }
 
       * {
         box-sizing: border-box;
       }
+      ::selection {
+        background: var(--accent-tint);
+      }
+      ::placeholder {
+        color: var(--label-2);
+        opacity: 1;
+      }
+      html {
+        accent-color: var(--accent);
+        caret-color: var(--accent);
+        scrollbar-color: var(--fill-strong) transparent;
+        scrollbar-width: thin;
+      }
+      summary:focus-visible {
+        border-radius: 6px;
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      /* While a send is running every button waits, so nothing is sent twice. */
+      body.busy main button {
+        pointer-events: none;
+        opacity: 0.45;
+      }
       body {
         width: 380px;
-        min-height: 420px;
+        min-height: 360px;
         margin: 0;
         background: var(--page);
         color: var(--label);
@@ -89,22 +118,22 @@
         top: 0;
         z-index: 2;
         display: flex;
-        align-items: baseline;
-        justify-content: space-between;
+        align-items: center;
         gap: 10px;
-        padding: 14px 16px 10px;
+        padding: 14px 16px 12px;
         background: var(--glass);
         -webkit-backdrop-filter: var(--blur);
         backdrop-filter: var(--blur);
+        transition: box-shadow 160ms var(--ease);
+      }
+      /* The edge shows only once content scrolls under the header. */
+      header.scrolled {
         box-shadow: inset 0 -0.5px 0 var(--sep);
       }
       h1 {
         margin: 0;
         font: 600 17px/22px var(--font);
-      }
-      .subtle {
-        color: var(--label-2);
-        font-size: 11px;
+        letter-spacing: -0.01em;
       }
       main {
         padding: 12px 16px 14px;
@@ -133,12 +162,22 @@
       .tab:hover {
         opacity: 0.8;
       }
+      .link.danger {
+        color: var(--err);
+      }
       .back {
-        display: inline-block;
-        margin-bottom: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
       }
       .back::before {
-        content: '‹ ';
+        content: '';
+        width: 7px;
+        height: 7px;
+        margin: 0 3px 0 2px;
+        border-bottom: 1.6px solid currentColor;
+        border-left: 1.6px solid currentColor;
+        transform: rotate(45deg);
       }
 
       /* 当前视频：实底卡片 */
@@ -160,13 +199,28 @@
         color: var(--label-2);
         font-size: 11px;
       }
+      .meta:empty,
+      .meta span:empty {
+        display: none;
+      }
+      /* 唯一一处签名：播放时间用 Didot 斜体 */
       .meta .time {
         color: var(--label);
         font:
-          600 11px/14px ui-rounded,
-          'SF Pro Rounded',
-          var(--font);
+          italic 400 15px/16px Didot,
+          'Bodoni 72',
+          Georgia,
+          serif;
+        font-variant-numeric: lining-nums tabular-nums;
+      }
+      .count {
+        margin-left: 2px;
+        color: var(--label-2);
+        font-weight: 500;
         font-variant-numeric: tabular-nums;
+      }
+      [hidden] {
+        display: none !important;
       }
 
       /* 按钮：胶囊 */
@@ -220,7 +274,9 @@
         cursor: pointer;
         font: 500 12px/16px var(--font);
         white-space: nowrap;
-        transition: background 120ms var(--ease);
+        transition:
+          background 120ms var(--ease),
+          transform 140ms var(--ease);
       }
       .actions button:hover,
       button.secondary:hover {
@@ -234,6 +290,8 @@
         margin-top: 12px;
       }
       details.more > summary {
+        width: fit-content;
+        padding: 2px 4px;
         list-style: none;
         cursor: pointer;
         color: var(--label-2);
@@ -243,12 +301,18 @@
         display: none;
       }
       details.more > summary::before {
-        content: '› ';
+        content: '';
         display: inline-block;
-        transition: transform 120ms var(--ease);
+        width: 6px;
+        height: 6px;
+        margin: 0 8px 1px 2px;
+        border-right: 1.6px solid currentColor;
+        border-bottom: 1.6px solid currentColor;
+        transform: rotate(-45deg);
+        transition: transform 160ms var(--ease);
       }
       details.more[open] > summary::before {
-        transform: rotate(90deg);
+        transform: rotate(45deg) translate(-1px, -1px);
       }
       details.more .actions {
         margin-top: 8px;
@@ -261,6 +325,9 @@
         justify-content: space-between;
         gap: 8px;
         margin: 20px 4px 8px;
+      }
+      .section-head.first {
+        margin-top: 4px;
       }
       .section-title {
         font: 600 13px/16px var(--font);
@@ -288,14 +355,20 @@
         left: 16px;
         border-top: 0.5px solid var(--sep);
       }
+      .row.two {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
       .row-title {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
       .row-meta {
+        overflow: hidden;
         color: var(--label-2);
         font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .row button {
         width: auto;
@@ -307,33 +380,31 @@
         font: 500 12px/16px var(--font);
       }
       .row button.danger {
-        color: var(--label-3);
+        color: var(--label-2);
       }
       .row button.danger:hover {
         color: var(--err);
       }
-      .platform {
-        color: var(--label-2);
-        font-size: 11px;
-      }
-      .platform.error {
+      .state.error {
         color: var(--err);
       }
-      .platform.warning {
+      .state.warning {
         color: var(--warn);
       }
       .empty {
-        padding: 16px;
+        padding: 18px 20px;
+        line-height: 17px;
         color: var(--label-2);
         font-size: 12px;
         text-align: center;
       }
       .toolbar {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
         gap: 10px;
-        margin-bottom: 8px;
+        min-height: 20px;
+        margin-bottom: 12px;
       }
       .toolbar button {
         flex: none;
@@ -380,6 +451,66 @@
       }
       .field.check {
         grid-template-columns: 1fr auto;
+      }
+      .field > button.inline {
+        justify-self: end;
+        padding: 5px 14px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--fill);
+        color: var(--label);
+        cursor: pointer;
+        font: 500 12px/16px var(--font);
+      }
+      .field > button.inline:hover {
+        background: var(--fill-strong);
+      }
+      details.advanced {
+        margin-top: 0;
+      }
+      details.advanced > summary {
+        margin: 20px 4px 8px;
+        color: var(--label);
+        font: 600 13px/16px var(--font);
+      }
+      details.advanced > summary + .field {
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+      }
+      /* 列表里的勾选：圆形对勾，不用开关 */
+      .row input[type='checkbox'] {
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: transparent;
+        box-shadow: inset 0 0 0 1.5px var(--label-3);
+      }
+      .row input[type='checkbox']::after {
+        top: 5px;
+        left: 7px;
+        width: 5px;
+        height: 9px;
+        border-radius: 0;
+        background: none;
+        border-right: 2px solid var(--on-accent);
+        border-bottom: 2px solid var(--on-accent);
+        box-shadow: none;
+        opacity: 0;
+        transform: rotate(45deg);
+        transition: opacity 120ms var(--ease);
+      }
+      .row input[type='checkbox']:checked {
+        background: var(--accent);
+        box-shadow: none;
+      }
+      .row input[type='checkbox']:checked::after,
+      .row input[type='checkbox']:checked:active::after {
+        width: 5px;
+        opacity: 1;
+        transform: rotate(45deg);
+      }
+      .row input[type='checkbox']:active::after {
+        width: 5px;
       }
       input,
       select {
@@ -452,6 +583,7 @@
       }
       footer .links {
         display: flex;
+        margin-left: auto;
         gap: 12px;
       }
       .status {
@@ -474,147 +606,172 @@
   </head>
   <body>
     <header>
-      <h1>Video Summary Capture</h1>
-      <span class="subtle" id="route-label"></span>
+      <h1 data-i18n="extName">Video Summary Capture</h1>
     </header>
 
     <main>
       <section class="view active" id="view-current">
-        <div class="card">
-          <div class="title" id="current-title">正在识别当前页面…</div>
+        <div class="card" id="current-card">
+          <div class="title" id="current-title" data-i18n="detecting">Reading this page…</div>
           <div class="meta">
             <span id="current-platform"></span>
-            <span class="time" id="current-time">--:--</span>
-            <span id="current-url"></span>
+            <span class="time" id="current-time"></span>
           </div>
-          <button class="primary" id="btn-current-quick">送去总结</button>
-          <div class="actions">
-            <button id="btn-current-pending">存为待看笔记</button>
-            <button id="btn-current-copy">复制时间戳链接</button>
-            <button id="btn-current-queue">加入队列</button>
+          <div id="current-actions">
+            <button class="primary" id="btn-current-quick" data-i18n="btnSummarize">
+              Summarize in Obsidian
+            </button>
+            <div class="actions">
+              <button id="btn-current-pending" data-i18n="savePending">Save for later</button>
+              <button id="btn-current-copy" data-i18n="copyLink">Copy link</button>
+              <button id="btn-current-queue" data-i18n="btnQueue">Add to queue</button>
+            </div>
           </div>
+          <button class="primary" id="btn-current-scan" data-i18n="scanPage" hidden>
+            Find videos on this page
+          </button>
         </div>
-        <details class="more">
-          <summary>其他发送方式</summary>
+        <details class="more" id="current-more">
+          <summary data-i18n="moreRoutes">Other ways to send</summary>
           <div class="actions">
-            <button id="btn-current-rest">经 REST 建笔记</button>
-            <button id="btn-current-append">追加到链接清单</button>
-            <button id="btn-current-n8n">直接发给 n8n</button>
+            <button id="btn-current-rest" data-i18n="viaRest">Note via REST</button>
+            <button id="btn-current-append" data-i18n="appendList">Append to list file</button>
+            <button id="btn-current-n8n" data-i18n="sendN8n">Send to backend</button>
           </div>
         </details>
 
         <div class="section-head">
-          <span class="section-title">队列 <span id="queue-count">0</span></span>
-          <button class="tab link" data-view="queue">全部 →</button>
+          <span class="section-title"
+            ><span data-i18n="queue">Queue</span>
+            <span class="count" id="queue-count">0</span></span
+          >
+          <button class="tab link" data-view="queue" id="queue-see-all" data-i18n="seeAll">
+            See all
+          </button>
         </div>
-        <div class="list" id="queue-preview">
-          <div class="empty">队列是空的。</div>
-        </div>
+        <div class="list" id="queue-preview"></div>
       </section>
 
       <section class="view" id="view-batch">
-        <button class="tab link back" data-view="current">返回</button>
         <div class="toolbar">
-          <div class="subtle">本页找到 <span id="batch-count">0</span> 个视频链接</div>
-          <button class="secondary" id="btn-scan">重新扫描</button>
+          <button class="tab link back" data-view="current" data-i18n="back">Back</button>
+          <button class="link" id="btn-scan" data-i18n="rescan">Scan again</button>
         </div>
-        <div class="list" id="batch-list">
-          <div class="empty">扫描当前页面里的视频链接。</div>
+        <div class="section-head first">
+          <span class="section-title"
+            ><span data-i18n="foundLinks">Video links on this page</span>
+            <span class="count" id="batch-count">0</span></span
+          >
         </div>
-        <button class="primary" id="btn-batch-quick">选中的送去总结</button>
-        <div class="actions">
-          <button id="btn-batch-queue">加入队列</button>
-          <button id="btn-batch-pending">存为待看笔记</button>
-          <button id="btn-batch-copy">复制链接</button>
-        </div>
-        <details class="more">
-          <summary>其他发送方式</summary>
+        <div class="list" id="batch-list"></div>
+        <div id="batch-actions">
+          <button class="primary" id="btn-batch-quick" data-i18n="sendSelected">
+            Send selected
+          </button>
           <div class="actions">
-            <button id="btn-batch-append">追加到链接清单</button>
-            <button id="btn-batch-n8n">直接发给 n8n</button>
+            <button id="btn-batch-queue" data-i18n="queueSelected">Add to queue</button>
+            <button id="btn-batch-pending" data-i18n="savePending">Save for later</button>
+            <button id="btn-batch-copy" data-i18n="copyLinks">Copy links</button>
           </div>
-        </details>
+          <details class="more">
+            <summary data-i18n="moreRoutes">Other ways to send</summary>
+            <div class="actions">
+              <button id="btn-batch-append" data-i18n="appendList">Append to list file</button>
+              <button id="btn-batch-n8n" data-i18n="sendN8n">Send to backend</button>
+            </div>
+          </details>
+        </div>
       </section>
 
       <section class="view" id="view-queue">
-        <button class="tab link back" data-view="current">返回</button>
         <div class="toolbar">
-          <div class="subtle">队列里有 <span id="queue-count-full">0</span> 个视频</div>
-          <button class="secondary danger" id="btn-queue-clear">清空</button>
+          <button class="tab link back" data-view="current" data-i18n="back">Back</button>
+          <button class="link danger" id="btn-queue-clear" data-i18n="clear">Clear</button>
         </div>
-        <div class="list" id="queue-list">
-          <div class="empty">队列是空的。</div>
+        <div class="section-head first">
+          <span class="section-title"
+            ><span data-i18n="queue">Queue</span>
+            <span class="count" id="queue-count-full">0</span></span
+          >
         </div>
-        <button class="primary" id="btn-queue-quick">全部送去总结</button>
-        <div class="actions">
-          <button id="btn-queue-pending">存为待看笔记</button>
-          <button id="btn-queue-copy">复制全部链接</button>
-        </div>
-        <details class="more">
-          <summary>其他发送方式</summary>
+        <div class="list" id="queue-list"></div>
+        <div id="queue-actions">
+          <button class="primary" id="btn-queue-quick" data-i18n="sendAll">Send all</button>
           <div class="actions">
-            <button id="btn-queue-append">追加到链接清单</button>
-            <button id="btn-queue-n8n">直接发给 n8n</button>
+            <button id="btn-queue-pending" data-i18n="savePending">Save for later</button>
+            <button id="btn-queue-copy" data-i18n="copyAllLinks">Copy all links</button>
           </div>
-        </details>
+          <details class="more">
+            <summary data-i18n="moreRoutes">Other ways to send</summary>
+            <div class="actions">
+              <button id="btn-queue-append" data-i18n="appendList">Append to list file</button>
+              <button id="btn-queue-n8n" data-i18n="sendN8n">Send to backend</button>
+            </div>
+          </details>
+        </div>
       </section>
 
       <section class="view" id="view-history">
-        <button class="tab link back" data-view="current">返回</button>
         <div class="toolbar">
-          <div class="subtle">最近的操作</div>
-          <button class="secondary danger" id="btn-history-clear">清空</button>
+          <button class="tab link back" data-view="current" data-i18n="back">Back</button>
+          <button class="link danger" id="btn-history-clear" data-i18n="clear">Clear</button>
         </div>
-        <div class="list" id="history-list">
-          <div class="empty">还没有记录。</div>
+        <div class="section-head first">
+          <span class="section-title" data-i18n="historyTitle">History</span>
         </div>
+        <div class="list" id="history-list"></div>
       </section>
 
       <section class="view" id="view-settings">
-        <button class="tab link back" data-view="current">返回</button>
-        <div class="group-title">送到哪里</div>
+        <div class="toolbar">
+          <button class="tab link back" data-view="current" data-i18n="back">Back</button>
+        </div>
+        <div class="group-title" data-i18n="groupDestination">Destination</div>
         <div class="field">
-          <label for="setting-quick">“送去总结”</label>
+          <label for="setting-quick" data-i18n="settingQuick">Main button</label>
           <select id="setting-quick">
-            <option value="process-via-plugin">建笔记并交给插件处理</option>
-            <option value="create-pending-note">只建待处理笔记（URI）</option>
-            <option value="create-pending-rest">只建待处理笔记（REST）</option>
-            <option value="send-to-n8n">直接发给 n8n</option>
-            <option value="append-link">追加时间戳链接</option>
-            <option value="queue">加入队列</option>
+            <option value="process-via-plugin" data-i18n="routePlugin">
+              Note, then summarize in Obsidian
+            </option>
+            <option value="create-pending-note" data-i18n="routePendingUri">
+              Pending note only
+            </option>
+            <option value="create-pending-rest" data-i18n="routePendingRest">
+              Pending note only (REST)
+            </option>
+            <option value="send-to-n8n" data-i18n="routeN8n">Send to backend</option>
+            <option value="append-link" data-i18n="routeAppend">Append to list file</option>
+            <option value="queue" data-i18n="routeQueue">Add to queue</option>
           </select>
         </div>
-        <div class="field">
-          <label for="setting-captions">YouTube 字幕</label>
-          <select id="setting-captions">
-            <option value="on">一起送，插件不用后端就能出笔记</option>
-            <option value="off">不送</option>
-          </select>
+        <div class="field check">
+          <label for="setting-captions" data-i18n="settingCaptions">Send YouTube captions</label>
+          <input id="setting-captions" type="checkbox" role="switch" />
         </div>
         <div class="field">
-          <label for="setting-vault">库名</label>
-          <input id="setting-vault" placeholder="Ithaca" />
+          <label for="setting-vault" data-i18n="settingVault">Vault</label>
+          <input id="setting-vault" placeholder="My Vault" spellcheck="false" />
         </div>
         <div class="field">
-          <label for="setting-folder">新笔记文件夹</label>
-          <input id="setting-folder" placeholder="Videos" />
+          <label for="setting-folder" data-i18n="settingFolder">Folder</label>
+          <input id="setting-folder" placeholder="Videos" spellcheck="false" />
         </div>
         <div class="field">
-          <label for="setting-append">链接清单文件</label>
-          <input id="setting-append" placeholder="Inbox/VideoLinks.md" />
+          <label for="setting-append" data-i18n="settingAppend">List file</label>
+          <input id="setting-append" placeholder="Inbox/VideoLinks.md" spellcheck="false" />
         </div>
 
-        <div class="group-title">处理</div>
+        <div class="group-title" data-i18n="groupProcessing">Processing</div>
         <div class="field">
-          <label for="setting-mode">处理方式</label>
+          <label for="setting-mode" data-i18n="settingMode">Output</label>
           <select id="setting-mode">
-            <option value="summary">完整总结</option>
-            <option value="transcript-only">只要文稿</option>
-            <option value="info-only">只要信息</option>
+            <option value="summary" data-i18n="modeSummary">Full summary</option>
+            <option value="transcript-only" data-i18n="modeTranscript">Transcript only</option>
+            <option value="info-only" data-i18n="modeInfo">Video info only</option>
           </select>
         </div>
         <div class="field">
-          <label for="setting-language">输出语言</label>
+          <label for="setting-language" data-i18n="settingLanguage">Language</label>
           <select id="setting-language">
             <option value="zh">中文</option>
             <option value="en">English</option>
@@ -622,54 +779,62 @@
           </select>
         </div>
 
-        <div class="group-title">连接</div>
+        <div class="group-title" data-i18n="groupBackend">Backend</div>
         <div class="field">
-          <label for="setting-n8n">后端连接码</label>
-          <input
-            id="setting-n8n"
-            type="password"
-            autocomplete="off"
-            placeholder="粘贴启动脚本给的连接码"
-          />
+          <label for="setting-n8n" data-i18n="settingBackend">Connection code</label>
+          <input id="setting-n8n" type="password" autocomplete="off" spellcheck="false" />
         </div>
         <div class="field">
-          <label for="btn-sync-bilibili">B 站登录</label>
-          <button id="btn-sync-bilibili" type="button">同步到后端</button>
-        </div>
-        <div class="field">
-          <label for="setting-webhook-format">请求格式</label>
-          <select id="setting-webhook-format">
-            <option value="unified">统一格式</option>
-            <option value="legacy">旧版 Bridge</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="setting-rest-protocol">REST 协议</label>
-          <select id="setting-rest-protocol">
-            <option value="https">https</option>
-            <option value="http">http</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="setting-rest-port">REST 端口</label>
-          <input id="setting-rest-port" type="number" />
-        </div>
-        <div class="field">
-          <label for="setting-rest-token">REST 令牌</label>
-          <input id="setting-rest-token" type="password" placeholder="只存在这台电脑上" />
+          <label for="btn-sync-bilibili" data-i18n="settingBilibili">Bilibili sign-in</label>
+          <button class="inline" id="btn-sync-bilibili" type="button" data-i18n="syncToBackend">
+            Sync
+          </button>
         </div>
 
-        <button class="primary" id="btn-save-settings">保存</button>
+        <details class="more advanced">
+          <summary data-i18n="advanced">Advanced</summary>
+          <div class="field">
+            <label for="setting-webhook-format" data-i18n="settingFormat">Request format</label>
+            <select id="setting-webhook-format">
+              <option value="unified" data-i18n="formatUnified">Unified</option>
+              <option value="legacy" data-i18n="formatLegacy">Legacy bridge</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="setting-rest-protocol" data-i18n="settingRestProtocol">REST protocol</label>
+            <select id="setting-rest-protocol">
+              <option value="https">https</option>
+              <option value="http">http</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="setting-rest-port" data-i18n="settingRestPort">REST port</label>
+            <input id="setting-rest-port" type="number" min="1" max="65535" />
+          </div>
+          <div class="field">
+            <label for="setting-rest-token" data-i18n="settingRestToken">REST token</label>
+            <input
+              id="setting-rest-token"
+              type="password"
+              autocomplete="off"
+              data-i18n-placeholder="restTokenPlaceholder"
+            />
+          </div>
+        </details>
+
+        <button class="primary" id="btn-save-settings" data-i18n="save">Save</button>
       </section>
 
-      <div class="status" id="status"></div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
     </main>
 
     <footer>
-      <button class="link" id="btn-open-batch">扫描本页视频链接</button>
+      <button class="link" id="btn-open-batch" data-i18n="scanPage">
+        Find videos on this page
+      </button>
       <span class="links">
-        <button class="tab link" data-view="history">记录</button>
-        <button class="tab link" data-view="settings">设置</button>
+        <button class="tab link" data-view="history" data-i18n="history">History</button>
+        <button class="tab link" data-view="settings" data-i18n="settings">Settings</button>
       </span>
     </footer>
 

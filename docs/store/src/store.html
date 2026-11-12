@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Store screenshots</title>
+    <!-- Render: Chrome --headless --screenshot --window-size=1280,800 "store.html?lang=ja&shot=2" -->
+    <style>
+      :root {
+        --bg: #fbfaf7;
+        --ink: #1d1d1f;
+        --mute: #6e6e73;
+        --font:
+          -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', 'Hiragino Sans',
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        width: 1280px;
+        height: 800px;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font);
+      }
+      .copy {
+        position: absolute;
+        top: 92px;
+        left: 72px;
+        width: 400px;
+      }
+      h1 {
+        font-size: 44px;
+        font-weight: 700;
+        line-height: 1.12;
+        letter-spacing: -0.02em;
+        text-wrap: balance;
+      }
+      :lang(zh),
+      :lang(ja) {
+        --font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans', sans-serif;
+      }
+      :lang(zh) h1,
+      :lang(ja) h1 {
+        font-size: 40px;
+        line-height: 1.25;
+        letter-spacing: 0;
+      }
+      p {
+        margin-top: 18px;
+        color: var(--mute);
+        font-size: 19px;
+        line-height: 1.5;
+        text-wrap: pretty;
+      }
+      :lang(ja) h1,
+      :lang(ja) p {
+        word-break: auto-phrase;
+      }
+      .keys {
+        position: absolute;
+        top: 430px;
+        left: 72px;
+        display: flex;
+        gap: 10px;
+      }
+      .key {
+        display: grid;
+        place-items: center;
+        width: 64px;
+        height: 64px;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow:
+          0 0 0 0.5px rgb(0 0 0 / 0.1),
+          0 1px 0 rgb(0 0 0 / 0.06),
+          0 6px 16px rgb(0 0 0 / 0.08);
+        font-size: 30px;
+        font-weight: 500;
+      }
+      .toast {
+        position: absolute;
+        top: 530px;
+        left: 72px;
+        padding: 10px 18px;
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.92);
+        box-shadow:
+          0 0 0 0.5px rgb(0 0 0 / 0.12),
+          0 8px 28px rgb(0 0 0 / 0.16);
+        font: 500 15px/20px var(--font);
+      }
+      .foot {
+        position: absolute;
+        top: 610px;
+        left: 72px;
+        color: var(--mute);
+        font-size: 15px;
+      }
+      .note {
+        position: absolute;
+        top: 80px;
+        left: 520px;
+        width: 704px;
+        height: 640px;
+        overflow: hidden;
+        border-radius: 14px;
+        background: url(note.jpg) no-repeat;
+        background-size: 1249px 739px;
+        background-position: -230px -84px;
+        box-shadow:
+          0 0 0 0.5px rgb(0 0 0 / 0.1),
+          0 24px 60px rgb(0 0 0 / 0.16);
+      }
+      .pops {
+        position: absolute;
+        top: 50%;
+        right: 64px;
+        display: flex;
+        gap: 28px;
+        align-items: center;
+        transform: translateY(-50%);
+      }
+      .pops img {
+        width: 340px;
+        border-radius: 14px;
+        box-shadow:
+          0 0 0 0.5px rgb(0 0 0 / 0.14),
+          0 24px 60px rgb(0 0 0 / 0.18);
+      }
+      .s2 img + img {
+        margin-top: 80px;
+      }
+      .solo {
+        display: none;
+      }
+      [data-shot='1'] .s1,
+      [data-shot='2'] .s2,
+      [data-shot='3'] .s3 {
+        display: block;
+      }
+      [data-shot='1'] .keys.s1,
+      [data-shot='2'] .pops.s2,
+      [data-shot='3'] .pops.s3 {
+        display: flex;
+      }
+      /* Shots 2 and 3: copy and popups share the vertical centre. */
+      [data-shot='2'] .copy,
+      [data-shot='3'] .copy {
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .s1,
+      .s2,
+      .s3 {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="copy">
+      <h1 id="h"></h1>
+      <p id="p"></p>
+    </div>
+    <div class="keys s1">
+      <div class="key">⌘</div>
+      <div class="key">⇧</div>
+      <div class="key">S</div>
+    </div>
+    <div class="toast s1" id="toast"></div>
+    <div class="foot s1" id="foot"></div>
+    <div class="note s1"></div>
+    <div class="pops s2"><img id="a2" alt="" /><img id="b2" alt="" /></div>
+    <div class="pops s3"><img id="a3" alt="" /><img id="b3" alt="" /></div>
+    <script>
+      const COPY = {
+        en: {
+          lang: 'en',
+          1: [
+            "The video you're watching, as a note in your vault.",
+            'Press one shortcut on a YouTube page. The captions go to Obsidian, and your own model writes the note.',
+          ],
+          2: [
+            'One press sends the video, the moment and its captions.',
+            'Light or dark, it follows your system.',
+          ],
+          3: [
+            'Your vault, your folder, your language.',
+            'Settings stay in your browser. Nothing goes to us.',
+          ],
+          toast: 'Sent with captions',
+          foot: 'No server. No account. About a minute.',
+        },
+        zh_CN: {
+          lang: 'zh',
+          1: [
+            '正在看的视频，变成库里的一篇笔记。',
+            '在 YouTube 视频页按一下快捷键，字幕送进 Obsidian，由你自己的模型写成笔记。',
+          ],
+          2: ['一键送出视频、此刻的时间和字幕。', '浅色深色，跟着系统走。'],
+          3: ['送进你的库、你的文件夹，用你要的语言。', '设置只存在你的浏览器里，不发给我们。'],
+          toast: '已连同字幕发送',
+          foot: '不用服务器，不用注册，一小时的课大约一分钟。',
+        },
+        ja: {
+          lang: 'ja',
+          1: [
+            '見ている動画を、保管庫のノートに。',
+            'YouTube の動画ページでショートカットを押すだけ。字幕が Obsidian に届き、あなたのモデルがノートを書きます。',
+          ],
+          2: [
+            'ひと押しで、動画と再生位置と字幕を送る。',
+            'ライトでもダークでも、システムに合わせます。',
+          ],
+          3: [
+            '保管庫も、フォルダも、言語も、あなたの設定で。',
+            '設定はブラウザの中だけ。こちらには何も届きません。',
+          ],
+          toast: '字幕と一緒に送りました',
+          foot: 'サーバー不要、アカウント不要。1 時間の講義がおよそ 1 分。',
+        },
+      };
+      const q = new URLSearchParams(location.search);
+      const lang = q.get('lang') || 'en';
+      const shot = q.get('shot') || '1';
+      const c = COPY[lang];
+      document.documentElement.lang = c.lang;
+      document.body.dataset.shot = shot;
+      document.getElementById('h').textContent = c[shot][0];
+      document.getElementById('p').textContent = c[shot][1];
+      document.getElementById('toast').textContent = c.toast;
+      document.getElementById('foot').textContent = c.foot;
+      document.getElementById('a2').src = `popup/popup-current-${lang}-light.png`;
+      document.getElementById('b2').src = `popup/popup-current-${lang}-dark.png`;
+      document.getElementById('a3').src = `popup/popup-settings-${lang}-light.png`;
+      document.getElementById('b3').src = `popup/popup-history-${lang}-light.png`;
+    </script>
+  </body>
+</html>

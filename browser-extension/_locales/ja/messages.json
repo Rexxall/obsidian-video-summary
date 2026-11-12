@@ -1,0 +1,398 @@
+{
+  "extName": {
+    "message": "Video Summary Capture"
+  },
+  "extDescription": {
+    "message": "YouTube の動画で ⌘⇧S を押すと、字幕とリンクが Obsidian の保管庫に届き、Video Summary プラグインがノートにまとめます。"
+  },
+  "cmdCapture": {
+    "message": "表示中の動画を送る"
+  },
+  "cmdAppend": {
+    "message": "表示中の動画リンクをリストに追記"
+  },
+  "cmdQueue": {
+    "message": "表示中の動画をキューに追加"
+  },
+  "cmdBatch": {
+    "message": "このページの動画リンクを探す"
+  },
+  "cmdCopy": {
+    "message": "タイムスタンプ付き Markdown リンクをコピー"
+  },
+  "cmdQueueLink": {
+    "message": "ポイント中・選択中のリンクをキューに追加"
+  },
+  "menuCapture": {
+    "message": "この動画を送る"
+  },
+  "menuAppend": {
+    "message": "リンクをリストに追記"
+  },
+  "menuQueue": {
+    "message": "この動画をキューに追加"
+  },
+  "menuQueueLink": {
+    "message": "リンクをキューに追加"
+  },
+  "menuCopy": {
+    "message": "タイムスタンプ付きリンクをコピー"
+  },
+  "toastCopied": {
+    "message": "リンクをコピーしました"
+  },
+  "toastQueued": {
+    "message": "キューに追加 · $1"
+  },
+  "toastAlreadyQueued": {
+    "message": "すでにキューにあります"
+  },
+  "toastFailed": {
+    "message": "送れませんでした。拡張機能を開いて理由を確認してください"
+  },
+  "toastSentCaptions": {
+    "message": "字幕と一緒に送りました"
+  },
+  "toastSent": {
+    "message": "送りました"
+  },
+  "toastAppended": {
+    "message": "リストに追記しました"
+  },
+  "toastError": {
+    "message": "Video Summary Capture：$1"
+  },
+  "errNoBackendCode": {
+    "message": "先に設定でバックエンドの接続コードを貼り付けて保存してください。"
+  },
+  "errNoCookiePerm": {
+    "message": "Cookie の読み取りが許可されていません。もう一度押して許可してください。"
+  },
+  "errNotLoggedIn": {
+    "message": "このブラウザは $1 にログインしていません。$1 でログインしてから同期してください。"
+  },
+  "errVaultRequired": {
+    "message": "設定で保管庫名を入力してください。"
+  },
+  "errAppendRequired": {
+    "message": "設定で保管庫名とリストファイルを入力してください。"
+  },
+  "errRestToken": {
+    "message": "設定 → 詳細で Obsidian REST トークンを入力してください。"
+  },
+  "errNoEndpoint": {
+    "message": "先に設定でバックエンドの接続コードを貼り付けてください。"
+  },
+  "errRequestFailed": {
+    "message": "拡張機能が応答しませんでした。"
+  },
+  "detecting": {
+    "message": "このページを読み取り中…"
+  },
+  "noVideo": {
+    "message": "このページに動画はありません"
+  },
+  "scanPage": {
+    "message": "このページの動画を探す"
+  },
+  "btnSummarize": {
+    "message": "Obsidian で要約"
+  },
+  "btnSendN8n": {
+    "message": "バックエンドに送る"
+  },
+  "btnPendingNote": {
+    "message": "保留ノートを作る"
+  },
+  "btnAppend": {
+    "message": "リストに追記"
+  },
+  "btnQueue": {
+    "message": "キューに追加"
+  },
+  "savePending": {
+    "message": "あとで見る"
+  },
+  "copyLink": {
+    "message": "リンクをコピー"
+  },
+  "copyLinkAt": {
+    "message": "$1 のリンクをコピー"
+  },
+  "moreRoutes": {
+    "message": "ほかの送り方"
+  },
+  "viaRest": {
+    "message": "REST でノート作成"
+  },
+  "appendList": {
+    "message": "リストに追記"
+  },
+  "sendN8n": {
+    "message": "バックエンドに送る"
+  },
+  "queue": {
+    "message": "キュー"
+  },
+  "seeAll": {
+    "message": "すべて"
+  },
+  "queueEmpty": {
+    "message": "動画で ⌃Z を押すか、右クリックメニューでキューに追加できます。"
+  },
+  "back": {
+    "message": "戻る"
+  },
+  "foundLinks": {
+    "message": "このページの動画リンク"
+  },
+  "rescan": {
+    "message": "再スキャン"
+  },
+  "batchEmpty": {
+    "message": "動画リンクが見つかりません。チャンネル、再生リスト、検索結果のページで試してください。"
+  },
+  "sendSelected": {
+    "message": "選んだものを送る"
+  },
+  "queueSelected": {
+    "message": "キューに追加"
+  },
+  "copyLinks": {
+    "message": "リンクをコピー"
+  },
+  "clear": {
+    "message": "消去"
+  },
+  "sendAll": {
+    "message": "すべて送る"
+  },
+  "copyAllLinks": {
+    "message": "すべてのリンクをコピー"
+  },
+  "history": {
+    "message": "履歴"
+  },
+  "historyEmpty": {
+    "message": "送った動画がここに表示されます。"
+  },
+  "settings": {
+    "message": "設定"
+  },
+  "groupDestination": {
+    "message": "送り先"
+  },
+  "settingQuick": {
+    "message": "メインボタン"
+  },
+  "routePlugin": {
+    "message": "Obsidian で要約"
+  },
+  "routePendingUri": {
+    "message": "保留ノートだけ作る"
+  },
+  "routePendingRest": {
+    "message": "保留ノートだけ作る（REST）"
+  },
+  "routeN8n": {
+    "message": "バックエンドに送る"
+  },
+  "routeAppend": {
+    "message": "リストに追記"
+  },
+  "routeQueue": {
+    "message": "キューに追加"
+  },
+  "settingCaptions": {
+    "message": "YouTube の字幕も送る"
+  },
+  "settingVault": {
+    "message": "保管庫"
+  },
+  "settingFolder": {
+    "message": "フォルダ"
+  },
+  "settingAppend": {
+    "message": "リストファイル"
+  },
+  "groupProcessing": {
+    "message": "処理"
+  },
+  "settingMode": {
+    "message": "出力"
+  },
+  "modeSummary": {
+    "message": "要約"
+  },
+  "modeTranscript": {
+    "message": "文字起こしのみ"
+  },
+  "modeInfo": {
+    "message": "動画情報のみ"
+  },
+  "settingLanguage": {
+    "message": "言語"
+  },
+  "groupBackend": {
+    "message": "バックエンド"
+  },
+  "settingBackend": {
+    "message": "接続コード"
+  },
+  "backendPlaceholder": {
+    "message": "起動スクリプトの出力を貼り付け"
+  },
+  "backendSaved": {
+    "message": "保存済み：$1"
+  },
+  "settingBilibili": {
+    "message": "bilibili ログイン"
+  },
+  "syncToBackend": {
+    "message": "同期"
+  },
+  "advanced": {
+    "message": "詳細"
+  },
+  "settingFormat": {
+    "message": "リクエスト形式"
+  },
+  "formatUnified": {
+    "message": "統一形式"
+  },
+  "formatLegacy": {
+    "message": "旧ブリッジ"
+  },
+  "settingRestProtocol": {
+    "message": "REST プロトコル"
+  },
+  "settingRestPort": {
+    "message": "REST ポート"
+  },
+  "settingRestToken": {
+    "message": "REST トークン"
+  },
+  "restTokenPlaceholder": {
+    "message": "このパソコンにだけ保存"
+  },
+  "save": {
+    "message": "保存"
+  },
+  "selectAll": {
+    "message": "すべて選択"
+  },
+  "remove": {
+    "message": "削除"
+  },
+  "removeTitle": {
+    "message": "キューから削除"
+  },
+  "copy": {
+    "message": "コピー"
+  },
+  "statusFailed": {
+    "message": "失敗"
+  },
+  "statusReview": {
+    "message": "要確認"
+  },
+  "statusDone": {
+    "message": "完了"
+  },
+  "jobStatus": {
+    "message": "ジョブ：$1"
+  },
+  "removedFromQueue": {
+    "message": "キューから削除しました。"
+  },
+  "copiedLink": {
+    "message": "リンクをコピーしました。"
+  },
+  "opPending": {
+    "message": "保留ノート"
+  },
+  "opPlugin": {
+    "message": "Obsidian プラグイン"
+  },
+  "opPendingRest": {
+    "message": "保留ノート（REST）"
+  },
+  "opAppend": {
+    "message": "リスト"
+  },
+  "opN8n": {
+    "message": "バックエンド"
+  },
+  "opQueue": {
+    "message": "キュー"
+  },
+  "opUnset": {
+    "message": "未設定"
+  },
+  "scanning": {
+    "message": "スキャン中…"
+  },
+  "queuedN": {
+    "message": "$1 件をキューに追加しました。"
+  },
+  "noneSelected": {
+    "message": "何も選ばれていません。"
+  },
+  "sendingN": {
+    "message": "$1 件を$2に送信中…"
+  },
+  "unknownReason": {
+    "message": "原因不明"
+  },
+  "needsReviewDefault": {
+    "message": "確認が必要です。"
+  },
+  "resultFailed": {
+    "message": "成功 $1 件、失敗 $2 件：$3"
+  },
+  "resultReview": {
+    "message": "完了 $1 件、要確認 $2 件：$3"
+  },
+  "resultDone": {
+    "message": "$1 件完了。"
+  },
+  "copiedN": {
+    "message": "Markdown リンクを $1 件コピーしました。"
+  },
+  "cookieDenied": {
+    "message": "bilibili の Cookie が許可されず、同期していません。"
+  },
+  "syncingBilibili": {
+    "message": "bilibili ログインを同期中…"
+  },
+  "syncedBilibili": {
+    "message": "bilibili の Cookie $1 件をバックエンドに同期しました。"
+  },
+  "saved": {
+    "message": "保存しました。"
+  },
+  "savedNoPermission": {
+    "message": "保存しましたが、このバックエンドへのアクセスが許可されていないため送信できません。"
+  },
+  "copiedText": {
+    "message": "コピーしました：$1"
+  },
+  "queueCleared": {
+    "message": "キューを消去しました。"
+  },
+  "historyCleared": {
+    "message": "履歴を消去しました。"
+  },
+  "noCurrentVideo": {
+    "message": "このページの動画を認識できませんでした。"
+  },
+  "cantReadPage": {
+    "message": "Chrome の仕様で、このページは読み取れません。"
+  },
+  "settingsTitle": {
+    "message": "設定"
+  },
+  "historyTitle": {
+    "message": "履歴"
+  }
+}

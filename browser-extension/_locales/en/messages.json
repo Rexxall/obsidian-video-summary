@@ -1,0 +1,398 @@
+{
+  "extName": {
+    "message": "Video Summary Capture"
+  },
+  "extDescription": {
+    "message": "Press ⌘⇧S on a YouTube video: its captions go to your Obsidian vault, where Video Summary writes the note."
+  },
+  "cmdCapture": {
+    "message": "Capture the current video"
+  },
+  "cmdAppend": {
+    "message": "Append the current video link to your list file"
+  },
+  "cmdQueue": {
+    "message": "Add the current video to the queue"
+  },
+  "cmdBatch": {
+    "message": "Scan this page for video links"
+  },
+  "cmdCopy": {
+    "message": "Copy a timestamped Markdown link"
+  },
+  "cmdQueueLink": {
+    "message": "Add the hovered, focused or selected link to the queue"
+  },
+  "menuCapture": {
+    "message": "Send this video"
+  },
+  "menuAppend": {
+    "message": "Append link to list file"
+  },
+  "menuQueue": {
+    "message": "Add this video to queue"
+  },
+  "menuQueueLink": {
+    "message": "Add link to queue"
+  },
+  "menuCopy": {
+    "message": "Copy timestamped link"
+  },
+  "toastCopied": {
+    "message": "Timestamped link copied"
+  },
+  "toastQueued": {
+    "message": "Queued · $1"
+  },
+  "toastAlreadyQueued": {
+    "message": "Already in the queue"
+  },
+  "toastFailed": {
+    "message": "Not sent. Open the extension to see why."
+  },
+  "toastSentCaptions": {
+    "message": "Sent with captions"
+  },
+  "toastSent": {
+    "message": "Sent"
+  },
+  "toastAppended": {
+    "message": "Appended to your list"
+  },
+  "toastError": {
+    "message": "Video Summary Capture: $1"
+  },
+  "errNoBackendCode": {
+    "message": "Paste the backend connection code in Settings and save first."
+  },
+  "errNoCookiePerm": {
+    "message": "Cookie access was not allowed. Press the button again and allow it."
+  },
+  "errNotLoggedIn": {
+    "message": "This browser is not signed in to $1. Sign in at $1, then sync."
+  },
+  "errVaultRequired": {
+    "message": "Enter your vault name in Settings."
+  },
+  "errAppendRequired": {
+    "message": "Enter the vault name and the list file in Settings."
+  },
+  "errRestToken": {
+    "message": "Enter the Obsidian REST token in Settings → Advanced."
+  },
+  "errNoEndpoint": {
+    "message": "Paste the backend connection code in Settings first."
+  },
+  "errRequestFailed": {
+    "message": "The extension did not respond."
+  },
+  "detecting": {
+    "message": "Reading this page…"
+  },
+  "noVideo": {
+    "message": "No video on this page"
+  },
+  "scanPage": {
+    "message": "Find videos on this page"
+  },
+  "btnSummarize": {
+    "message": "Summarize in Obsidian"
+  },
+  "btnSendN8n": {
+    "message": "Send to backend"
+  },
+  "btnPendingNote": {
+    "message": "Create a pending note"
+  },
+  "btnAppend": {
+    "message": "Append to list file"
+  },
+  "btnQueue": {
+    "message": "Add to queue"
+  },
+  "savePending": {
+    "message": "Save for later"
+  },
+  "copyLink": {
+    "message": "Copy link"
+  },
+  "copyLinkAt": {
+    "message": "Copy $1 link"
+  },
+  "moreRoutes": {
+    "message": "Other ways to send"
+  },
+  "viaRest": {
+    "message": "Note via REST"
+  },
+  "appendList": {
+    "message": "Append to list file"
+  },
+  "sendN8n": {
+    "message": "Send to backend"
+  },
+  "queue": {
+    "message": "Queue"
+  },
+  "seeAll": {
+    "message": "See all"
+  },
+  "queueEmpty": {
+    "message": "Queue videos with ⌃Z or the right-click menu."
+  },
+  "back": {
+    "message": "Back"
+  },
+  "foundLinks": {
+    "message": "Video links on this page"
+  },
+  "rescan": {
+    "message": "Scan again"
+  },
+  "batchEmpty": {
+    "message": "No video links here. Try a channel page, a playlist or search results."
+  },
+  "sendSelected": {
+    "message": "Send selected"
+  },
+  "queueSelected": {
+    "message": "Add to queue"
+  },
+  "copyLinks": {
+    "message": "Copy links"
+  },
+  "clear": {
+    "message": "Clear"
+  },
+  "sendAll": {
+    "message": "Send all"
+  },
+  "copyAllLinks": {
+    "message": "Copy all links"
+  },
+  "history": {
+    "message": "History"
+  },
+  "historyEmpty": {
+    "message": "What you send shows up here."
+  },
+  "settings": {
+    "message": "Settings"
+  },
+  "groupDestination": {
+    "message": "Destination"
+  },
+  "settingQuick": {
+    "message": "Main button"
+  },
+  "routePlugin": {
+    "message": "Summarize in Obsidian"
+  },
+  "routePendingUri": {
+    "message": "Pending note only"
+  },
+  "routePendingRest": {
+    "message": "Pending note only (REST)"
+  },
+  "routeN8n": {
+    "message": "Send to backend"
+  },
+  "routeAppend": {
+    "message": "Append to list file"
+  },
+  "routeQueue": {
+    "message": "Add to queue"
+  },
+  "settingCaptions": {
+    "message": "Send YouTube captions"
+  },
+  "settingVault": {
+    "message": "Vault"
+  },
+  "settingFolder": {
+    "message": "Folder"
+  },
+  "settingAppend": {
+    "message": "List file"
+  },
+  "groupProcessing": {
+    "message": "Processing"
+  },
+  "settingMode": {
+    "message": "Output"
+  },
+  "modeSummary": {
+    "message": "Full summary"
+  },
+  "modeTranscript": {
+    "message": "Transcript only"
+  },
+  "modeInfo": {
+    "message": "Video info only"
+  },
+  "settingLanguage": {
+    "message": "Language"
+  },
+  "groupBackend": {
+    "message": "Backend"
+  },
+  "settingBackend": {
+    "message": "Connection code"
+  },
+  "backendPlaceholder": {
+    "message": "Paste from the start script"
+  },
+  "backendSaved": {
+    "message": "Saved: $1"
+  },
+  "settingBilibili": {
+    "message": "Bilibili sign-in"
+  },
+  "syncToBackend": {
+    "message": "Sync"
+  },
+  "advanced": {
+    "message": "Advanced"
+  },
+  "settingFormat": {
+    "message": "Request format"
+  },
+  "formatUnified": {
+    "message": "Unified"
+  },
+  "formatLegacy": {
+    "message": "Legacy bridge"
+  },
+  "settingRestProtocol": {
+    "message": "REST protocol"
+  },
+  "settingRestPort": {
+    "message": "REST port"
+  },
+  "settingRestToken": {
+    "message": "REST token"
+  },
+  "restTokenPlaceholder": {
+    "message": "Stays on this computer"
+  },
+  "save": {
+    "message": "Save"
+  },
+  "selectAll": {
+    "message": "Select all"
+  },
+  "remove": {
+    "message": "Remove"
+  },
+  "removeTitle": {
+    "message": "Remove from queue"
+  },
+  "copy": {
+    "message": "Copy"
+  },
+  "statusFailed": {
+    "message": "Failed"
+  },
+  "statusReview": {
+    "message": "Check"
+  },
+  "statusDone": {
+    "message": "Done"
+  },
+  "jobStatus": {
+    "message": "job: $1"
+  },
+  "removedFromQueue": {
+    "message": "Removed from the queue."
+  },
+  "copiedLink": {
+    "message": "Link copied."
+  },
+  "opPending": {
+    "message": "pending note"
+  },
+  "opPlugin": {
+    "message": "Obsidian plugin"
+  },
+  "opPendingRest": {
+    "message": "pending note (REST)"
+  },
+  "opAppend": {
+    "message": "list file"
+  },
+  "opN8n": {
+    "message": "backend"
+  },
+  "opQueue": {
+    "message": "queue"
+  },
+  "opUnset": {
+    "message": "not set"
+  },
+  "scanning": {
+    "message": "Scanning this page…"
+  },
+  "queuedN": {
+    "message": "Added to the queue: $1."
+  },
+  "noneSelected": {
+    "message": "Nothing selected."
+  },
+  "sendingN": {
+    "message": "Sending $1 to $2…"
+  },
+  "unknownReason": {
+    "message": "unknown reason"
+  },
+  "needsReviewDefault": {
+    "message": "needs a look."
+  },
+  "resultFailed": {
+    "message": "$1 sent, $2 failed: $3"
+  },
+  "resultReview": {
+    "message": "$1 done, $2 to check: $3"
+  },
+  "resultDone": {
+    "message": "Done: $1."
+  },
+  "copiedN": {
+    "message": "Markdown links copied: $1."
+  },
+  "cookieDenied": {
+    "message": "Bilibili cookie access not allowed; nothing synced."
+  },
+  "syncingBilibili": {
+    "message": "Syncing Bilibili sign-in…"
+  },
+  "syncedBilibili": {
+    "message": "Bilibili cookies synced to your backend: $1."
+  },
+  "saved": {
+    "message": "Saved."
+  },
+  "savedNoPermission": {
+    "message": "Saved, but access to that backend was not allowed, so sending to it will fail."
+  },
+  "copiedText": {
+    "message": "Copied: $1"
+  },
+  "queueCleared": {
+    "message": "Queue cleared."
+  },
+  "historyCleared": {
+    "message": "History cleared."
+  },
+  "noCurrentVideo": {
+    "message": "No video found on this page."
+  },
+  "cantReadPage": {
+    "message": "Chrome does not let extensions read this page."
+  },
+  "settingsTitle": {
+    "message": "Settings"
+  },
+  "historyTitle": {
+    "message": "History"
+  }
+}

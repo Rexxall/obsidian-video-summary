@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- **Browser extension 0.9.0, ready for the Chrome Web Store.** The popup, right-click menu, shortcuts and notices follow the browser's language: English, 简体中文 or 日本語. On a page without a video the popup offers to find videos on the page instead of a button that fails. The playback time is the one detail set in Didot; queue and history rows line up, untitled videos show their site, and history shows its status in colour with the reason for a failure on hover. Sending disables the buttons until it finishes, so a double click sends once. Captions are a switch in Settings; request format and the Obsidian REST fields moved under **Advanced**. The on-page notice is a small pill that follows light or dark mode and reduced motion. Chrome keeps ⌘⇧A for its own tab search, so the append shortcut now starts unset; set it at `chrome://extensions/shortcuts`. Store listing, screenshots in three languages and the privacy answers are in `docs/store/`.
+
 ## 2.13.3
 
 - **Finished video notes open in reading view.** Their photos, stamps and callouts read as code in the editor. A finished note now asks for reading view when it opens, and gets `obsidianUIMode: preview`, the property view plugins such as View Mode by Frontmatter read, so a vault that forces other notes back to editing still shows it as written. A value you set yourself is kept. Turn it off under **Settings → Video Summary → Open video notes in reading view**.

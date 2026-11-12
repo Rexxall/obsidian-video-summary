@@ -4,6 +4,17 @@
 importScripts('vendor/shared.global.js', 'utils.js');
 
 const U = self.VideoCaptureUtils;
+
+/** A message in the browser's language; the English fallback covers tests and missing keys. */
+function t(key, substitutions = [], fallback = key) {
+  return chrome.i18n?.getMessage(key, substitutions) || fallback;
+}
+
+function queuedToast(result) {
+  return result.added
+    ? t('toastQueued', [String(result.count)], `Queued · ${result.count}`)
+    : t('toastAlreadyQueued', [], 'Already in the queue');
+}
 const HISTORY_LIMIT = 80;
 
 function syncGet(keys) {
@@ -364,25 +375,51 @@ async function showToast(tabId, message) {
         if (existing) existing.remove();
         const toast = document.createElement('div');
         toast.id = '__obsidian_video_capture_toast';
+        toast.setAttribute('role', 'status');
         toast.textContent = msg;
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         Object.assign(toast.style, {
           position: 'fixed',
-          left: '18px',
-          bottom: '18px',
+          left: '50%',
+          bottom: '28px',
           zIndex: 2147483647,
-          padding: '10px 12px',
-          borderRadius: '8px',
-          background: '#202124',
-          color: '#f4f1ff',
-          border: '1px solid #8f7cf7',
-          boxShadow: '0 10px 28px rgba(0,0,0,.32)',
-          font: '13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+          maxWidth: 'min(420px, calc(100vw - 32px))',
+          padding: '10px 18px',
+          borderRadius: '999px',
+          background: dark ? 'rgba(44,44,46,.92)' : 'rgba(255,255,255,.92)',
+          color: dark ? '#f5f5f7' : '#1d1d1f',
+          boxShadow: dark
+            ? '0 0 0 .5px rgba(255,255,255,.14), 0 8px 28px rgba(0,0,0,.45)'
+            : '0 0 0 .5px rgba(0,0,0,.12), 0 8px 28px rgba(0,0,0,.16)',
+          backdropFilter: 'blur(20px) saturate(170%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(170%)',
+          font: '500 13px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+          letterSpacing: '0',
+          textAlign: 'center',
+          transform: 'translateX(-50%)',
+          pointerEvents: 'none',
         });
-        document.body.appendChild(toast);
+        document.documentElement.appendChild(toast);
+        const ease = 'cubic-bezier(0.16, 1, 0.3, 1)';
+        if (!still) {
+          toast.animate(
+            [
+              { opacity: 0, transform: 'translate(-50%, 8px) scale(.98)' },
+              { opacity: 1, transform: 'translate(-50%, 0) scale(1)' },
+            ],
+            { duration: 180, easing: ease },
+          );
+        }
         window.setTimeout(() => {
-          toast.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' });
-          window.setTimeout(() => toast.remove(), 240);
-        }, 1800);
+          toast
+            .animate([{ opacity: 1 }, { opacity: 0 }], {
+              duration: still ? 1 : 180,
+              easing: 'ease-out',
+              fill: 'forwards',
+            })
+            .finished.then(() => toast.remove());
+        }, 2000);
       },
       args: [message],
     });
@@ -412,7 +449,8 @@ function backendHeaders(settings) {
 }
 
 async function postJson(url, payload, headers = {}) {
-  if (!url) throw new Error('Endpoint URL is not configured.');
+  if (!url)
+    throw new Error(t('errNoEndpoint', [], 'Paste the backend connection code in Settings first.'));
   const response = await self.fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
@@ -434,7 +472,8 @@ async function postJson(url, payload, headers = {}) {
 }
 
 async function putObsidianRestNote(settings, item) {
-  if (!settings.obsidianRestToken) throw new Error('Obsidian REST token is not configured.');
+  if (!settings.obsidianRestToken)
+    throw new Error(t('errRestToken', [], 'Enter the Obsidian REST token in Settings → Advanced.'));
   const protocol = settings.obsidianRestProtocol || 'https';
   const port = settings.obsidianRestPort || 27123;
   const title = U.sanitizeFilename(U.cleanTitle(item.title));
@@ -458,14 +497,16 @@ async function transferOne(rawItem, operation, settings) {
   const actionForPayload = operation === 'append-link' ? 'append-link' : 'process';
 
   if (operation === 'create-pending-note') {
-    if (!settings.vaultName) throw new Error('Vault name is required.');
+    if (!settings.vaultName)
+      throw new Error(t('errVaultRequired', [], 'Enter your vault name in Settings.'));
     const uri = U.buildObsidianNewUri(settings.vaultName, settings.folder, item, settings);
     await openObsidianUri(uri);
     await addHistory({ operation, title: item.title, url: item.url, status: 'success' });
     return { operation, status: 'success', title: item.title };
   }
   if (operation === 'process-via-plugin') {
-    if (!settings.vaultName) throw new Error('Vault name is required.');
+    if (!settings.vaultName)
+      throw new Error(t('errVaultRequired', [], 'Enter your vault name in Settings.'));
     const uri = U.buildObsidianProcessUri(settings.vaultName, item, settings);
     await openObsidianUri(uri);
     await addHistory({ operation, title: item.title, url: item.url, status: 'success' });
@@ -480,7 +521,9 @@ async function transferOne(rawItem, operation, settings) {
 
   if (operation === 'append-link') {
     if (!settings.vaultName || !settings.appendPath) {
-      throw new Error('Vault name and append file path are required.');
+      throw new Error(
+        t('errAppendRequired', [], 'Enter the vault name and the list file in Settings.'),
+      );
     }
     const uri = U.buildObsidianAppendUri(settings.vaultName, settings.appendPath, item);
     await openObsidianUri(uri);
@@ -501,18 +544,34 @@ async function transferOne(rawItem, operation, settings) {
   throw new Error(`Unknown operation: ${operation}`);
 }
 
-const COOKIE_SITES = { bilibili: { domain: 'bilibili.com', login: 'SESSDATA', name: 'B 站' } };
+const COOKIE_SITES = { bilibili: { domain: 'bilibili.com', login: 'SESSDATA' } };
 
 /** Send this browser's login cookies for one site to the user's own backend, for yt-dlp. */
 async function syncCookies(platform) {
   const site = COOKIE_SITES[platform];
   if (!site) throw new Error('Unsupported site.');
   const settings = await getSettings();
-  if (!settings.n8nToken) throw new Error('先在设置里粘贴后端连接码并保存。');
-  if (!chrome.cookies) throw new Error('没有读取 cookie 的权限，请重新点一次并允许。');
+  if (!settings.n8nToken)
+    throw new Error(
+      t('errNoBackendCode', [], 'Paste the backend connection code in Settings and save first.'),
+    );
+  if (!chrome.cookies)
+    throw new Error(
+      t(
+        'errNoCookiePerm',
+        [],
+        'Cookie access was not allowed. Press the button again and allow it.',
+      ),
+    );
   const cookies = await chrome.cookies.getAll({ domain: site.domain });
   if (!cookies.some((cookie) => cookie.name === site.login)) {
-    throw new Error(`这个浏览器还没有登录${site.name}。先打开 ${site.domain} 登录，再同步。`);
+    throw new Error(
+      t(
+        'errNotLoggedIn',
+        [site.domain],
+        `This browser is not signed in to ${site.domain}. Sign in at ${site.domain}, then sync.`,
+      ),
+    );
   }
   const body = await postJson(
     settings.n8nWebhookUrl,
@@ -698,7 +757,7 @@ async function copyTimestampMarkdown(tab) {
     func: (value) => navigator.clipboard.writeText(value),
     args: [text],
   });
-  await showToast(tab.id, 'Copied timestamp link');
+  await showToast(tab.id, t('toastCopied', [], 'Timestamped link copied'));
   return text;
 }
 
@@ -713,13 +772,17 @@ async function runQuickAction(tab) {
   }
   if (settings.quickAction === 'queue') {
     const result = await addToQueue(capture);
-    await showToast(tab.id, result.added ? `Queued (${result.count})` : 'Already queued');
+    await showToast(tab.id, queuedToast(result));
     return result;
   }
   const result = await transferOne(capture, settings.quickAction, settings);
   await showToast(
     tab.id,
-    result.status !== 'success' ? 'Failed' : capture.transcript ? 'Sent with captions' : 'Sent',
+    result.status !== 'success'
+      ? t('toastFailed', [], 'Not sent. Open the extension to see why.')
+      : capture.transcript
+        ? t('toastSentCaptions', [], 'Sent with captions')
+        : t('toastSent', [], 'Sent'),
   );
   return result;
 }
@@ -728,27 +791,27 @@ async function createContextMenus() {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
     id: 'capture-current',
-    title: 'Obsidian Video: quick capture current page',
+    title: t('menuCapture', [], 'Quick capture current page'),
     contexts: ['page', 'video'],
   });
   chrome.contextMenus.create({
     id: 'append-current',
-    title: 'Obsidian Video: append current page',
+    title: t('menuAppend', [], 'Append current page'),
     contexts: ['page', 'video'],
   });
   chrome.contextMenus.create({
     id: 'queue-current',
-    title: 'Obsidian Video: add current page to queue',
+    title: t('menuQueue', [], 'Add current page to queue'),
     contexts: ['page', 'video'],
   });
   chrome.contextMenus.create({
     id: 'queue-link',
-    title: 'Obsidian Video: add link to queue',
+    title: t('menuQueueLink', [], 'Add link to queue'),
     contexts: ['link'],
   });
   chrome.contextMenus.create({
     id: 'copy-timestamp',
-    title: 'Obsidian Video: copy timestamp link',
+    title: t('menuCopy', [], 'Copy timestamp link'),
     contexts: ['page', 'video'],
   });
 }
@@ -769,11 +832,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     } else if (info.menuItemId === 'append-current') {
       const capture = await getCurrentTabCapture();
       await transferMany([capture], 'append-link');
-      await showToast(tab.id, 'Appended');
+      await showToast(tab.id, t('toastAppended', [], 'Appended to your list'));
     } else if (info.menuItemId === 'queue-current') {
       const capture = await getCurrentTabCapture();
       const result = await addToQueue(capture);
-      await showToast(tab.id, result.added ? `Queued (${result.count})` : 'Already queued');
+      await showToast(tab.id, queuedToast(result));
     } else if (info.menuItemId === 'queue-link' && info.linkUrl) {
       const result = await addToQueue({
         title: 'Linked Video',
@@ -781,11 +844,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         source: 'context-link',
         sourceTabUrl: tab.url,
       });
-      await showToast(tab.id, result.added ? `Queued (${result.count})` : 'Already queued');
+      await showToast(tab.id, queuedToast(result));
     } else if (info.menuItemId === 'copy-timestamp') {
       await copyTimestampMarkdown(tab);
     }
-  })().catch((error) => showToast(tab?.id, `Video capture failed: ${error.message}`));
+  })().catch((error) =>
+    showToast(tab?.id, t('toastError', [error.message], `Video Summary Capture: ${error.message}`)),
+  );
 });
 
 chrome.commands.onCommand.addListener((command) => {
@@ -797,12 +862,12 @@ chrome.commands.onCommand.addListener((command) => {
     } else if (command === 'append_current_video') {
       const capture = await getCurrentTabCapture();
       await transferMany([capture], 'append-link');
-      await showToast(tab.id, 'Appended');
+      await showToast(tab.id, t('toastAppended', [], 'Appended to your list'));
     } else if (command === 'queue_current_video') {
       const capture = await getCurrentTabCapture();
       const result = await addToQueue(capture);
       await localSet({ target_tab: 'queue' });
-      await showToast(tab.id, result.added ? `Queued (${result.count})` : 'Already queued');
+      await showToast(tab.id, queuedToast(result));
       chrome.action.openPopup().catch(() => {});
     } else if (command === 'open_batch_view') {
       await localSet({ target_tab: 'batch' });

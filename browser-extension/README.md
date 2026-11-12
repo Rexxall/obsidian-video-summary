@@ -10,9 +10,9 @@ A browser extension that sends the video you are watching to Obsidian or to your
 - **Queue** videos from the toolbar, a shortcut or the right-click menu, and send the queue later.
 - **Copy a timestamped Markdown link** to the moment you are watching.
 - **Send to a backend:** the n8n webhook, using the same request format as the Obsidian plugin.
-- **Backend connection code:** paste the code the backend's start script prints into Settings → 后端连接码; it sets the address and the password header. The password stays on this computer and is not synced.
-- **Send YouTube captions:** capturing a YouTube page also sends the captions its player loaded (written ones in the spoken language first, then automatic ones), so the Obsidian plugin can write the note without a backend. The extension switches captions on for a moment if they are off and switches them off again. Nothing is read during an ad; then only the link is sent. Turn it off under Settings → YouTube 字幕.
-- **Sync Bilibili login:** Settings → B 站登录 → 同步到后端 sends this browser's bilibili.com cookies to your own backend so it can fetch subtitles and Bilibili's AI subtitles. Chrome asks for cookie access the first time; nothing is sent anywhere else.
+- **Backend connection code:** paste the code the backend's start script prints into Settings → Connection code; it sets the address and the password header. The password stays on this computer and is not synced.
+- **Send YouTube captions:** capturing a YouTube page also sends the captions its player loaded (written ones in the spoken language first, then automatic ones), so the Obsidian plugin can write the note without a backend. The extension switches captions on for a moment if they are off and switches them off again. Nothing is read during an ad; then only the link is sent. Turn it off under Settings → Send YouTube captions.
+- **Sync Bilibili login:** Settings → Bilibili sign-in → Sync sends this browser's bilibili.com cookies to your own backend so it can fetch subtitles and Bilibili's AI subtitles. Chrome asks for cookie access the first time; nothing is sent anywhere else.
 
 ## Install
 
@@ -24,14 +24,16 @@ Works in Chrome, Edge, Brave and other Chromium browsers.
 
 ## Shortcuts
 
-| Action                     | macOS | Windows / Linux |
-| -------------------------- | ----- | --------------- |
-| Capture current video      | ⌘⇧S   | Ctrl+Shift+S    |
-| Append current video link  | ⌘⇧A   | Ctrl+Shift+A    |
-| Add current video to queue | ⌃Z    | Alt+Shift+Q     |
-| Open batch scan            | ⌃S    | Alt+Shift+B     |
+| Action                     | macOS           | Windows / Linux |
+| -------------------------- | --------------- | --------------- |
+| Capture current video      | ⌘⇧S             | Ctrl+Shift+S    |
+| Append current video link  | set it yourself | set it yourself |
+| Add current video to queue | ⌃Z              | Alt+Shift+Q     |
+| Open batch scan            | ⌃S              | Alt+Shift+B     |
 
-Change them at `chrome://extensions/shortcuts`.
+Change them at `chrome://extensions/shortcuts`. Chrome keeps ⌘⇧A / Ctrl+Shift+A for its own tab search, so the append shortcut starts unset.
+
+The popup, menus and notices follow the browser's language: English, 简体中文 or 日本語.
 
 ## Privacy
 

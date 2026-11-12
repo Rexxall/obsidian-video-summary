@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Video Summary Capture",
-  "version": "0.8.0",
-  "description": "Press ⌘⇧S on a YouTube video: its captions go to your Obsidian vault, where Video Summary writes the note.",
+  "name": "__MSG_extName__",
+  "version": "0.9.0",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
   "permissions": ["activeTab", "clipboardWrite", "contextMenus", "scripting", "storage"],
   "host_permissions": [
     "http://localhost/*",
@@ -16,7 +17,8 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_title": "__MSG_extName__"
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -32,34 +34,30 @@
         "default": "Ctrl+Shift+S",
         "mac": "Command+Shift+S"
       },
-      "description": "Capture current video using the configured quick action"
+      "description": "__MSG_cmdCapture__"
     },
     "append_current_video": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+A",
-        "mac": "Command+Shift+A"
-      },
-      "description": "Append current video link to the configured Obsidian file"
+      "description": "__MSG_cmdAppend__"
     },
     "queue_current_video": {
       "suggested_key": {
         "default": "Alt+Shift+Q",
         "mac": "MacCtrl+Z"
       },
-      "description": "Add current video to the queue"
+      "description": "__MSG_cmdQueue__"
     },
     "open_batch_view": {
       "suggested_key": {
         "default": "Alt+Shift+B",
         "mac": "MacCtrl+S"
       },
-      "description": "Open the extension popup on the batch scan view"
+      "description": "__MSG_cmdBatch__"
     },
     "copy_timestamp_link": {
-      "description": "Copy a timestamped Markdown link for the current video"
+      "description": "__MSG_cmdCopy__"
     },
     "queue_selected_link": {
-      "description": "Add hovered, focused, or selected link to the queue"
+      "description": "__MSG_cmdQueueLink__"
     }
   },
   "optional_permissions": ["cookies"],
