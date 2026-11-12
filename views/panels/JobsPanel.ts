@@ -65,6 +65,8 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
       },
     );
     iconButton(header, 'more-horizontal', tr('列表操作', 'List actions'), (event) => {
+      // While the index is still reading notes, a title match may not be known yet.
+      const missing = ctx.plugin.noteIndex.isScanning() ? 0 : ctx.plugin.missingHistory().length;
       showMenu(event, [
         {
           title: tr('清掉已完成的任务卡', 'Clear finished job cards'),
@@ -74,6 +76,27 @@ export function renderJobsPanel(container: HTMLElement, ctx: ViewContext) {
             ctx.renderPanels();
           },
         },
+        ...(missing > 0
+          ? [
+              {
+                title: tr(
+                  `清理找不到笔记的记录（${missing} 条）`,
+                  `Remove records whose note is gone (${missing})`,
+                ),
+                icon: 'file-x',
+                onClick: async () => {
+                  const removed = await ctx.plugin.pruneMissingHistory();
+                  new Notice(
+                    tr(
+                      `已清理 ${removed} 条记录，笔记本身没动`,
+                      `Removed ${removed} records; no note was touched`,
+                    ),
+                  );
+                  ctx.renderPanels();
+                },
+              },
+            ]
+          : []),
         {
           title: tr('清空处理历史', 'Clear processing history'),
           icon: 'trash',

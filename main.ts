@@ -1235,6 +1235,21 @@ export default class VideoSummaryPlugin extends Plugin {
     }
   }
 
+  /** Records whose note was deleted, or renamed before records kept the path. */
+  missingHistory(): ProcessingHistory[] {
+    return (this.settings.history || []).filter((record) => !this.resolveHistoryNote(record));
+  }
+
+  /** Drops the records no note can be found for; returns how many went. */
+  async pruneMissingHistory(): Promise<number> {
+    const missing = new Set(this.missingHistory());
+    if (missing.size === 0) return 0;
+    this.settings.history = (this.settings.history || []).filter((record) => !missing.has(record));
+    this.historyLookupCache = null;
+    await this.saveSettings();
+    return missing.size;
+  }
+
   private async testProcessingBackendConnection() {
     try {
       const result = await this.api.testConnection();

@@ -13375,6 +13375,7 @@ function renderJobsPanel(container, ctx) {
       }
     );
     iconButton(header, "more-horizontal", tr("\u5217\u8868\u64CD\u4F5C", "List actions"), (event) => {
+      const missing = ctx.plugin.noteIndex.isScanning() ? 0 : ctx.plugin.missingHistory().length;
       showMenu(event, [
         {
           title: tr("\u6E05\u6389\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u5361", "Clear finished job cards"),
@@ -13384,6 +13385,25 @@ function renderJobsPanel(container, ctx) {
             ctx.renderPanels();
           }
         },
+        ...missing > 0 ? [
+          {
+            title: tr(
+              `\u6E05\u7406\u627E\u4E0D\u5230\u7B14\u8BB0\u7684\u8BB0\u5F55\uFF08${missing} \u6761\uFF09`,
+              `Remove records whose note is gone (${missing})`
+            ),
+            icon: "file-x",
+            onClick: async () => {
+              const removed = await ctx.plugin.pruneMissingHistory();
+              new import_obsidian12.Notice(
+                tr(
+                  `\u5DF2\u6E05\u7406 ${removed} \u6761\u8BB0\u5F55\uFF0C\u7B14\u8BB0\u672C\u8EAB\u6CA1\u52A8`,
+                  `Removed ${removed} records; no note was touched`
+                )
+              );
+              ctx.renderPanels();
+            }
+          }
+        ] : [],
         {
           title: tr("\u6E05\u7A7A\u5904\u7406\u5386\u53F2", "Clear processing history"),
           icon: "trash",
@@ -25965,6 +25985,19 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
         )
       );
     }
+  }
+  /** Records whose note was deleted, or renamed before records kept the path. */
+  missingHistory() {
+    return (this.settings.history || []).filter((record) => !this.resolveHistoryNote(record));
+  }
+  /** Drops the records no note can be found for; returns how many went. */
+  async pruneMissingHistory() {
+    const missing = new Set(this.missingHistory());
+    if (missing.size === 0) return 0;
+    this.settings.history = (this.settings.history || []).filter((record) => !missing.has(record));
+    this.historyLookupCache = null;
+    await this.saveSettings();
+    return missing.size;
   }
   async testProcessingBackendConnection() {
     try {
