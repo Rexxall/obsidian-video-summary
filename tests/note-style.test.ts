@@ -64,7 +64,9 @@ test('the light tier sends the style and the pictures to the model', () => {
     },
   });
   assert.match(user.content, /WRITING STYLE/);
-  assert.match(user.content, /\[!receipt\] 原话/);
+  assert.match(user.content, /> > \[!receipt\] 原话/);
+  assert.match(user.content, /\[!receipts\]/);
+  assert.match(user.content, /flowchart LR/);
   assert.match(user.content, /hq2\.jpg \(frame about halfway\)/);
 });
 

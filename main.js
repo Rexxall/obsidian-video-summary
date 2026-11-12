@@ -54,7 +54,8 @@ var ITHACA_NOTE_STYLE = [
   '- Where one block leads to the next (a cause, a so-what): a paragraph of its own, <span class="ih-arrow">\u6240\u4EE5</span>, 2 to 8 characters; at most twice.',
   '- Your own thoughts beside a line: <span class="ih-mg">a short sentence</span>; in red pen <span class="ih-mg is-red">\u2026</span> where the argument is weak or lacks evidence. At most three in all.',
   '- Thoughts and things to try after the video: "> [!pinned]" with 1 to 5 lines "> - <a few words>" (pinned sticky notes). Things to do from the video: "> [!todo] \u884C\u52A8\u6E05\u5355" with "- [ ]" items, only when the video gives them.',
-  '- Quotes: "> [!receipt] \u539F\u8BDD" callouts, one line each with its time; a translation on the next line when the languages differ.',
+  "- The reader reads on a wide screen. The diagram: flowchart LR (left to right) for any flowchart up to 8 nodes, labels of at most 10 Chinese characters; flowchart TD only for a longer chain. A mindmap stays a mindmap.",
+  '- Quotes: 2 to 6 of them, set side by side as receipts: one "> [!receipts]" line, then each quote as its own nested callout, "> > [!receipt] \u539F\u8BDD" followed by "> > [12:34] the words" and, when the languages differ, "> > the translation". Put a line with only ">" between two receipts.',
   '- Last line of the note, a paragraph of its own: <span class="ih-barcode">{{duration}} \xB7 {{video_id}}</span> (leave out an empty part).',
   '- Put <span class="ih-circ">...</span> around the single most important phrase, once. ==highlight== at most two other phrases.'
 ].join("\n");
