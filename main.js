@@ -13277,16 +13277,19 @@ function modelErrorText(status, body = "") {
   if (status === 429) return `\u6A21\u578B\u670D\u52A1\u9650\u6D41\uFF0C\u7A0D\u540E\u518D\u8BD5\uFF08HTTP ${status}\uFF09`;
   return `\u6A21\u578B\u670D\u52A1\u8FD4\u56DE HTTP ${status}${detail ? `\uFF1A${detail}` : ""}`;
 }
+function isReasoningModel(model) {
+  const name = (model ?? "").trim().toLowerCase().replace(/^openai\//, "");
+  return /^(o\d|gpt-([5-9]|\d{2,}))/.test(name);
+}
 async function streamChat(transport, request, onText, signal) {
   const attempt = async (jsonMode) => {
     const reader = new SseReader();
     const body = {
       model: request.model,
       messages: request.messages,
-      stream: true,
-      // Same as the backend's chat model node.
-      temperature: 0.4
+      stream: true
     };
+    if (!isReasoningModel(request.model)) body.temperature = 0.4;
     if (jsonMode) body.response_format = { type: "json_object" };
     const response2 = await transport(
       {

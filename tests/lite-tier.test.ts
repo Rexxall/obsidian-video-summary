@@ -488,3 +488,20 @@ test('a bare YouTube or Bilibili link points to the extension only when the ligh
   assert.equal(captureShortcut(true), '⌘⇧S');
   assert.equal(captureShortcut(false), 'Ctrl+Shift+S');
 });
+
+void test('reasoning models are asked without a temperature', async () => {
+  const temperatures: unknown[] = [];
+  const transport: StreamTransport = async (request, onData) => {
+    temperatures.push((JSON.parse(request.body) as Record<string, unknown>).temperature);
+    onData(sseOf('{}'));
+    return { status: 200 };
+  };
+  for (const model of ['deepseek-flash', 'gpt-6.1-sol']) {
+    await streamChat(
+      transport,
+      { baseUrl: 'https://x', apiKey: 'k', model, messages: [], jsonMode: true },
+      () => undefined,
+    );
+  }
+  assert.deepEqual(temperatures, [0.4, undefined]);
+});

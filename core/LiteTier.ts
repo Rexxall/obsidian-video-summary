@@ -238,6 +238,12 @@ export function modelErrorText(status: number, body = ''): string {
  * One streamed chat call. Falls back to plain mode once if the service rejects JSON mode.
  * onText gets the reply so far and how much the model has thought before it.
  */
+/** OpenAI reasoning models (o-series, gpt-5 and later); keep in step with backend/init/configure.mjs. */
+export function isReasoningModel(model: string | undefined): boolean {
+  const name = (model ?? '').trim().toLowerCase().replace(/^openai\//, '');
+  return /^(o\d|gpt-([5-9]|\d{2,}))/.test(name);
+}
+
 export async function streamChat(
   transport: StreamTransport,
   request: ChatRequest,
@@ -250,9 +256,9 @@ export async function streamChat(
       model: request.model,
       messages: request.messages,
       stream: true,
-      // Same as the backend's chat model node.
-      temperature: 0.4,
     };
+    // Same as the backend's chat model node. Reasoning models only take the default and answer 400.
+    if (!isReasoningModel(request.model)) body.temperature = 0.4;
     if (jsonMode) body.response_format = { type: 'json_object' };
     const response = await transport(
       {

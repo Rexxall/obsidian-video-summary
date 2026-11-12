@@ -497,3 +497,13 @@ test('nothing the start-up import logs can contain a key', async () => {
   );
   assert.doesNotMatch(JSON.stringify(status), /SECRET/);
 });
+
+test('reasoning models get no temperature, other models keep it', () => {
+  const base = { VS_WEBHOOK_TOKEN: TOKEN, VS_CHAT_API_KEY: FAKE_KEY };
+  const temperature = (model) =>
+    fillWorkflow(mainWorkflow(), resolveConfig({ ...base, VS_CHAT_MODEL: model })).nodes.find(
+      (node) => node.name === 'Model: Chat',
+    ).parameters.options.temperature;
+  assert.equal(temperature('deepseek-flash'), 0.4);
+  assert.equal(temperature('gpt-6.1-sol'), undefined);
+});

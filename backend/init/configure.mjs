@@ -207,6 +207,11 @@ export function publicStatus(config) {
   };
 }
 
+export function isReasoningModel(model) {
+  const name = String(model ?? '').trim().toLowerCase().replace(/^openai\//, '');
+  return /^(o\d|gpt-([5-9]|\d{2,}))/.test(name);
+}
+
 export function fillWorkflow(workflow, config) {
   const replacements = [
     ['__VS_CHAT_BASE_URL__', config.chat.base],
@@ -228,6 +233,12 @@ export function fillWorkflow(workflow, config) {
     return value;
   };
   const filled = visit(workflow);
+  // Reasoning models only accept the default temperature; keep in step with core/LiteTier.ts.
+  if (isReasoningModel(config.chat.model)) {
+    for (const node of filled.nodes ?? []) {
+      if (node.type?.endsWith('lmChatOpenAi')) delete node.parameters?.options?.temperature;
+    }
+  }
   filled.active = false;
   return filled;
 }
