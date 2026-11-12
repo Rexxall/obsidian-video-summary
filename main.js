@@ -2655,15 +2655,17 @@ var ReadingViewOpener = class {
   }
   async onFileOpen(file) {
     if (!(file instanceof import_obsidian.TFile) || file.extension !== "md") return;
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
-    if (!view || view.file?.path !== file.path) return;
-    const leaf = view.leaf;
-    const alreadyOpenedHere = this.seen.get(leaf) === file.path;
-    this.seen.set(leaf, file.path);
+    await new Promise((resolve) => window.setTimeout(resolve, 60));
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (!wantsReadingView(this.enabled(), frontmatter, alreadyOpenedHere)) return;
-    if (view.getMode() === "preview") return;
-    await view.setState({ ...view.getState(), mode: "preview" }, { history: false });
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (!(view instanceof import_obsidian.MarkdownView) || view.file?.path !== file.path) continue;
+      const alreadyOpenedHere = this.seen.get(leaf) === file.path;
+      this.seen.set(leaf, file.path);
+      if (!wantsReadingView(this.enabled(), frontmatter, alreadyOpenedHere)) continue;
+      if (view.getMode() === "preview") continue;
+      await view.setState({ ...view.getState(), mode: "preview" }, { history: false });
+    }
   }
 };
 
