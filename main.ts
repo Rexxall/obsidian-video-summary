@@ -275,6 +275,7 @@ export default class VideoSummaryPlugin extends Plugin {
     });
     // The same entry without a link, so Obsidian is not brought forward. Loopback only, no network.
     this.app.workspace.onLayoutReady(() => void this.startExtensionBridge());
+    this.applyNotebookStyle();
 
     // 注册设置页面
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
@@ -317,6 +318,7 @@ export default class VideoSummaryPlugin extends Plugin {
 
   onunload() {
     this.bridge?.stop();
+    document.body.removeClass('vs-notebook-style');
     BackendHealthModal.closeAll();
     this.installer?.dispose();
     this.noteIndex?.flush();
@@ -2593,6 +2595,11 @@ export default class VideoSummaryPlugin extends Plugin {
    * Global capture entry. Default is offline `capture-only`; processing must be
    * requested explicitly with process=1 (see protocolCaptureAction).
    */
+  /** The notebook look for video notes is one class on body; every rule in styles.css waits for it. */
+  applyNotebookStyle(): void {
+    document.body.toggleClass('vs-notebook-style', this.settings.notebookStyle === true);
+  }
+
   /** Start, restart or stop the extension's local endpoint to match the settings. */
   async startExtensionBridge(): Promise<void> {
     if (!Platform.isDesktopApp) return;
@@ -4194,11 +4201,30 @@ class VideoSummarySettingTab extends PluginSettingTab {
         )
         .onClick(async () => {
           this.plugin.settings.noteStyle = ITHACA_NOTE_STYLE;
+          this.plugin.settings.notebookStyle = true;
+          this.plugin.applyNotebookStyle();
           this.plugin.api.setAnalysisDefaults({ noteStyle: ITHACA_NOTE_STYLE });
           await this.plugin.saveSettings();
           if (styleArea) styleArea.value = ITHACA_NOTE_STYLE;
+          this.display();
         }),
     );
+
+    new Setting(section)
+      .setName(tr('Ithaca 手账外观', 'Ithaca notebook look'))
+      .setDesc(
+        tr(
+          '视频笔记用胶片页眉、相片墙、邮戳、便利贴和红色时间戳；只改视频笔记。配 Ithaca 主题时字体和纸色最完整。',
+          'Video notes get a film header, a photo wall, postmarks, pinned notes and red timestamps; other notes are untouched. With the Ithaca theme the fonts and paper are complete.',
+        ),
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.notebookStyle === true).onChange(async (value) => {
+          this.plugin.settings.notebookStyle = value;
+          this.plugin.applyNotebookStyle();
+          await this.plugin.saveSettings();
+        }),
+      );
 
     new Setting(section)
       .setName(tr('只保留指向已有笔记的双链', 'Keep only links to existing notes'))

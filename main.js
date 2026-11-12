@@ -1991,6 +1991,7 @@ var DEFAULT_SETTINGS = {
   extensionBridgeEnabled: false,
   extensionBridgePort: 27183,
   extensionBridgeToken: "",
+  notebookStyle: false,
   n8nWebhookUrl: DEFAULT_N8N_WEBHOOK_URL,
   webhookProfiles: [
     {
@@ -7404,7 +7405,7 @@ async function pollQrLogin(key) {
   }
 }
 
-// node_modules/qrcode-generator/dist/qrcode.mjs
+// ../../../../../../../Users/rex/Obsidian/Projects/.plugin-dev/video-summary-plugin/node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
   const PAD1 = 17;
@@ -25319,6 +25320,8 @@ var SETTINGS_SEARCH_TERMS = [
   "\u2463 Bilibili login (optional)",
   "\u6A21\u578B",
   "\u6D4F\u89C8\u5668\u6269\u5C55",
+  "Ithaca \u624B\u8D26\u5916\u89C2",
+  "Ithaca notebook look",
   "Browser extension",
   "\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian",
   "Receive in the background",
@@ -25579,6 +25582,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       void this.handleProtocolRequest(params);
     });
     this.app.workspace.onLayoutReady(() => void this.startExtensionBridge());
+    this.applyNotebookStyle();
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
@@ -25616,6 +25620,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
   }
   onunload() {
     this.bridge?.stop();
+    document.body.removeClass("vs-notebook-style");
     BackendHealthModal.closeAll();
     this.installer?.dispose();
     this.noteIndex?.flush();
@@ -27520,6 +27525,10 @@ Suggestion: ${result.hint}`) : "";
    * Global capture entry. Default is offline `capture-only`; processing must be
    * requested explicitly with process=1 (see protocolCaptureAction).
    */
+  /** The notebook look for video notes is one class on body; every rule in styles.css waits for it. */
+  applyNotebookStyle() {
+    document.body.toggleClass("vs-notebook-style", this.settings.notebookStyle === true);
+  }
   /** Start, restart or stop the extension's local endpoint to match the settings. */
   async startExtensionBridge() {
     if (!import_obsidian28.Platform.isDesktopApp) return;
@@ -28825,9 +28834,24 @@ Suggestion: ${res.hint}`) : "";
         )
       ).onClick(async () => {
         this.plugin.settings.noteStyle = ITHACA_NOTE_STYLE;
+        this.plugin.settings.notebookStyle = true;
+        this.plugin.applyNotebookStyle();
         this.plugin.api.setAnalysisDefaults({ noteStyle: ITHACA_NOTE_STYLE });
         await this.plugin.saveSettings();
         if (styleArea) styleArea.value = ITHACA_NOTE_STYLE;
+        this.display();
+      })
+    );
+    new import_obsidian28.Setting(section3).setName(tr("Ithaca \u624B\u8D26\u5916\u89C2", "Ithaca notebook look")).setDesc(
+      tr(
+        "\u89C6\u9891\u7B14\u8BB0\u7528\u80F6\u7247\u9875\u7709\u3001\u76F8\u7247\u5899\u3001\u90AE\u6233\u3001\u4FBF\u5229\u8D34\u548C\u7EA2\u8272\u65F6\u95F4\u6233\uFF1B\u53EA\u6539\u89C6\u9891\u7B14\u8BB0\u3002\u914D Ithaca \u4E3B\u9898\u65F6\u5B57\u4F53\u548C\u7EB8\u8272\u6700\u5B8C\u6574\u3002",
+        "Video notes get a film header, a photo wall, postmarks, pinned notes and red timestamps; other notes are untouched. With the Ithaca theme the fonts and paper are complete."
+      )
+    ).addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.notebookStyle === true).onChange(async (value) => {
+        this.plugin.settings.notebookStyle = value;
+        this.plugin.applyNotebookStyle();
+        await this.plugin.saveSettings();
       })
     );
     new import_obsidian28.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(

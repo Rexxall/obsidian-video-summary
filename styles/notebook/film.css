@@ -1,0 +1,84 @@
+/* Ithaca notebook style for Video Summary notes (cssclasses: ih-film): the film header and red
+   timestamp links. Colours and fonts read the Ithaca theme's --ith-* variables when it is installed,
+   with fallbacks otherwise. Built into styles.css by tools/build-notebook-style.mjs. */
+
+/* ---------- 0. 共用：变量和图版页眉 ---------- */
+:is(.markdown-preview-view, .markdown-source-view).ih-film {
+  --ihp-label: var(--ith-label, 'Futura', 'Avenir Next', 'Helvetica Neue', Arial, sans-serif);
+  --ihp-disp: var(--ith-disp, 'Didot', 'Bodoni 72', Georgia, serif);
+  --ihp-voice: var(--ith-voice, 'Songti SC', 'Hiragino Mincho ProN', 'Noto Serif SC', serif);
+  --ihp-mono: 'SF Mono', Menlo, 'Courier New', ui-monospace, monospace;
+  --ihp-ink: var(--ith-ink, var(--text-normal));
+  --ihp-body: var(--ith-body, var(--text-normal));
+  --ihp-mute: var(--ith-mute, var(--text-muted));
+  --ihp-acc: var(--ith-acc, var(--color-red));
+  --ihp-slip: var(--ith-slip, #fbfaf6);
+  --ihp-slipink: var(--ith-slipink, #2b2620);
+  --ihp-rule: 1px dashed color-mix(in srgb, var(--ihp-ink) 22%, transparent);
+}
+
+/* 页眉：正文最上面一行 Futura 宽字距小字，和笔记顶栏的小字同一套 */
+.markdown-preview-view.ih-film:not(.ih-card) .mod-header::before,
+.markdown-source-view.ih-film .cm-sizer::before {
+  display: block;
+  font: 400 9.5px/1.6 var(--ihp-label);
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--ihp-mute);
+  margin-bottom: 16px;
+}
+
+/* 编辑模式里只剩一行注释的行（插件的管理标记 \3c !-- … -->、%% … %%）藏起来；光标停在那一行时照常显示。
+   来自 Video Summary 支线（2026-11-09），三种笔记都用。 */
+
+/* =====================================================================
+   1. Video Summary · 胶片（cssclasses: ih-film）
+   页眉下一条黑片基：两排齿孔、一格红。胶片是实物，深浅色都用黑片基。
+   时间戳链接（?t=）换成红色 Didot 斜体。其余（罗马数字小标、摘要红线、表格）全用主题的。
+   ===================================================================== */
+:is(.markdown-preview-view, .markdown-source-view).ih-film {
+  --ihf-base: #141316;
+  --ihf-frame: #2e2c31;
+  --ihf-hole: #77736d;
+}
+.theme-dark :is(.markdown-preview-view, .markdown-source-view).ih-film {
+  --ihf-base: #050506;
+  --ihf-frame: #29272c;
+  --ihf-hole: #8d867b;
+}
+.markdown-preview-view.ih-film:not(.ih-card) .mod-header::before,
+.markdown-source-view.ih-film .cm-sizer::before {
+  content: 'Video Summary';
+  padding-bottom: 40px;
+  margin-bottom: 22px;
+  /* 整幅胶片横贯正文宽度，第三格是红的（Rex 11-12：六格太短不好看，做长）*/
+  background:
+    repeating-linear-gradient(90deg, var(--ihf-hole) 0 6px, transparent 6px 12px) left 4px bottom
+      21px / calc(100% - 8px) 2px no-repeat,
+    repeating-linear-gradient(90deg, var(--ihf-hole) 0 6px, transparent 6px 12px) left 4px bottom
+      3px / calc(100% - 8px) 2px no-repeat,
+    linear-gradient(var(--ihp-acc), var(--ihp-acc)) left 80px bottom 8px / 34px 10px no-repeat,
+    repeating-linear-gradient(90deg, var(--ihf-frame) 0 34px, transparent 34px 38px) left 4px bottom
+      8px / calc(100% - 8px) 10px no-repeat,
+    linear-gradient(var(--ihf-base), var(--ihf-base)) left bottom / 100% 26px no-repeat;
+}
+
+/* 时间戳：跳到视频某一秒的链接，红色 Didot 斜体，不要外链箭头和灰底线 */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  a.external-link:is([href*='?t='], [href*='&t=']) {
+  font: italic 700 1em/1 var(--ihp-disp);
+  font-variant-numeric: lining-nums;
+  letter-spacing: -0.01em;
+  color: var(--ihp-acc);
+  background: none;
+  text-decoration: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  a.external-link:is([href*='?t='], [href*='&t='])::after {
+  content: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  a.external-link:is([href*='?t='], [href*='&t=']):hover {
+  text-decoration: underline 1px;
+  text-underline-offset: 3px;
+}

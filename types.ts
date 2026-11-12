@@ -288,6 +288,8 @@ export interface VideoSummarySettings {
   extensionBridgeEnabled: boolean;
   extensionBridgePort: number;
   extensionBridgeToken: string;
+  /** Draw video notes (cssclass ih-film) in the Ithaca notebook style that ships in styles.css. */
+  notebookStyle: boolean;
 
   // 处理配置
   defaultLanguage: 'zh' | 'en' | 'ja';

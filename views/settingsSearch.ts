@@ -16,6 +16,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   '④ Bilibili login (optional)',
   '模型',
   '浏览器扩展',
+  'Ithaca 手账外观',
+  'Ithaca notebook look',
   'Browser extension',
   '后台接收，不切到 Obsidian',
   'Receive in the background',

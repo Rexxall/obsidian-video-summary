@@ -106,6 +106,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   extensionBridgeEnabled: false,
   extensionBridgePort: 27183,
   extensionBridgeToken: '',
+  notebookStyle: false,
   n8nWebhookUrl: DEFAULT_N8N_WEBHOOK_URL,
   webhookProfiles: [
     {

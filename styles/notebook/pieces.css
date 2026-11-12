@@ -1,0 +1,940 @@
+/* Ithaca notebook pieces in Video Summary notes: photo wall, round sticker, postmark, barcode,
+   timeline cards, pinned notes, chat bubbles, hand-drawn arrow and a row of receipts. Same rules as
+   the Ithaca notebook kit, limited to video notes. Built into styles.css by
+   tools/build-notebook-style.mjs. */
+
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) {
+  --ihx-acc: var(--ith-acc, var(--color-red));
+  --ihx-ink: var(--ith-ink, var(--text-normal));
+  --ihx-mute: var(--ith-mute, var(--text-muted));
+  --ihx-bg: var(--ith-bg, var(--background-primary));
+  --ihx-slip: var(--ith-slip, #fbfaf6);
+  --ihx-slipink: var(--ith-slipink, #2b2620);
+  --ihx-hand: var(--ith-hand, 'HanziPen SC', 'Kaiti SC', cursive);
+  --ihx-voice: var(--ith-voice, 'Songti SC', 'Hiragino Mincho ProN', serif);
+  --ihx-disp: var(--ith-disp, 'Didot', 'Bodoni 72', Georgia, serif);
+  --ihx-label: var(--ith-label, 'Futura', 'Avenir Next', sans-serif);
+  --ihx-mono: 'SF Mono', Menlo, 'Courier New', monospace;
+  --ihx-shadow: rgb(0 0 0 / 0.24);
+}
+
+/* 几种 callout 共用：不要主题给的纸片底、阴影、旋转，只当一个容器 */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is(
+    [data-callout='photos'],
+    [data-callout='timeline'],
+    [data-callout='pinned'],
+    [data-callout='chat']
+  ) {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  border: 0;
+  border-radius: 0;
+  padding: 4px 0 8px;
+  margin: 1.6em 0;
+  color: var(--ihx-ink);
+  overflow: visible;
+  mix-blend-mode: normal;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is(
+    [data-callout='photos'],
+    [data-callout='timeline'],
+    [data-callout='pinned'],
+    [data-callout='chat']
+  )::before {
+  content: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is(
+    [data-callout='photos'],
+    [data-callout='timeline'],
+    [data-callout='pinned'],
+    [data-callout='chat']
+  )
+  .callout-content {
+  padding: 0;
+  overflow: visible;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is(
+    [data-callout='photos'],
+    [data-callout='timeline'],
+    [data-callout='pinned'],
+    [data-callout='chat']
+  )
+  .callout-content
+  > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is(
+    [data-callout='photos'],
+    [data-callout='timeline'],
+    [data-callout='pinned'],
+    [data-callout='chat']
+  )
+  .callout-content
+  > ul
+  > li {
+  margin: 0;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is(
+    [data-callout='photos'],
+    [data-callout='timeline'],
+    [data-callout='pinned'],
+    [data-callout='chat']
+  )
+  .callout-content
+  > ul
+  > li::marker {
+  content: '';
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is(
+    [data-callout='photos'],
+    [data-callout='timeline'],
+    [data-callout='pinned'],
+    [data-callout='chat']
+  )
+  .callout-content
+  > ul
+  > li
+  > :is(.list-bullet, .list-collapse-indicator) {
+  display: none;
+}
+/* 标题：写了就当小标签居中，例如“> [!timeline] 三个阶段”；相片墙和便利贴不显示标题 */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is([data-callout='timeline'], [data-callout='chat'])
+  .callout-title {
+  justify-content: center;
+  margin-bottom: 12px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is([data-callout='timeline'], [data-callout='chat'])
+  .callout-title-inner {
+  font: 400 9.5px/1.6 var(--ihx-label);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ihx-mute);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout:is([data-callout='photos'], [data-callout='pinned'])
+  > .callout-title {
+  display: none;
+}
+
+/* ---------- 1. 相片墙：> [!photos]，每张一行 “- ![](图) 说明” ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  .callout-content
+  > ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 20px 14px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  .callout-content
+  > ul
+  > li {
+  position: relative;
+  flex: 0 1 178px;
+  box-sizing: border-box;
+  background: #f4efe6;
+  color: #3b362f;
+  padding: 8px 8px 7px;
+  box-shadow: 0 9px 16px var(--ihx-shadow);
+  transform: rotate(-2.5deg);
+  font: 14px/1.3 var(--ihx-hand);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  .callout-content
+  > ul
+  > li:nth-child(even) {
+  transform: rotate(2deg);
+  margin-top: 14px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  .callout-content
+  > ul
+  > li:nth-child(3n) {
+  transform: rotate(-0.8deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  .callout-content
+  > ul
+  > li:only-child {
+  flex-basis: 420px;
+  transform: rotate(-1.2deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  li
+  .internal-embed {
+  display: block;
+  margin: 0;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  li
+  img {
+  display: block;
+  width: 100%;
+  max-width: none;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  margin: 0 0 6px;
+  border-radius: 0;
+  box-shadow: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='photos']
+  li
+  a.external-link::after {
+  content: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .callout[data-callout='photos'] li a {
+  color: inherit;
+  background: none;
+}
+
+/* ---------- 2. 圆贴纸：<span class="ih-sticker">值得看</span>，贴在所在段落右边；is-red 红底白字 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-sticker {
+  float: right;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 66px;
+  height: 66px;
+  margin: -2px 0 10px 16px;
+  padding: 9px;
+  border-radius: 50%;
+  background: var(--ihx-slip);
+  color: var(--ihx-slipink);
+  font: 400 12.5px/1.15 var(--ihx-hand);
+  text-align: center;
+  box-shadow:
+    inset 0 0 0 2px var(--ihx-slip),
+    inset 0 0 0 3.5px var(--ihx-acc),
+    0 5px 10px var(--ihx-shadow);
+  transform: rotate(-10deg);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-sticker.is-red {
+  background: var(--ihx-acc);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 2px var(--ihx-acc),
+    inset 0 0 0 3.5px rgb(255 255 255 / 0.6),
+    0 5px 10px var(--ihx-shadow);
+}
+
+/* ---------- 3. 邮戳：<span class="ih-postmark">频道名<br>2026.11.11</span>，贴在所在段落右边 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-postmark {
+  float: right;
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 92px;
+  height: 92px;
+  margin: -4px 30px 10px 14px;
+  padding: 14px 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ihx-acc);
+  box-shadow:
+    inset 0 0 0 4px var(--ihx-bg),
+    inset 0 0 0 5.5px var(--ihx-acc);
+  color: var(--ihx-acc);
+  font: 500 8.5px/1.4 var(--ihx-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0.75;
+  transform: rotate(-8deg);
+  overflow-wrap: anywhere;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-postmark::after {
+  content: '';
+  position: absolute;
+  left: 88px;
+  top: 30px;
+  width: 34px;
+  height: 30px;
+  background: repeating-linear-gradient(0deg, var(--ihx-acc) 0 1.5px, transparent 1.5px 7px);
+}
+
+/* ---------- 4. 条码：<span class="ih-barcode">14:38 · h7YTPuEMgaE</span>，放文末，靠右，给页尾的 R. 签名让出位置 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-barcode {
+  display: block;
+  width: fit-content;
+  max-width: 70%;
+  margin: 2.4em 76px 0.4em auto;
+  padding: 8px 12px 6px;
+  background: var(--ihx-slip);
+  color: var(--ihx-slipink);
+  font: 10px/1.4 var(--ihx-mono);
+  letter-spacing: 0.2em;
+  text-align: center;
+  box-shadow: 0 4px 10px var(--ihx-shadow);
+  transform: rotate(1.5deg);
+  overflow-wrap: anywhere;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-barcode::before {
+  content: '';
+  display: block;
+  width: 124px;
+  height: 30px;
+  margin: 0 auto 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0 2px,
+    transparent 2px 4px,
+    currentColor 4px 5px,
+    transparent 5px 8px,
+    currentColor 8px 11px,
+    transparent 11px 13px,
+    currentColor 13px 14px,
+    transparent 14px 17px
+  );
+}
+
+/* ---------- 5. 交错纸卡：> [!timeline] 标题，每张一行 “- **1776** 说明” ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 6px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  border-left: 1.5px dashed color-mix(in srgb, var(--ihx-mute) 70%, transparent);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul
+  > li {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: calc(50% - 26px);
+  background: var(--ihx-slip);
+  color: var(--ihx-slipink);
+  padding: 10px 15px 11px;
+  margin: 0 0 -4px;
+  font: 15px/1.55 var(--ihx-voice);
+  box-shadow: 0 8px 16px var(--ihx-shadow);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul
+  > li:nth-child(odd) {
+  align-self: flex-start;
+  transform: rotate(-1deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul
+  > li:nth-child(even) {
+  align-self: flex-end;
+  transform: rotate(1deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul
+  > li::after {
+  content: '';
+  position: absolute;
+  top: 15px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ihx-mute);
+  box-shadow: 0 0 0 3px var(--ihx-bg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul
+  > li:nth-child(odd)::after {
+  right: -31px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  .callout-content
+  > ul
+  > li:nth-child(even)::after {
+  left: -31px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  li
+  > :is(strong:first-child, .list-bullet + strong) {
+  display: block;
+  font: italic 400 15px/1.25 var(--ihx-disp);
+  color: var(--ihx-acc);
+  margin-bottom: 3px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='timeline']
+  li
+  a.internal-link {
+  color: inherit;
+}
+
+/* ---------- 6a. 图钉便利贴：> [!pinned]，每张一行 “- 想法”；不写列表就是一张 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  .callout-content
+  > ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px 26px;
+  align-items: stretch;
+  padding: 10px 0 0;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  .callout-content
+  > ul
+  > li {
+  position: relative;
+  box-sizing: border-box;
+  background: #f2d36b;
+  color: #2b2620;
+  font: 15.5px/1.5 var(--ihx-hand);
+  padding: 22px 16px 14px;
+  box-shadow: 0 10px 18px rgb(0 0 0 / 0.3);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  .callout-content
+  > ul
+  > li {
+  min-height: 104px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  text-wrap: balance;
+  transform: rotate(-1.6deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  .callout-content
+  > ul
+  > li:nth-child(even) {
+  transform: rotate(1.4deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  .callout-content
+  > ul
+  > li:nth-child(3n + 2) {
+  background: #f4efe6;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  .callout-content
+  > ul
+  > li:nth-child(3n) {
+  background: #eba395;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  .callout-content
+  > ul
+  > li::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  border-radius: 50%;
+  z-index: 2;
+  background: radial-gradient(circle at 35% 35%, #ff8a7a, #b7261a 60%, #5b0f08);
+  box-shadow: 0 3px 4px rgb(0 0 0 / 0.5);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='pinned']
+  :is(p, li) {
+  color: inherit;
+}
+
+/* ---------- 6b. 泛黄旧纸条：> [!old] 1776 年 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .callout[data-callout='old'] {
+  background: #e9dcc0;
+  color: #4a3f2c;
+  border: 1px dashed rgb(90 70 40 / 0.35);
+  border-radius: 0;
+  padding: 26px 20px 14px;
+  margin: 1.6em 6px;
+  max-width: 560px;
+  font: 15px/1.65 var(--ihx-voice);
+  box-shadow: 0 8px 14px var(--ihx-shadow);
+  transform: rotate(-1.2deg);
+  filter: sepia(0.15);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .callout[data-callout='old']::before {
+  content: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='old']
+  .callout-title {
+  position: absolute;
+  left: 18px;
+  top: 9px;
+  margin: 0;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='old']
+  .callout-title-inner {
+  font: 700 9.5px/1 var(--ihx-label);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #9a6b2f;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='old']
+  :is(p, li, strong) {
+  color: inherit;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='old']
+  a.internal-link {
+  color: #9a6b2f;
+}
+
+/* ---------- 7. 对话气泡：> [!chat] 标题，每句一行 “- **主持人：** 话”；单数行在左（提问的一方），双数行在右 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  .callout-content
+  > ul {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  .callout-content
+  > ul
+  > li {
+  position: relative;
+  box-sizing: border-box;
+  max-width: 78%;
+  padding: 8px 13px 9px;
+  border-radius: 8px;
+  font:
+    14.5px/1.55 -apple-system,
+    'PingFang SC',
+    'Hiragino Sans',
+    sans-serif;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.14);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  .callout-content
+  > ul
+  > li:nth-child(odd) {
+  align-self: flex-start;
+  margin-left: 8px;
+  background: #fff;
+  color: #111;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  .callout-content
+  > ul
+  > li:nth-child(even) {
+  align-self: flex-end;
+  margin-right: 8px;
+  background: #95ec69;
+  color: #111;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  .callout-content
+  > ul
+  > li::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  border: 6px solid transparent;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  .callout-content
+  > ul
+  > li:nth-child(odd)::after {
+  left: -11px;
+  border-right-color: #fff;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  .callout-content
+  > ul
+  > li:nth-child(even)::after {
+  right: -11px;
+  border-left-color: #95ec69;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  li
+  > :is(strong:first-child, .list-bullet + strong) {
+  font-weight: 600;
+  color: #576b95;
+  margin-right: 2px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  li
+  :is(strong, a) {
+  color: inherit;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='chat']
+  li
+  a.external-link {
+  color: #576b95;
+}
+
+/* ---------- 8. 手绘箭头：单独一行 <span class="ih-arrow">导致</span>，把上下两块连起来 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-arrow {
+  display: block;
+  position: relative;
+  width: fit-content;
+  min-height: 48px;
+  margin: -2px auto;
+  padding: 14px 0 0 46px;
+  box-sizing: border-box;
+  font: 14px/1.3 var(--ihx-hand);
+  color: var(--ihx-mute);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-arrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 48px;
+  background: color-mix(in srgb, var(--ihx-ink) 75%, transparent);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 48' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M22 3c-10 6-11 15-3 21 7 6 6 13-2 20'/><path d='M10 37l7 8 6-9'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 48' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M22 3c-10 6-11 15-3 21 7 6 6 13-2 20'/><path d='M10 37l7 8 6-9'/></svg>")
+    center / contain no-repeat;
+}
+
+/* ---------- 9. 外链图片也能当相片：![照片 right 说明|260](https://…) ----------
+   主题的相片只认库内图片 ![[图.jpg|照片 …]]（Obsidian 给它包一层 .image-embed，说明写在那层上）。
+   外链图片是光秃秃的一个 <img>，这里直接给它白边、阴影、斜贴；right / left 照样靠边。
+   外链图片没有外层，CSS 写不出相片下边的手写说明，说明写进图片下面一行正文。
+   编辑时（实时预览）只有白边和阴影，不靠边浮动，免得压住正在编辑的那一行。 */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  :is(p, li)
+  > img:is([alt~='照片'], [alt~='photo']),
+.markdown-source-view .cm-content img:is([alt~='照片'], [alt~='photo']) {
+  display: inline-block;
+  box-sizing: content-box;
+  height: auto;
+  background: #fff;
+  padding: 8px 8px 22px;
+  margin: 10px 14px 6px 0;
+  max-width: 46%;
+  border-radius: 0;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.3);
+  transform: rotate(-2deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  :is(p, li)
+  > img:is([alt~='照片'], [alt~='photo'])[alt~='right'] {
+  float: right;
+  margin: 6px 0 10px 18px;
+  transform: rotate(2deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  :is(p, li)
+  > img:is([alt~='照片'], [alt~='photo'])[alt~='left'] {
+  float: left;
+  margin: 6px 18px 10px 0;
+}
+
+/* ---------- 编辑时（实时预览）：浮在右边的两件改成行内，免得压住正在编辑的那一行 ---------- */
+.markdown-source-view.ih-film .markdown-rendered .ih-sticker,
+.markdown-source-view.ih-film .cm-line .ih-sticker,
+.markdown-source-view.ih-film .markdown-rendered .ih-postmark,
+.markdown-source-view.ih-film .cm-line .ih-postmark {
+  float: none;
+  display: inline-grid;
+  vertical-align: middle;
+  margin: 4px 30px 4px 0;
+}
+.markdown-source-view.ih-film .cm-line :is(.ih-sticker, .ih-postmark, .ih-barcode, .ih-arrow) {
+  --ihx-acc: var(--ith-acc, var(--color-red));
+  --ihx-ink: var(--ith-ink, var(--text-normal));
+  --ihx-mute: var(--ith-mute, var(--text-muted));
+  --ihx-bg: var(--ith-bg, var(--background-primary));
+  --ihx-slip: var(--ith-slip, #fbfaf6);
+  --ihx-slipink: var(--ith-slipink, #2b2620);
+  --ihx-hand: var(--ith-hand, 'HanziPen SC', cursive);
+  --ihx-label: var(--ith-label, 'Futura', sans-serif);
+  --ihx-mono: 'SF Mono', Menlo, monospace;
+  --ihx-shadow: rgb(0 0 0 / 0.24);
+}
+.markdown-source-view.ih-film .cm-line .ih-sticker {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 56px;
+  height: 56px;
+  padding: 7px;
+  border-radius: 50%;
+  background: var(--ihx-slip);
+  color: var(--ihx-slipink);
+  font: 11px/1.15 var(--ihx-hand);
+  text-align: center;
+  vertical-align: middle;
+  box-shadow:
+    inset 0 0 0 2px var(--ihx-slip),
+    inset 0 0 0 3.5px var(--ihx-acc);
+  overflow: hidden;
+}
+.markdown-source-view.ih-film .cm-line .ih-sticker.is-red {
+  background: var(--ihx-acc);
+  color: #fff;
+}
+.markdown-source-view.ih-film .cm-line .ih-postmark {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 76px;
+  height: 76px;
+  padding: 10px 7px;
+  border-radius: 50%;
+  vertical-align: middle;
+  border: 1.5px solid var(--ihx-acc);
+  color: var(--ihx-acc);
+  font: 500 8px/1.35 var(--ihx-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0.8;
+}
+.markdown-source-view.ih-film .cm-line .ih-barcode {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--ihx-slip);
+  color: var(--ihx-slipink);
+  font: 10px/1.6 var(--ihx-mono);
+  letter-spacing: 0.2em;
+}
+.markdown-source-view.ih-film .cm-line .ih-arrow {
+  font-family: var(--ihx-hand);
+  color: var(--ihx-mute);
+}
+.markdown-source-view.ih-film .cm-line .ih-arrow::before {
+  content: '↓ ';
+  color: var(--ihx-acc);
+}
+
+/* ---------- 10. 一排收据：> [!receipts] 里套几张 > > [!receipt]，大屏横排两三张 ---------- */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .callout[data-callout='receipts'] {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  border: 0;
+  border-radius: 0;
+  padding: 4px 0 8px;
+  margin: 1.6em 0;
+  overflow: visible;
+  mix-blend-mode: normal;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']::before {
+  content: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-title {
+  display: none;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 22px 26px;
+  align-items: stretch;
+  padding: 0;
+  overflow: visible;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-content
+  > .callout[data-callout='receipt'] {
+  max-width: none;
+  margin: 0;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-content
+  > .callout[data-callout='receipt']:nth-child(3n + 2) {
+  transform: rotate(0.5deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-content
+  > .callout[data-callout='receipt']:nth-child(3n) {
+  transform: rotate(-0.2deg);
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-content
+  > :not(.callout) {
+  grid-column: 1 / -1;
+}
+/* 一排里的小票不各带条码，文末那条就够了 */
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-content
+  > .callout[data-callout='receipt'] {
+  padding-bottom: 22px;
+}
+:is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+  .callout[data-callout='receipts']
+  > .callout-content
+  > .callout[data-callout='receipt']
+  .callout-content::after {
+  content: none;
+}
+
+/* ---------- 窄栏和手机：相片两张一行，纸卡变成一列，气泡放宽 ---------- */
+@media (max-width: 640px) {
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='photos']
+    .callout-content
+    > ul
+    > li {
+    flex-basis: calc(50% - 8px);
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='photos']
+    .callout-content
+    > ul
+    > li:only-child {
+    flex-basis: 100%;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='timeline']
+    .callout-content
+    > ul::before {
+    left: 6px;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='timeline']
+    .callout-content
+    > ul
+    > li {
+    width: calc(100% - 26px);
+    align-self: flex-end;
+    margin-bottom: 10px;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='timeline']
+    .callout-content
+    > ul
+    > li::after {
+    left: -25px;
+    right: auto;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='chat']
+    .callout-content
+    > ul
+    > li {
+    max-width: 88%;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='pinned']
+    .callout-content
+    > ul {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px 12px;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='pinned']
+    .callout-content
+    > ul
+    > li {
+    min-height: 0;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-postmark {
+    width: 78px;
+    height: 78px;
+    margin-right: 26px;
+    padding: 11px 7px;
+    font-size: 8px;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-postmark::after {
+    left: 74px;
+    width: 24px;
+  }
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .ih-sticker {
+    width: 58px;
+    height: 58px;
+    font-size: 11.5px;
+  }
+}
+
+/* ---------- 减少动态效果：纸张不歪 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    :is(.ih-sticker, .ih-postmark, .ih-barcode),
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout:is([data-callout='photos'], [data-callout='timeline'], [data-callout='pinned'])
+    .callout-content
+    > ul
+    > li,
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='receipts']
+    > .callout-content
+    > .callout,
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    .callout[data-callout='pinned']
+    .callout-content,
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered) .callout[data-callout='old'],
+  :is(.markdown-rendered.ih-film, .ih-film .markdown-rendered)
+    :is(p, li)
+    > img:is([alt~='照片'], [alt~='photo']),
+  .markdown-source-view .cm-content img:is([alt~='照片'], [alt~='photo']) {
+    transform: none;
+  }
+}
