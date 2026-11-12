@@ -99,7 +99,9 @@ export class VideoSummaryView extends ItemView {
         const path = this.app.workspace.getActiveFile()?.path ?? '';
         if (path === this.lastActiveFilePath) return;
         this.lastActiveFilePath = path;
-        this.renderAll();
+        // Only the current-note card follows the open note; the lists below do not, and
+        // rebuilding a library of hundreds of notes on every switch made opening notes stutter.
+        this.scheduleHeaderRender();
       }),
     );
 
@@ -196,6 +198,19 @@ export class VideoSummaryView extends ItemView {
     this.actionHeaderEl.empty();
     renderActionBar(this.actionHeaderEl, this.context());
     this.renderPanels();
+  }
+
+  private headerQueued = false;
+
+  private scheduleHeaderRender() {
+    if (this.headerQueued) return;
+    this.headerQueued = true;
+    window.requestAnimationFrame(() => {
+      this.headerQueued = false;
+      if (!this.actionHeaderEl) return;
+      this.actionHeaderEl.empty();
+      renderActionBar(this.actionHeaderEl, this.context());
+    });
   }
 
   private schedulePanelRender() {

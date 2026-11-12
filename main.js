@@ -15770,6 +15770,7 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
     this.lastActiveFilePath = "";
     this.backend = "is-unknown";
     this.panelCleanup = [];
+    this.headerQueued = false;
     this.plugin = plugin;
     this.state = {
       inputDraft: "",
@@ -15827,7 +15828,7 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
         const path = this.app.workspace.getActiveFile()?.path ?? "";
         if (path === this.lastActiveFilePath) return;
         this.lastActiveFilePath = path;
-        this.renderAll();
+        this.scheduleHeaderRender();
       })
     );
     this.tickTimer = window.setInterval(() => {
@@ -15908,6 +15909,16 @@ var VideoSummaryView = class extends import_obsidian16.ItemView {
     this.actionHeaderEl.empty();
     renderActionBar(this.actionHeaderEl, this.context());
     this.renderPanels();
+  }
+  scheduleHeaderRender() {
+    if (this.headerQueued) return;
+    this.headerQueued = true;
+    window.requestAnimationFrame(() => {
+      this.headerQueued = false;
+      if (!this.actionHeaderEl) return;
+      this.actionHeaderEl.empty();
+      renderActionBar(this.actionHeaderEl, this.context());
+    });
   }
   schedulePanelRender() {
     if (this.renderQueued) return;
