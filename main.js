@@ -13269,7 +13269,8 @@ function linkWantsPageCapture(input, liteReady, mode = "summary") {
   if (!liteReady || mode === "info-only") return false;
   if (input.transcript?.trim() || input.localFile || input.localFiles?.length) return false;
   if (input.skipSourceFetch || input.persistedSegments?.length) return false;
-  return !!youTubeVideoId(input.url);
+  if (youTubeVideoId(input.url)) return true;
+  return /^https?:\/\/(www\.|m\.)?bilibili\.com\/video\/(BV|av)/i.test(input.url || "");
 }
 function captureShortcut(isMac) {
   return isMac ? "\u2318\u21E7S" : "Ctrl+Shift+S";
@@ -20180,8 +20181,8 @@ ${buildInsertionContent(result)}`
     this.plugin.jobs.setHeld(true);
     new import_obsidian20.Notice(
       tr(
-        "\u8FD9\u6761\u8981\u5B8C\u6574\u6863\uFF1A\u53EA\u6709\u94FE\u63A5\u6216\u672C\u5730\u6587\u4EF6\u65F6\uFF0C\u7531\u540E\u7AEF\u4E0B\u8F7D\u5E76\u8F6C\u5199\u3002\u88C5\u597D\u540E\u7AEF\u540E\u5B83\u4F1A\u81EA\u52A8\u5F00\u59CB\u3002\n\u4E0D\u88C5\u540E\u7AEF\uFF1A\u5728 YouTube \u9875\u9762\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u53D1\u9001\uFF0C\u6216\u8D34\u6587\u7A3F\u3002",
-        "This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube page with the browser extension, or paste a transcript."
+        "\u8FD9\u6761\u8981\u5B8C\u6574\u6863\uFF1A\u53EA\u6709\u94FE\u63A5\u6216\u672C\u5730\u6587\u4EF6\u65F6\uFF0C\u7531\u540E\u7AEF\u4E0B\u8F7D\u5E76\u8F6C\u5199\u3002\u88C5\u597D\u540E\u7AEF\u540E\u5B83\u4F1A\u81EA\u52A8\u5F00\u59CB\u3002\n\u4E0D\u88C5\u540E\u7AEF\uFF1A\u5728 YouTube \u6216 B \u7AD9\u7684\u89C6\u9891\u9875\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u53D1\u9001\uFF0C\u6216\u8D34\u6587\u7A3F\u3002",
+        "This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube or Bilibili page with the browser extension, or paste a transcript."
       ),
       12e3
     );
@@ -20808,8 +20809,8 @@ var BackendControl = class {
       box.createDiv({
         cls: "vs-backend-notice-step",
         text: tr(
-          `\u4E0D\u7528\u540E\u7AEF\uFF1A\u5728 YouTube \u89C6\u9891\u9875\u6309 ${keys}\uFF0C\u6269\u5C55\u4F1A\u5E26\u4E0A\u5B57\u5E55\uFF0C\u8D70\u8F7B\u91CF\u6863\u3002`,
-          `No backend needed: press ${keys} on the YouTube page; the extension sends the captions and the light tier writes the note.`
+          `\u4E0D\u7528\u540E\u7AEF\uFF1A\u5728 YouTube \u6216 B \u7AD9\u7684\u89C6\u9891\u9875\u6309 ${keys}\uFF0C\u6269\u5C55\u4F1A\u5E26\u4E0A\u5B57\u5E55\uFF0C\u8D70\u8F7B\u91CF\u6863\u3002`,
+          `No backend needed: press ${keys} on the YouTube or Bilibili page; the extension sends the captions and the light tier writes the note.`
         )
       });
     }

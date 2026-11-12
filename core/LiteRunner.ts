@@ -62,7 +62,9 @@ export function linkWantsPageCapture(
   if (!liteReady || mode === 'info-only') return false;
   if (input.transcript?.trim() || input.localFile || input.localFiles?.length) return false;
   if (input.skipSourceFetch || input.persistedSegments?.length) return false;
-  return !!youTubeVideoId(input.url);
+  if (youTubeVideoId(input.url)) return true;
+  // A Bilibili video page: the extension reads its subtitles there too.
+  return /^https?:\/\/(www\.|m\.)?bilibili\.com\/video\/(BV|av)/i.test(input.url || '');
 }
 
 /** The extension's shortcut as this computer writes it. */

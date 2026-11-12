@@ -321,6 +321,125 @@ function youTubeVideoId(url) {
   }
 }
 
+/**
+ * The subtitles of the Bilibili video in this tab, read the way its player reads them: the
+ * player API lists the tracks (AI subtitles only for a signed-in viewer), then the chosen
+ * track's JSON. Runs in the page, so the page's own sign-in is used and nothing else is sent.
+ * The cues come back in YouTube's json3 shape, so one formatter serves both.
+ */
+async function readBilibiliSubtitles() {
+  const started = Date.now();
+  const state = window.__INITIAL_STATE__ || {};
+  const video = state.videoData || {};
+  const pages = Array.isArray(video.pages) ? video.pages : [];
+  const part = Number(new URLSearchParams(location.search).get('p')) || Number(state.p) || 1;
+  const page = pages.find((item) => item.page === part) || pages[0] || {};
+  const cid = page.cid || video.cid;
+  if (!video.bvid || !cid) return { ok: false, reason: 'no-player' };
+  const duration = Number(page.duration || video.duration) || 0;
+  const machine = (track) => String(track.lan || '').startsWith('ai-');
+  // The older player API (x/player/v2) now and then lists another video's subtitles; the
+  // signed one does not. A track that runs well past the video's length is still put back.
+  let body = [];
+  let track = null;
+  for (let attempt = 0; attempt < 3 && body.length === 0; attempt += 1) {
+    let info;
+    try {
+      const reply = await fetch(
+        `https://api.bilibili.com/x/player/wbi/v2?bvid=${encodeURIComponent(video.bvid)}&cid=${encodeURIComponent(cid)}`,
+        { credentials: 'include' },
+      );
+      info = await reply.json();
+    } catch {
+      return { ok: false, reason: 'failed' };
+    }
+    const tracks = (info && info.data && info.data.subtitle && info.data.subtitle.subtitles) || [];
+    if (tracks.length === 0) {
+      return {
+        ok: false,
+        reason: info && info.data && info.data.login_mid ? 'no-captions' : 'signed-out',
+      };
+    }
+    // Subtitles a person uploaded first, then the AI ones recognised from the audio
+    // (ai_type 0), not the AI translations.
+    track =
+      tracks.find((item) => !machine(item)) ||
+      tracks.find((item) => machine(item) && !item.ai_type) ||
+      tracks[0];
+    let url = String(track.subtitle_url || '');
+    if (url.startsWith('//')) url = `https:${url}`;
+    if (url.startsWith('http:')) url = `https:${url.slice(5)}`;
+    try {
+      const data = await (await fetch(url)).json();
+      body = Array.isArray(data && data.body) ? data.body : [];
+    } catch {
+      return { ok: false, reason: 'failed' };
+    }
+    const last = body.length ? Number(body[body.length - 1].to) : 0;
+    if (duration && last > duration + 15) body = [];
+  }
+  if (body.length === 0) return { ok: false, reason: 'empty' };
+  const events = body.map((cue) => ({
+    tStartMs: Math.round(Number(cue.from) * 1000),
+    dDurationMs: Math.round((Number(cue.to) - Number(cue.from)) * 1000),
+    segs: [{ utf8: String(cue.content || '') }],
+  }));
+  let cover = String(video.pic || '');
+  if (cover.startsWith('//')) cover = `https:${cover}`;
+  if (cover.startsWith('http:')) cover = `https:${cover.slice(5)}`;
+  return {
+    ok: true,
+    json3: JSON.stringify({ events }),
+    lang: String(track.lan || ''),
+    kind: machine(track) ? 'asr' : '',
+    author: (video.owner && video.owner.name) || '',
+    lengthSeconds: duration,
+    cover,
+    ms: Date.now() - started,
+  };
+}
+
+function bilibiliVideoId(url) {
+  try {
+    const parsed = new URL(url);
+    if (!/(^|\.)bilibili\.com$/.test(parsed.hostname)) return null;
+    const match = parsed.pathname.match(/^\/video\/(BV[0-9A-Za-z]+|av\d+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The transcript of the Bilibili video in this tab; '' when there is none. */
+async function getBilibiliTranscript(tab) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      func: readBilibiliSubtitles,
+    });
+    const result = results && results[0] ? results[0].result : null;
+    if (!result || !result.ok) return { transcript: '', reason: result?.reason || 'failed' };
+    const transcript = U.captionTranscriptFromJson3(result.json3);
+    const video = {
+      videoAuthor: result.author || '',
+      videoDuration: result.lengthSeconds ? U.durationString(result.lengthSeconds) : '',
+      ...(result.cover ? { videoCover: result.cover } : {}),
+    };
+    return transcript
+      ? { transcript, video, lang: result.lang, kind: result.kind, ms: result.ms }
+      : { transcript: '', reason: 'empty' };
+  } catch {
+    return { transcript: '', reason: 'failed' };
+  }
+}
+
+/** The transcript of the video in this tab (YouTube or Bilibili); '' when there is none. */
+async function getPageTranscript(tab) {
+  if (tab?.id && bilibiliVideoId(tab.url || '')) return getBilibiliTranscript(tab);
+  return getYouTubeTranscript(tab);
+}
+
 /** The transcript of the YouTube video in this tab, from its player; '' when there is none. */
 async function getYouTubeTranscript(tab) {
   const videoId = youTubeVideoId(tab?.url || '');
@@ -596,7 +715,7 @@ async function transferMany(items, operation) {
       ) {
         const tab = await getCurrentTab();
         if (tab?.url && tab.url === item.sourceTabUrl) {
-          const captions = await getYouTubeTranscript(tab);
+          const captions = await getPageTranscript(tab);
           if (captions.transcript) {
             item = { ...item, transcript: captions.transcript, ...captions.video };
           }
@@ -766,7 +885,7 @@ async function runQuickAction(tab) {
   const capture = await getCurrentTabCapture();
   if (!capture) throw new Error('No current tab to capture.');
   if (settings.sendCaptions !== false && CAPTION_OPERATIONS.includes(settings.quickAction)) {
-    const captions = await getYouTubeTranscript(tab);
+    const captions = await getPageTranscript(tab);
     if (captions.transcript)
       Object.assign(capture, { transcript: captions.transcript }, captions.video);
   }

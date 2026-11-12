@@ -3,7 +3,7 @@
     "message": "Video Summary Capture"
   },
   "extDescription": {
-    "message": "YouTube の動画で ⌘⇧S を押すと、字幕とリンクが Obsidian の保管庫に届き、Video Summary プラグインがノートにまとめます。"
+    "message": "YouTube や Bilibili の動画で ⌘⇧S を押すと、字幕とリンクが Obsidian の保管庫に届き、Video Summary プラグインがノートにまとめます。"
   },
   "cmdCapture": {
     "message": "表示中の動画を送る"
@@ -204,7 +204,7 @@
     "message": "キューに追加"
   },
   "settingCaptions": {
-    "message": "YouTube の字幕も送る"
+    "message": "字幕も送る（YouTube・Bilibili）"
   },
   "settingVault": {
     "message": "保管庫"

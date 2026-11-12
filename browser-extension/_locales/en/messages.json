@@ -3,7 +3,7 @@
     "message": "Video Summary Capture"
   },
   "extDescription": {
-    "message": "Press ⌘⇧S on a YouTube video: its captions go to your Obsidian vault, where Video Summary writes the note."
+    "message": "Press ⌘⇧S on a YouTube or Bilibili video: its captions go to your Obsidian vault, where Video Summary writes the note."
   },
   "cmdCapture": {
     "message": "Capture the current video"
@@ -204,7 +204,7 @@
     "message": "Add to queue"
   },
   "settingCaptions": {
-    "message": "Send YouTube captions"
+    "message": "Send captions (YouTube, Bilibili)"
   },
   "settingVault": {
     "message": "Vault"

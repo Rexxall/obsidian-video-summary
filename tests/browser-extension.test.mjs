@@ -390,3 +390,66 @@ test('the extension asks for site access only for a backend on another computer'
   );
   assert.equal(U.backendOriginPattern('not a url'), null);
 });
+
+test('Bilibili subtitles come from the signed player API, and a track longer than the video is fetched again', async () => {
+  const source = readFileSync(new URL('background.js', dir), 'utf8');
+  const start = source.indexOf('async function readBilibiliSubtitles');
+  const end = source.indexOf('function bilibiliVideoId');
+  const asked = [];
+  let served = 0;
+  const cues = (n, last) =>
+    Array.from({ length: n }, (_, i) => ({
+      from: (i * last) / n,
+      to: ((i + 1) * last) / n,
+      content: `line ${i}`,
+    }));
+  const context = vm.createContext({
+    URLSearchParams,
+    location: { search: '?p=2' },
+    window: {
+      __INITIAL_STATE__: {
+        videoData: {
+          bvid: 'BV1Jgf6YvE8e',
+          pic: 'http://i0.hdslb.com/cover.jpg',
+          owner: { name: 'up' },
+          pages: [
+            { page: 1, cid: 11, duration: 100 },
+            { page: 2, cid: 22, duration: 300 },
+          ],
+        },
+      },
+    },
+    fetch: async (url) => {
+      asked.push(String(url));
+      if (String(url).includes('/x/player/')) {
+        return {
+          json: async () => ({
+            data: {
+              login_mid: 1,
+              subtitle: {
+                subtitles: [
+                  { lan: 'ai-en', ai_type: 1, subtitle_url: '//sub/translated.json' },
+                  { lan: 'ai-zh', ai_type: 0, subtitle_url: '//sub/zh.json' },
+                ],
+              },
+            },
+          }),
+        };
+      }
+      served += 1;
+      // The first answer is another video's track, far longer than this part.
+      return { json: async () => ({ body: served === 1 ? cues(5, 900) : cues(4, 298) }) };
+    },
+  });
+  vm.runInContext(`${source.slice(start, end)}; this.read = readBilibiliSubtitles;`, context);
+  const result = await context.read();
+  assert.equal(result.ok, true);
+  assert.equal(result.lang, 'ai-zh');
+  assert.equal(result.kind, 'asr');
+  assert.equal(result.lengthSeconds, 300);
+  assert.equal(result.cover, 'https://i0.hdslb.com/cover.jpg');
+  assert.equal(JSON.parse(result.json3).events.length, 4);
+  assert.ok(asked.every((url) => !url.includes('/x/player/v2') || url.includes('/wbi/')));
+  assert.ok(asked.some((url) => url.includes('cid=22')));
+  assert.ok(asked.includes('https://sub/zh.json'));
+});

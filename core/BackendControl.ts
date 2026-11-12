@@ -291,8 +291,8 @@ export class BackendControl {
       box.createDiv({
         cls: 'vs-backend-notice-step',
         text: tr(
-          `不用后端：在 YouTube 视频页按 ${keys}，扩展会带上字幕，走轻量档。`,
-          `No backend needed: press ${keys} on the YouTube page; the extension sends the captions and the light tier writes the note.`,
+          `不用后端：在 YouTube 或 B 站的视频页按 ${keys}，扩展会带上字幕，走轻量档。`,
+          `No backend needed: press ${keys} on the YouTube or Bilibili page; the extension sends the captions and the light tier writes the note.`,
         ),
       });
     }

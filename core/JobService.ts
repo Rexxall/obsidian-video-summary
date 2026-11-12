@@ -611,8 +611,8 @@ export class JobService {
     this.plugin.jobs.setHeld(true);
     new Notice(
       tr(
-        '这条要完整档：只有链接或本地文件时，由后端下载并转写。装好后端后它会自动开始。\n不装后端：在 YouTube 页面用浏览器扩展发送，或贴文稿。',
-        'This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube page with the browser extension, or paste a transcript.',
+        '这条要完整档：只有链接或本地文件时，由后端下载并转写。装好后端后它会自动开始。\n不装后端：在 YouTube 或 B 站的视频页用浏览器扩展发送，或贴文稿。',
+        'This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube or Bilibili page with the browser extension, or paste a transcript.',
       ),
       12_000,
     );

@@ -3,7 +3,7 @@
     "message": "Video Summary Capture"
   },
   "extDescription": {
-    "message": "在 YouTube 视频上按 ⌘⇧S，字幕连同链接送进你的 Obsidian 库，由 Video Summary 插件写成笔记。"
+    "message": "在 YouTube 或 B 站视频上按 ⌘⇧S，字幕连同链接送进你的 Obsidian 库，由 Video Summary 插件写成笔记。"
   },
   "cmdCapture": {
     "message": "发送当前视频"
@@ -204,7 +204,7 @@
     "message": "加入队列"
   },
   "settingCaptions": {
-    "message": "连同 YouTube 字幕"
+    "message": "连同字幕（YouTube、B 站）"
   },
   "settingVault": {
     "message": "库名"

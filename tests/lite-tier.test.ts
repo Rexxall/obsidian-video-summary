@@ -473,7 +473,7 @@ void test('details from the page are kept only when they look like what yt-dlp w
   );
 });
 
-test('a bare YouTube link points to the extension only when the light tier could take it', () => {
+test('a bare YouTube or Bilibili link points to the extension only when the light tier could take it', () => {
   const url = 'https://www.youtube.com/watch?v=kBdfcR-8hEY';
   assert.equal(linkWantsPageCapture({ url }, true), true);
   assert.equal(linkWantsPageCapture({ url }, false), false);
@@ -481,8 +481,9 @@ test('a bare YouTube link points to the extension only when the light tier could
   assert.equal(linkWantsPageCapture({ url }, true, 'info-only'), false);
   assert.equal(
     linkWantsPageCapture({ url: 'https://www.bilibili.com/video/BV1xx411c7mD' }, true),
-    false,
+    true,
   );
+  assert.equal(linkWantsPageCapture({ url: 'https://space.bilibili.com/123' }, true), false);
   assert.equal(linkWantsPageCapture({ localFile: '/a.mp4' }, true), false);
   assert.equal(captureShortcut(true), '⌘⇧S');
   assert.equal(captureShortcut(false), 'Ctrl+Shift+S');
