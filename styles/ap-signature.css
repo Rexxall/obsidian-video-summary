@@ -33,13 +33,16 @@
 }
 
 .ap.ap-look-journal .ap-title { font-family: var(--ap-journal-voice); font-weight: 700; letter-spacing: 0.02em; }
-/* Cards lie on the paper as a faint tint: no edge lines, no shadow (Rex: no horizontal rules). */
-.ap-look-journal .ap-card,
-.ap-look-journal .ap-card.is-inset,
-.ap-look-journal .ap-group {
+/* Cards lie on the paper as a faint tint: no edge lines, no shadow (Rex: no horizontal rules).
+   .ap.ap-look-journal outranks the plugins' own card states (urgent cards, inset cards). */
+.ap.ap-look-journal .ap-card,
+.ap.ap-look-journal .ap-card.is-inset,
+.ap.ap-look-journal .ap-group {
   background: color-mix(in srgb, var(--text-normal) 3.5%, transparent);
   box-shadow: none;
 }
+/* The glass bar keeps its blur but drops the hairline at its lower edge. */
+.ap.ap-look-journal .ap-bar-glass { box-shadow: none; }
 .ap-look-journal .ap-section-title {
   display: flex;
   align-items: center;
