@@ -1,6 +1,9 @@
 import { BackendLostError, mayMeanBackendGone, withBackendWatch } from './BackendHealth';
 import { Notice, TFile, getFrontMatterInfo, parseYaml, requestUrl } from 'obsidian';
 import { MIN_ARTICLE_CHARS, extractArticle, isArticleLink } from './ArticleReader';
+import { bilibiliNoteImages } from './BilibiliImages';
+import { bilibiliRef } from './BilibiliRef';
+import type { NoteImage } from './NoteStyle';
 import VideoSummaryPlugin from '../main';
 import { NoteProcessor } from '../utils/NoteProcessor';
 import {
@@ -641,6 +644,7 @@ export class JobService {
       author: text(fm?.video_author),
       duration: text(fm?.video_duration),
       cover: text(fm?.video_cover),
+      frames: text(fm?.video_frames),
     };
   }
 
@@ -671,6 +675,24 @@ export class JobService {
       report(progress);
     };
     try {
+      // Bilibili's pictures only load with a Bilibili referer: saved into the vault first.
+      let images: NoteImage[] = [];
+      const source = job.input.url || job.input.sourceUrl;
+      if (job.mode === 'summary' && bilibiliRef(source) && job.notePath) {
+        throttled({ stageLabel: tr('保存封面和截帧', 'Saving the cover and frames') });
+        try {
+          const meta = await this.videoMetaFor(job);
+          images = await bilibiliNoteImages(
+            this.plugin.app,
+            source,
+            job.notePath,
+            meta.cover,
+            meta.frames,
+          );
+        } catch (error) {
+          console.warn('[Video Summary] B 站图片保存失败', error);
+        }
+      }
       return await runLiteJob(
         {
           transport: nodeStreamTransport,
@@ -678,6 +700,7 @@ export class JobService {
           apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || '',
           model: llm.model,
           noteStyle: settings.noteStyle,
+          images,
         },
         job.input,
         job.mode,

@@ -9,9 +9,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
+var __export = (target2, all) => {
   for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+    __defProp(target2, name, { get: all[name], enumerable: true });
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -21,12 +21,12 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+var __toESM = (mod, isNodeMode, target2) => (target2 = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
   // If the importer is in node compatibility mode or this is not an ESM
   // file that has been converted to a CommonJS file using a Babel-
   // compatible transform (i.e. "__esModule" has not been set), then set
   // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target2, "default", { value: mod, enumerable: true }) : target2,
   mod
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
@@ -2862,9 +2862,9 @@ function writeTextOutsideVault(dir, name, text2, mode = 420) {
   const fs = desktopRequire("fs");
   if (!fs) throw new Error("No file access on this device");
   fs.mkdirSync(dir, { recursive: true });
-  const target = joinPath(dir, name);
-  fs.writeFileSync(target, text2, { mode });
-  fs.chmodSync(target, mode);
+  const target2 = joinPath(dir, name);
+  fs.writeFileSync(target2, text2, { mode });
+  fs.chmodSync(target2, mode);
 }
 function makeFolderOutsideVault(path) {
   const fs = desktopRequire("fs");
@@ -3017,7 +3017,7 @@ function decodeBody(chunks) {
 }
 
 // main.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // core/DemoNote.ts
 var DEMO_TRANSCRIPT = "\u4E3B\u6301\u4EBA\uFF1A\u6B22\u8FCE\u6536\u542C\u672C\u671F\u8282\u76EE\u3002\u4ECA\u5929\u6211\u4EEC\u804A\u4E00\u804A\u201C\u5982\u4F55\u8BFB\u4E00\u7BC7\u8BBA\u6587\u201D\u3002\u5F88\u591A\u540C\u5B66\u62FF\u5230\u8BBA\u6587\u5C31\u4ECE\u7B2C\u4E00\u9875\u8BFB\u5230\u6700\u540E\u4E00\u9875\uFF0C\u7ED3\u679C\u4E00\u4E0B\u5348\u8FC7\u53BB\u4E86\uFF0C\u4EC0\u4E48\u4E5F\u6CA1\u8BB0\u4F4F\u3002\n\n\u5609\u5BBE\uFF1A\u5BF9\uFF0C\u6211\u63A8\u8350\u4E09\u904D\u8BFB\u6CD5\u3002\u7B2C\u4E00\u904D\u53EA\u82B1\u4E94\u5230\u5341\u5206\u949F\uFF0C\u8BFB\u6807\u9898\u3001\u6458\u8981\u3001\u5F15\u8A00\u548C\u7ED3\u8BBA\uFF0C\u518D\u626B\u4E00\u773C\u56FE\u8868\u3002\u8BFB\u5B8C\u8981\u80FD\u56DE\u7B54\u4E94\u4E2A\u95EE\u9898\uFF1A\u8FD9\u7BC7\u5C5E\u4E8E\u4EC0\u4E48\u7C7B\u578B\uFF0C\u548C\u54EA\u4E9B\u5DF2\u6709\u5DE5\u4F5C\u76F8\u5173\uFF0C\u7ED3\u8BBA\u770B\u8D77\u6765\u5BF9\u4E0D\u5BF9\uFF0C\u4E3B\u8981\u8D21\u732E\u662F\u4EC0\u4E48\uFF0C\u5199\u5F97\u6E05\u4E0D\u6E05\u695A\u3002\n\n\u4E3B\u6301\u4EBA\uFF1A\u7B2C\u4E8C\u904D\u5462\uFF1F\n\n\u5609\u5BBE\uFF1A\u7B2C\u4E8C\u904D\u5927\u7EA6\u4E00\u5C0F\u65F6\uFF0C\u8BA4\u771F\u770B\u56FE\u548C\u8868\uFF0C\u6CE8\u610F\u5750\u6807\u8F74\u548C\u8BEF\u5DEE\u7EBF\uFF0C\u628A\u4E0D\u61C2\u7684\u53C2\u8003\u6587\u732E\u6807\u51FA\u6765\u3002\u8FD9\u4E00\u904D\u4E0D\u7528\u7BA1\u8BC1\u660E\u7EC6\u8282\u3002\u8BFB\u5B8C\u4E4B\u540E\uFF0C\u4F60\u5E94\u8BE5\u80FD\u628A\u8BBA\u6587\u7684\u4E3B\u8981\u8BBA\u8BC1\u8BB2\u7ED9\u522B\u4EBA\u542C\u3002\n\n\u4E3B\u6301\u4EBA\uFF1A\u7B2C\u4E09\u904D\u662F\u4E0D\u662F\u5C31\u662F\u9010\u5B57\u9010\u53E5\u4E86\uFF1F\n\n\u5609\u5BBE\uFF1A\u7B2C\u4E09\u904D\u662F\u201C\u865A\u62DF\u590D\u73B0\u201D\uFF1A\u5047\u8BBE\u4F60\u662F\u4F5C\u8005\uFF0C\u81EA\u5DF1\u4ECE\u5934\u628A\u5DE5\u4F5C\u91CD\u505A\u4E00\u904D\uFF0C\u518D\u548C\u539F\u6587\u5BF9\u6BD4\u3002\u8FD9\u6837\u6700\u5BB9\u6613\u53D1\u73B0\u9690\u85CF\u7684\u5047\u8BBE\u548C\u7F3A\u9677\u3002\u4E00\u822C\u8981\u56DB\u5230\u4E94\u4E2A\u5C0F\u65F6\uFF0C\u53EA\u6709\u5BA1\u7A3F\u6216\u8005\u8981\u5728\u8FD9\u7BC7\u57FA\u7840\u4E0A\u505A\u7814\u7A76\u65F6\u624D\u9700\u8981\u3002\n\n\u4E3B\u6301\u4EBA\uFF1A\u6700\u540E\u7ED9\u5927\u5BB6\u4E00\u4E2A\u5EFA\u8BAE\uFF1F\n\n\u5609\u5BBE\uFF1A\u8BFB\u5B8C\u6BCF\u7BC7\u8BBA\u6587\uFF0C\u90FD\u7528\u4E09\u53E5\u8BDD\u5199\u4E0B\u5B83\u89E3\u51B3\u4E86\u4EC0\u4E48\u95EE\u9898\u3001\u600E\u4E48\u89E3\u51B3\u3001\u8FD8\u6709\u4EC0\u4E48\u6CA1\u89E3\u51B3\u3002\u79EF\u7D2F\u4E0B\u6765\u5C31\u662F\u4F60\u81EA\u5DF1\u7684\u6587\u732E\u7EFC\u8FF0\u3002";
@@ -3783,8 +3783,8 @@ function parsePlaylistUrl(url) {
   throw new Error("\u65E0\u6CD5\u4ECE B\u7AD9\u94FE\u63A5\u8BC6\u522B\u5408\u96C6\u6216\u6536\u85CF\u5939 ID");
 }
 async function obsidianRequester(request) {
-  const { requestUrl: requestUrl4 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
-  const response = await requestUrl4({
+  const { requestUrl: requestUrl5 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl5({
     url: request.url,
     method: request.method,
     headers: request.headers,
@@ -4651,10 +4651,10 @@ var NoteIndex = class {
     if (inlineRaster) return inlineRaster;
     const linkpath = raw.replace(/^!?\[\[/, "").replace(/\]\]$/, "").split("|")[0].trim();
     if (!linkpath) return void 0;
-    const target = this.app.metadataCache.getFirstLinkpathDest(linkpath, file.path);
-    if (!target) return void 0;
+    const target2 = this.app.metadataCache.getFirstLinkpathDest(linkpath, file.path);
+    if (!target2) return void 0;
     try {
-      return this.app.vault.getResourcePath(target);
+      return this.app.vault.getResourcePath(target2);
     } catch {
       return void 0;
     }
@@ -5374,10 +5374,10 @@ function renderCourseManagedBlock(manifest) {
   );
   ordered.forEach((item, index) => {
     const checked = item.progress.status === "complete" ? "x" : " ";
-    const target = item.progress.note_path ? `[[${escapeWikiTarget(item.progress.note_path)}|${escapeTable(item.title)}]]` : `[${escapeTable(item.title)}](${item.canonical_url})`;
+    const target2 = item.progress.note_path ? `[[${escapeWikiTarget(item.progress.note_path)}|${escapeTable(item.title)}]]` : `[${escapeTable(item.title)}](${item.canonical_url})`;
     const prerequisites = item.prerequisites.map((id) => byId.get(id)?.title ?? id).map(escapeTable).join("\u3001");
     lines.push(
-      `| ${index + 1} | [${checked}] ${progressLabel(item.progress.status)} | ${target} | ${prerequisites || "\u2014"} | ${item.missing_concepts.map(escapeTable).join("\u3001") || "\u2014"} |`
+      `| ${index + 1} | [${checked}] ${progressLabel(item.progress.status)} | ${target2} | ${prerequisites || "\u2014"} | ${item.missing_concepts.map(escapeTable).join("\u3001") || "\u2014"} |`
     );
   });
   if (manifest.duplicates.length > 0) {
@@ -7405,7 +7405,7 @@ async function pollQrLogin(key) {
   }
 }
 
-// ../../../../../../../Users/rex/Obsidian/Projects/.plugin-dev/video-summary-plugin/node_modules/qrcode-generator/dist/qrcode.mjs
+// node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
   const PAD1 = 17;
@@ -11773,7 +11773,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
 };
 /** Network layer for webhook calls; Obsidian's requestUrl by default, replaceable in tests. */
-_VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl4 }) => requestUrl4(request));
+_VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl5 }) => requestUrl5(request));
 var VideoSummaryAPI = _VideoSummaryAPI;
 
 // views/VideoSummaryView.ts
@@ -12958,6 +12958,38 @@ function readableLive(markdown) {
   }).filter((line) => line !== null).join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
+// core/BilibiliRef.ts
+function bilibiliRef(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (!/(^|\.)bilibili\.com$/.test(parsed.hostname)) return null;
+    const match = parsed.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})/);
+    if (!match) return null;
+    const part = Number(parsed.searchParams.get("p")) || 1;
+    return { bvid: match[1], part: part > 0 ? part : 1 };
+  } catch {
+    return null;
+  }
+}
+var BILIBILI_IMAGE = /^https:\/\/[\w.-]+\.hdslb\.com\/[\w/.-]+\.(jpe?g|png|webp)$/i;
+function isBilibiliImage(url) {
+  return BILIBILI_IMAGE.test(String(url || "").replace(/^http:\/\//, "https://"));
+}
+function parseSheetFrames(text2) {
+  let list;
+  try {
+    list = JSON.parse(String(text2 || "[]"));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  const whole = (n, max) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= max;
+  return list.slice(0, 4).filter(
+    (item) => !!item && typeof item === "object" && isBilibiliImage(item.u) && whole(item.x, 2e4) && whole(item.y, 2e4) && whole(item.w, 4e3) && item.w > 0 && whole(item.h, 4e3) && item.h > 0 && typeof item.t === "number"
+  );
+}
+
 // tools/note-prompt.mjs
 var NOTE_SYSTEM_MESSAGE = [
   "You turn video transcripts into notes for Obsidian.",
@@ -13003,14 +13035,14 @@ function buildNotePrompt(input) {
   }) : [];
   const transcript = String(input.transcript || "");
   const long = transcript.length > 12e3;
-  function clock2(seconds) {
+  function clock3(seconds) {
     const total = Math.max(0, Math.floor(Number(seconds) || 0));
     const minutes = Math.floor(total / 60);
     const rest = total % 60;
     return (minutes < 10 ? "0" : "") + minutes + ":" + (rest < 10 ? "0" : "") + rest;
   }
   const transcriptText2 = segments.length ? segments.map(function(segment) {
-    const time = Number.isFinite(Number(segment.start)) ? "[" + clock2(segment.start) + "] " : "";
+    const time = Number.isFinite(Number(segment.start)) ? "[" + clock3(segment.start) + "] " : "";
     return time + "(" + segment.id + ") " + segment.text;
   }).join("\n") : transcript;
   const lines = [
@@ -13413,7 +13445,11 @@ function pageVideoDetails(params) {
   const duration = (params.duration || "").trim();
   if (/^\d{1,3}(?::\d{2}){1,2}$/.test(duration)) details.video_duration = duration;
   const cover = (params.cover || "").trim();
-  if (/^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover)) details.video_cover = cover;
+  if (/^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover) || /^https:\/\/i\d\.hdslb\.com\/bfs\/[\w/.-]+\.(jpe?g|png|webp)$/i.test(cover)) {
+    details.video_cover = cover;
+  }
+  const frames = parseSheetFrames(params.frames);
+  if (frames.length) details.video_frames = JSON.stringify(frames);
   return details;
 }
 function str(value) {
@@ -13468,7 +13504,7 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
             videoId: youTubeVideoId(sourceUrl) || ""
           })
         } : {},
-        note_images: noteImagesFor(sourceUrl, meta.duration)
+        note_images: deps.images?.length ? deps.images : noteImagesFor(sourceUrl, meta.duration)
       },
       onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
       signal
@@ -16730,11 +16766,11 @@ function unlinkMissingNotes(markdown, exists) {
 function unlinkPart(text2, exists) {
   return text2.replace(
     /(!?)\[\[([^\]|\n]+?)(?:\|([^\]\n]*))?\]\]/g,
-    (match, bang, target, shown) => {
+    (match, bang, target2, shown) => {
       if (bang) return match;
-      const linkpath = target.split("#")[0].trim();
+      const linkpath = target2.split("#")[0].trim();
       if (!linkpath || exists(linkpath)) return match;
-      const label = shown !== void 0 && shown.trim() ? shown.trim() : target.trim();
+      const label = shown !== void 0 && shown.trim() ? shown.trim() : target2.trim();
       return label.replace(/#/g, " \u203A ");
     }
   );
@@ -16746,7 +16782,9 @@ var INTERNAL_PROPERTIES = [
   "video_artifact_id",
   "video_content_type",
   "video_attention_action",
-  "video_processing_depth"
+  "video_processing_depth",
+  // Where the extension found Bilibili frames; used once to save the pictures.
+  "video_frames"
 ];
 var NoteProcessor = class {
   constructor(vault, cssClass = () => "", prefs = () => ({ successText: "success", defaultProperties: "" })) {
@@ -17447,7 +17485,7 @@ var JobStore = class {
 };
 
 // core/JobService.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // core/ArticleReader.ts
 function isArticleLink(url) {
@@ -17506,6 +17544,61 @@ function extractArticle(doc) {
     else lines.push(text2);
   });
   return { title, text: lines.join("\n\n") };
+}
+
+// core/BilibiliImages.ts
+var import_obsidian20 = require("obsidian");
+var https = (url) => url.replace(/^\/\//, "https://").replace(/^http:\/\//, "https://");
+var clock2 = (seconds) => {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor(s % 3600 / 60);
+  const pad = (n) => String(n).padStart(2, "0");
+  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${pad(m)}:${pad(s % 60)}`;
+};
+async function getBytes(url) {
+  if (!isBilibiliImage(url)) return null;
+  const reply = await (0, import_obsidian20.requestUrl)({ url: https(url), throw: false });
+  return reply.status < 400 && reply.arrayBuffer.byteLength > 0 ? reply.arrayBuffer : null;
+}
+async function cutFrame(sheet, x, y, width, height) {
+  const bitmap = await createImageBitmap(new Blob([sheet]), x, y, width, height);
+  const canvas = new OffscreenCanvas(width, height);
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.88 });
+  return blob.arrayBuffer();
+}
+async function save(app, name, notePath, data) {
+  const existing = app.vault.getFiles().find((file) => file.name === name);
+  if (existing instanceof import_obsidian20.TFile) return existing.path;
+  const path = await app.fileManager.getAvailablePathForAttachment(name, notePath);
+  await app.vault.createBinary(path, data);
+  return path;
+}
+var target = (path) => encodeURI(path);
+async function bilibiliNoteImages(app, url, notePath, cover, framesJson) {
+  const ref = bilibiliRef(url);
+  if (!ref) return [];
+  const stem = `${ref.bvid}-p${ref.part}`;
+  const images = [];
+  const coverBytes = cover ? await getBytes(cover) : null;
+  if (coverBytes) {
+    const path = await save(app, `${stem}-cover.jpg`, notePath, coverBytes);
+    images.push({ url: target(path), label: "cover" });
+  }
+  const sheets = /* @__PURE__ */ new Map();
+  const frames = parseSheetFrames(framesJson);
+  for (let n = 0; n < frames.length; n += 1) {
+    const frame = frames[n];
+    if (!sheets.has(frame.u)) sheets.set(frame.u, await getBytes(frame.u));
+    const sheet = sheets.get(frame.u);
+    if (!sheet) continue;
+    const data = await cutFrame(sheet, frame.x, frame.y, frame.w, frame.h);
+    const path = await save(app, `${stem}-${n + 1}.jpg`, notePath, data);
+    images.push({ url: target(path), label: `frame near [${clock2(frame.t)}]` });
+  }
+  return images;
 }
 
 // core/ModelSettings.ts
@@ -19450,8 +19543,8 @@ function mediaAssetRoot(outputFolder) {
 }
 async function fetchLoopbackBinary(url, signal) {
   if (signal.aborted) throw new Error("Aborted");
-  const { requestUrl: requestUrl4 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
-  const response = await requestUrl4({ url, method: "GET", throw: false });
+  const { requestUrl: requestUrl5 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl5({ url, method: "GET", throw: false });
   if (signal.aborted) throw new Error("Aborted");
   if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
   const header = (name) => Object.entries(response.headers).find(([key]) => key.toLowerCase() === name)?.[1];
@@ -19885,7 +19978,7 @@ var JobService = class {
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       });
       if (!file) {
-        new import_obsidian20.Notice(tr(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`, `Could not create the note: ${draft.title}`));
+        new import_obsidian21.Notice(tr(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`, `Could not create the note: ${draft.title}`));
         continue;
       }
       this.store.enqueue({
@@ -19915,7 +20008,7 @@ var JobService = class {
    */
   async submitPreparedFile(file, input, options) {
     if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
-      new import_obsidian20.Notice(
+      new import_obsidian21.Notice(
         tr("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6", "The note has no link, transcript or local file")
       );
       return null;
@@ -19957,7 +20050,7 @@ var JobService = class {
     if (!job.result) return false;
     const file = this.fileFor(job);
     if (!file) {
-      new import_obsidian20.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+      new import_obsidian21.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
       return false;
     }
     try {
@@ -19978,7 +20071,7 @@ var JobService = class {
       });
       return true;
     } catch (error) {
-      new import_obsidian20.Notice(tr(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`, `Could not write: ${messageOf3(error)}`));
+      new import_obsidian21.Notice(tr(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`, `Could not write: ${messageOf3(error)}`));
       return false;
     }
   }
@@ -19995,7 +20088,7 @@ var JobService = class {
   async applyToActiveNote(result, mode) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian20.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
+      new import_obsidian21.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
       return;
     }
     try {
@@ -20017,16 +20110,16 @@ var JobService = class {
       const saved = await this.persistArtifact(context, result);
       await this.applyResult(activeFile, result, mode, context);
       await this.updateCourseProgressForFile(activeFile, "complete", 100, saved.artifact_id);
-      new import_obsidian20.Notice(tr("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", "Applied to the current note"));
+      new import_obsidian21.Notice(tr("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", "Applied to the current note"));
     } catch (error) {
-      new import_obsidian20.Notice(tr(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`, `Could not apply: ${messageOf3(error)}`));
+      new import_obsidian21.Notice(tr(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`, `Could not apply: ${messageOf3(error)}`));
     }
   }
   /** 把结果插到当前打开的笔记末尾 */
   async insertIntoActiveNote(result) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian20.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
+      new import_obsidian21.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
       return;
     }
     await this.plugin.app.vault.process(
@@ -20035,7 +20128,7 @@ var JobService = class {
 
 ${buildInsertionContent(result)}`
     );
-    new import_obsidian20.Notice(tr("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0", "Inserted into the current note"));
+    new import_obsidian21.Notice(tr("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0", "Inserted into the current note"));
   }
   /** 用结果新建一篇笔记 */
   async createNoteFromResult(job) {
@@ -20053,7 +20146,7 @@ ${buildInsertionContent(result)}`
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       }
     );
-    if (file) new import_obsidian20.Notice(tr(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`, `Created note: ${file.basename}`));
+    if (file) new import_obsidian21.Notice(tr(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`, `Created note: ${file.basename}`));
   }
   async createNoteFromJson(jsonText, language) {
     let parsed;
@@ -20064,7 +20157,7 @@ ${buildInsertionContent(result)}`
       result = this.plugin.api.normalizeWebhookPayload(parsed);
       input = extractVideoInputFromPayload(parsed);
     } catch (error) {
-      new import_obsidian20.Notice(
+      new import_obsidian21.Notice(
         tr(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`, `Could not parse the JSON: ${messageOf3(error)}`)
       );
       return null;
@@ -20110,7 +20203,7 @@ ${buildInsertionContent(result)}`
             file,
             this.plugin.settings.successStatusValue ?? "success"
           );
-          new import_obsidian20.Notice(
+          new import_obsidian21.Notice(
             tr(
               `${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`,
               `${existingFile ? "Updated" : "Created from JSON"}: ${file.basename}`
@@ -20123,7 +20216,7 @@ ${buildInsertionContent(result)}`
           } catch (statusError) {
             console.error("[Video Summary] JSON \u5931\u8D25\u72B6\u6001\u5199\u56DE\u5931\u8D25", statusError);
           }
-          new import_obsidian20.Notice(
+          new import_obsidian21.Notice(
             tr(
               `JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`,
               `Could not write the JSON note; kept as an error: ${messageOf3(error)}`
@@ -20135,7 +20228,7 @@ ${buildInsertionContent(result)}`
       }
       return null;
     } catch (error) {
-      new import_obsidian20.Notice(
+      new import_obsidian21.Notice(
         tr(
           `JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`,
           `Could not create the JSON artifact or note: ${messageOf3(error)}`
@@ -20148,7 +20241,7 @@ ${buildInsertionContent(result)}`
   async fileForArtifactId(artifactId) {
     const known = this.plugin.noteLinks.pathFor(artifactId);
     const knownFile = known ? this.plugin.app.vault.getAbstractFileByPath(known) : null;
-    if (knownFile instanceof import_obsidian20.TFile) return knownFile;
+    if (knownFile instanceof import_obsidian21.TFile) return knownFile;
     for (const file of this.plugin.app.vault.getMarkdownFiles()) {
       const cached = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
       let current = stringValue(cached?.video_artifact_id);
@@ -20269,13 +20362,13 @@ ${buildInsertionContent(result)}`
       (draft) => isArticleLink(draft.input.url) && !draft.input.transcript?.trim() && !draft.input.localFile && !draft.input.localFiles?.length
     );
     if (pages.length === 0) return;
-    const notice = new import_obsidian20.Notice(tr("\u6B63\u5728\u8BFB\u53D6\u7F51\u9875\u6B63\u6587\u2026", "Reading the page\u2026"), 0);
+    const notice = new import_obsidian21.Notice(tr("\u6B63\u5728\u8BFB\u53D6\u7F51\u9875\u6B63\u6587\u2026", "Reading the page\u2026"), 0);
     try {
       await Promise.all(
         pages.map(async (draft) => {
           const url = draft.input.url;
           try {
-            const reply = await (0, import_obsidian20.requestUrl)({ url, method: "GET", throw: false });
+            const reply = await (0, import_obsidian21.requestUrl)({ url, method: "GET", throw: false });
             if (reply.status >= 400 || !reply.text) return;
             const doc = new DOMParser().parseFromString(reply.text, "text/html");
             const { title, text: text2 } = extractArticle(doc);
@@ -20310,7 +20403,7 @@ ${buildInsertionContent(result)}`
       return;
     }
     this.plugin.jobs.setHeld(true);
-    new import_obsidian20.Notice(
+    new import_obsidian21.Notice(
       tr(
         "\u8FD9\u6761\u8981\u5B8C\u6574\u6863\uFF1A\u53EA\u6709\u94FE\u63A5\u6216\u672C\u5730\u6587\u4EF6\u65F6\uFF0C\u7531\u540E\u7AEF\u4E0B\u8F7D\u5E76\u8F6C\u5199\u3002\u88C5\u597D\u540E\u7AEF\u540E\u5B83\u4F1A\u81EA\u52A8\u5F00\u59CB\u3002\n\u4E0D\u88C5\u540E\u7AEF\uFF1A\u5728 YouTube \u6216 B \u7AD9\u7684\u89C6\u9891\u9875\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u53D1\u9001\uFF0C\u6216\u8D34\u6587\u7A3F\u3002",
         "This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube or Bilibili page with the browser extension, or paste a transcript."
@@ -20324,8 +20417,8 @@ ${buildInsertionContent(result)}`
     let fm = file ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter : void 0;
     if (file && !fm) {
       try {
-        const info = (0, import_obsidian20.getFrontMatterInfo)(await this.plugin.app.vault.read(file));
-        fm = info.exists ? (0, import_obsidian20.parseYaml)(info.frontmatter) : void 0;
+        const info = (0, import_obsidian21.getFrontMatterInfo)(await this.plugin.app.vault.read(file));
+        fm = info.exists ? (0, import_obsidian21.parseYaml)(info.frontmatter) : void 0;
       } catch {
         fm = void 0;
       }
@@ -20335,7 +20428,8 @@ ${buildInsertionContent(result)}`
       title: text2(fm?.video_title) || job.title,
       author: text2(fm?.video_author),
       duration: text2(fm?.video_duration),
-      cover: text2(fm?.video_cover)
+      cover: text2(fm?.video_cover),
+      frames: text2(fm?.video_frames)
     };
   }
   /** Light tier: the job's transcript, then the person's model, streamed. */
@@ -20360,13 +20454,31 @@ ${buildInsertionContent(result)}`
       report(progress);
     };
     try {
+      let images = [];
+      const source = job.input.url || job.input.sourceUrl;
+      if (job.mode === "summary" && bilibiliRef(source) && job.notePath) {
+        throttled({ stageLabel: tr("\u4FDD\u5B58\u5C01\u9762\u548C\u622A\u5E27", "Saving the cover and frames") });
+        try {
+          const meta = await this.videoMetaFor(job);
+          images = await bilibiliNoteImages(
+            this.plugin.app,
+            source,
+            job.notePath,
+            meta.cover,
+            meta.frames
+          );
+        } catch (error) {
+          console.warn("[Video Summary] B \u7AD9\u56FE\u7247\u4FDD\u5B58\u5931\u8D25", error);
+        }
+      }
       return await runLiteJob(
         {
           transport: nodeStreamTransport,
           baseUrl: llm.baseUrl,
           apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || "",
           model: llm.model,
-          noteStyle: settings.noteStyle
+          noteStyle: settings.noteStyle,
+          images
         },
         job.input,
         job.mode,
@@ -20548,7 +20660,7 @@ ${buildInsertionContent(result)}`
   attentionContextFor(job) {
     if (!job.notePath) return void 0;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian20.TFile)) return void 0;
+    if (!(file instanceof import_obsidian21.TFile)) return void 0;
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const terms = uniqueStrings4(
       [
@@ -20619,7 +20731,7 @@ ${buildInsertionContent(result)}`
     const ids = new Set(previous?.course_ids || []);
     if (!job.notePath) return [...ids].sort();
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian20.TFile)) return [...ids].sort();
+    if (!(file instanceof import_obsidian21.TFile)) return [...ids].sort();
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const values = [frontmatter?.video_course_id, frontmatter?.video_course_ids].flat();
     const currentFileIds = /* @__PURE__ */ new Set();
@@ -20639,7 +20751,7 @@ ${buildInsertionContent(result)}`
   fileFor(job) {
     if (!job.notePath) return null;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    return file instanceof import_obsidian20.TFile ? file : null;
+    return file instanceof import_obsidian21.TFile ? file : null;
   }
 };
 function basenameOf(path) {
@@ -20701,7 +20813,7 @@ function withAnalysisOptions(input, options) {
 }
 
 // core/BackendControl.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 var FRESH_MS = 6e4;
 var INTERVAL_MS = 5 * 6e4;
 var BackendControl = class {
@@ -20758,7 +20870,7 @@ var BackendControl = class {
   }
   /** Start backend only makes sense for a backend on this computer. */
   canStart() {
-    return import_obsidian21.Platform.isDesktopApp && isLocalEndpoint(this.endpoint());
+    return import_obsidian22.Platform.isDesktopApp && isLocalEndpoint(this.endpoint());
   }
   /** The address or the token changed: forget what was known and look again. */
   endpointChanged() {
@@ -20779,7 +20891,7 @@ var BackendControl = class {
     const snapshot = this.monitor.snapshot();
     if (snapshot.status === "starting") {
       this.notice?.hide();
-      this.notice = new import_obsidian21.Notice(
+      this.notice = new import_obsidian22.Notice(
         tr(
           `\u4EFB\u52A1\u5728\u7B49\u540E\u7AEF\uFF1A${snapshot.step || "\u6B63\u5728\u542F\u52A8"}\u3002\u540E\u7AEF\u5E94\u7B54\u540E\u81EA\u52A8\u5F00\u59CB\u3002`,
           `The job is waiting: ${snapshot.step || "the backend is starting"}. It starts by itself once the backend answers.`
@@ -20886,12 +20998,12 @@ var BackendControl = class {
           await this.rememberBackendDir(picked);
           result = await this.launchOnce(picked);
         } else if (picked) {
-          new import_obsidian21.Notice(tr("\u8FD9\u4E2A\u6587\u4EF6\u5939\u91CC\u6CA1\u6709 compose.yaml", "That folder has no compose.yaml"), 6e3);
+          new import_obsidian22.Notice(tr("\u8FD9\u4E2A\u6587\u4EF6\u5939\u91CC\u6CA1\u6709 compose.yaml", "That folder has no compose.yaml"), 6e3);
         }
       }
       if (result.backendDir) await this.rememberBackendDir(result.backendDir);
       if (result.ok) {
-        new import_obsidian21.Notice(
+        new import_obsidian22.Notice(
           waiting > 0 ? tr(
             `\u540E\u7AEF\u5DF2\u542F\u52A8\uFF0C${waiting} \u4E2A\u7B49\u5F85\u7684\u4EFB\u52A1\u5F00\u59CB\u5904\u7406`,
             `Backend started; ${waiting} waiting ${waiting === 1 ? "job is" : "jobs are"} now running`
@@ -20905,7 +21017,7 @@ var BackendControl = class {
         this.monitor.snapshot().diagnosis,
         this.endpoint()
       );
-      new import_obsidian21.Notice(this.lastStartFailure, 12e3);
+      new import_obsidian22.Notice(this.lastStartFailure, 12e3);
       return false;
     } finally {
       this.monitor.endStart();
@@ -20936,7 +21048,7 @@ var BackendControl = class {
       ) : faultNextStep(diagnosis, endpoint, false)
     });
     if (fromPage) {
-      const keys = captureShortcut(import_obsidian21.Platform.isMacOS);
+      const keys = captureShortcut(import_obsidian22.Platform.isMacOS);
       box.createDiv({
         cls: "vs-backend-notice-step",
         text: tr(
@@ -20959,12 +21071,12 @@ var BackendControl = class {
         })
       );
     }
-    this.notice = new import_obsidian21.Notice(fragment, startable ? 2e4 : 1e4);
+    this.notice = new import_obsidian22.Notice(fragment, startable ? 2e4 : 1e4);
   }
 };
 
 // core/BackendInstaller.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 
 // core/ManagedBackend.ts
 var BACKEND_IMAGE_REPO = "ghcr.io/rexxall/video-summary-backend";
@@ -21176,7 +21288,7 @@ async function applyModelConfig(run, containerId, config) {
 }
 
 // core/BackendInstaller.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var ONLINE_WAIT_MS = 30 * 6e4;
 var RESTART_WAIT_MS = 4 * 6e4;
 var APPLY_DEBOUNCE_MS = 1500;
@@ -21206,7 +21318,7 @@ var BackendInstaller = class {
   }
   /** Only a backend on this computer, on a desktop that can run docker, can be set up from here. */
   supported() {
-    return import_obsidian22.Platform.isDesktopApp && (import_obsidian22.Platform.isMacOS || import_obsidian22.Platform.isLinux);
+    return import_obsidian23.Platform.isDesktopApp && (import_obsidian23.Platform.isMacOS || import_obsidian23.Platform.isLinux);
   }
   /** Where the backend folder is, or where it will be written. */
   backendDir() {
@@ -21376,7 +21488,7 @@ var BackendInstaller = class {
           `\u6CA1\u80FD\u628A\u8BBE\u7F6E\u4EA4\u7ED9\u540E\u7AEF\uFF1A${result.detail || "\u672A\u77E5\u539F\u56E0"}`,
           `Could not hand the settings to the backend: ${result.detail || "unknown reason"}`
         );
-        if (announce) new import_obsidian22.Notice(message, 1e4);
+        if (announce) new import_obsidian23.Notice(message, 1e4);
         throw new Error(message);
       }
       monitor.setStep(
@@ -21388,13 +21500,13 @@ var BackendInstaller = class {
           "\u540E\u7AEF\u91CD\u542F\u540E\u6CA1\u6709\u5E94\u7B54\u3002\u6253\u5F00\u540E\u7AEF\u4F53\u68C0\u770B\u5361\u5728\u54EA\u4E00\u6B65\u3002",
           "The backend did not answer after restarting. Open the backend check-up to see where it stopped."
         );
-        if (announce) new import_obsidian22.Notice(message, 1e4);
+        if (announce) new import_obsidian23.Notice(message, 1e4);
         throw new Error(message);
       }
       settings.backendAppliedConfig = fingerprint;
       await this.plugin.saveSettings();
       if (announce)
-        new import_obsidian22.Notice(
+        new import_obsidian23.Notice(
           tr("\u540E\u7AEF\u5DF2\u6362\u4E0A\u65B0\u7684\u6A21\u578B\u548C\u5BC6\u94A5", "The backend now uses the new model and keys"),
           4e3
         );
@@ -21432,7 +21544,7 @@ var BackendInstaller = class {
       writeTextOutsideVault(
         dir,
         INSTALL_SCRIPT_NAME,
-        installScript({ chinese: (0, import_obsidian23.getLanguage)().startsWith("zh"), update }),
+        installScript({ chinese: (0, import_obsidian24.getLanguage)().startsWith("zh"), update }),
         493
       );
     } catch (error) {
@@ -21451,7 +21563,7 @@ var BackendInstaller = class {
   }
   async openTerminal() {
     const script = joinPath(this.backendDir(), INSTALL_SCRIPT_NAME);
-    const opened = import_obsidian22.Platform.isMacOS ? (await runProgram("/usr/bin/open", ["-a", "Terminal", script], { timeoutMs: 8e3 })).code === 0 : await openFileInSystem(script);
+    const opened = import_obsidian23.Platform.isMacOS ? (await runProgram("/usr/bin/open", ["-a", "Terminal", script], { timeoutMs: 8e3 })).code === 0 : await openFileInSystem(script);
     if (!opened) {
       throw new Error(
         tr(
@@ -21595,8 +21707,8 @@ function sleep(ms) {
 }
 
 // views/BackendSettings.ts
-var import_obsidian24 = require("obsidian");
 var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var ORBSTACK_URL = "https://orbstack.dev/download";
 var refreshBackendGroup = null;
 var DOCKER_DESKTOP_URL = "https://www.docker.com/products/docker-desktop/";
@@ -21684,7 +21796,7 @@ function renderModelSettings(parent, host) {
         refreshBackendGroup?.();
       }
     });
-    new import_obsidian24.Setting(root).setName(tr("\u8F7B\u91CF\u6863", "Light tier")).setDesc(
+    new import_obsidian25.Setting(root).setName(tr("\u8F7B\u91CF\u6863", "Light tier")).setDesc(
       tr(
         "YouTube \u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u7C98\u8D34\u7684\u6587\u7A3F\u76F4\u63A5\u4EA4\u7ED9\u603B\u7ED3\u6A21\u578B\uFF0C\u4E0D\u7ECF\u8FC7\u540E\u7AEF\uFF0C\u8FB9\u5199\u8FB9\u663E\u793A\u3002",
         "YouTube videos with captions and pasted transcripts go straight to the summary model, without the backend, and appear as they are written."
@@ -21772,13 +21884,13 @@ function drawFirstRun(root, host, redraw) {
   const progress = installer.progress();
   if (progress.phase === "failed") drawFailure(root, host);
   if (!facts) {
-    new import_obsidian24.Setting(root).setName(
+    new import_obsidian25.Setting(root).setName(
       tr("\u6B63\u5728\u770B\u8FD9\u53F0\u7535\u8111\u4E0A\u6709\u6CA1\u6709 Docker\u2026", "Looking for Docker on this computer\u2026")
     );
     return;
   }
   if (facts.docker === "missing") {
-    const setting = new import_obsidian24.Setting(root).setName(tr("\u5148\u88C5 Docker", "Install Docker first"));
+    const setting = new import_obsidian25.Setting(root).setName(tr("\u5148\u88C5 Docker", "Install Docker first"));
     const desc = createFragment();
     desc.appendText(
       tr(
@@ -21802,7 +21914,7 @@ function drawFirstRun(root, host, redraw) {
   }
   if (facts.docker === "stopped") {
     const app = dockerEngineApp();
-    new import_obsidian24.Setting(root).setName(tr("\u6253\u5F00 Docker", "Open Docker")).setDesc(tr("Docker \u5DF2\u7ECF\u88C5\u4E86\uFF0C\u4F46\u6CA1\u5728\u8FD0\u884C\u3002", "Docker is installed but not running.")).addButton(
+    new import_obsidian25.Setting(root).setName(tr("\u6253\u5F00 Docker", "Open Docker")).setDesc(tr("Docker \u5DF2\u7ECF\u88C5\u4E86\uFF0C\u4F46\u6CA1\u5728\u8FD0\u884C\u3002", "Docker is installed but not running.")).addButton(
       (button) => button.setButtonText(
         app ? tr(`\u6253\u5F00 ${app.name}`, `Open ${app.name}`) : tr("\u91CD\u65B0\u68C0\u67E5", "Check again")
       ).setCta().onClick(async () => {
@@ -21819,7 +21931,7 @@ function drawFirstRun(root, host, redraw) {
     return;
   }
   const ready = !!readSecret(host.app, plugin.settings.llmKeySecret);
-  new import_obsidian24.Setting(root).setName(tr("\u5B89\u88C5\u5E76\u542F\u52A8", "Install and start")).setDesc(
+  new import_obsidian25.Setting(root).setName(tr("\u5B89\u88C5\u5E76\u542F\u52A8", "Install and start")).setDesc(
     ready ? tr(
       `\u5199\u597D\u540E\u7AEF\u6587\u4EF6\u5939\uFF08${installer.backendDir()}\uFF09\uFF0C\u518D\u6253\u5F00\u7EC8\u7AEF\uFF0C\u7531\u4F60\u6309\u56DE\u8F66\u4E0B\u8F7D\u7EA6 550 MB \u7684\u540E\u7AEF\u955C\u50CF\u3002\u4E4B\u540E\u7684\u68C0\u67E5\u548C\u8BD5\u8DD1\u81EA\u52A8\u5B8C\u6210\u3002`,
       `Writes the backend folder (${installer.backendDir()}), then opens Terminal, where you press Return to download the backend image (about 550 MB). The check and the trial run follow by themselves.`
@@ -21852,7 +21964,7 @@ function drawInstalled(root, host) {
   }
   host.renderBilibili(root);
   if (managed && facts?.container) {
-    new import_obsidian24.Setting(root).setName(tr("\u5F00\u673A\u540E\u81EA\u52A8\u542F\u52A8", "Start with the computer")).setDesc(
+    new import_obsidian25.Setting(root).setName(tr("\u5F00\u673A\u540E\u81EA\u52A8\u542F\u52A8", "Start with the computer")).setDesc(
       tr(
         "Docker \u542F\u52A8\u65F6\u628A\u540E\u7AEF\u4E00\u8D77\u5E26\u8D77\u6765\u3002Docker \u81EA\u5DF1\u8981\u8BBE\u6210\u767B\u5F55\u65F6\u6253\u5F00\u3002",
         "Docker brings the backend up when it starts. Docker itself has to open at login."
@@ -21860,7 +21972,7 @@ function drawInstalled(root, host) {
     ).addToggle(
       (toggle) => toggle.setValue(installer.autoStart()).onChange(async (value) => {
         if (!await installer.setAutoStart(value)) {
-          new import_obsidian24.Notice(tr("\u6CA1\u6539\u6210\uFF0CDocker \u6CA1\u6709\u63A5\u53D7\u3002", "Not changed; Docker did not accept it."));
+          new import_obsidian25.Notice(tr("\u6CA1\u6539\u6210\uFF0CDocker \u6CA1\u6709\u63A5\u53D7\u3002", "Not changed; Docker did not accept it."));
         }
       })
     );
@@ -21931,7 +22043,7 @@ function drawInstalled(root, host) {
 function drawModelRows(root, host, options) {
   const { plugin, app } = host;
   const { settings } = plugin;
-  const chinese2 = (0, import_obsidian25.getLanguage)().startsWith("zh");
+  const chinese2 = (0, import_obsidian26.getLanguage)().startsWith("zh");
   const changed = async (redraw = false) => {
     await plugin.saveSettings();
     if (options.applyToBackend) plugin.installer.scheduleApply();
@@ -21946,7 +22058,7 @@ function drawModelRows(root, host, options) {
   };
   const provider = llmProvider(settings.llmProvider);
   const llm = resolveLlm(settings);
-  const model = new import_obsidian24.Setting(root).setName(tr("\u603B\u7ED3\u6A21\u578B", "Summary model"));
+  const model = new import_obsidian25.Setting(root).setName(tr("\u603B\u7ED3\u6A21\u578B", "Summary model"));
   model.addDropdown((dropdown) => {
     for (const item of LLM_PROVIDERS) {
       dropdown.addOption(item.id, chinese2 && item.labelZh || item.label);
@@ -21983,7 +22095,7 @@ function drawModelRows(root, host, options) {
     );
   }
   if (!hasSecretStorage(app)) {
-    new import_obsidian24.Setting(root).setName(tr("\u5BC6\u94A5", "Keys")).setDesc(
+    new import_obsidian25.Setting(root).setName(tr("\u5BC6\u94A5", "Keys")).setDesc(
       tr(
         "\u5728\u8BBE\u7F6E\u91CC\u7BA1\u7406\u5BC6\u94A5\u9700\u8981 Obsidian 1.11.4 \u6216\u66F4\u65B0\u3002\u65E7\u7248\u8BF7\u5728\u540E\u7AEF\u7684 .env \u91CC\u586B\u5BC6\u94A5\u3002",
         "Managing keys here needs Obsidian 1.11.4 or newer. On older versions, put the keys in the backend's .env."
@@ -21991,16 +22103,16 @@ function drawModelRows(root, host, options) {
     );
     return;
   }
-  const keyRow = (name, current, keyUrl, save) => {
-    const setting = new import_obsidian24.Setting(root).setName(name);
+  const keyRow = (name, current, keyUrl, save2) => {
+    const setting = new import_obsidian25.Setting(root).setName(name);
     if (keyUrl) {
       const desc = createFragment();
       desc.createEl("a", { text: tr("\u53BB\u54EA\u62FF", "Where to get one"), href: keyUrl });
       setting.setDesc(desc);
     }
     setting.addComponent(
-      (el) => new import_obsidian24.SecretComponent(app, el).setValue(current || "").onChange(async (value) => {
-        save((value || "").trim());
+      (el) => new import_obsidian25.SecretComponent(app, el).setValue(current || "").onChange(async (value) => {
+        save2((value || "").trim());
         await changed(true);
       })
     );
@@ -22675,15 +22787,15 @@ var CrossModalMemoryIndex = class {
     return [...this.rebuildWarnings];
   }
 };
-function suggestArtifactRelation(source, target) {
-  if (source.artifact_id === target.artifact_id) {
+function suggestArtifactRelation(source, target2) {
+  if (source.artifact_id === target2.artifact_id) {
     throw new Error("Cannot suggest a relation from an artifact to itself");
   }
   const sourceClaims = source.claims.map((claim) => resolveArtifactClaim(source, claim));
-  const targetClaims = target.claims.map((claim) => resolveArtifactClaim(target, claim));
+  const targetClaims = target2.claims.map((claim) => resolveArtifactClaim(target2, claim));
   const pairs = sourceClaims.flatMap(
     (left) => targetClaims.map((right) => {
-      const comparison = compareResolvedClaims(left, right, source, target);
+      const comparison = compareResolvedClaims(left, right, source, target2);
       return {
         source_claim_id: left.claim.id,
         target_claim_id: right.claim.id,
@@ -22723,7 +22835,7 @@ function suggestArtifactRelation(source, target) {
   } else {
     const metadataSimilarity = claimSimilarity(
       `${source.title || ""} ${source.content_type || ""}`,
-      `${target.title || ""} ${target.content_type || ""}`
+      `${target2.title || ""} ${target2.content_type || ""}`
     );
     relation = "related";
     confidence = Math.max(0.2, metadataSimilarity * 0.6);
@@ -22731,9 +22843,9 @@ function suggestArtifactRelation(source, target) {
   }
   return {
     source_artifact_id: source.artifact_id,
-    target_artifact_id: target.artifact_id,
-    target_title: target.title || target.artifact_id,
-    target_note_path: target.source.note_path || `artifact://${target.artifact_id}`,
+    target_artifact_id: target2.artifact_id,
+    target_title: target2.title || target2.artifact_id,
+    target_note_path: target2.source.note_path || `artifact://${target2.artifact_id}`,
     relation,
     reason,
     confidence: roundScore2(confidence),
@@ -23092,8 +23204,8 @@ function roundScore2(value) {
 }
 
 // modals/KnowledgeLabModal.ts
-var import_obsidian26 = require("obsidian");
-var KnowledgeLabModal = class extends import_obsidian26.Modal {
+var import_obsidian27 = require("obsidian");
+var KnowledgeLabModal = class extends import_obsidian27.Modal {
   constructor(app, plugin, mode) {
     super(app);
     this.artifacts = [];
@@ -23314,10 +23426,10 @@ var KnowledgeLabModal = class extends import_obsidian26.Modal {
       this.renderKeyframe(card, result);
       if (sourceArtifactId && sourceArtifactId !== result.artifact_id && !relationTargets.has(result.artifact_id)) {
         const source = index.getArtifact(sourceArtifactId);
-        const target = index.getArtifact(result.artifact_id);
-        if (source && target) {
+        const target2 = index.getArtifact(result.artifact_id);
+        if (source && target2) {
           relationTargets.add(result.artifact_id);
-          this.renderRelationReview(card, suggestArtifactRelation(source, target));
+          this.renderRelationReview(card, suggestArtifactRelation(source, target2));
         }
       }
     });
@@ -23328,8 +23440,8 @@ var KnowledgeLabModal = class extends import_obsidian26.Modal {
     let source;
     const localPath = safeManagedVaultImagePath(reference.path, result.media_asset_root);
     if (localPath) {
-      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian26.normalizePath)(localPath));
-      if (file instanceof import_obsidian26.TFile) source = this.app.vault.getResourcePath(file);
+      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian27.normalizePath)(localPath));
+      if (file instanceof import_obsidian27.TFile) source = this.app.vault.getResourcePath(file);
     }
     if (!source) return;
     card.createEl("img", {
@@ -23473,7 +23585,7 @@ var KnowledgeLabModal = class extends import_obsidian26.Modal {
     const status = actions.createSpan();
     generate.onclick = async () => {
       if (selected.size < 2) {
-        new import_obsidian26.Notice(tr("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6", "Pick at least two saved artifacts"));
+        new import_obsidian27.Notice(tr("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6", "Pick at least two saved artifacts"));
         return;
       }
       generate.disabled = true;
@@ -23496,21 +23608,21 @@ var KnowledgeLabModal = class extends import_obsidian26.Modal {
     };
   }
   async saveClaimLab(labId, report) {
-    const baseFolder = (0, import_obsidian26.normalizePath)(
+    const baseFolder = (0, import_obsidian27.normalizePath)(
       `${this.plugin.settings.outputFolder || "\u89C6\u9891\u603B\u7ED3"}/\u77E5\u8BC6\u5B9E\u9A8C\u5BA4`
     );
     await ensureFolder(this.app, baseFolder);
     const selectionHash = stableTextHash(report.artifact_ids.join("|"));
-    const path = (0, import_obsidian26.normalizePath)(
+    const path = (0, import_obsidian27.normalizePath)(
       `${baseFolder}/\u8BBA\u70B9\u5B9E\u9A8C\u5BA4-${selectionHash || labId.replace(/^claim-lab-/, "")}.md`
     );
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing && !(existing instanceof import_obsidian26.TFile)) {
+    if (existing && !(existing instanceof import_obsidian27.TFile)) {
       throw new Error(`\u76EE\u6807\u8DEF\u5F84\u4E0D\u662F Markdown \u6587\u4EF6\uFF1A${path}`);
     }
-    const before = existing instanceof import_obsidian26.TFile ? await this.app.vault.read(existing) : "";
+    const before = existing instanceof import_obsidian27.TFile ? await this.app.vault.read(existing) : "";
     const after = upsertClaimLabMarkdown(before, report);
-    if (existing instanceof import_obsidian26.TFile) {
+    if (existing instanceof import_obsidian27.TFile) {
       if (after !== before) await this.app.vault.modify(existing, after);
       return existing;
     }
@@ -23519,12 +23631,12 @@ var KnowledgeLabModal = class extends import_obsidian26.Modal {
 };
 async function ensureFolder(app, folderPath) {
   let current = "";
-  for (const part of (0, import_obsidian26.normalizePath)(folderPath).split("/").filter(Boolean)) {
+  for (const part of (0, import_obsidian27.normalizePath)(folderPath).split("/").filter(Boolean)) {
     current = current ? `${current}/${part}` : part;
     const existing = app.vault.getAbstractFileByPath(current);
     if (!existing) {
       await app.vault.createFolder(current);
-    } else if (!(existing instanceof import_obsidian26.TFolder)) {
+    } else if (!(existing instanceof import_obsidian27.TFolder)) {
       throw new Error(`\u65E0\u6CD5\u521B\u5EFA\u6587\u4EF6\u5939\uFF0C\u8DEF\u5F84\u5DF2\u88AB\u6587\u4EF6\u5360\u7528\uFF1A${current}`);
     }
   }
@@ -23945,8 +24057,8 @@ function resolveLearningEvidence(artifact, item) {
       message: segment.timing_quality === "estimated" ? "\u8BC1\u636E\u6BB5\u5B58\u5728\uFF1B\u65F6\u95F4\u70B9\u4E3A\u4F30\u7B97\u503C\u3002" : "\u8BC1\u636E\u6BB5\u548C\u65F6\u95F4\u70B9\u5747\u53EF\u7528\u3002"
     };
   });
-  const available = targets.filter((target) => target.status === "available").length;
-  const missing = targets.filter((target) => target.status !== "available").length;
+  const available = targets.filter((target2) => target2.status === "available").length;
+  const missing = targets.filter((target2) => target2.status !== "available").length;
   return {
     targets,
     available,
@@ -24089,8 +24201,8 @@ function clone3(value) {
 }
 
 // views/LearningReviewModal.ts
-var import_obsidian27 = require("obsidian");
-var LearningReviewModal = class extends import_obsidian27.Modal {
+var import_obsidian28 = require("obsidian");
+var LearningReviewModal = class extends import_obsidian28.Modal {
   constructor(app, options) {
     super(app);
     this.queue = [];
@@ -24300,7 +24412,7 @@ var LearningReviewModal = class extends import_obsidian27.Modal {
     submit2.addEventListener("click", () => {
       const answer = this.selectedAnswer.trim();
       if (!answer) {
-        new import_obsidian27.Notice(tr("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848", "Pick or write an answer first"));
+        new import_obsidian28.Notice(tr("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848", "Pick or write an answer first"));
         return;
       }
       void this.record(item, answer, answersMatch(answer, item.answer));
@@ -24345,7 +24457,7 @@ var LearningReviewModal = class extends import_obsidian27.Modal {
       this.completedKeys.add(learningItemKey(item.item_kind, item.item_id));
       this.render();
     } catch (error) {
-      new import_obsidian27.Notice(error instanceof Error ? errorMessage(error) : String(error));
+      new import_obsidian28.Notice(error instanceof Error ? errorMessage(error) : String(error));
     }
   }
   renderResult(container, result) {
@@ -24401,7 +24513,7 @@ var LearningReviewModal = class extends import_obsidian27.Modal {
     const path = this.options.artifact.source.note_path;
     if (!path) return;
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian27.TFile)) return;
+    if (!(file instanceof import_obsidian28.TFile)) return;
     const sidecar = await this.options.store.getArtifactProgress(this.options.artifact.artifact_id);
     const currentItems = learningItemsFromArtifact(this.options.artifact);
     const progressByKey = sidecar?.items || {};
@@ -24420,24 +24532,24 @@ var LearningReviewModal = class extends import_obsidian27.Modal {
     const section3 = container.createDiv({ cls: "vs-learning-review-evidence" });
     section3.createEl("h4", { text: tr("\u56DE\u5230\u8BC1\u636E", "Back to the evidence") });
     if (evidence.message) section3.createDiv({ text: evidence.message, cls: "vs-hint is-warning" });
-    evidence.targets.forEach((target) => {
+    evidence.targets.forEach((target2) => {
       const row = section3.createDiv({
-        cls: `vs-learning-review-evidence-row is-${target.status}`
+        cls: `vs-learning-review-evidence-row is-${target2.status}`
       });
-      const label = target.status === "available" ? formatTimestamp(target.start) : target.status === "untimed" ? tr("\u65E0\u65F6\u95F4\u70B9", "No timestamp") : tr("\u8BC1\u636E\u7F3A\u5931", "Evidence missing");
+      const label = target2.status === "available" ? formatTimestamp(target2.start) : target2.status === "untimed" ? tr("\u65E0\u65F6\u95F4\u70B9", "No timestamp") : tr("\u8BC1\u636E\u7F3A\u5931", "Evidence missing");
       row.createSpan({ text: label, cls: "vs-learning-review-evidence-time" });
       row.createSpan({
-        text: target.text || target.message,
+        text: target2.text || target2.message,
         cls: "vs-learning-review-evidence-copy"
       });
-      if (target.status === "available") {
+      if (target2.status === "available") {
         const open = row.createEl("button", {
           text: tr("\u5B9A\u4F4D", "Locate"),
           attr: { type: "button" }
         });
-        open.addEventListener("click", () => void this.openEvidence(target));
+        open.addEventListener("click", () => void this.openEvidence(target2));
       } else {
-        row.createDiv({ text: target.message, cls: "vs-hint is-warning" });
+        row.createDiv({ text: target2.message, cls: "vs-hint is-warning" });
       }
     });
     if (evidence.targets.length === 0) {
@@ -24447,17 +24559,17 @@ var LearningReviewModal = class extends import_obsidian27.Modal {
       });
     }
   }
-  async openEvidence(target) {
+  async openEvidence(target2) {
     if (this.options.onOpenEvidence) {
-      await this.options.onOpenEvidence(this.options.artifact, target);
+      await this.options.onOpenEvidence(this.options.artifact, target2);
       return;
     }
-    const externalUrl = safeExternalHttpUrl(target.timestamp_url);
+    const externalUrl = safeExternalHttpUrl(target2.timestamp_url);
     if (externalUrl) {
       window.open(externalUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    new import_obsidian27.Notice(
+    new import_obsidian28.Notice(
       tr(
         "\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03",
         "The evidence has a timestamp, but this view cannot move the player"
@@ -25142,7 +25254,7 @@ function clone4(value) {
 }
 
 // main.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 
 // utils/settingGroups.ts
 function markSettingGroups(root) {
@@ -25471,7 +25583,7 @@ function followRename(history, oldPath, newPath, newName) {
 }
 
 // main.ts
-var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
+var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
   constructor() {
     super(...arguments);
     /** The extension's local endpoint; null on mobile or before layout is ready. */
@@ -25502,7 +25614,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     );
   }
   async onload() {
-    setInterfaceLanguage((0, import_obsidian28.getLanguage)());
+    setInterfaceLanguage((0, import_obsidian29.getLanguage)());
     await this.loadSettings();
     this.initializeApiInstance();
     this.register(
@@ -25586,7 +25698,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
-        if (file instanceof import_obsidian28.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
           void this.noteIndex.refreshFile(file);
         }
       })
@@ -25595,7 +25707,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       this.app.vault.on("delete", (file) => {
         this.noteIndex.handleDelete(file);
         this.historyLookupCache = null;
-        if (file instanceof import_obsidian28.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
           void this.handleVideoNoteDeleted(file.path).catch((error) => {
             console.warn("[Video Summary] \u5220\u9664\u540E\u7684\u5173\u8054\u6E05\u7406\u5931\u8D25", error);
           });
@@ -25606,7 +25718,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       this.app.vault.on("rename", (file, oldPath) => {
         this.noteIndex.handleRename(file, oldPath);
         this.historyLookupCache = null;
-        if (file instanceof import_obsidian28.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
           if (followRename(this.settings.history || [], oldPath, file.path, file.basename)) {
             this.queueHistorySave();
           }
@@ -25770,7 +25882,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
   registerContextMenu() {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
-        if (file instanceof import_obsidian28.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
           menu.addItem((item) => {
             item.setTitle(tr("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406", "Video Summary - quick process")).setIcon("video").onClick(async () => {
               await this.processFile(file);
@@ -25789,7 +25901,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian28.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -25797,7 +25909,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -25807,7 +25919,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       }
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not process the current note: ${this.formatErrorForNotice(error)}`
@@ -25820,7 +25932,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian28.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -25828,7 +25940,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -25838,7 +25950,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       }
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not process the current note: ${this.formatErrorForNotice(error)}`
@@ -25851,13 +25963,13 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian28.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
       const videoInput = this.noteProcessor.buildVideoInput(content);
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -25870,7 +25982,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian28.Notice(tr("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", "Getting video info..."), 0);
+      const statusNotice = new import_obsidian29.Notice(tr("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", "Getting video info..."), 0);
       try {
         const result = await this.api.processVideo(
           file.basename,
@@ -25917,7 +26029,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not update the video info: ${this.formatErrorForNotice(error)}`
@@ -25930,12 +26042,12 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian28.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       await this.processFile(file);
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not process again: ${this.formatErrorForNotice(error)}`
@@ -25948,7 +26060,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian28.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -25956,7 +26068,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -25969,7 +26081,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
       const requestTimeoutMinutes = mode === "summary" ? this.settings.quickSummaryOptions.timeoutMinutes : mode === "transcript-only" ? this.settings.quickTranscriptOptions.timeoutMinutes : this.settings.timeoutMinutes;
-      const statusNotice = new import_obsidian28.Notice(
+      const statusNotice = new import_obsidian29.Notice(
         tr(
           `\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`,
           `Processing: ${this.getModeDisplayText(mode)}`
@@ -26130,7 +26242,7 @@ ${extractResult.video_transcript}
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Processing failed: ${this.formatErrorForNotice(error)}`
@@ -26143,12 +26255,12 @@ ${extractResult.video_transcript}
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian28.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new import_obsidian28.Notice(tr("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9", "The note has no text"));
+        new import_obsidian29.Notice(tr("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9", "The note has no text"));
         return;
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
@@ -26158,7 +26270,7 @@ ${extractResult.video_transcript}
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian28.Notice(
+      const statusNotice = new import_obsidian29.Notice(
         tr(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, `Sending the whole note for processing...`),
         0
       );
@@ -26229,7 +26341,7 @@ ${extractResult.video_transcript}
         window.setTimeout(() => statusNotice.hide(), 5e3);
       }
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not start: ${this.formatErrorForNotice(error)}`
@@ -26263,7 +26375,7 @@ ${extractResult.video_transcript}
         }
       }
       if (pendingFiles.length === 0) {
-        new import_obsidian28.Notice(tr("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0", "No pending video notes found"));
+        new import_obsidian29.Notice(tr("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0", "No pending video notes found"));
         return;
       }
       const confirmed = await this.showConfirmDialog(
@@ -26282,7 +26394,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       if (!await this.ensureBackendReady()) {
         return;
       }
-      const progressNotice = new import_obsidian28.Notice(
+      const progressNotice = new import_obsidian29.Notice(
         tr(
           `\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`,
           `Processing ${pendingFiles.length} videos...`
@@ -26319,7 +26431,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       );
       window.setTimeout(() => progressNotice.hide(), 3e3);
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Batch processing failed: ${this.formatErrorForNotice(error)}`
@@ -26358,9 +26470,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new import_obsidian28.Notice(tr("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406", "Processing history cleared"));
+      new import_obsidian29.Notice(tr("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406", "Processing history cleared"));
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${errorMessage(error)}`,
           `Could not clear the history: ${errorMessage(error)}`
@@ -26386,7 +26498,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       const result = await this.api.testConnection();
       const label = tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
       if (result.success) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             `${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`,
             `${label} connected (${result.durationMs ?? 0} ms)`
@@ -26396,7 +26508,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
         const hint = result.hint ? tr(`
 \u5EFA\u8BAE: ${result.hint}`, `
 Suggestion: ${result.hint}`) : "";
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             `${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
             `${label} connection failed: ${result.error || "unknown error"}${hint}`
@@ -26405,7 +26517,7 @@ Suggestion: ${result.hint}`) : "";
         );
       }
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`,
           `Connection failed: ${this.api.formatUserFacingError(error)}`
@@ -26431,7 +26543,7 @@ Suggestion: ${result.hint}`) : "";
     const content = await this.app.vault.cachedRead(file);
     const urls = VideoUtils.extractVideoUrls(content);
     if (urls.length === 0) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`,
           `No supported video link in "${file.basename}"`
@@ -26441,7 +26553,7 @@ Suggestion: ${result.hint}`) : "";
     }
     const view = await this.activateView();
     view?.prefillInput(urls.join("\n"));
-    new import_obsidian28.Notice(
+    new import_obsidian29.Notice(
       tr(
         `\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`,
         `Put ${urls.length} video links into the side panel; pick a mode and press Start`
@@ -26486,7 +26598,7 @@ Suggestion: ${result.hint}`) : "";
       const salvage = salvageSettingsJson(raw);
       if (!salvage.corrupt) return { stored: salvage.settings, migrated: false };
       await adapter.write(`${this.pluginDir}/data.corrupt-${Date.now()}.json`, raw);
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u635F\u574F\uFF08\u540C\u6B65\u51B2\u7A81\uFF09\uFF0C\u5DF2\u6551\u56DE ${salvage.history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${salvage.webhookHistory.length} \u6761\u7ED3\u679C\uFF0C\u539F\u6587\u4EF6\u53E6\u5B58\u4E3A data.corrupt-*.json\u3002`,
           `Video Summary: the settings file was damaged by a sync conflict. Recovered ${salvage.history.length} job records and ${salvage.webhookHistory.length} results; the original is saved as data.corrupt-*.json.`
@@ -26540,7 +26652,7 @@ Suggestion: ${result.hint}`) : "";
         }
       }
       await this.copyFolder(`${folder}/data`, `${this.pluginDir}/data`);
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `Video Summary\uFF1A\u5DF2\u4ECE\u65E7\u7248\u63D2\u4EF6\u76EE\u5F55\uFF08${folder}\uFF09\u5BFC\u5165\u8BBE\u7F6E\u3001${history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${webhookHistory.length} \u6761\u7ED3\u679C\u3002\u786E\u8BA4\u65E0\u8BEF\u540E\u53EF\u505C\u7528\u5E76\u5220\u9664\u65E7\u7248\u3002`,
           `Video Summary: imported settings, ${history.length} job records and ${webhookHistory.length} results from the old plugin folder (${folder}). Once everything looks right, disable and delete the old version.`
@@ -26558,8 +26670,8 @@ Suggestion: ${result.hint}`) : "";
     if (!await adapter.exists(to)) await adapter.mkdir(to);
     const { files, folders } = await adapter.list(from);
     for (const file of files) {
-      const target = `${to}/${file.slice(from.length + 1)}`;
-      if (!await adapter.exists(target)) await adapter.copy(file, target);
+      const target2 = `${to}/${file.slice(from.length + 1)}`;
+      if (!await adapter.exists(target2)) await adapter.copy(file, target2);
     }
     for (const folder of folders) {
       await this.copyFolder(folder, `${to}/${folder.slice(from.length + 1)}`);
@@ -26747,7 +26859,7 @@ Suggestion: ${result.hint}`) : "";
     }
     const vault = this.app.vault;
     this.historyLookupCache = {
-      exists: (path) => vault.getAbstractFileByPath(path) instanceof import_obsidian28.TFile,
+      exists: (path) => vault.getAbstractFileByPath(path) instanceof import_obsidian29.TFile,
       byName: (name) => names.get(name),
       byTitle: (title) => titles.get(title),
       byUrl: (url) => urls.get(url)
@@ -26758,7 +26870,7 @@ Suggestion: ${result.hint}`) : "";
   resolveHistoryNote(record) {
     const path = resolveHistoryPath(record, this.historyLookup());
     const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
-    return file instanceof import_obsidian28.TFile ? file : null;
+    return file instanceof import_obsidian29.TFile ? file : null;
   }
   /**
    * Older records kept only the name at the time. Once the index has every video note, the ones
@@ -26926,7 +27038,7 @@ Suggestion: ${result.hint}`) : "";
   async setActiveWebhook(profileId, options = {}) {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new import_obsidian28.Notice(tr("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E", "Webhook configuration not found"));
+      new import_obsidian29.Notice(tr("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E", "Webhook configuration not found"));
       return null;
     }
     this.settings.activeWebhookId = profileId;
@@ -26934,7 +27046,7 @@ Suggestion: ${result.hint}`) : "";
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`, `Switched to ${profile.name || profile.url}`)
       );
     }
@@ -26964,7 +27076,7 @@ Suggestion: ${result.hint}`) : "";
   async openDemoNote() {
     const path = DEMO_NOTE_NAME();
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian28.TFile)) {
+    if (!(file instanceof import_obsidian29.TFile)) {
       const created = await this.app.vault.create(path, demoNoteContent());
       const cssClass = this.settings.noteCssClass ?? "";
       if (cssClass) {
@@ -26975,7 +27087,7 @@ Suggestion: ${result.hint}`) : "";
       }
       file = created;
     }
-    if (file instanceof import_obsidian28.TFile) await this.app.workspace.getLeaf(false).openFile(file);
+    if (file instanceof import_obsidian29.TFile) await this.app.workspace.getLeaf(false).openFile(file);
   }
   openSettingsPage() {
     const settingApi = this.app.setting;
@@ -27024,7 +27136,7 @@ Suggestion: ${result.hint}`) : "";
     const finished = await this.jobs.waitFor(job.id);
     if (!finished) return;
     if (finished.state === "error") {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`,
           `Processing failed: ${finished.error || "unknown error"}`
@@ -27034,11 +27146,11 @@ Suggestion: ${result.hint}`) : "";
       throw new Error(finished.error || "\u5904\u7406\u5931\u8D25");
     }
     if (finished.state === "cancelled") {
-      new import_obsidian28.Notice(tr("\u5904\u7406\u5DF2\u53D6\u6D88", "Processing cancelled"));
+      new import_obsidian29.Notice(tr("\u5904\u7406\u5DF2\u53D6\u6D88", "Processing cancelled"));
       return;
     }
     if (finished.state === "review") {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`,
           `${this.getModeDisplayText(mode)} ready; confirm writing it in the side panel`
@@ -27047,7 +27159,7 @@ Suggestion: ${result.hint}`) : "";
       );
       return;
     }
-    new import_obsidian28.Notice(tr(`${this.getModeDisplayText(mode)}\u5B8C\u6210`, `${this.getModeDisplayText(mode)} done`));
+    new import_obsidian29.Notice(tr(`${this.getModeDisplayText(mode)}\u5B8C\u6210`, `${this.getModeDisplayText(mode)} done`));
   }
   /**
    * 刷新视频总结视图
@@ -27124,13 +27236,13 @@ Suggestion: ${result.hint}`) : "";
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian28.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "excluded");
-      new import_obsidian28.Notice(tr("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0", "Marked as not a video note"));
+      new import_obsidian29.Notice(tr("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0", "Marked as not a video note"));
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${errorMessage(error)}`,
           `Could not mark it: ${errorMessage(error)}`
@@ -27142,7 +27254,7 @@ Suggestion: ${result.hint}`) : "";
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002",
             "This note has no saved video artifact yet; process it once first."
@@ -27154,7 +27266,7 @@ Suggestion: ${result.hint}`) : "";
       const artifact = await this.artifactStore.load(artifactId);
       const learningCount = (artifact.learning?.flashcards?.length || 0) + (artifact.learning?.questions?.length || 0);
       if (learningCount === 0) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002",
             'This artifact has no learning cards; turn on "Generate learning exercises" and process it again.'
@@ -27166,18 +27278,18 @@ Suggestion: ${result.hint}`) : "";
       new LearningReviewModal(this.app, {
         store: this.learningStore,
         artifact,
-        onOpenEvidence: async (_source, target) => {
-          if (target.start === null) {
-            new import_obsidian28.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
+        onOpenEvidence: async (_source, target2) => {
+          if (target2.start === null) {
+            new import_obsidian29.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
             return;
           }
           const view = await this.activateView();
           const notePath = artifact.source.note_path || file.path;
-          view?.openArtifact(notePath, artifact.artifact_id, target.start);
+          view?.openArtifact(notePath, artifact.artifact_id, target2.start);
         }
       }).open();
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
           `Could not open the review: ${this.formatErrorForNotice(error)}`
@@ -27207,11 +27319,11 @@ Suggestion: ${result.hint}`) : "";
         (left, right) => left.firstDue.localeCompare(right.firstDue) || right.dueCount - left.dueCount || String(left.artifact.title || "").localeCompare(String(right.artifact.title || ""))
       );
       if (candidates.length === 0) {
-        new import_obsidian28.Notice(tr("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002", "No video learning cards are due."));
+        new import_obsidian29.Notice(tr("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002", "No video learning cards are due."));
         return;
       }
       const total = candidates.reduce((sum, item) => sum + item.dueCount, 0);
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`,
           `${candidates.length} videos, ${total} cards due.`
@@ -27221,31 +27333,31 @@ Suggestion: ${result.hint}`) : "";
       const openAt = (index) => {
         const candidate = candidates[index];
         if (!candidate) {
-          new import_obsidian28.Notice(tr("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002", "All due reviews done."));
+          new import_obsidian29.Notice(tr("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002", "All due reviews done."));
           return;
         }
         new LearningReviewModal(this.app, {
           store: this.learningStore,
           artifact: candidate.artifact,
           mode: "due",
-          onOpenEvidence: async (artifact, target) => {
-            if (target.start === null) {
-              new import_obsidian28.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
+          onOpenEvidence: async (artifact, target2) => {
+            if (target2.start === null) {
+              new import_obsidian29.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
               return;
             }
             const notePath = artifact.source.note_path;
             const noteFile = notePath ? this.app.vault.getAbstractFileByPath(notePath) : null;
-            if (notePath && noteFile instanceof import_obsidian28.TFile) {
+            if (notePath && noteFile instanceof import_obsidian29.TFile) {
               const view = await this.activateView();
-              view?.openArtifact(notePath, artifact.artifact_id, target.start);
+              view?.openArtifact(notePath, artifact.artifact_id, target2.start);
               return;
             }
-            const externalUrl = safeExternalHttpUrl(target.timestamp_url);
+            const externalUrl = safeExternalHttpUrl(target2.timestamp_url);
             if (externalUrl) {
               window.open(externalUrl, "_blank", "noopener,noreferrer");
               return;
             }
-            new import_obsidian28.Notice(
+            new import_obsidian29.Notice(
               tr(
                 "\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002",
                 "The artifact's original note is gone; cannot find the player."
@@ -27263,7 +27375,7 @@ Suggestion: ${result.hint}`) : "";
       };
       openAt(0);
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
           `Could not open the due review: ${this.formatErrorForNotice(error)}`
@@ -27276,7 +27388,7 @@ Suggestion: ${result.hint}`) : "";
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian28.Notice(tr("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", "This note has no reproducible artifact."), 6e3);
+        new import_obsidian29.Notice(tr("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", "This note has no reproducible artifact."), 6e3);
         return;
       }
       const manifest = await this.reproducibilityStore.load(artifactId);
@@ -27314,7 +27426,7 @@ Suggestion: ${result.hint}`) : "";
         }
       );
       if (!job) return;
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           "\u5DF2\u63D0\u4EA4\u65E0\u6E90\u91CD\u5904\u7406\uFF1A\u672C\u5730\u6587\u7A3F\u4F1A\u91CD\u65B0\u603B\u7ED3\uFF0C\u6821\u9A8C\u8FC7\u7684\u65E7\u8BC1\u636E\u4F5C\u4E3A\u7F3A\u5931\u56DE\u9000\uFF1B\u4E0D\u4F1A\u4E0B\u8F7D\u6765\u6E90\uFF0C\u7ED3\u679C\u4F7F\u7528\u5F53\u524D\u540E\u7AEF\u914D\u7F6E\u3002",
           "Sent for source-free reprocessing: the local transcript is summarised again and checked old evidence is kept as a fallback; nothing is downloaded and the current backend settings are used."
@@ -27326,7 +27438,7 @@ Suggestion: ${result.hint}`) : "";
         throw new Error(finished.error || "\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25");
       }
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
           `Reproducible reprocessing failed: ${this.formatErrorForNotice(error)}`
@@ -27351,11 +27463,11 @@ Suggestion: ${result.hint}`) : "";
     await this.ensureVaultFolder(folder);
     const path = folder ? `${folder}/Video Summary Library.base` : "Video Summary Library.base";
     const existing = this.app.vault.getAbstractFileByPath(path);
-    const existingContent = existing instanceof import_obsidian28.TFile ? await this.app.vault.read(existing) : void 0;
+    const existingContent = existing instanceof import_obsidian29.TFile ? await this.app.vault.read(existing) : void 0;
     const result = upsertVideoSummaryBase(existingContent);
     if (result.status === "created") {
       await this.app.vault.create(path, result.content);
-    } else if (result.status === "updated" && existing instanceof import_obsidian28.TFile) {
+    } else if (result.status === "updated" && existing instanceof import_obsidian29.TFile) {
       await this.app.vault.modify(existing, result.content);
     }
     if (notify) {
@@ -27363,7 +27475,7 @@ Suggestion: ${result.hint}`) : "";
         `\u5DF2\u4FDD\u7559\u7528\u6237\u4FEE\u6539\u7684 Base\uFF1A${path}\u3002\u5982\u9700\u65B0\u7248\uFF0C\u8BF7\u5148\u53E6\u5B58\u6216\u624B\u52A8\u5220\u9664\u8BE5\u6587\u4EF6\u3002`,
         `Kept your edited Base: ${path}. Save it under another name or delete it to get the new version.`
       ) : `${result.reason} ${path}`;
-      new import_obsidian28.Notice(message, 7e3);
+      new import_obsidian29.Notice(message, 7e3);
     }
   }
   async putCaptureIfAbsent(sourceHash, draft) {
@@ -27373,7 +27485,7 @@ Suggestion: ${result.hint}`) : "";
       const remembered = this.capturedEntries.get(sourceHash);
       if (remembered) {
         const rememberedFile = this.app.vault.getAbstractFileByPath(remembered.path);
-        if (rememberedFile instanceof import_obsidian28.TFile) {
+        if (rememberedFile instanceof import_obsidian29.TFile) {
           return { created: false, entry: { ...remembered } };
         }
         this.capturedEntries.delete(sourceHash);
@@ -27432,7 +27544,7 @@ Suggestion: ${result.hint}`) : "";
       (item) => item.source.source_hash === sourceHash && item.source.note_path
     );
     const artifactFile = artifact?.source.note_path ? this.app.vault.getAbstractFileByPath(artifact.source.note_path) : null;
-    return artifact?.source.note_path && artifactFile instanceof import_obsidian28.TFile ? {
+    return artifact?.source.note_path && artifactFile instanceof import_obsidian29.TFile ? {
       path: artifact.source.note_path,
       source_hash: sourceHash,
       source_identity: sourceIdentity,
@@ -27531,7 +27643,7 @@ Suggestion: ${result.hint}`) : "";
   }
   /** Start, restart or stop the extension's local endpoint to match the settings. */
   async startExtensionBridge() {
-    if (!import_obsidian28.Platform.isDesktopApp) return;
+    if (!import_obsidian29.Platform.isDesktopApp) return;
     if (this.settings.extensionBridgeEnabled !== true) {
       this.bridge?.stop();
       return;
@@ -27551,7 +27663,7 @@ Suggestion: ${result.hint}`) : "";
       const rawUrl = (params.url || params.link || "").trim();
       const localFile = (params.local_file || params.localFile || "").trim();
       if (!rawUrl && !localFile) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u534F\u8BAE\u8C03\u7528 video-summary \u7F3A\u5C11 URL \u6216 local_file \u53C2\u6570",
             "The video-summary link is missing a URL or local_file"
@@ -27570,7 +27682,7 @@ Suggestion: ${result.hint}`) : "";
         captured_at: (params.captured_at || "").trim() || void 0
       });
       const file = this.app.vault.getAbstractFileByPath(result.entry.path);
-      if (!(file instanceof import_obsidian28.TFile)) {
+      if (!(file instanceof import_obsidian29.TFile)) {
         throw new Error(`\u6355\u83B7\u4ED3\u50A8\u8FD4\u56DE\u7684\u7B14\u8BB0\u4E0D\u5B58\u5728\uFF1A${result.entry.path}`);
       }
       const transcript = (params.transcript || "").trim();
@@ -27588,13 +27700,13 @@ Suggestion: ${result.hint}`) : "";
       }
       if (!options.background) await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           result.status === "created" ? tr("\u5DF2\u79BB\u7EBF\u52A0\u5165\u89C6\u9891\u6536\u4EF6\u7BB1", "Added to the video inbox offline") : tr("\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5DF2\u6253\u5F00\u539F\u7B14\u8BB0", "Already captured; opened the existing note")
         );
         return;
       }
       if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u5F53\u524D\u81EA\u52A8\u5904\u7406\u53EA\u652F\u6301 YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u548C\u5C0F\u7EA2\u4E66\u94FE\u63A5\uFF0C\u901A\u7528 URL \u672A\u53D1\u9001\u5230\u540E\u7AEF\u3002",
             "Captured to the inbox. Automatic processing supports YouTube, Bilibili, Douyin, TikTok and Xiaohongshu links only, so this URL was not sent."
@@ -27605,7 +27717,7 @@ Suggestion: ${result.hint}`) : "";
       }
       if (localFile) {
         if (!isSupportedLocalMediaPath(localFile)) {
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002",
               "Captured to the inbox. This local path is not a supported media file and was not read or sent."
@@ -27614,7 +27726,7 @@ Suggestion: ${result.hint}`) : "";
           );
           return;
         }
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u540E\u7AEF\u8BFB\u4E0D\u5230\u7535\u8111\u4E0A\u7684\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u628A\u6587\u4EF6\u590D\u5236\u5230\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u518D\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\u3002",
             "Captured to the inbox. The backend cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name."
@@ -27636,7 +27748,7 @@ Confirm only if you recognise where it came from.`
           )
         );
         if (!confirmed) {
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               "\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002",
               "Kept in the video inbox; the local file was not read or sent."
@@ -27646,7 +27758,7 @@ Confirm only if you recognise where it came from.`
           return;
         }
       }
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         result.status === "created" ? tr("\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406", "Captured; processing") : tr("\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406", "Already captured; processing again")
       );
       const requestedMode = (params.mode || "").trim();
@@ -27655,7 +27767,7 @@ Confirm only if you recognise where it came from.`
       ) ? requestedMode : this.settings.defaultMode;
       const activeProcessing = this.captureProcessingLocks.get(result.entry.source_hash);
       if (activeProcessing) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", "Already processing; not sent twice."),
           5e3
         );
@@ -27671,7 +27783,7 @@ Confirm only if you recognise where it came from.`
         }
       }
     } catch (error) {
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `video-summary link failed: ${this.formatErrorForNotice(error)}`
@@ -27684,7 +27796,7 @@ Confirm only if you recognise where it came from.`
 function normalizeSuccessStatusValue(value) {
   return normalizeSuccessStatusText(value, DEFAULT_SETTINGS.successStatusValue);
 }
-var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
+var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     /** Where the page was last drawn: containerEl before Obsidian 1.13, the definition row from 1.13. */
@@ -27726,7 +27838,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
   }
   /** A row of buttons outside any group, ending on the same right line as the controls. */
   buttonRow(parent, build) {
-    build(new import_obsidian28.ButtonComponent(parent.createDiv({ cls: "ap-button-row" })));
+    build(new import_obsidian29.ButtonComponent(parent.createDiv({ cls: "ap-button-row" })));
   }
   redraw() {
     if (this.host) this.renderPage(this.host);
@@ -27767,7 +27879,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
     this.group(containerEl, tr("\u5904\u7406", "Processing"));
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
-    if (import_obsidian28.Platform.isDesktopApp) {
+    if (import_obsidian29.Platform.isDesktopApp) {
       this.group(containerEl, tr("\u6D4F\u89C8\u5668\u6269\u5C55", "Browser extension"));
       this.createExtensionBridgeSection(containerEl);
     }
@@ -27789,7 +27901,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
   }
   /** 一段的标题 */
   group(containerEl, title) {
-    const head = new import_obsidian28.Setting(containerEl).setName(title).setHeading();
+    const head = new import_obsidian29.Setting(containerEl).setName(title).setHeading();
     head.settingEl.addClass("vs-settings-group");
   }
   /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
@@ -27844,7 +27956,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
     );
     titleRow.addClass("setup-guide-title-row");
     if (this.plugin.settings.setupGuideDismissed) {
-      new import_obsidian28.Setting(section3).setName(tr("\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210", "First-run setup done")).setDesc(
+      new import_obsidian29.Setting(section3).setName(tr("\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210", "First-run setup done")).setDesc(
         tr(
           "\u6362\u4E86\u540E\u7AEF\u3001\u8FDE\u63A5\u51FA\u9519\u6216\u60F3\u91CD\u65B0\u68C0\u67E5\u65F6\uFF0C\u518D\u6253\u5F00\u5B83\u3002",
           "Open it again after changing the backend, when the connection fails, or to check again."
@@ -27886,7 +27998,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
     const applyCode = async (raw) => {
       const code = parseConnectionCode(raw, DEFAULT_N8N_WEBHOOK_URL);
       if (!code) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             "\u8FD9\u4E0D\u662F\u8FDE\u63A5\u7801\u3002\u8BF7\u7C98\u8D34\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u6574\u884C\u3002",
             "That is not a connection code. Paste the whole last line the start script printed."
@@ -27897,10 +28009,10 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
       }
       await this.applyConnectionCode(code);
       if (codeInput) codeInput.value = "";
-      new import_obsidian28.Notice(tr("\u8FDE\u63A5\u7801\u5DF2\u4FDD\u5B58\uFF0C\u6B63\u5728\u68C0\u67E5\u2026", "Connection code saved; checking\u2026"));
+      new import_obsidian29.Notice(tr("\u8FDE\u63A5\u7801\u5DF2\u4FDD\u5B58\uFF0C\u6B63\u5728\u68C0\u67E5\u2026", "Connection code saved; checking\u2026"));
       await runCheck(false);
     };
-    new import_obsidian28.Setting(section3).setName(tr("\u2460 \u8FDE\u63A5\u7801", "\u2460 Connection code")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u2460 \u8FDE\u63A5\u7801", "\u2460 Connection code")).setDesc(
       tr(
         "\u542F\u52A8\u811A\u672C\u7684\u6700\u540E\u4E00\u884C\uFF0C\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F\u3002\u8FDE\u63A5\u7801\u76F8\u5F53\u4E8E\u53E3\u4EE4\uFF0C\u4E0D\u8981\u53D1\u7ED9\u522B\u4EBA\u3002",
         "The last line of the start script, already on your clipboard. It works like a password; keep it to yourself."
@@ -27920,7 +28032,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
         try {
           clip = await navigator.clipboard.readText();
         } catch {
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               "\u8BFB\u4E0D\u5230\u526A\u8D34\u677F\uFF0C\u8BF7\u624B\u52A8\u7C98\u8D34\u5230\u8F93\u5165\u6846\u540E\u6309\u56DE\u8F66\u3002",
               "Cannot read the clipboard; paste into the box and press Enter."
@@ -27931,7 +28043,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
         await applyCode(clip);
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u2461 \u68C0\u67E5", "\u2461 Check")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u2461 \u68C0\u67E5", "\u2461 Check")).setDesc(
       tr(
         "\u5FEB\u901F\u68C0\u67E5\u53EA\u770B\u540E\u7AEF\u548C\u8FDE\u63A5\u7801\uFF1B\u5B8C\u6574\u68C0\u67E5\u8FD8\u4F1A\u786E\u8BA4\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\u7684\u5BC6\u94A5\u771F\u7684\u80FD\u7528\u3002",
         "The quick check covers the backend and the connection code; the full check also confirms the model and speech-to-text keys work."
@@ -27951,7 +28063,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
     );
     section3.appendChild(results);
     const trialResult = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian28.Setting(section3).setName(tr("\u2462 \u8BD5\u8FD0\u884C", "\u2462 Trial run")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u2462 \u8BD5\u8FD0\u884C", "\u2462 Trial run")).setDesc(
       tr(
         "\u7528\u4E00\u6BB5\u5185\u7F6E\u7684\u77ED\u6587\u7A3F\u751F\u6210\u4E00\u6B21\u603B\u7ED3\uFF0C\u786E\u8BA4\u6574\u6761\u6D41\u7A0B\u80FD\u8DD1\u901A\u3002\u4F1A\u6D88\u8017\u6781\u5C11\u91CF\u6A21\u578B\u989D\u5EA6\u3002",
         "Summarises a short built-in text to confirm the whole chain works. Uses a tiny amount of model credit."
@@ -28030,7 +28142,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
       polling = 0;
     };
     this.stopLoginPolling = stop;
-    new import_obsidian28.Setting(section3).setName(title ?? tr("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09", "\u2463 Bilibili login (optional)")).setDesc(
+    new import_obsidian29.Setting(section3).setName(title ?? tr("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09", "\u2463 Bilibili login (optional)")).setDesc(
       tr(
         "\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u7801\u767B\u5F55\u540E\uFF0C\u80FD\u62FF\u5230\u5B83\u7684\u5B57\u5E55\u548C AI \u5B57\u5E55\uFF0C\u4E0D\u7528\u518D\u8F6C\u5199\u3002\u767B\u5F55\u4FE1\u606F\u53EA\u4EA4\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\uFF0C\u63D2\u4EF6\u4E0D\u4FDD\u5B58\u3002",
         "Scan with the Bilibili phone app to log in; the backend can then use Bilibili subtitles and AI subtitles instead of transcribing. The login goes only to your own backend; the plugin does not keep it."
@@ -28234,7 +28346,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
       `\u6B63\u5728\u63A5\u6536 \xB7 \u7AEF\u53E3 ${plugin.settings.extensionBridgePort}`,
       `Receiving \xB7 port ${plugin.settings.extensionBridgePort}`
     ) : state === "port-in-use" ? tr("\u7AEF\u53E3\u88AB\u5360\u7528\uFF0C\u6362\u4E00\u4E2A\u7AEF\u53E3\u518D\u8BD5", "The port is in use; choose another one") : state === "unavailable" ? tr("\u8FD9\u53F0\u8BBE\u5907\u4E0D\u80FD\u63A5\u6536", "Not available on this device") : tr("\u5DF2\u5173\u95ED", "Off");
-    new import_obsidian28.Setting(containerEl).setName(tr("\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian", "Receive in the background")).setDesc(stateText).addToggle(
+    new import_obsidian29.Setting(containerEl).setName(tr("\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian", "Receive in the background")).setDesc(stateText).addToggle(
       (toggle) => toggle.setValue(plugin.settings.extensionBridgeEnabled === true).onChange(async (value) => {
         plugin.settings.extensionBridgeEnabled = value;
         await restart();
@@ -28245,17 +28357,18 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
       plugin.settings.extensionBridgePort,
       plugin.settings.extensionBridgeToken
     );
-    const codeSetting = new import_obsidian28.Setting(containerEl).setName(tr("\u914D\u5BF9\u7801", "Pairing code")).setDesc(
+    const codeSetting = new import_obsidian29.Setting(containerEl).setName(tr("\u914D\u5BF9\u7801", "Pairing code")).setDesc(
       tr(
         "\u7C98\u8D34\u5230\u6269\u5C55\u7684\u201C\u8BBE\u7F6E \u2192 Obsidian \u914D\u5BF9\u7801\u201D\u3002",
         "Paste it into the extension under Settings \u2192 Obsidian pairing code."
       )
     );
-    codeSetting.controlEl.createEl("code", { text: code, cls: "vs-bridge-code" });
+    const shown = `${code.slice(0, 16)}\u2026${code.slice(-4)}`;
+    codeSetting.controlEl.createEl("code", { text: shown, cls: "vs-bridge-code" });
     codeSetting.addButton(
       (button) => button.setButtonText(tr("\u590D\u5236", "Copy")).onClick(async () => {
         await navigator.clipboard.writeText(code);
-        new import_obsidian28.Notice(tr("\u5DF2\u590D\u5236\u914D\u5BF9\u7801", "Pairing code copied"));
+        new import_obsidian29.Notice(tr("\u5DF2\u590D\u5236\u914D\u5BF9\u7801", "Pairing code copied"));
       })
     ).addExtraButton(
       (button) => button.setIcon("refresh-cw").setTooltip(
@@ -28265,7 +28378,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
         await restart();
       })
     );
-    new import_obsidian28.Setting(containerEl).setName(tr("\u7AEF\u53E3", "Port")).addText((text2) => {
+    new import_obsidian29.Setting(containerEl).setName(tr("\u7AEF\u53E3", "Port")).addText((text2) => {
       text2.inputEl.type = "number";
       text2.setValue(String(plugin.settings.extensionBridgePort));
       text2.inputEl.addEventListener("change", async () => {
@@ -28286,7 +28399,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
       cls: "setting-item-description"
     });
     const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian28.Setting(section3).setName(tr("\u540E\u7AEF\u6587\u4EF6\u5939", "Backend folder")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u540E\u7AEF\u6587\u4EF6\u5939", "Backend folder")).setDesc(
       tr(
         "\u6709 compose.yaml \u7684\u90A3\u4E2A\u6587\u4EF6\u5939\u3002\u201C\u542F\u52A8\u540E\u7AEF\u201D\u627E\u4E0D\u5230\u73B0\u6210\u7684\u5BB9\u5668\u65F6\uFF0C\u5728\u8FD9\u91CC\u8FD0\u884C docker compose up\u3002",
         "The folder with compose.yaml. When Start backend finds no existing container, it runs docker compose up here."
@@ -28297,7 +28410,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u540E\u7AEF\u955C\u50CF", "Backend image")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u540E\u7AEF\u955C\u50CF", "Backend image")).setDesc(
       tr(
         "\u7559\u7A7A\u7528\u5B98\u65B9\u955C\u50CF\u3002\u4E0B\u8F7D\u4E0D\u52A8\u65F6\u53EF\u4EE5\u586B\u955C\u50CF\u7AD9\u4E0A\u7684\u540C\u4E00\u4E2A\u955C\u50CF\uFF0C\u4E0B\u6B21\u5B89\u88C5\u6216\u66F4\u65B0\u65F6\u751F\u6548\u3002",
         "Leave empty for the official image. When the download does not work, enter the same image on a mirror; it applies at the next install or update."
@@ -28308,7 +28421,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("Cookies \u76EE\u5F55", "Cookies folder")).addText(
+    new import_obsidian29.Setting(section3).setName(tr("Cookies \u76EE\u5F55", "Cookies folder")).addText(
       (text2) => text2.setPlaceholder("/path/to/video-summary-backend/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
@@ -28317,12 +28430,12 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
       (button) => button.setButtonText(tr("\u6253\u5F00\u76EE\u5F55", "Open folder")).onClick(() => {
         const dir = (this.plugin.settings.cookiesDirPath || "").trim();
         if (!dir) {
-          new import_obsidian28.Notice(tr("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84", "Fill in the cookies folder first"));
+          new import_obsidian29.Notice(tr("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84", "Fill in the cookies folder first"));
           return;
         }
         try {
           if (!openPathInSystem(dir)) {
-            new import_obsidian28.Notice(
+            new import_obsidian29.Notice(
               tr(
                 "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09",
                 "Opening system folders is not available here (desktop only)"
@@ -28330,7 +28443,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
             );
           }
         } catch (error) {
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               `\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`,
               `Could not open the folder: ${error.message}`
@@ -28450,7 +28563,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
   }
   createApiSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "link", tr("\u5904\u7406\u670D\u52A1", "Backend"));
-    const webhookSetting = new import_obsidian28.Setting(section3).setName(
+    const webhookSetting = new import_obsidian29.Setting(section3).setName(
       tr("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09", "Default webhook (n8n or compatible)")
     );
     let webhookDropdown = null;
@@ -28487,7 +28600,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
           const res = await this.plugin.api.testConnection();
           const label = tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
           if (res.success) {
-            new import_obsidian28.Notice(
+            new import_obsidian29.Notice(
               tr(
                 `${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`,
                 `${label} connected (${res.durationMs} ms)`
@@ -28498,7 +28611,7 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
             const hint = res.hint ? tr(`
 \u5EFA\u8BAE: ${res.hint}`, `
 Suggestion: ${res.hint}`) : "";
-            new import_obsidian28.Notice(
+            new import_obsidian29.Notice(
               tr(
                 `${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
                 `${label} connection failed: ${res.error || "unknown error"}${hint}`
@@ -28617,7 +28730,7 @@ Suggestion: ${res.hint}`) : "";
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new import_obsidian28.Notice(tr("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook", "Keep at least one webhook"));
+            new import_obsidian29.Notice(tr("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook", "Keep at least one webhook"));
             return;
           }
           this.plugin.settings.webhookProfiles = this.plugin.settings.webhookProfiles.filter(
@@ -28658,7 +28771,7 @@ Suggestion: ${res.hint}`) : "";
       "sliders-horizontal",
       tr("\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F", "Default processing")
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6", "Default depth")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6", "Default depth")).setDesc(
       tr(
         "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF0C\u7B14\u8BB0\u91CC\u7684\u8981\u70B9\u80FD\u8DF3\u56DE\u539F\u8BDD\u3002",
         "Quick reads subtitles only; evidence keeps the timeline so key points link back to the quote."
@@ -28671,7 +28784,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B", "Default content type")).addDropdown(
+    new import_obsidian29.Setting(section3).setName(tr("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B", "Default content type")).addDropdown(
       (dropdown) => dropdown.addOption("auto", tr("\u81EA\u52A8\u8BC6\u522B", "Automatic")).addOption("course", tr("\u8BFE\u7A0B", "Course")).addOption("interview", tr("\u8BBF\u8C08", "Interview")).addOption("tutorial", tr("\u6559\u7A0B", "Tutorial")).addOption("news", tr("\u65B0\u95FB", "News")).addOption("meeting", tr("\u4F1A\u8BAE", "Meeting")).addOption("review", tr("\u8BC4\u6D4B", "Review")).addOption("general", tr("\u901A\u7528", "General")).setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
         const contentType = value;
         this.plugin.settings.defaultContentType = contentType;
@@ -28683,7 +28796,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u89C2\u770B\u4EF7\u503C\u5224\u65AD", "Worth watching?")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u89C2\u770B\u4EF7\u503C\u5224\u65AD", "Worth watching?")).setDesc(
       tr(
         "\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002",
         "Say whether a video is worth watching, worth skimming or skippable, with its best segments."
@@ -28695,7 +28808,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60", "Generate learning exercises")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60", "Generate learning exercises")).setDesc(
       tr(
         "\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002",
         "Add flashcards, quiz questions and Feynman prompts to the result; off by default to save cost."
@@ -28707,13 +28820,13 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u5904\u7406\u6A21\u578B", "Model")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u6A21\u578B", "Model")).setDesc(
       tr(
         `\u7531\u540E\u7AEF .env \u91CC\u7684 VS_CHAT_MODEL \u51B3\u5B9A\uFF0C\u6240\u6709\u603B\u7ED3\u6B65\u9AA4\u5171\u7528\u4E00\u4E2A\u6A21\u578B\u3002\u4E0A\u6B21\u68C0\u67E5\uFF1A${this.plugin.settings.aiModel || "\u8FD8\u6CA1\u68C0\u67E5"}\u3002\u6362\u6A21\u578B\u65F6\u6539 .env\uFF0C\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C\u3002`,
         `Set by VS_CHAT_MODEL in the backend's .env; every summary step uses this one model. Last check: ${this.plugin.settings.aiModel || "not checked yet"}. To change it, edit .env and run the start script again.`
       )
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4", "Request timeout")).addSlider(
+    new import_obsidian29.Setting(section3).setName(tr("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4", "Request timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
@@ -28723,19 +28836,19 @@ Suggestion: ${res.hint}`) : "";
   }
   createOutputSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "folder", tr("\u7B14\u8BB0", "Notes"));
-    new import_obsidian28.Setting(section3).setName(tr("\u9ED8\u8BA4\u8BED\u8A00", "Default language")).addDropdown(
+    new import_obsidian29.Setting(section3).setName(tr("\u9ED8\u8BA4\u8BED\u8A00", "Default language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u81EA\u52A8\u4FDD\u5B58", "Save automatically")).addToggle(
+    new import_obsidian29.Setting(section3).setName(tr("\u81EA\u52A8\u4FDD\u5B58", "Save automatically")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u8F93\u51FA\u6587\u4EF6\u5939", "Output folder")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u8F93\u51FA\u6587\u4EF6\u5939", "Output folder")).setDesc(
       tr(
         "\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u5728\u5E93\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002",
         "Folder for new video notes, relative to the vault; ., .. and absolute paths are not allowed."
@@ -28748,7 +28861,7 @@ Suggestion: ${res.hint}`) : "";
           await this.plugin.saveSettings();
         } catch {
           text2.setValue(this.plugin.settings.outputFolder);
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               "\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5E93\u5185\u7684\u5B89\u5168\u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002",
               "The output folder must be a safe path inside the vault, without . or .."
@@ -28758,7 +28871,7 @@ Suggestion: ${res.hint}`) : "";
         }
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u89C6\u9891\u7B14\u8BB0\u7528\u9605\u8BFB\u89C6\u56FE\u6253\u5F00", "Open video notes in reading view")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u89C6\u9891\u7B14\u8BB0\u7528\u9605\u8BFB\u89C6\u56FE\u6253\u5F00", "Open video notes in reading view")).setDesc(
       tr(
         "\u5904\u7406\u597D\u7684\u89C6\u9891\u7B14\u8BB0\u6253\u5F00\u65F6\u76F4\u63A5\u663E\u793A\u6392\u597D\u7684\u6837\u5B50\uFF1B\u8981\u6539\u5B57\u65F6\u518D\u5207\u5230\u7F16\u8F91\u3002",
         "A finished video note opens as it reads; switch to editing when you want to change it."
@@ -28769,7 +28882,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u7B14\u8BB0\u6837\u5F0F\u7C7B", "Note CSS class")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u7B14\u8BB0\u6837\u5F0F\u7C7B", "Note CSS class")).setDesc(
       tr(
         "\u5199\u8FDB\u6BCF\u7BC7\u89C6\u9891\u7B14\u8BB0\u7684 cssclasses\uFF0C\u8BA9\u5E93\u91CC\u7684 CSS \u7247\u6BB5\u7ED9\u5B83\u6362\u6837\u5B50\uFF1B\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E2A\u6837\u5F0F\u3002\u7559\u7A7A\u5C31\u4E0D\u52A0\u3002",
         "Added to each video note's cssclasses so a CSS snippet in your vault can style it; the plugin ships no style for it. Leave empty to add none."
@@ -28780,7 +28893,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
+    new import_obsidian29.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
       tr(
         "\u5904\u7406\u6210\u529F\u65F6\u8865\u8FDB\u7B14\u8BB0\uFF0C\u4E00\u884C\u4E00\u4E2A\u201C\u540D\u79F0: \u503C\u201D\u3002\u7B14\u8BB0\u91CC\u5DF2\u6709\u7684\u503C\u4E0D\u8986\u76D6\uFF1Btags \u548C aliases \u4F1A\u5408\u5E76\uFF0C\u591A\u4E2A\u503C\u7528\u9017\u53F7\u9694\u5F00\u3002\u503C\u91CC\u53EF\u4EE5\u7528 {{title}} {{tldr}} {{summary}}\u3002",
         'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas. Values can use {{title}} {{tldr}} {{summary}}.'
@@ -28793,7 +28906,7 @@ Suggestion: ${res.hint}`) : "";
       area.inputEl.rows = 3;
       area.inputEl.addClass("vs-properties-input");
     });
-    new import_obsidian28.Setting(section3).setName(tr("\u6587\u7AE0\u7684\u6807\u7B7E", "Article tags")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u6587\u7AE0\u7684\u6807\u7B7E", "Article tags")).setDesc(
       tr(
         "\u7C98\u8D34\u7684\u6587\u7AE0\u6216\u6587\u7A3F\uFF08\u6CA1\u6709\u89C6\u9891\u94FE\u63A5\uFF09\u7528\u8FD9\u91CC\u7684\u6807\u7B7E\uFF0C\u4EE3\u66FF\u9ED8\u8BA4\u5C5E\u6027\u91CC\u7684 tags\u3002\u591A\u4E2A\u7528\u9017\u53F7\u9694\u5F00\uFF0C\u7559\u7A7A\u5C31\u4E0D\u52A0\u3002",
         "Pasted articles and transcripts (no video link) get these tags instead of the tags in the default properties. Separate several with commas; leave empty for none."
@@ -28804,7 +28917,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    const styleSetting = new import_obsidian28.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u5199\u4F5C\u98CE\u683C", "Writing style")).setDesc(
+    const styleSetting = new import_obsidian29.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u5199\u4F5C\u98CE\u683C", "Writing style")).setDesc(
       tr(
         "\u544A\u8BC9\u6A21\u578B\u4F60\u60F3\u8981\u7684\u7B14\u8BB0\u5199\u6CD5\uFF1A\u7528\u54EA\u4E9B callout\u3001\u8981\u4E0D\u8981\u9875\u8FB9\u6279\u6CE8\u3001\u5F15\u8BED\u600E\u4E48\u653E\u3002\u4F18\u5148\u4E8E\u9ED8\u8BA4\u5199\u6CD5\uFF0C\u8F7B\u91CF\u6863\u548C\u540E\u7AEF\u90FD\u7528\u3002\u7559\u7A7A\u5C31\u7528\u9ED8\u8BA4\u5199\u6CD5\u3002",
         "How you want notes written: which callouts, margin notes, how quotes look. It is followed over the default way, by the light tier and the backend alike. Leave empty for the default."
@@ -28842,7 +28955,7 @@ Suggestion: ${res.hint}`) : "";
         this.display();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("Ithaca \u624B\u8D26\u5916\u89C2", "Ithaca notebook look")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("Ithaca \u624B\u8D26\u5916\u89C2", "Ithaca notebook look")).setDesc(
       tr(
         "\u89C6\u9891\u7B14\u8BB0\u7528\u80F6\u7247\u9875\u7709\u3001\u76F8\u7247\u5899\u3001\u90AE\u6233\u3001\u4FBF\u5229\u8D34\u548C\u7EA2\u8272\u65F6\u95F4\u6233\uFF1B\u53EA\u6539\u89C6\u9891\u7B14\u8BB0\u3002\u914D Ithaca \u4E3B\u9898\u65F6\u5B57\u4F53\u548C\u7EB8\u8272\u6700\u5B8C\u6574\u3002",
         "Video notes get a film header, a photo wall, postmarks, pinned notes and red timestamps; other notes are untouched. With the Ithaca theme the fonts and paper are complete."
@@ -28854,7 +28967,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(
       tr(
         "\u7B14\u8BB0\u91CC\u7684 [[\u53CC\u94FE]] \u6307\u5411\u5E93\u91CC\u6CA1\u6709\u7684\u7B14\u8BB0\u65F6\uFF0C\u6539\u6210\u7EAF\u6587\u5B57\u3002",
         "A [[link]] in the note that points to a note your vault does not have becomes plain text."
@@ -28865,7 +28978,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u4E3B\u9898\u6807\u8BB0", "Theme marks")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u4E3B\u9898\u6807\u8BB0", "Theme marks")).setDesc(
       tr(
         "\u7ED9\u8BA4\u8BC6\u8FD9\u4E9B\u7C7B\u7684\u4E3B\u9898\u7528\uFF1A\u4E00\u53E5\u8BDD\u7ED3\u8BBA\u653E\u6210\u526F\u9898\uFF08ih-sub\uFF09\uFF0C\u5708\u51FA\u7B2C\u4E00\u4E2A ==\u91CD\u70B9==\uFF08ih-circ\uFF09\uFF0Cstatus \u4E3A \u2705 \u7684\u7B14\u8BB0\u76D6\u5370\u7AE0\uFF08ih-stamp-done\uFF09\u3002\u9875\u9762\u4E0A\u5DF2\u6709\u7684\u526F\u9898\u3001\u5708\u548C\u5370\u7AE0\u4FDD\u7559\u4E0D\u52A8\u3002\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E9B\u6837\u5F0F\u3002",
         "For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is \u2705 (ih-stamp-done). A subtitle, circle or stamp already on the page is kept. The plugin ships no style for them."
@@ -28876,7 +28989,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(
       tr(
         "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002",
         "Used when you right-click a transcript line in Reader to copy a quote or insert it into a note, or drag it into a note. Available: {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}; \\n is a line break."
@@ -28899,13 +29012,13 @@ Suggestion: ${res.hint}`) : "";
       text: tr("\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", "Quick summary settings"),
       cls: "vs-subsection-title"
     });
-    new import_obsidian28.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8BED\u8A00", "Summary language")).addDropdown(
+    new import_obsidian29.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8BED\u8A00", "Summary language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4", "Summary timeout")).addSlider(
+    new import_obsidian29.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4", "Summary timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -28916,13 +29029,13 @@ Suggestion: ${res.hint}`) : "";
       text: tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", "Quick transcript settings"),
       cls: "vs-subsection-title"
     });
-    new import_obsidian28.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8BED\u8A00", "Transcript language")).addDropdown(
+    new import_obsidian29.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8BED\u8A00", "Transcript language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4", "Transcript timeout")).addSlider(
+    new import_obsidian29.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4", "Transcript timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -28931,25 +29044,25 @@ Suggestion: ${res.hint}`) : "";
   }
   createFileProcessingSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "files", tr("\u6587\u4EF6\u4E0E\u547D\u540D", "Files and names"));
-    new import_obsidian28.Setting(section3).setName(tr("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D", "Rename after processing")).addToggle(
+    new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D", "Rename after processing")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565", "Name clash")).addDropdown(
+    new import_obsidian29.Setting(section3).setName(tr("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565", "Name clash")).addDropdown(
       (drop) => drop.addOption("append-number", tr("\u8FFD\u52A0\u7F16\u53F7", "Add a number")).addOption("append-date", tr("\u8FFD\u52A0\u65E5\u671F", "Add the date")).addOption("skip", tr("\u8DF3\u8FC7", "Skip")).setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570", "Batch parallelism")).addSlider(
+    new import_obsidian29.Setting(section3).setName(tr("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570", "Batch parallelism")).addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(
       tr(
         "\u5904\u7406\u6210\u529F\u540E\u5199\u8FDB status\u3002\u63D2\u4EF6\u81EA\u5DF1\u7684\u72B6\u6001\u53E6\u8BB0\u5728 video_summary_status\uFF0C\u6240\u4EE5\u8FD9\u91CC\u53EF\u4EE5\u586B\u4F60\u5E93\u91CC\u201C\u5F85\u6574\u7406\u201D\u7684\u6807\u8BB0\uFF0C\u4F8B\u5982 \u274C\u3002",
         `Written to status after a note is processed. The plugin keeps its own state in video_summary_status, so this can be your vault's "to review" mark, such as \u274C.`
@@ -28958,7 +29071,7 @@ Suggestion: ${res.hint}`) : "";
       (text2) => text2.setPlaceholder(tr("\u4F8B\u5982 success", "For example success")).setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               "\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u3001\u5931\u8D25\u6216\u6392\u9664\u7684\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success",
               "The success status cannot be a pending, processing, failed or excluded value; reset to success"
@@ -28985,7 +29098,7 @@ Suggestion: ${res.hint}`) : "";
     });
     const keys = this.plugin.settings.payloadKeys;
     const createKeySetting = (name, key) => {
-      new import_obsidian28.Setting(section3).setName(name).addText(
+      new import_obsidian29.Setting(section3).setName(name).addText(
         (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
           keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
           this.plugin.api.setPayloadKeys(keys);
@@ -29007,14 +29120,14 @@ Suggestion: ${res.hint}`) : "";
       "wrench",
       tr("\u7F13\u5B58\u4E0E\u8C03\u8BD5", "Cache and debugging")
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u8C03\u8BD5\u6A21\u5F0F", "Debug mode")).addToggle(
+    new import_obsidian29.Setting(section3).setName(tr("\u8C03\u8BD5\u6A21\u5F0F", "Debug mode")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0", "Check the backend before processing")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0", "Check the backend before processing")).setDesc(
       tr(
         "\u540E\u7AEF\u4E0D\u53EF\u8FBE\u65F6\u5148\u63D0\u793A\uFF0C\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002",
         "Warns when the backend is unreachable and suggests the other one if it works."
@@ -29025,7 +29138,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian28.Setting(section3).setName(tr("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00", "Expand short links")).setDesc(
+    new import_obsidian29.Setting(section3).setName(tr("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00", "Expand short links")).setDesc(
       tr(
         "\u628A b23.tv\u3001v.douyin.com\u3001xhslink.com \u7B49\u77ED\u94FE\u6362\u6210\u6700\u7EC8\u94FE\u63A5\u518D\u53D1\u9001\uFF0C\u51CF\u5C11\u4E0B\u8F7D\u5931\u8D25\u3002",
         "Sends the final link instead of b23.tv, v.douyin.com, xhslink.com and other short links, so fewer downloads fail."
@@ -29037,7 +29150,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    const historyLimitSetting = new import_obsidian28.Setting(section3).setName(tr("\u5904\u7406\u5386\u53F2\u4E0A\u9650", "History limit")).setDesc(
+    const historyLimitSetting = new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u5386\u53F2\u4E0A\u9650", "History limit")).setDesc(
       tr(
         `${this.plugin.settings.historyLimit ?? 300} \u6761`,
         `${this.plugin.settings.historyLimit ?? 300} entries`
@@ -29051,14 +29164,14 @@ Suggestion: ${res.hint}`) : "";
     );
     const cacheSubsection = section3.createDiv({ cls: "vs-subsection" });
     cacheSubsection.createDiv({ text: tr("\u7F13\u5B58\u914D\u7F6E", "Cache"), cls: "vs-subsection-title" });
-    const cacheStatusSetting = new import_obsidian28.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u72B6\u6001", "Cache status")).addButton(
+    const cacheStatusSetting = new import_obsidian29.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u72B6\u6001", "Cache status")).addButton(
       (button) => button.setButtonText(tr("\u{1F4CA} \u67E5\u770B\u72B6\u6001", "\u{1F4CA} Show status")).setClass("cache-status-btn").onClick(async () => {
         try {
           const stats = this.plugin.api.getCacheStats();
           await this.showCachePreviewModal(stats);
         } catch (error) {
           console.error("\u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               `\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${errorMessage(error)}`,
               `\u274C Could not read cache statistics: ${errorMessage(error)}`
@@ -29069,7 +29182,7 @@ Suggestion: ${res.hint}`) : "";
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian28.Setting(cacheSubsection).setName(tr("\u542F\u7528\u7F13\u5B58", "Use the cache")).setDesc(
+    const enableCacheSetting = new import_obsidian29.Setting(cacheSubsection).setName(tr("\u542F\u7528\u7F13\u5B58", "Use the cache")).setDesc(
       tr(
         "\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09",
         "Keep processed results to avoid calling the API again (saves money)"
@@ -29079,14 +29192,14 @@ Suggestion: ${res.hint}`) : "";
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
         await this.plugin.saveSettings();
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           value ? tr("\u2705 \u7F13\u5B58\u5DF2\u542F\u7528", "\u2705 Cache on") : tr("\u274C \u7F13\u5B58\u5DF2\u7981\u7528", "\u274C Cache off"),
           2e3
         );
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian28.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4", "Cache expiry")).setDesc(
+    const expirySetting = new import_obsidian29.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4", "Cache expiry")).setDesc(
       tr(
         `${this.plugin.settings.cacheExpiryDays ?? 30} \u5929`,
         `${this.plugin.settings.cacheExpiryDays ?? 30} days`
@@ -29115,7 +29228,7 @@ Suggestion: ${res.hint}`) : "";
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             `\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`,
             `\u274C Could not add test data: ${errorMessage(error)}`
@@ -29132,7 +29245,7 @@ Suggestion: ${res.hint}`) : "";
       try {
         this.plugin.api.cleanupCache();
         const stats = this.plugin.api.getCacheStats();
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             `\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`,
             `\u{1F9F9} Removed expired entries; ${stats.size} left`
@@ -29141,7 +29254,7 @@ Suggestion: ${res.hint}`) : "";
         );
       } catch (error) {
         console.error("\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25:", error);
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(
             `\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`,
             `\u274C Could not remove expired entries: ${errorMessage(error)}`
@@ -29170,10 +29283,10 @@ Suggestion: ${res.hint}`) : "";
       if (confirmed) {
         try {
           this.plugin.api.clearCache();
-          new import_obsidian28.Notice(tr("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", "\u{1F5D1}\uFE0F Cache cleared"), 3e3);
+          new import_obsidian29.Notice(tr("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", "\u{1F5D1}\uFE0F Cache cleared"), 3e3);
         } catch (error) {
           console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-          new import_obsidian28.Notice(
+          new import_obsidian29.Notice(
             tr(
               `\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`,
               `\u274C Could not clear the cache: ${errorMessage(error)}`
@@ -29212,7 +29325,7 @@ Suggestion: ${res.hint}`) : "";
    * 显示缓存预览模态框
    */
   async showCachePreviewModal(stats) {
-    const modal = new import_obsidian29.Modal(this.app);
+    const modal = new import_obsidian30.Modal(this.app);
     modal.modalEl.addClass("ap", "ap-modal");
     modal.titleEl.setText(tr("\u{1F4CA} \u7F13\u5B58\u9884\u89C8", "\u{1F4CA} Cache preview"));
     const { contentEl } = modal;
@@ -29223,7 +29336,7 @@ Suggestion: ${res.hint}`) : "";
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error("\u274C \u5237\u65B0\u6A21\u6001\u6846\u5185\u5BB9\u5931\u8D25:", error);
-        new import_obsidian28.Notice(
+        new import_obsidian29.Notice(
           tr(`\u274C \u5237\u65B0\u5931\u8D25: ${errorMessage(error)}`, `\u274C Could not refresh: ${errorMessage(error)}`),
           5e3
         );
@@ -29249,7 +29362,7 @@ Suggestion: ${res.hint}`) : "";
       addStatCard(tr("\u603B\u5927\u5C0F", "Total size"), this.formatBytes(currentStats.totalSize));
       if (currentStats.size > 0) {
         const previewSection = container.createDiv({ cls: "cache-preview-content" });
-        new import_obsidian28.Setting(previewSection).setName(tr("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8", "Cache contents")).setHeading();
+        new import_obsidian29.Setting(previewSection).setName(tr("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8", "Cache contents")).setHeading();
         await this.showCacheContentPreview(previewSection);
       } else {
         const emptySection = container.createDiv({ cls: "cache-empty-section" });
@@ -29338,12 +29451,12 @@ Suggestion: ${res.hint}`) : "";
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new import_obsidian28.Notice(
+            new import_obsidian29.Notice(
               tr(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, `\u2705 Removed cache entry: ${item.url}`),
               3e3
             );
           } catch (error) {
-            new import_obsidian28.Notice(
+            new import_obsidian29.Notice(
               tr(
                 `\u274C \u5220\u9664\u5931\u8D25: ${errorMessage(error)}`,
                 `\u274C Could not delete: ${errorMessage(error)}`
@@ -29396,11 +29509,11 @@ Suggestion: ${res.hint}`) : "";
         "zh",
         testResult
       );
-      new import_obsidian28.Notice(tr("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", "\u2705 Test cache entry added"), 3e3);
+      new import_obsidian29.Notice(tr("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", "\u2705 Test cache entry added"), 3e3);
       this.plugin.api.getCacheStats();
     } catch (error) {
       console.error("\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25:", error);
-      new import_obsidian28.Notice(
+      new import_obsidian29.Notice(
         tr(
           `\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`,
           `\u274C Could not add test cache data: ${errorMessage(error)}`

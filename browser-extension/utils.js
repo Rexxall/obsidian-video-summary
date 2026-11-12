@@ -212,6 +212,7 @@
           item.videoAuthor ? `video_author: ${yamlQuote(item.videoAuthor)}\n` : '',
           item.videoDuration ? `video_duration: ${yamlQuote(item.videoDuration)}\n` : '',
           item.videoCover ? `video_cover: ${yamlQuote(item.videoCover)}\n` : '',
+          item.videoFrames ? `video_frames: ${yamlQuote(item.videoFrames)}\n` : '',
           `provided_transcript: ${yamlBlock(item.transcript)}\n`,
         ].join('')
       : '';
@@ -255,6 +256,7 @@
       if (item.videoAuthor) params.push(['author', item.videoAuthor]);
       if (item.videoDuration) params.push(['duration', item.videoDuration]);
       if (item.videoCover) params.push(['cover', item.videoCover]);
+      if (item.videoFrames) params.push(['frames', item.videoFrames]);
       params.push(['transcript', item.transcript]);
     }
     return params;

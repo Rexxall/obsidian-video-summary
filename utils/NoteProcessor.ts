@@ -30,6 +30,8 @@ const INTERNAL_PROPERTIES = [
   'video_content_type',
   'video_attention_action',
   'video_processing_depth',
+  // Where the extension found Bilibili frames; used once to save the pictures.
+  'video_frames',
 ];
 export interface NoteWritePrefs {
   /** 成功时写进 status 的文字 */

@@ -10,12 +10,14 @@
  * (youtube-transcript-api issue #592), and getting round that would mean getting
  * round YouTube's bot checks.
  */
+import { parseSheetFrames } from './BilibiliRef';
 import {
   fillNoteStyle,
   noteImagesFor,
   promptVersionFor,
   stampDate,
   youTubeVideoId,
+  type NoteImage,
 } from './NoteStyle';
 import type { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 import { detectPlatform } from './Platform';
@@ -79,6 +81,8 @@ export interface LiteDeps {
   model: string;
   /** The reader's writing style, followed over the prompt's defaults. */
   noteStyle?: string;
+  /** Pictures already saved for this video (Bilibili); otherwise the ones its link offers. */
+  images?: NoteImage[];
 }
 
 /** Video details the note already has: title, uploader, duration as yt-dlp writes it, cover. */
@@ -87,6 +91,8 @@ export interface LiteVideoMeta {
   author?: string;
   duration?: string;
   cover?: string;
+  /** Bilibili: where three frames sit in its preview sheets, as the extension found them. */
+  frames?: string;
 }
 
 /** Video details the browser extension read from the page, kept only when they look right. */
@@ -97,7 +103,14 @@ export function pageVideoDetails(params: Record<string, string>): Record<string,
   const duration = (params.duration || '').trim();
   if (/^\d{1,3}(?::\d{2}){1,2}$/.test(duration)) details.video_duration = duration;
   const cover = (params.cover || '').trim();
-  if (/^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover)) details.video_cover = cover;
+  if (
+    /^https:\/\/i\.ytimg\.com\/vi\/[\w-]{11}\/[\w.-]+$/.test(cover) ||
+    /^https:\/\/i\d\.hdslb\.com\/bfs\/[\w/.-]+\.(jpe?g|png|webp)$/i.test(cover)
+  ) {
+    details.video_cover = cover;
+  }
+  const frames = parseSheetFrames(params.frames);
+  if (frames.length) details.video_frames = JSON.stringify(frames);
   return details;
 }
 
@@ -174,7 +187,7 @@ export async function runLiteJob(
               }),
             }
           : {}),
-        note_images: noteImagesFor(sourceUrl, meta.duration),
+        note_images: deps.images?.length ? deps.images : noteImagesFor(sourceUrl, meta.duration),
       },
       onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
       signal,

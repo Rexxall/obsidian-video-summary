@@ -145,6 +145,7 @@ function normalizeCaptureItem(item) {
     videoAuthor: typeof item?.videoAuthor === 'string' ? item.videoAuthor : '',
     videoDuration: typeof item?.videoDuration === 'string' ? item.videoDuration : '',
     videoCover: typeof item?.videoCover === 'string' ? item.videoCover : '',
+    videoFrames: typeof item?.videoFrames === 'string' ? item.videoFrames : '',
   };
 }
 
@@ -385,6 +386,46 @@ async function readBilibiliSubtitles() {
     dDurationMs: Math.round((Number(cue.to) - Number(cue.from)) * 1000),
     segs: [{ utf8: String(cue.content || '') }],
   }));
+  // Three frames for the note, cut later by the plugin from Bilibili's preview sheets: the page
+  // asks for the sheets with its own sign-in, the plugin downloads only the pictures.
+  const frames = [];
+  try {
+    const shot = await (
+      await fetch(
+        `https://api.bilibili.com/x/player/videoshot?bvid=${encodeURIComponent(video.bvid)}&cid=${encodeURIComponent(cid)}&index=1`,
+        { credentials: 'include' },
+      )
+    ).json();
+    const data = (shot && shot.data) || {};
+    const sheets = Array.isArray(data.image) ? data.image : [];
+    const times = Array.isArray(data.index) ? data.index.slice(1) : [];
+    const cols = Number(data.img_x_len) || 10;
+    const per = cols * (Number(data.img_y_len) || 10);
+    const w = Number(data.img_x_size) || 0;
+    const h = Number(data.img_y_size) || 0;
+    if (sheets.length && times.length && w && h && duration) {
+      for (const share of [0.25, 0.5, 0.75]) {
+        const second = duration * share;
+        let best = 0;
+        times.forEach((t, i) => {
+          if (Math.abs(t - second) < Math.abs(times[best] - second)) best = i;
+        });
+        const sheet = sheets[Math.floor(best / per)];
+        if (!sheet) continue;
+        const cell = best % per;
+        frames.push({
+          u: String(sheet).startsWith('//') ? `https:${sheet}` : String(sheet),
+          x: (cell % cols) * w,
+          y: Math.floor(cell / cols) * h,
+          w,
+          h,
+          t: times[best],
+        });
+      }
+    }
+  } catch {
+    // No frames: the note has the cover only.
+  }
   let cover = String(video.pic || '');
   if (cover.startsWith('//')) cover = `https:${cover}`;
   if (cover.startsWith('http:')) cover = `https:${cover.slice(5)}`;
@@ -396,6 +437,7 @@ async function readBilibiliSubtitles() {
     author: (video.owner && video.owner.name) || '',
     lengthSeconds: duration,
     cover,
+    frames,
     ms: Date.now() - started,
   };
 }
@@ -426,6 +468,9 @@ async function getBilibiliTranscript(tab) {
       videoAuthor: result.author || '',
       videoDuration: result.lengthSeconds ? U.durationString(result.lengthSeconds) : '',
       ...(result.cover ? { videoCover: result.cover } : {}),
+      ...(result.frames && result.frames.length
+        ? { videoFrames: JSON.stringify(result.frames) }
+        : {}),
     };
     return transcript
       ? { transcript, video, lang: result.lang, kind: result.kind, ms: result.ms }
