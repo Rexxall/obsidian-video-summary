@@ -307,6 +307,8 @@ export interface VideoSummarySettings {
   outputFolder: string;
   /** Added to cssclasses of every note the plugin writes, for a vault snippet to style; empty adds none. */
   noteCssClass: string;
+  /** Finished video notes open in reading view. */
+  readingViewForVideoNotes: boolean;
   /** 处理成功时补进笔记的属性，一行一个“名称: 值” */
   defaultNoteProperties: string;
   /** Tags for notes made from a pasted article or transcript, instead of the default tags */

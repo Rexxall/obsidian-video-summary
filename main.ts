@@ -1,4 +1,5 @@
 import { ITHACA_NOTE_STYLE } from './core/NoteStyle';
+import { ReadingViewOpener } from './core/ReadingView';
 import { relinkVideoJobs } from './utils/NoteOutput';
 import {
   App,
@@ -170,6 +171,14 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 初始化API
     this.initializeApiInstance();
+
+    const readingView = new ReadingViewOpener(
+      this.app,
+      () => this.settings.readingViewForVideoNotes !== false,
+    );
+    this.registerEvent(
+      this.app.workspace.on('file-open', (file) => void readingView.onFileOpen(file)),
+    );
 
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);
@@ -3858,6 +3867,23 @@ class VideoSummarySettingTab extends PluginSettingTab {
                 6000,
               );
             }
+          }),
+      );
+
+    new Setting(section)
+      .setName(tr('视频笔记用阅读视图打开', 'Open video notes in reading view'))
+      .setDesc(
+        tr(
+          '处理好的视频笔记打开时直接显示排好的样子；要改字时再切到编辑。',
+          'A finished video note opens as it reads; switch to editing when you want to change it.',
+        ),
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.readingViewForVideoNotes !== false)
+          .onChange(async (value) => {
+            this.plugin.settings.readingViewForVideoNotes = value;
+            await this.plugin.saveSettings();
           }),
       );
 

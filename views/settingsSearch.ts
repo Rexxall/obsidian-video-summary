@@ -55,6 +55,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   'Save automatically',
   '输出文件夹',
   'Output folder',
+  '视频笔记用阅读视图打开',
+  'Open video notes in reading view',
   '笔记样式类',
   'Note CSS class',
   '默认属性',

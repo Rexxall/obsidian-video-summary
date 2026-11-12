@@ -128,6 +128,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   batchConcurrency: 3,
   outputFolder: '',
   noteCssClass: '',
+  readingViewForVideoNotes: true,
   defaultNoteProperties: '',
   articleTags: '',
   noteStyle: '',
