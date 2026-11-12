@@ -33,6 +33,17 @@ const PLATFORM_COVER_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const PLATFORM_COVER_CACHE_LIMIT = 500;
 const PLATFORM_COVER_CACHE_SAVE_DELAY_MS = 1000;
 
+/**
+ * Notes without video properties, checked once for an older video note in their text. Kept in
+ * the plugin folder by path and modification time, so a start-up reads only notes that are new
+ * or changed since, not the whole vault.
+ */
+interface LegacyScanCache {
+  version: 1;
+  checked: Record<string, number>;
+  legacy: Record<string, VideoNoteEntry>;
+}
+
 interface RemoteCoverTask {
   key: string;
   link: string;
@@ -70,6 +81,10 @@ export class NoteIndex {
   /** 缓存文件读完前请求的封面，读完再决定要不要联网。 */
   private pendingCoverLinks = new Set<string>();
 
+  private readonly scanCachePath?: string;
+  private scanCache: LegacyScanCache = { version: 1, checked: {}, legacy: {} };
+  private readonly scanCacheReady: Promise<void>;
+
   /** The record id of a note that no longer carries video_artifact_id. */
   private readonly artifactFor?: (path: string) => string | undefined;
 
@@ -81,7 +96,49 @@ export class NoteIndex {
     this.app = app;
     this.coverCachePath = coverCachePath;
     this.artifactFor = artifactFor;
+    this.scanCachePath = coverCachePath
+      ? `${coverCachePath.slice(0, coverCachePath.lastIndexOf('/'))}/legacy-scan.json`
+      : undefined;
+    this.scanCacheReady = this.loadScanCache();
     void this.loadPlatformCoverCache();
+  }
+
+  private async loadScanCache(): Promise<void> {
+    try {
+      const adapter = this.app.vault.adapter;
+      if (!this.scanCachePath || !(await adapter.exists(this.scanCachePath))) return;
+      const data = JSON.parse(await adapter.read(this.scanCachePath)) as Partial<LegacyScanCache>;
+      if (data?.version !== 1 || typeof data.checked !== 'object' || !data.checked) return;
+      this.scanCache = {
+        version: 1,
+        checked: data.checked,
+        legacy: typeof data.legacy === 'object' && data.legacy ? data.legacy : {},
+      };
+    } catch {
+      // A broken cache only means one full scan.
+    }
+  }
+
+  private async writeScanCache(present: Set<string>): Promise<void> {
+    const path = this.scanCachePath;
+    if (!path) return;
+    const checked: Record<string, number> = {};
+    const legacy: Record<string, VideoNoteEntry> = {};
+    for (const [key, mtime] of Object.entries(this.scanCache.checked)) {
+      if (present.has(key)) checked[key] = mtime;
+    }
+    for (const [key, entry] of Object.entries(this.scanCache.legacy)) {
+      if (present.has(key) && checked[key]) legacy[key] = entry;
+    }
+    this.scanCache = { version: 1, checked, legacy };
+    try {
+      const adapter = this.app.vault.adapter;
+      const dir = path.slice(0, path.lastIndexOf('/'));
+      if (dir && !(await adapter.exists(dir))) await adapter.mkdir(dir);
+      await adapter.write(path, JSON.stringify(this.scanCache));
+    } catch (error) {
+      console.debug('[NoteIndex] 旧笔记扫描缓存写入失败', error);
+    }
   }
 
   /** The note ↔ record map changed: fill in record ids the notes themselves do not carry. */
@@ -181,16 +238,31 @@ export class NoteIndex {
     this.entries.clear();
     this.bodyScanQueue = [];
     this.bodyScanDone = false;
+    void this.scanCacheReady.then(() => this.buildNow());
+  }
 
+  private scanPresent = new Set<string>();
+
+  private buildNow() {
     const files = this.app.vault.getMarkdownFiles();
+    this.scanPresent = new Set();
+    const { checked, legacy } = this.scanCache;
     for (const file of files) {
       if (isIgnoredPath(file.path)) continue;
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
       if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
         this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
+        continue;
+      }
+      this.scanPresent.add(file.path);
+      if (checked[file.path] === file.stat.mtime) {
+        // Checked before and unchanged since: no need to read it again.
+        const known = legacy[file.path];
+        if (known)
+          this.entries.set(file.path, { ...known, path: file.path, basename: file.basename });
       } else {
-        // frontmatter 认不出来的留给正文兜底扫描，避免启动时同步读全库
+        // New or changed since the last check: read its text when the vault is idle.
         this.bodyScanQueue.push(file);
       }
     }
@@ -201,8 +273,10 @@ export class NoteIndex {
   private scheduleBodyScan() {
     if (this.bodyScanTimer !== null) return;
     if (this.bodyScanQueue.length === 0) {
+      const wasDone = this.bodyScanDone;
       this.bodyScanDone = true;
       this.emit();
+      if (!wasDone) void this.writeScanCache(this.scanPresent);
       return;
     }
     this.bodyScanTimer = window.setTimeout(() => {
@@ -219,9 +293,14 @@ export class NoteIndex {
       try {
         const content = await this.app.vault.cachedRead(file);
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        this.scanCache.checked[file.path] = file.stat.mtime;
         if (this.isLegacyVideoNote(file, content, frontmatter)) {
-          this.entries.set(file.path, this.entryFromContent(file, content));
+          const entry = this.entryFromContent(file, content);
+          this.entries.set(file.path, entry);
+          this.scanCache.legacy[file.path] = entry;
           changed = true;
+        } else {
+          delete this.scanCache.legacy[file.path];
         }
       } catch (error) {
         console.error(`[NoteIndex] 读取失败: ${file.path}`, error);
@@ -250,8 +329,10 @@ export class NoteIndex {
     if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
       return this.entryFromFrontmatter(file, frontmatter);
     }
-    // A note without video properties may still be an older video note: check its text
-    // (cachedRead serves an open note from memory).
+    // Only a note already known as an older video note has its text read again; any other
+    // note without video properties is not one, and reading it on every edit cost a read
+    // each time typing paused.
+    if (!this.entries.has(file.path)) return undefined;
     try {
       const content = await this.app.vault.cachedRead(file);
       return this.isLegacyVideoNote(file, content, frontmatter)

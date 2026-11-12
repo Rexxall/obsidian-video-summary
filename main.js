@@ -4075,10 +4075,49 @@ var NoteIndex = class {
     this.coverCacheSaveTimer = null;
     /** 缓存文件读完前请求的封面，读完再决定要不要联网。 */
     this.pendingCoverLinks = /* @__PURE__ */ new Set();
+    this.scanCache = { version: 1, checked: {}, legacy: {} };
+    this.scanPresent = /* @__PURE__ */ new Set();
     this.app = app;
     this.coverCachePath = coverCachePath;
     this.artifactFor = artifactFor;
+    this.scanCachePath = coverCachePath ? `${coverCachePath.slice(0, coverCachePath.lastIndexOf("/"))}/legacy-scan.json` : void 0;
+    this.scanCacheReady = this.loadScanCache();
     void this.loadPlatformCoverCache();
+  }
+  async loadScanCache() {
+    try {
+      const adapter = this.app.vault.adapter;
+      if (!this.scanCachePath || !await adapter.exists(this.scanCachePath)) return;
+      const data = JSON.parse(await adapter.read(this.scanCachePath));
+      if (data?.version !== 1 || typeof data.checked !== "object" || !data.checked) return;
+      this.scanCache = {
+        version: 1,
+        checked: data.checked,
+        legacy: typeof data.legacy === "object" && data.legacy ? data.legacy : {}
+      };
+    } catch {
+    }
+  }
+  async writeScanCache(present) {
+    const path = this.scanCachePath;
+    if (!path) return;
+    const checked = {};
+    const legacy = {};
+    for (const [key, mtime] of Object.entries(this.scanCache.checked)) {
+      if (present.has(key)) checked[key] = mtime;
+    }
+    for (const [key, entry] of Object.entries(this.scanCache.legacy)) {
+      if (present.has(key) && checked[key]) legacy[key] = entry;
+    }
+    this.scanCache = { version: 1, checked, legacy };
+    try {
+      const adapter = this.app.vault.adapter;
+      const dir = path.slice(0, path.lastIndexOf("/"));
+      if (dir && !await adapter.exists(dir)) await adapter.mkdir(dir);
+      await adapter.write(path, JSON.stringify(this.scanCache));
+    } catch (error) {
+      console.debug("[NoteIndex] \u65E7\u7B14\u8BB0\u626B\u63CF\u7F13\u5B58\u5199\u5165\u5931\u8D25", error);
+    }
   }
   /** The note ↔ record map changed: fill in record ids the notes themselves do not carry. */
   refreshArtifactIds() {
@@ -4165,13 +4204,25 @@ var NoteIndex = class {
     this.entries.clear();
     this.bodyScanQueue = [];
     this.bodyScanDone = false;
+    void this.scanCacheReady.then(() => this.buildNow());
+  }
+  buildNow() {
     const files = this.app.vault.getMarkdownFiles();
+    this.scanPresent = /* @__PURE__ */ new Set();
+    const { checked, legacy } = this.scanCache;
     for (const file of files) {
       if (isIgnoredPath(file.path)) continue;
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
       if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) continue;
       if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
         this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
+        continue;
+      }
+      this.scanPresent.add(file.path);
+      if (checked[file.path] === file.stat.mtime) {
+        const known = legacy[file.path];
+        if (known)
+          this.entries.set(file.path, { ...known, path: file.path, basename: file.basename });
       } else {
         this.bodyScanQueue.push(file);
       }
@@ -4182,8 +4233,10 @@ var NoteIndex = class {
   scheduleBodyScan() {
     if (this.bodyScanTimer !== null) return;
     if (this.bodyScanQueue.length === 0) {
+      const wasDone = this.bodyScanDone;
       this.bodyScanDone = true;
       this.emit();
+      if (!wasDone) void this.writeScanCache(this.scanPresent);
       return;
     }
     this.bodyScanTimer = window.setTimeout(() => {
@@ -4199,9 +4252,14 @@ var NoteIndex = class {
       try {
         const content = await this.app.vault.cachedRead(file);
         const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        this.scanCache.checked[file.path] = file.stat.mtime;
         if (this.isLegacyVideoNote(file, content, frontmatter)) {
-          this.entries.set(file.path, this.entryFromContent(file, content));
+          const entry = this.entryFromContent(file, content);
+          this.entries.set(file.path, entry);
+          this.scanCache.legacy[file.path] = entry;
           changed = true;
+        } else {
+          delete this.scanCache.legacy[file.path];
         }
       } catch (error) {
         console.error(`[NoteIndex] \u8BFB\u53D6\u5931\u8D25: ${file.path}`, error);
@@ -4228,6 +4286,7 @@ var NoteIndex = class {
     if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
       return this.entryFromFrontmatter(file, frontmatter);
     }
+    if (!this.entries.has(file.path)) return void 0;
     try {
       const content = await this.app.vault.cachedRead(file);
       return this.isLegacyVideoNote(file, content, frontmatter) ? this.entryFromContent(file, content) : void 0;
@@ -20534,16 +20593,31 @@ var BackendControl = class {
       }
     });
   }
+  /**
+   * Looks only while the answer is used: the side panel is open, or jobs are waiting or running.
+   * Otherwise starting Obsidian or switching back to it makes no request; the side panel looks
+   * when it opens, and every job asks before it starts.
+   */
+  wanted() {
+    const { plugin } = this;
+    if (plugin.jobs.isHeld() || plugin.jobs.getActive().length > 0) return true;
+    return plugin.app.workspace.getLeavesOfType("video-summary-view").length > 0;
+  }
   /** Checks once the layout is ready, when the window gets focus, and at most every five minutes. */
   attach() {
     const { plugin } = this;
-    plugin.app.workspace.onLayoutReady(() => void this.monitor.check());
+    plugin.app.workspace.onLayoutReady(() => {
+      if (this.wanted()) void this.monitor.check();
+    });
     plugin.registerDomEvent(window, "focus", () => {
+      if (!this.wanted()) return;
       void this.monitor.check(this.monitor.snapshot().status === "online" ? FRESH_MS : 5e3);
     });
     plugin.registerInterval(
       window.setInterval(() => {
-        if (activeDocument.visibilityState === "visible") void this.monitor.check(FRESH_MS);
+        if (activeDocument.visibilityState === "visible" && this.wanted()) {
+          void this.monitor.check(FRESH_MS);
+        }
       }, INTERVAL_MS)
     );
   }
@@ -25336,12 +25410,18 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     });
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
     this.app.workspace.onLayoutReady(() => {
-      void this.artifactStore.list().then((artifacts) => this.noteLinks.rebuild(artifacts)).catch((error) => console.warn("[Video Summary] \u7B14\u8BB0\u4E0E\u8BB0\u5F55\u5BF9\u5E94\u8868\u91CD\u5EFA\u5931\u8D25", error));
-    });
-    this.app.workspace.onLayoutReady(() => {
-      void this.memoryIndex.rebuildFromStore(this.artifactStore).catch((error) => {
-        console.warn("[Video Summary] \u8DE8\u6A21\u6001\u8BB0\u5FC6\u7D22\u5F15\u91CD\u5EFA\u5931\u8D25", error);
-      });
+      void this.artifactStore.list().then((artifacts) => {
+        try {
+          this.noteLinks.rebuild(artifacts);
+        } catch (error) {
+          console.warn("[Video Summary] \u7B14\u8BB0\u4E0E\u8BB0\u5F55\u5BF9\u5E94\u8868\u91CD\u5EFA\u5931\u8D25", error);
+        }
+        try {
+          this.memoryIndex.rebuild(artifacts);
+        } catch (error) {
+          console.warn("[Video Summary] \u8DE8\u6A21\u6001\u8BB0\u5FC6\u7D22\u5F15\u91CD\u5EFA\u5931\u8D25", error);
+        }
+      }).catch((error) => console.warn("[Video Summary] \u8BFB\u53D6\u77E5\u8BC6\u8BB0\u5F55\u5931\u8D25", error));
     });
     this.app.workspace.onLayoutReady(() => {
       void this.ensureVideoLibraryBase(false).catch((error) => {

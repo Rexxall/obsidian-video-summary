@@ -48,16 +48,32 @@ export class BackendControl {
     });
   }
 
+  /**
+   * Looks only while the answer is used: the side panel is open, or jobs are waiting or running.
+   * Otherwise starting Obsidian or switching back to it makes no request; the side panel looks
+   * when it opens, and every job asks before it starts.
+   */
+  private wanted(): boolean {
+    const { plugin } = this;
+    if (plugin.jobs.isHeld() || plugin.jobs.getActive().length > 0) return true;
+    return plugin.app.workspace.getLeavesOfType('video-summary-view').length > 0;
+  }
+
   /** Checks once the layout is ready, when the window gets focus, and at most every five minutes. */
   attach() {
     const { plugin } = this;
-    plugin.app.workspace.onLayoutReady(() => void this.monitor.check());
+    plugin.app.workspace.onLayoutReady(() => {
+      if (this.wanted()) void this.monitor.check();
+    });
     plugin.registerDomEvent(window, 'focus', () => {
+      if (!this.wanted()) return;
       void this.monitor.check(this.monitor.snapshot().status === 'online' ? FRESH_MS : 5_000);
     });
     plugin.registerInterval(
       window.setInterval(() => {
-        if (activeDocument.visibilityState === 'visible') void this.monitor.check(FRESH_MS);
+        if (activeDocument.visibilityState === 'visible' && this.wanted()) {
+          void this.monitor.check(FRESH_MS);
+        }
       }, INTERVAL_MS),
     );
   }

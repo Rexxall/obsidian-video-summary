@@ -228,16 +228,24 @@ export default class VideoSummaryPlugin extends Plugin {
       if (!this.historyPathsFilled) window.setTimeout(() => this.fillHistoryPaths(), 2000);
     });
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
+    // The stored records are read once at start-up and shared by the note links and the
+    // memory index; reading them twice read the same JSON files twice.
     this.app.workspace.onLayoutReady(() => {
       void this.artifactStore
         .list()
-        .then((artifacts) => this.noteLinks.rebuild(artifacts))
-        .catch((error) => console.warn('[Video Summary] 笔记与记录对应表重建失败', error));
-    });
-    this.app.workspace.onLayoutReady(() => {
-      void this.memoryIndex.rebuildFromStore(this.artifactStore).catch((error) => {
-        console.warn('[Video Summary] 跨模态记忆索引重建失败', error);
-      });
+        .then((artifacts) => {
+          try {
+            this.noteLinks.rebuild(artifacts);
+          } catch (error) {
+            console.warn('[Video Summary] 笔记与记录对应表重建失败', error);
+          }
+          try {
+            this.memoryIndex.rebuild(artifacts);
+          } catch (error) {
+            console.warn('[Video Summary] 跨模态记忆索引重建失败', error);
+          }
+        })
+        .catch((error) => console.warn('[Video Summary] 读取知识记录失败', error));
     });
     this.app.workspace.onLayoutReady(() => {
       void this.ensureVideoLibraryBase(false).catch((error) => {
