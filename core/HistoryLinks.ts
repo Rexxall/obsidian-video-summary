@@ -18,13 +18,16 @@ export function baseName(name: string): string {
   return name.replace(/(\s*\(\d+\)|_\d{10,})$/, '').trim();
 }
 
+/** Names many notes share; matching on them opens the wrong note. */
+const GENERIC_NAME = /^(未命名|无标题|untitled)( \d+)?$/i;
+
 export function resolveHistoryPath(
   record: Pick<ProcessingHistory, 'file' | 'path' | 'url'>,
   lookup: HistoryLookup,
 ): string | undefined {
   if (record.path && lookup.exists(record.path)) return record.path;
   const name = (record.file || '').normalize('NFC').trim();
-  if (!name) return record.url ? lookup.byUrl(record.url) : undefined;
+  if (!name || GENERIC_NAME.test(name)) return record.url ? lookup.byUrl(record.url) : undefined;
   const plain = baseName(name);
   return (
     lookup.byName(name) ??

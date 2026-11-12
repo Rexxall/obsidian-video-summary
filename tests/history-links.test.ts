@@ -30,6 +30,7 @@ test('a record finds its note by path, name, the copy name, video title, then li
     'b/Same name.md',
   );
   assert.equal(resolveHistoryPath({ file: 'deleted long ago' }, vault), undefined);
+  assert.equal(resolveHistoryPath({ file: '未命名' }, lookup(['x/未命名.md'])), undefined);
   // A stored path that no longer exists falls back to the name.
   assert.equal(
     resolveHistoryPath({ file: 'Same name', path: 'x/moved.md' }, vault),
