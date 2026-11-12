@@ -564,6 +564,10 @@
       input[type='checkbox']:checked {
         background: var(--accent);
       }
+      input[type='checkbox']:disabled {
+        cursor: default;
+        opacity: 0.45;
+      }
       input[type='checkbox']:checked::after {
         transform: translateX(16px);
       }
@@ -747,6 +751,22 @@
         <div class="field check">
           <label for="setting-captions" data-i18n="settingCaptions">Send YouTube captions</label>
           <input id="setting-captions" type="checkbox" role="switch" />
+        </div>
+        <div class="field">
+          <label for="setting-bridge" data-i18n="settingBridge">Obsidian pairing code</label>
+          <input
+            id="setting-bridge"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            data-i18n-placeholder="bridgePlaceholder"
+          />
+        </div>
+        <div class="field check">
+          <label for="setting-background" data-i18n="settingBackground"
+            >Send without switching to Obsidian</label
+          >
+          <input id="setting-background" type="checkbox" role="switch" />
         </div>
         <div class="field">
           <label for="setting-vault" data-i18n="settingVault">Vault</label>

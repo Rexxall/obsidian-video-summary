@@ -11,6 +11,7 @@ A browser extension that sends the video you are watching to Obsidian or to your
 - **Copy a timestamped Markdown link** to the moment you are watching.
 - **Send to a backend:** the n8n webhook, using the same request format as the Obsidian plugin.
 - **Backend connection code:** paste the code the backend's start script prints into Settings → Connection code; it sets the address and the password header. The password stays on this computer and is not synced.
+- **Send without switching to Obsidian:** copy the pairing code from Obsidian (**Settings → Video Summary → Browser extension**) into the extension's **Settings → Obsidian pairing code**. Captures then go to the plugin over `127.0.0.1` and Obsidian stays in the background. When Obsidian is not running, the extension opens it with an `obsidian://` link as before.
 - **Send YouTube captions:** capturing a YouTube page also sends the captions its player loaded (written ones in the spoken language first, then automatic ones), so the Obsidian plugin can write the note without a backend. The extension switches captions on for a moment if they are off and switches them off again. Nothing is read during an ad; then only the link is sent. Turn it off under Settings → Send YouTube captions.
 - **Sync Bilibili login:** Settings → Bilibili sign-in → Sync sends this browser's bilibili.com cookies to your own backend so it can fetch subtitles and Bilibili's AI subtitles. Chrome asks for cookie access the first time; nothing is sent anywhere else.
 

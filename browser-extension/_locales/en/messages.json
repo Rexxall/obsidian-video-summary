@@ -394,5 +394,20 @@
   },
   "historyTitle": {
     "message": "History"
+  },
+  "settingBridge": {
+    "message": "Obsidian pairing code"
+  },
+  "bridgePlaceholder": {
+    "message": "From Video Summary settings in Obsidian"
+  },
+  "settingBackground": {
+    "message": "Send without switching to Obsidian"
+  },
+  "errBridgeCode": {
+    "message": "The Obsidian pairing code does not match. Copy it again from Video Summary settings in Obsidian."
+  },
+  "errBridgeFormat": {
+    "message": "That is not a pairing code. It starts with vsb1."
   }
 }

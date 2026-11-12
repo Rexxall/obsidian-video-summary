@@ -53,6 +53,8 @@ const els = {
     appendPath: $('setting-append'),
     quickAction: $('setting-quick'),
     sendCaptions: $('setting-captions'),
+    obsidianBridge: $('setting-bridge'),
+    sendInBackground: $('setting-background'),
     n8nWebhookUrl: $('setting-n8n'),
     webhookFormat: $('setting-webhook-format'),
     defaultMode: $('setting-mode'),
@@ -317,6 +319,9 @@ function renderSettings() {
   els.settings.appendPath.value = s.appendPath || '';
   els.settings.quickAction.value = s.quickAction || 'create-pending-note';
   els.settings.sendCaptions.checked = s.sendCaptions !== false;
+  els.settings.obsidianBridge.value = s.obsidianBridge || '';
+  els.settings.sendInBackground.checked = s.sendInBackground !== false;
+  els.settings.sendInBackground.disabled = !s.obsidianBridge;
   els.settings.n8nWebhookUrl.value = '';
   els.settings.n8nWebhookUrl.placeholder = s.n8nToken
     ? t('backendSaved', s.n8nWebhookUrl)
@@ -450,6 +455,11 @@ async function syncBilibiliLogin() {
 }
 
 async function saveSettings() {
+  const bridgeCode = els.settings.obsidianBridge.value.trim();
+  if (bridgeCode && !U.parseBridgeCode(bridgeCode)) {
+    setStatus(t('errBridgeFormat'), 'error');
+    return;
+  }
   // A backend on another computer needs that site's permission; ask while the click counts.
   const backend = backendFromInput(els.settings.n8nWebhookUrl.value).n8nWebhookUrl;
   const origin = backend ? U.backendOriginPattern(backend) : null;
@@ -460,6 +470,8 @@ async function saveSettings() {
     appendPath: els.settings.appendPath.value.trim(),
     quickAction: els.settings.quickAction.value,
     sendCaptions: els.settings.sendCaptions.checked,
+    obsidianBridge: els.settings.obsidianBridge.value.trim(),
+    sendInBackground: els.settings.sendInBackground.checked,
     n8nWebhookUrl: state.settings.n8nWebhookUrl,
     n8nToken: state.settings.n8nToken || '',
     ...backendFromInput(els.settings.n8nWebhookUrl.value),

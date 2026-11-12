@@ -453,3 +453,47 @@ test('Bilibili subtitles come from the signed player API, and a track longer tha
   assert.ok(asked.some((url) => url.includes('cid=22')));
   assert.ok(asked.includes('https://sub/zh.json'));
 });
+
+test('with a pairing code, a capture goes to the plugin in the background', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body), token: init.headers['X-Video-Summary-Token'] });
+    return { ok: true, status: 202, text: async () => '{"ok":true}' };
+  };
+  const code = `vsb1.27183.${'c'.repeat(48)}`;
+  const { send } = loadBackground({
+    sync: { vaultName: 'V', sendCaptions: false },
+    local: { obsidianBridge: code },
+    fetchImpl,
+  });
+  const response = await send({
+    type: 'TRANSFER_ITEMS',
+    items: [{ url: 'https://www.youtube.com/watch?v=abc', title: 'A talk' }],
+    operation: 'process-via-plugin',
+  });
+  assert.equal(response.results[0].status, 'success');
+  assert.equal(response.results[0].background, true);
+  assert.equal(calls[0].url, 'http://127.0.0.1:27183/video-summary/capture');
+  assert.equal(calls[0].token, 'c'.repeat(48));
+  assert.equal(calls[0].body.process, '1');
+  assert.equal(calls[0].body.url, 'https://www.youtube.com/watch?v=abc');
+});
+
+test('when Obsidian does not answer, the capture falls back to the obsidian:// link', async () => {
+  const fetchImpl = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+  const { send } = loadBackground({
+    sync: { vaultName: 'V', sendCaptions: false },
+    local: { obsidianBridge: `vsb1.27183.${'c'.repeat(48)}` },
+    fetchImpl,
+  });
+  const response = await send({
+    type: 'TRANSFER_ITEMS',
+    items: [{ url: 'https://www.youtube.com/watch?v=abc', title: 'A talk' }],
+    operation: 'create-pending-note',
+  });
+  // The test browser has no tab to open the link from: reaching that step is the fallback.
+  assert.notEqual(response.results[0].background, true);
+  assert.match(response.results[0].error, /active tab/);
+});

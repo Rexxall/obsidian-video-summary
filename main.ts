@@ -1,12 +1,14 @@
 import { ITHACA_NOTE_STYLE } from './core/NoteStyle';
 import { installReadingView } from './core/ReadingView';
 import { relinkVideoJobs } from './utils/NoteOutput';
+import { ExtensionBridge, bridgePairingCode, newBridgeToken } from './core/ExtensionBridge';
 import {
   App,
   ButtonComponent,
   Editor,
   MarkdownView,
   Notice,
+  Platform,
   Plugin,
   PluginSettingTab,
   Setting,
@@ -120,6 +122,8 @@ import { tr } from './utils/i18n';
 import { followRename, resolveHistoryPath, type HistoryLookup } from './core/HistoryLinks';
 export default class VideoSummaryPlugin extends Plugin {
   settings: VideoSummarySettings;
+  /** The extension's local endpoint; null on mobile or before layout is ready. */
+  bridge: ExtensionBridge | null = null;
   api: VideoSummaryAPI;
   fileProcessor: FileProcessor;
   noteProcessor: NoteProcessor;
@@ -269,6 +273,8 @@ export default class VideoSummaryPlugin extends Plugin {
     this.registerObsidianProtocolHandler('video-summary', (params) => {
       void this.handleProtocolRequest(params);
     });
+    // The same entry without a link, so Obsidian is not brought forward. Loopback only, no network.
+    this.app.workspace.onLayoutReady(() => void this.startExtensionBridge());
 
     // 注册设置页面
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
@@ -310,6 +316,7 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   onunload() {
+    this.bridge?.stop();
     BackendHealthModal.closeAll();
     this.installer?.dispose();
     this.noteIndex?.flush();
@@ -2586,7 +2593,25 @@ export default class VideoSummaryPlugin extends Plugin {
    * Global capture entry. Default is offline `capture-only`; processing must be
    * requested explicitly with process=1 (see protocolCaptureAction).
    */
-  private async handleProtocolRequest(params: Record<string, string>) {
+  /** Start, restart or stop the extension's local endpoint to match the settings. */
+  async startExtensionBridge(): Promise<void> {
+    if (!Platform.isDesktopApp) return;
+    if (!this.settings.extensionBridgeToken) {
+      this.settings.extensionBridgeToken = newBridgeToken();
+      await this.saveSettings();
+    }
+    this.bridge ??= new ExtensionBridge({
+      version: this.manifest.version,
+      onCapture: (params) => void this.handleProtocolRequest(params, { background: true }),
+    });
+    if (this.settings.extensionBridgeEnabled === false) this.bridge.stop();
+    else this.bridge.start(this.settings.extensionBridgePort, this.settings.extensionBridgeToken);
+  }
+
+  private async handleProtocolRequest(
+    params: Record<string, string>,
+    options: { background?: boolean } = {},
+  ) {
     try {
       const rawUrl = (params.url || params.link || '').trim();
       const localFile = (params.local_file || params.localFile || '').trim();
@@ -2629,7 +2654,8 @@ export default class VideoSummaryPlugin extends Plugin {
           },
         );
       }
-      await this.app.workspace.getLeaf(true).openFile(file);
+      // Sent in the background: the note waits in the vault instead of opening a tab.
+      if (!options.background) await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
         new Notice(
           result.status === 'created'
@@ -2834,6 +2860,11 @@ class VideoSummarySettingTab extends PluginSettingTab {
     this.group(containerEl, tr('处理', 'Processing'));
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
+
+    if (Platform.isDesktopApp) {
+      this.group(containerEl, tr('浏览器扩展', 'Browser extension'));
+      this.createExtensionBridgeSection(containerEl);
+    }
 
     const advanced = containerEl.createEl('details', { cls: 'vs-settings-advanced' });
     advanced.createEl('summary', {
@@ -3368,6 +3399,84 @@ class VideoSummarySettingTab extends PluginSettingTab {
    * Cookies 管理：定位后端文件夹的 cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
+  private createExtensionBridgeSection(containerEl: HTMLElement) {
+    const plugin = this.plugin;
+    const restart = async () => {
+      await plugin.saveSettings();
+      await plugin.startExtensionBridge();
+      // Listening starts a moment later; redraw once it has.
+      window.setTimeout(() => this.display(), 200);
+    };
+    const state = plugin.bridge?.state ?? 'off';
+    const stateText =
+      state === 'listening'
+        ? tr(
+            `正在接收 · 端口 ${plugin.settings.extensionBridgePort}`,
+            `Receiving · port ${plugin.settings.extensionBridgePort}`,
+          )
+        : state === 'port-in-use'
+          ? tr('端口被占用，换一个端口再试', 'The port is in use; choose another one')
+          : state === 'unavailable'
+            ? tr('这台设备不能接收', 'Not available on this device')
+            : tr('已关闭', 'Off');
+
+    new Setting(containerEl)
+      .setName(tr('后台接收，不切到 Obsidian', 'Receive in the background'))
+      .setDesc(stateText)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(plugin.settings.extensionBridgeEnabled !== false)
+          .onChange(async (value) => {
+            plugin.settings.extensionBridgeEnabled = value;
+            await restart();
+          }),
+      );
+
+    if (plugin.settings.extensionBridgeEnabled === false) return;
+    const code = bridgePairingCode(
+      plugin.settings.extensionBridgePort,
+      plugin.settings.extensionBridgeToken,
+    );
+    const codeSetting = new Setting(containerEl)
+      .setName(tr('配对码', 'Pairing code'))
+      .setDesc(
+        tr(
+          '粘贴到扩展的“设置 → Obsidian 配对码”。',
+          'Paste it into the extension under Settings → Obsidian pairing code.',
+        ),
+      );
+    codeSetting.controlEl.createEl('code', { text: code, cls: 'vs-bridge-code' });
+    codeSetting
+      .addButton((button) =>
+        button.setButtonText(tr('复制', 'Copy')).onClick(async () => {
+          await navigator.clipboard.writeText(code);
+          new Notice(tr('已复制配对码', 'Pairing code copied'));
+        }),
+      )
+      .addExtraButton((button) =>
+        button
+          .setIcon('refresh-cw')
+          .setTooltip(
+            tr('换一个配对码；旧的立即失效', 'New pairing code; the old one stops working'),
+          )
+          .onClick(async () => {
+            plugin.settings.extensionBridgeToken = newBridgeToken();
+            await restart();
+          }),
+      );
+
+    new Setting(containerEl).setName(tr('端口', 'Port')).addText((text) => {
+      text.inputEl.type = 'number';
+      text.setValue(String(plugin.settings.extensionBridgePort));
+      text.inputEl.addEventListener('change', async () => {
+        const port = Number(text.getValue());
+        if (!Number.isInteger(port) || port < 1024 || port > 65535) return;
+        plugin.settings.extensionBridgePort = port;
+        await restart();
+      });
+    });
+  }
+
   private createCookiesSection(containerEl: HTMLElement) {
     const { section } = this.sectionCard(containerEl, 'cookie', tr('Cookies 管理', 'Cookies'));
     section.createEl('p', {

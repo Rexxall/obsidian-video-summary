@@ -16,6 +16,10 @@
     obsidianRestToken: '',
     n8nWebhookUrl: 'http://127.0.0.1:5678/webhook/obsidian-video-summary',
     n8nToken: '',
+    // Pairing code from the Obsidian plugin (Settings → Browser extension); stays on this device.
+    obsidianBridge: '',
+    // With a pairing code, hand videos to the plugin over 127.0.0.1 so Obsidian stays where it is.
+    sendInBackground: true,
     webhookFormat: 'unified',
     defaultMode: 'summary',
     defaultLanguage: 'zh',
@@ -233,31 +237,42 @@
   }
   // 直连 Obsidian 插件的自定义协议：一步完成"建笔记 + 触发处理"，
   // 由 video-summary 插件的 registerObsidianProtocolHandler('video-summary') 接收。
-  function buildObsidianProcessUri(vaultName, item, settings) {
-    const title = cleanTitle(item.title);
+  /** What the plugin's video-summary entry reads, as [key, value] pairs (vault not included). */
+  function pluginCaptureParams(item, settings, { process = true } = {}) {
     const baseUrl = cleanVideoUrl(item.url, { keepTimestamp: false });
     const timestampUrl = item.timestampUrl || '';
-    const mode = item.mode || settings.defaultMode || 'summary';
     const params = [
-      `vault=${encodeObsidianParam(vaultName)}`,
-      `url=${encodeObsidianParam(baseUrl)}`,
-      `title=${encodeObsidianParam(title)}`,
-      `mode=${encodeObsidianParam(mode)}`,
-      // Without it the plugin only files the link in its inbox. Not `action`: Obsidian
-      // replaces that parameter with the handler's name.
-      'process=1',
+      ['url', baseUrl],
+      ['title', cleanTitle(item.title)],
+      ['mode', item.mode || settings.defaultMode || 'summary'],
     ];
-    if (settings.folder) params.push(`folder=${encodeObsidianParam(settings.folder)}`);
-    if (timestampUrl && timestampUrl !== baseUrl) {
-      params.push(`timestamp_link=${encodeObsidianParam(timestampUrl)}`);
-    }
+    // Without it the plugin only files the link in its inbox. Not `action`: Obsidian
+    // replaces that parameter with the handler's name.
+    if (process) params.push(['process', '1']);
+    if (settings.folder) params.push(['folder', settings.folder]);
+    if (timestampUrl && timestampUrl !== baseUrl) params.push(['timestamp_link', timestampUrl]);
     if (item.transcript) {
-      if (item.videoAuthor) params.push(`author=${encodeObsidianParam(item.videoAuthor)}`);
-      if (item.videoDuration) params.push(`duration=${encodeObsidianParam(item.videoDuration)}`);
-      if (item.videoCover) params.push(`cover=${encodeObsidianParam(item.videoCover)}`);
-      params.push(`transcript=${encodeObsidianParam(item.transcript)}`);
+      if (item.videoAuthor) params.push(['author', item.videoAuthor]);
+      if (item.videoDuration) params.push(['duration', item.videoDuration]);
+      if (item.videoCover) params.push(['cover', item.videoCover]);
+      params.push(['transcript', item.transcript]);
     }
-    return `obsidian://video-summary?${params.join('&')}`;
+    return params;
+  }
+
+  function buildObsidianProcessUri(vaultName, item, settings) {
+    const params = [['vault', vaultName], ...pluginCaptureParams(item, settings)];
+    return `obsidian://video-summary?${params
+      .map(([key, value]) => `${key}=${encodeObsidianParam(value)}`)
+      .join('&')}`;
+  }
+
+  /** The plugin's pairing code, "vsb1.<port>.<secret>"; null when it is not one. */
+  function parseBridgeCode(code) {
+    const match = /^vsb1\.(\d{2,5})\.([A-Za-z0-9]{16,128})$/.exec(String(code || '').trim());
+    if (!match) return null;
+    const port = Number(match[1]);
+    return port > 0 && port < 65536 ? { port, token: match[2] } : null;
   }
 
   function buildUnifiedPayload(item, settings, action) {
@@ -379,7 +394,9 @@
     formatTimestamp,
     isVideoUrl,
     backendOriginPattern,
+    parseBridgeCode,
     parseConnectionCode,
+    pluginCaptureParams,
     sanitizeFilename,
     stripTimestamp,
   };

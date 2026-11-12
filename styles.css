@@ -4587,3 +4587,12 @@ body {
   content-visibility: auto;
   contain-intrinsic-size: auto 56px;
 }
+
+/* Browser extension pairing code: one tap selects it all */
+.vs-bridge-code {
+  max-width: 18em;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+  user-select: all;
+}

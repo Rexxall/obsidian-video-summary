@@ -284,6 +284,10 @@ export interface VideoSummarySettings {
   webhookProfiles: WebhookProfile[];
   activeWebhookId: string;
   setupGuideDismissed: boolean;
+  /** Receive videos from the browser extension on 127.0.0.1 so Obsidian is not brought forward. */
+  extensionBridgeEnabled: boolean;
+  extensionBridgePort: number;
+  extensionBridgeToken: string;
 
   // 处理配置
   defaultLanguage: 'zh' | 'en' | 'ja';

@@ -394,5 +394,20 @@
   },
   "historyTitle": {
     "message": "履歴"
+  },
+  "settingBridge": {
+    "message": "Obsidian ペアリングコード"
+  },
+  "bridgePlaceholder": {
+    "message": "Obsidian の Video Summary 設定からコピー"
+  },
+  "settingBackground": {
+    "message": "Obsidian に切り替えずに送る"
+  },
+  "errBridgeCode": {
+    "message": "Obsidian のペアリングコードが一致しません。Obsidian の Video Summary 設定からもう一度コピーしてください。"
+  },
+  "errBridgeFormat": {
+    "message": "ペアリングコードではありません。vsb1. で始まります。"
   }
 }

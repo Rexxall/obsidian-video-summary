@@ -1987,6 +1987,9 @@ var platformCapabilities = () => [
   }
 ];
 var DEFAULT_SETTINGS = {
+  extensionBridgeEnabled: true,
+  extensionBridgePort: 27183,
+  extensionBridgeToken: "",
   n8nWebhookUrl: DEFAULT_N8N_WEBHOOK_URL,
   webhookProfiles: [
     {
@@ -2733,6 +2736,282 @@ function relinkVideoJobs(store, oldPath, file) {
     if (job.notePath === oldPath)
       store.update(job.id, { notePath: file.path, title: file.basename });
   }
+}
+
+// utils/desktop.ts
+function desktopRequire(id) {
+  const nodeRequire = window.require;
+  return nodeRequire?.(id);
+}
+function openPathInSystem(path) {
+  const electron = desktopRequire("electron");
+  const openPath = electron?.shell?.openPath;
+  if (!openPath) return false;
+  void openPath(path);
+  return true;
+}
+function dockerSearchPath() {
+  const env = desktopRequire("process").env ?? {};
+  const home = env.HOME || env.USERPROFILE || "";
+  const separator = env.USERPROFILE && !env.HOME ? ";" : ":";
+  const extra = env.HOME ? [
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    `${home}/.orbstack/bin`,
+    `${home}/.docker/bin`,
+    "/Applications/OrbStack.app/Contents/MacOS/xbin",
+    "/Applications/Docker.app/Contents/Resources/bin"
+  ] : ["C:\\Program Files\\Docker\\Docker\\resources\\bin"];
+  return [env.PATH || "", ...extra].filter(Boolean).join(separator);
+}
+function runProgram(file, args, options = {}) {
+  const childProcess = desktopRequire("child_process");
+  if (!childProcess?.execFile) {
+    return Promise.resolve({ code: null, stdout: "", stderr: "", notFound: true });
+  }
+  const env = desktopRequire("process").env ?? {};
+  return new Promise((resolve) => {
+    try {
+      const child = childProcess.execFile(
+        file,
+        args,
+        {
+          cwd: options.cwd,
+          timeout: options.timeoutMs ?? 1e4,
+          env: { ...env, PATH: dockerSearchPath() }
+        },
+        (error, stdout, stderr) => {
+          if (!error) {
+            resolve({ code: 0, stdout: String(stdout), stderr: String(stderr) });
+            return;
+          }
+          resolve({
+            code: typeof error.code === "number" ? error.code : null,
+            stdout: String(stdout || ""),
+            stderr: String(stderr || error.message || ""),
+            notFound: error.code === "ENOENT"
+          });
+        }
+      );
+      if (options.input !== void 0 && child.stdin) {
+        child.stdin.on("error", () => void 0);
+        child.stdin.end(options.input);
+      }
+    } catch (error) {
+      resolve({ code: null, stdout: "", stderr: String(error), notFound: true });
+    }
+  });
+}
+function dockerEngineApp() {
+  const fs = desktopRequire("fs");
+  if (!fs) return null;
+  const candidates = [
+    { name: "OrbStack", path: "/Applications/OrbStack.app" },
+    { name: "Docker Desktop", path: "/Applications/Docker.app" },
+    { name: "Docker Desktop", path: "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe" }
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate.path)) ?? null;
+}
+async function openDockerEngine() {
+  const app = dockerEngineApp();
+  if (!app) return false;
+  if (app.path.endsWith(".app")) {
+    return (await runProgram("/usr/bin/open", ["-g", app.path], { timeoutMs: 8e3 })).code === 0;
+  }
+  const electron = desktopRequire("electron");
+  if (!electron?.shell?.openPath) return false;
+  return await electron.shell.openPath(app.path) === "";
+}
+function pathExists(path) {
+  const fs = desktopRequire("fs");
+  try {
+    return !!fs?.existsSync(path);
+  } catch {
+    return false;
+  }
+}
+function joinPath(...parts) {
+  const path = desktopRequire("path");
+  return path ? path.join(...parts) : parts.join("/");
+}
+async function pickFolderInSystem(title) {
+  const electron = desktopRequire("electron");
+  let dialog = electron?.remote?.dialog;
+  if (!dialog) {
+    try {
+      dialog = desktopRequire("@electron/remote")?.dialog;
+    } catch {
+      dialog = void 0;
+    }
+  }
+  if (!dialog) return null;
+  const result = await dialog.showOpenDialog({ title, properties: ["openDirectory"] });
+  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+}
+function readTextOutsideVault(path) {
+  const fs = desktopRequire("fs");
+  try {
+    return fs ? fs.readFileSync(path, "utf8") : null;
+  } catch {
+    return null;
+  }
+}
+function writeTextOutsideVault(dir, name, text2, mode = 420) {
+  const fs = desktopRequire("fs");
+  if (!fs) throw new Error("No file access on this device");
+  fs.mkdirSync(dir, { recursive: true });
+  const target = joinPath(dir, name);
+  fs.writeFileSync(target, text2, { mode });
+  fs.chmodSync(target, mode);
+}
+function makeFolderOutsideVault(path) {
+  const fs = desktopRequire("fs");
+  fs?.mkdirSync(path, { recursive: true });
+}
+function homeFolder() {
+  const os = desktopRequire("os");
+  return os?.homedir?.() ?? "";
+}
+async function openFileInSystem(path) {
+  const electron = desktopRequire("electron");
+  if (!electron?.shell?.openPath) return false;
+  return await electron.shell.openPath(path) === "";
+}
+function portIsFree(port) {
+  const net = desktopRequire("net");
+  if (!net?.createServer) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => server.close(() => resolve(true)));
+    server.listen(port, "0.0.0.0");
+  });
+}
+
+// core/ExtensionBridge.ts
+var CODE_PREFIX = "vsb1";
+var MAX_BODY_BYTES = 8 * 1024 * 1024;
+function bridgePairingCode(port, token) {
+  return `${CODE_PREFIX}.${port}.${token}`;
+}
+function newBridgeToken() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+function decideBridgeRequest(request, expectedToken, version) {
+  const origin = request.origin || "";
+  if (origin && !/^(chrome|moz|safari-web)-extension:\/\//.test(origin)) {
+    return { status: 403, body: { ok: false, error: "forbidden origin" } };
+  }
+  if (!expectedToken || request.token !== expectedToken) {
+    return { status: 401, body: { ok: false, error: "pairing code does not match" } };
+  }
+  if (request.path === "/video-summary/ping") {
+    if (request.method !== "GET") return { status: 405, body: { ok: false } };
+    return { status: 200, body: { ok: true, name: "video-summary", version } };
+  }
+  if (request.path !== "/video-summary/capture") {
+    return { status: 404, body: { ok: false, error: "not found" } };
+  }
+  if (request.method !== "POST") return { status: 405, body: { ok: false } };
+  if ((request.body || "").length > MAX_BODY_BYTES) {
+    return { status: 413, body: { ok: false, error: "too large" } };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(request.body || "{}");
+  } catch {
+    return { status: 400, body: { ok: false, error: "invalid JSON" } };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { status: 400, body: { ok: false, error: "invalid body" } };
+  }
+  const params = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value === "string" || typeof value === "number") params[key] = String(value);
+  }
+  if (!(params.url || "").trim()) {
+    return { status: 400, body: { ok: false, error: "missing url" } };
+  }
+  return { status: 202, body: { ok: true }, params };
+}
+var ExtensionBridge = class {
+  constructor(options) {
+    this.options = options;
+    this.server = null;
+    this.state = "off";
+  }
+  start(port, token) {
+    this.stop();
+    const http = desktopRequire("http");
+    if (!http?.createServer) {
+      this.setState("unavailable");
+      return;
+    }
+    const server = http.createServer((req, res) => this.handle(req, res, token));
+    server.on("error", (error) => {
+      this.setState(error.code === "EADDRINUSE" ? "port-in-use" : "unavailable");
+      this.server = null;
+    });
+    server.listen(port, "127.0.0.1", () => this.setState("listening"));
+    this.server = server;
+  }
+  stop() {
+    this.server?.close();
+    this.server = null;
+    this.setState("off");
+  }
+  setState(state) {
+    this.state = state;
+    this.options.onStateChange?.(state);
+  }
+  handle(req, res, token) {
+    const header = (name) => {
+      const value = req.headers[name];
+      return Array.isArray(value) ? value[0] : value;
+    };
+    const chunks = [];
+    let size = 0;
+    const reply = (status, body) => {
+      res.writeHead(status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reply(413, { ok: false, error: "too large" });
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("error", () => reply(400, { ok: false }));
+    req.on("end", () => {
+      const decision2 = decideBridgeRequest(
+        {
+          method: req.method || "GET",
+          path: (req.url || "").split("?")[0],
+          origin: header("origin"),
+          token: header("x-video-summary-token"),
+          body: decodeBody(chunks)
+        },
+        token,
+        this.options.version
+      );
+      reply(decision2.status, decision2.body);
+      if (decision2.status === 202) this.options.onCapture(decision2.params);
+    });
+  }
+};
+function decodeBody(chunks) {
+  const all = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new TextDecoder().decode(all);
 }
 
 // main.ts
@@ -9525,156 +9804,6 @@ var CacheManager = class {
     };
   }
 };
-
-// utils/desktop.ts
-function desktopRequire(id) {
-  const nodeRequire = window.require;
-  return nodeRequire?.(id);
-}
-function openPathInSystem(path) {
-  const electron = desktopRequire("electron");
-  const openPath = electron?.shell?.openPath;
-  if (!openPath) return false;
-  void openPath(path);
-  return true;
-}
-function dockerSearchPath() {
-  const env = desktopRequire("process").env ?? {};
-  const home = env.HOME || env.USERPROFILE || "";
-  const separator = env.USERPROFILE && !env.HOME ? ";" : ":";
-  const extra = env.HOME ? [
-    "/usr/local/bin",
-    "/opt/homebrew/bin",
-    `${home}/.orbstack/bin`,
-    `${home}/.docker/bin`,
-    "/Applications/OrbStack.app/Contents/MacOS/xbin",
-    "/Applications/Docker.app/Contents/Resources/bin"
-  ] : ["C:\\Program Files\\Docker\\Docker\\resources\\bin"];
-  return [env.PATH || "", ...extra].filter(Boolean).join(separator);
-}
-function runProgram(file, args, options = {}) {
-  const childProcess = desktopRequire("child_process");
-  if (!childProcess?.execFile) {
-    return Promise.resolve({ code: null, stdout: "", stderr: "", notFound: true });
-  }
-  const env = desktopRequire("process").env ?? {};
-  return new Promise((resolve) => {
-    try {
-      const child = childProcess.execFile(
-        file,
-        args,
-        {
-          cwd: options.cwd,
-          timeout: options.timeoutMs ?? 1e4,
-          env: { ...env, PATH: dockerSearchPath() }
-        },
-        (error, stdout, stderr) => {
-          if (!error) {
-            resolve({ code: 0, stdout: String(stdout), stderr: String(stderr) });
-            return;
-          }
-          resolve({
-            code: typeof error.code === "number" ? error.code : null,
-            stdout: String(stdout || ""),
-            stderr: String(stderr || error.message || ""),
-            notFound: error.code === "ENOENT"
-          });
-        }
-      );
-      if (options.input !== void 0 && child.stdin) {
-        child.stdin.on("error", () => void 0);
-        child.stdin.end(options.input);
-      }
-    } catch (error) {
-      resolve({ code: null, stdout: "", stderr: String(error), notFound: true });
-    }
-  });
-}
-function dockerEngineApp() {
-  const fs = desktopRequire("fs");
-  if (!fs) return null;
-  const candidates = [
-    { name: "OrbStack", path: "/Applications/OrbStack.app" },
-    { name: "Docker Desktop", path: "/Applications/Docker.app" },
-    { name: "Docker Desktop", path: "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe" }
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate.path)) ?? null;
-}
-async function openDockerEngine() {
-  const app = dockerEngineApp();
-  if (!app) return false;
-  if (app.path.endsWith(".app")) {
-    return (await runProgram("/usr/bin/open", ["-g", app.path], { timeoutMs: 8e3 })).code === 0;
-  }
-  const electron = desktopRequire("electron");
-  if (!electron?.shell?.openPath) return false;
-  return await electron.shell.openPath(app.path) === "";
-}
-function pathExists(path) {
-  const fs = desktopRequire("fs");
-  try {
-    return !!fs?.existsSync(path);
-  } catch {
-    return false;
-  }
-}
-function joinPath(...parts) {
-  const path = desktopRequire("path");
-  return path ? path.join(...parts) : parts.join("/");
-}
-async function pickFolderInSystem(title) {
-  const electron = desktopRequire("electron");
-  let dialog = electron?.remote?.dialog;
-  if (!dialog) {
-    try {
-      dialog = desktopRequire("@electron/remote")?.dialog;
-    } catch {
-      dialog = void 0;
-    }
-  }
-  if (!dialog) return null;
-  const result = await dialog.showOpenDialog({ title, properties: ["openDirectory"] });
-  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
-}
-function readTextOutsideVault(path) {
-  const fs = desktopRequire("fs");
-  try {
-    return fs ? fs.readFileSync(path, "utf8") : null;
-  } catch {
-    return null;
-  }
-}
-function writeTextOutsideVault(dir, name, text2, mode = 420) {
-  const fs = desktopRequire("fs");
-  if (!fs) throw new Error("No file access on this device");
-  fs.mkdirSync(dir, { recursive: true });
-  const target = joinPath(dir, name);
-  fs.writeFileSync(target, text2, { mode });
-  fs.chmodSync(target, mode);
-}
-function makeFolderOutsideVault(path) {
-  const fs = desktopRequire("fs");
-  fs?.mkdirSync(path, { recursive: true });
-}
-function homeFolder() {
-  const os = desktopRequire("os");
-  return os?.homedir?.() ?? "";
-}
-async function openFileInSystem(path) {
-  const electron = desktopRequire("electron");
-  if (!electron?.shell?.openPath) return false;
-  return await electron.shell.openPath(path) === "";
-}
-function portIsFree(port) {
-  const net = desktopRequire("net");
-  if (!net?.createServer) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => resolve(false));
-    server.once("listening", () => server.close(() => resolve(true)));
-    server.listen(port, "0.0.0.0");
-  });
-}
 
 // utils/UrlResolver.ts
 var UrlResolver = class {
@@ -25188,6 +25317,14 @@ var SETTINGS_SEARCH_TERMS = [
   "\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09",
   "\u2463 Bilibili login (optional)",
   "\u6A21\u578B",
+  "\u6D4F\u89C8\u5668\u6269\u5C55",
+  "Browser extension",
+  "\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian",
+  "Receive in the background",
+  "\u914D\u5BF9\u7801",
+  "Pairing code",
+  "\u7AEF\u53E3",
+  "Port",
   "\u8F7B\u91CF\u6863",
   "\u540E\u7AEF",
   "\u603B\u7ED3\u6A21\u578B",
@@ -25333,6 +25470,8 @@ function followRename(history, oldPath, newPath, newName) {
 var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
   constructor() {
     super(...arguments);
+    /** The extension's local endpoint; null on mobile or before layout is ready. */
+    this.bridge = null;
     /** Which stored record belongs to which note; notes no longer carry the id themselves. */
     this.noteLinks = new NoteArtifactLinks();
     this.captureLocks = /* @__PURE__ */ new Map();
@@ -25438,6 +25577,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     this.registerObsidianProtocolHandler("video-summary", (params) => {
       void this.handleProtocolRequest(params);
     });
+    this.app.workspace.onLayoutReady(() => void this.startExtensionBridge());
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
@@ -25474,6 +25614,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     );
   }
   onunload() {
+    this.bridge?.stop();
     BackendHealthModal.closeAll();
     this.installer?.dispose();
     this.noteIndex?.flush();
@@ -27378,7 +27519,21 @@ Suggestion: ${result.hint}`) : "";
    * Global capture entry. Default is offline `capture-only`; processing must be
    * requested explicitly with process=1 (see protocolCaptureAction).
    */
-  async handleProtocolRequest(params) {
+  /** Start, restart or stop the extension's local endpoint to match the settings. */
+  async startExtensionBridge() {
+    if (!import_obsidian28.Platform.isDesktopApp) return;
+    if (!this.settings.extensionBridgeToken) {
+      this.settings.extensionBridgeToken = newBridgeToken();
+      await this.saveSettings();
+    }
+    this.bridge ?? (this.bridge = new ExtensionBridge({
+      version: this.manifest.version,
+      onCapture: (params) => void this.handleProtocolRequest(params, { background: true })
+    }));
+    if (this.settings.extensionBridgeEnabled === false) this.bridge.stop();
+    else this.bridge.start(this.settings.extensionBridgePort, this.settings.extensionBridgeToken);
+  }
+  async handleProtocolRequest(params, options = {}) {
     try {
       const rawUrl = (params.url || params.link || "").trim();
       const localFile = (params.local_file || params.localFile || "").trim();
@@ -27418,7 +27573,7 @@ Suggestion: ${result.hint}`) : "";
           }
         );
       }
-      await this.app.workspace.getLeaf(true).openFile(file);
+      if (!options.background) await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
         new import_obsidian28.Notice(
           result.status === "created" ? tr("\u5DF2\u79BB\u7EBF\u52A0\u5165\u89C6\u9891\u6536\u4EF6\u7BB1", "Added to the video inbox offline") : tr("\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5DF2\u6253\u5F00\u539F\u7B14\u8BB0", "Already captured; opened the existing note")
@@ -27599,6 +27754,10 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
     this.group(containerEl, tr("\u5904\u7406", "Processing"));
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
+    if (import_obsidian28.Platform.isDesktopApp) {
+      this.group(containerEl, tr("\u6D4F\u89C8\u5668\u6269\u5C55", "Browser extension"));
+      this.createExtensionBridgeSection(containerEl);
+    }
     const advanced = containerEl.createEl("details", { cls: "vs-settings-advanced" });
     advanced.createEl("summary", {
       text: tr(
@@ -28050,6 +28209,60 @@ var VideoSummarySettingTab = class extends import_obsidian28.PluginSettingTab {
    * Cookies 管理：定位后端文件夹的 cookies 目录，一键打开 + 检测各平台 cookies 文件状态。
    * 解决 Bilibili HTTP 412 / 抖音小红书下载失败时"cookies 到底放没放、过没过期"的排查痛点。
    */
+  createExtensionBridgeSection(containerEl) {
+    const plugin = this.plugin;
+    const restart = async () => {
+      await plugin.saveSettings();
+      await plugin.startExtensionBridge();
+      window.setTimeout(() => this.display(), 200);
+    };
+    const state = plugin.bridge?.state ?? "off";
+    const stateText = state === "listening" ? tr(
+      `\u6B63\u5728\u63A5\u6536 \xB7 \u7AEF\u53E3 ${plugin.settings.extensionBridgePort}`,
+      `Receiving \xB7 port ${plugin.settings.extensionBridgePort}`
+    ) : state === "port-in-use" ? tr("\u7AEF\u53E3\u88AB\u5360\u7528\uFF0C\u6362\u4E00\u4E2A\u7AEF\u53E3\u518D\u8BD5", "The port is in use; choose another one") : state === "unavailable" ? tr("\u8FD9\u53F0\u8BBE\u5907\u4E0D\u80FD\u63A5\u6536", "Not available on this device") : tr("\u5DF2\u5173\u95ED", "Off");
+    new import_obsidian28.Setting(containerEl).setName(tr("\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian", "Receive in the background")).setDesc(stateText).addToggle(
+      (toggle) => toggle.setValue(plugin.settings.extensionBridgeEnabled !== false).onChange(async (value) => {
+        plugin.settings.extensionBridgeEnabled = value;
+        await restart();
+      })
+    );
+    if (plugin.settings.extensionBridgeEnabled === false) return;
+    const code = bridgePairingCode(
+      plugin.settings.extensionBridgePort,
+      plugin.settings.extensionBridgeToken
+    );
+    const codeSetting = new import_obsidian28.Setting(containerEl).setName(tr("\u914D\u5BF9\u7801", "Pairing code")).setDesc(
+      tr(
+        "\u7C98\u8D34\u5230\u6269\u5C55\u7684\u201C\u8BBE\u7F6E \u2192 Obsidian \u914D\u5BF9\u7801\u201D\u3002",
+        "Paste it into the extension under Settings \u2192 Obsidian pairing code."
+      )
+    );
+    codeSetting.controlEl.createEl("code", { text: code, cls: "vs-bridge-code" });
+    codeSetting.addButton(
+      (button) => button.setButtonText(tr("\u590D\u5236", "Copy")).onClick(async () => {
+        await navigator.clipboard.writeText(code);
+        new import_obsidian28.Notice(tr("\u5DF2\u590D\u5236\u914D\u5BF9\u7801", "Pairing code copied"));
+      })
+    ).addExtraButton(
+      (button) => button.setIcon("refresh-cw").setTooltip(
+        tr("\u6362\u4E00\u4E2A\u914D\u5BF9\u7801\uFF1B\u65E7\u7684\u7ACB\u5373\u5931\u6548", "New pairing code; the old one stops working")
+      ).onClick(async () => {
+        plugin.settings.extensionBridgeToken = newBridgeToken();
+        await restart();
+      })
+    );
+    new import_obsidian28.Setting(containerEl).setName(tr("\u7AEF\u53E3", "Port")).addText((text2) => {
+      text2.inputEl.type = "number";
+      text2.setValue(String(plugin.settings.extensionBridgePort));
+      text2.inputEl.addEventListener("change", async () => {
+        const port = Number(text2.getValue());
+        if (!Number.isInteger(port) || port < 1024 || port > 65535) return;
+        plugin.settings.extensionBridgePort = port;
+        await restart();
+      });
+    });
+  }
   createCookiesSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "cookie", tr("Cookies \u7BA1\u7406", "Cookies"));
     section3.createEl("p", {

@@ -394,5 +394,20 @@
   },
   "historyTitle": {
     "message": "记录"
+  },
+  "settingBridge": {
+    "message": "Obsidian 配对码"
+  },
+  "bridgePlaceholder": {
+    "message": "在 Obsidian 的 Video Summary 设置里复制"
+  },
+  "settingBackground": {
+    "message": "后台发送，不切到 Obsidian"
+  },
+  "errBridgeCode": {
+    "message": "Obsidian 配对码不对，请到 Obsidian 的 Video Summary 设置里重新复制。"
+  },
+  "errBridgeFormat": {
+    "message": "这不是配对码，配对码以 vsb1. 开头。"
   }
 }

@@ -34,7 +34,7 @@ function localSet(value) {
 }
 
 // Tokens stay on this device; everything else syncs with the browser profile.
-const LOCAL_ONLY_SETTINGS = ['obsidianRestToken', 'n8nToken'];
+const LOCAL_ONLY_SETTINGS = ['obsidianRestToken', 'n8nToken', 'obsidianBridge'];
 
 async function getSettings() {
   const stored = await syncGet(Object.keys(U.DEFAULT_SETTINGS));
@@ -64,6 +64,7 @@ async function setSettings(settings) {
   await localSet({
     obsidianRestToken: next.obsidianRestToken || '',
     n8nToken: next.n8nToken || '',
+    obsidianBridge: next.obsidianBridge || '',
   });
   return next;
 }
@@ -611,10 +612,49 @@ async function putObsidianRestNote(settings, item) {
   return { filePath, response: text };
 }
 
+/**
+ * Hand a video to the Obsidian plugin over 127.0.0.1, so Obsidian is not brought forward.
+ * false when nothing answers (Obsidian closed, or an older plugin): then the link is used.
+ */
+async function sendToPluginInBackground(settings, item, { process }) {
+  if (settings.sendInBackground === false) return false;
+  const bridge = U.parseBridgeCode(settings.obsidianBridge);
+  if (!bridge) return false;
+  let response;
+  try {
+    response = await self.fetch(`http://127.0.0.1:${bridge.port}/video-summary/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Video-Summary-Token': bridge.token },
+      body: JSON.stringify(Object.fromEntries(U.pluginCaptureParams(item, settings, { process }))),
+    });
+  } catch {
+    return false;
+  }
+  if (response.status === 401) {
+    throw new Error(
+      t(
+        'errBridgeCode',
+        [],
+        'The Obsidian pairing code does not match. Copy it again from Video Summary settings in Obsidian.',
+      ),
+    );
+  }
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error(`Obsidian HTTP ${response.status}`);
+  return true;
+}
+
 async function transferOne(rawItem, operation, settings) {
   const item = normalizeCaptureItem(rawItem);
   const actionForPayload = operation === 'append-link' ? 'append-link' : 'process';
 
+  if (operation === 'create-pending-note' || operation === 'process-via-plugin') {
+    const process = operation === 'process-via-plugin';
+    if (await sendToPluginInBackground(settings, item, { process })) {
+      await addHistory({ operation, title: item.title, url: item.url, status: 'success' });
+      return { operation, status: 'success', title: item.title, background: true };
+    }
+  }
   if (operation === 'create-pending-note') {
     if (!settings.vaultName)
       throw new Error(t('errVaultRequired', [], 'Enter your vault name in Settings.'));
