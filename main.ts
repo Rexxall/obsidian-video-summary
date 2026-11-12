@@ -4108,6 +4108,24 @@ class VideoSummarySettingTab extends PluginSettingTab {
       );
 
     new Setting(section)
+      .setName(tr('数字用衬线', 'Serif numbers'))
+      .setDesc(
+        tr(
+          '侧栏笔记库的总数用 Didot 斜体，和其他插件的签名数字一致。',
+          'The library count in the side panel in Didot italic, like the other plugins.',
+        ),
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.serifNumbers !== false).onChange(async (value) => {
+          this.plugin.settings.serifNumbers = value;
+          await this.plugin.saveSettings();
+          this.plugin.app.workspace
+            .getLeavesOfType('video-summary-view')
+            .forEach((leaf) => (leaf.view as { applySignature?: () => void }).applySignature?.());
+        }),
+      );
+
+    new Setting(section)
       .setName(tr('笔记样式类', 'Note CSS class'))
       .setDesc(
         tr(

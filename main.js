@@ -2019,6 +2019,7 @@ var DEFAULT_SETTINGS = {
   outputFolder: "",
   noteCssClass: "",
   readingViewForVideoNotes: true,
+  serifNumbers: true,
   defaultNoteProperties: "",
   articleTags: "",
   noteStyle: "",
@@ -7405,7 +7406,7 @@ async function pollQrLogin(key) {
   }
 }
 
-// ../../../../../../../Users/rex/Obsidian/Projects/.plugin-dev/video-summary-plugin/node_modules/qrcode-generator/dist/qrcode.mjs
+// node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
   const PAD1 = 17;
@@ -14215,6 +14216,12 @@ function disconnectLibraryCoverObserver() {
 function renderLibraryPanel(container, ctx) {
   const { state, plugin } = ctx;
   const entries2 = plugin.noteIndex.getAll();
+  const count2 = container.createDiv({ cls: "vs-library-count" });
+  count2.createSpan({ cls: "vs-library-count-num ap-sig-num", text: String(entries2.length) });
+  count2.createSpan({
+    cls: "vs-library-count-label",
+    text: tr("\u7BC7\u89C6\u9891\u7B14\u8BB0", entries2.length === 1 ? "video note" : "video notes")
+  });
   const header = container.createDiv({ cls: "vs-library-header" });
   const searchWrap = header.createDiv({ cls: "vs-search" });
   const searchIcon = searchWrap.createDiv({ cls: "vs-search-icon" });
@@ -16112,6 +16119,7 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("video-summary-view", "ap", "ap-view");
+    this.applySignature();
     this.resizeObserver?.disconnect();
     this.resizeObserver = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? container.clientWidth;
@@ -16147,6 +16155,13 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
       }
     }, 1e3);
     this.renderAll();
+  }
+  /** Signature layer: the panel's one number in serif italic, as the setting says. */
+  applySignature() {
+    this.containerEl.children[1]?.toggleClass(
+      "ap-signed",
+      this.plugin.settings.serifNumbers !== false
+    );
   }
   async onClose() {
     disconnectLibraryCoverObserver();
@@ -25483,6 +25498,8 @@ var SETTINGS_SEARCH_TERMS = [
   "Output folder",
   "\u89C6\u9891\u7B14\u8BB0\u7528\u9605\u8BFB\u89C6\u56FE\u6253\u5F00",
   "Open video notes in reading view",
+  "\u6570\u5B57\u7528\u886C\u7EBF",
+  "Serif numbers",
   "\u7B14\u8BB0\u6837\u5F0F\u7C7B",
   "Note CSS class",
   "\u9ED8\u8BA4\u5C5E\u6027",
@@ -28880,6 +28897,18 @@ Suggestion: ${res.hint}`) : "";
       (toggle) => toggle.setValue(this.plugin.settings.readingViewForVideoNotes !== false).onChange(async (value) => {
         this.plugin.settings.readingViewForVideoNotes = value;
         await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian29.Setting(section3).setName(tr("\u6570\u5B57\u7528\u886C\u7EBF", "Serif numbers")).setDesc(
+      tr(
+        "\u4FA7\u680F\u7B14\u8BB0\u5E93\u7684\u603B\u6570\u7528 Didot \u659C\u4F53\uFF0C\u548C\u5176\u4ED6\u63D2\u4EF6\u7684\u7B7E\u540D\u6570\u5B57\u4E00\u81F4\u3002",
+        "The library count in the side panel in Didot italic, like the other plugins."
+      )
+    ).addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.serifNumbers !== false).onChange(async (value) => {
+        this.plugin.settings.serifNumbers = value;
+        await this.plugin.saveSettings();
+        this.plugin.app.workspace.getLeavesOfType("video-summary-view").forEach((leaf) => leaf.view.applySignature?.());
       })
     );
     new import_obsidian29.Setting(section3).setName(tr("\u7B14\u8BB0\u6837\u5F0F\u7C7B", "Note CSS class")).setDesc(

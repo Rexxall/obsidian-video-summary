@@ -315,6 +315,8 @@ export interface VideoSummarySettings {
   noteCssClass: string;
   /** Finished video notes open in reading view. */
   readingViewForVideoNotes: boolean;
+  /** Signature layer shared by the plugins: the one number of the panel in serif italic. */
+  serifNumbers: boolean;
   /** 处理成功时补进笔记的属性，一行一个“名称: 值” */
   defaultNoteProperties: string;
   /** Tags for notes made from a pasted article or transcript, instead of the default tags */

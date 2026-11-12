@@ -68,6 +68,7 @@ export class VideoSummaryView extends ItemView {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass('video-summary-view', 'ap', 'ap-view');
+    this.applySignature();
     this.resizeObserver?.disconnect();
     this.resizeObserver = new ResizeObserver(([entry]) => {
       const width = entry?.contentRect.width ?? container.clientWidth;
@@ -117,6 +118,14 @@ export class VideoSummaryView extends ItemView {
     }, 1000);
 
     this.renderAll();
+  }
+
+  /** Signature layer: the panel's one number in serif italic, as the setting says. */
+  applySignature() {
+    (this.containerEl.children[1] as HTMLElement | undefined)?.toggleClass(
+      'ap-signed',
+      this.plugin.settings.serifNumbers !== false,
+    );
   }
 
   async onClose(): Promise<void> {

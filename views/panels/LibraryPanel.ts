@@ -43,6 +43,14 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
   const { state, plugin } = ctx;
   const entries = plugin.noteIndex.getAll();
 
+  // The panel's one signed number: how many video notes the vault has.
+  const count = container.createDiv({ cls: 'vs-library-count' });
+  count.createSpan({ cls: 'vs-library-count-num ap-sig-num', text: String(entries.length) });
+  count.createSpan({
+    cls: 'vs-library-count-label',
+    text: tr('篇视频笔记', entries.length === 1 ? 'video note' : 'video notes'),
+  });
+
   const header = container.createDiv({ cls: 'vs-library-header' });
   const searchWrap = header.createDiv({ cls: 'vs-search' });
   const searchIcon = searchWrap.createDiv({ cls: 'vs-search-icon' });

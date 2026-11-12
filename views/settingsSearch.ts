@@ -67,6 +67,8 @@ export const SETTINGS_SEARCH_TERMS: string[] = [
   'Output folder',
   '视频笔记用阅读视图打开',
   'Open video notes in reading view',
+  '数字用衬线',
+  'Serif numbers',
   '笔记样式类',
   'Note CSS class',
   '默认属性',

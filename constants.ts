@@ -134,6 +134,7 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   outputFolder: '',
   noteCssClass: '',
   readingViewForVideoNotes: true,
+  serifNumbers: true,
   defaultNoteProperties: '',
   articleTags: '',
   noteStyle: '',
