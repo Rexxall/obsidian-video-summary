@@ -2653,6 +2653,18 @@ var ReadingViewOpener = class {
     this.enabled = enabled;
     this.seen = /* @__PURE__ */ new WeakMap();
   }
+  /** Tabs Obsidian restored at start-up opened before the plugin was listening. */
+  async onLayoutReady() {
+    const paths = /* @__PURE__ */ new Set();
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (view instanceof import_obsidian.MarkdownView && view.file) paths.add(view.file.path);
+    }
+    for (const path of paths) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof import_obsidian.TFile) await this.onFileOpen(file);
+    }
+  }
   async onFileOpen(file) {
     if (!(file instanceof import_obsidian.TFile) || file.extension !== "md") return;
     await new Promise((resolve) => window.setTimeout(resolve, 60));
@@ -25086,6 +25098,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     this.registerEvent(
       this.app.workspace.on("file-open", (file) => void readingView.onFileOpen(file))
     );
+    this.app.workspace.onLayoutReady(() => void readingView.onLayoutReady());
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = this.createNoteProcessor();
     const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;

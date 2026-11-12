@@ -179,6 +179,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on('file-open', (file) => void readingView.onFileOpen(file)),
     );
+    this.app.workspace.onLayoutReady(() => void readingView.onLayoutReady());
 
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);

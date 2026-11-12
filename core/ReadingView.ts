@@ -10,6 +10,19 @@ export class ReadingViewOpener {
     private readonly enabled: () => boolean,
   ) {}
 
+  /** Tabs Obsidian restored at start-up opened before the plugin was listening. */
+  async onLayoutReady() {
+    const paths = new Set<string>();
+    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file) paths.add(view.file.path);
+    }
+    for (const path of paths) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) await this.onFileOpen(file);
+    }
+  }
+
   async onFileOpen(file: TFile | null) {
     if (!(file instanceof TFile) || file.extension !== 'md') return;
     // file-open fires while the leaf is still taking its new state; switch once it has settled.
