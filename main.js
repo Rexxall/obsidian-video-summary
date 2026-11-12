@@ -12238,6 +12238,7 @@ function renderBackendLine(root, ctx) {
     }
     paint();
   });
+  ctx.registerHeaderCleanup?.(off);
   status.addEventListener("click", () => new BackendHealthModal(ctx.plugin.app, ctx.plugin).open());
   start.addEventListener(
     "click",
@@ -13969,16 +13970,19 @@ function showWebhookEntryActions(ctx, entry, event) {
 
 // views/panels/LibraryPanel.ts
 var import_obsidian13 = require("obsidian");
-var PAGE_SIZE = 80;
+var PAGE_SIZE = 30;
 var searchHadFocus = false;
 var visibleCount = PAGE_SIZE;
 var coverObserver = null;
+var moreObserver = null;
 function resetLibraryPaging() {
   visibleCount = PAGE_SIZE;
 }
 function disconnectLibraryCoverObserver() {
   coverObserver?.disconnect();
   coverObserver = null;
+  moreObserver?.disconnect();
+  moreObserver = null;
 }
 function renderLibraryPanel(container, ctx) {
   const { state, plugin } = ctx;
@@ -14102,19 +14106,37 @@ function renderLibraryPanel(container, ctx) {
       return;
     }
     filtered.slice(0, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
-    if (filtered.length > visibleCount) {
-      const more = listEl.createEl("button", {
-        text: tr(
-          `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${filtered.length - visibleCount} \u6761`,
-          `Show more \xB7 ${filtered.length - visibleCount} more`
-        ),
-        cls: "vs-more-btn",
-        attr: { type: "button" }
-      });
-      more.addEventListener("click", () => {
-        visibleCount += PAGE_SIZE;
-        renderList();
-      });
+    addMoreButton();
+  };
+  const addMoreButton = () => {
+    moreObserver?.disconnect();
+    moreObserver = null;
+    if (filtered.length <= visibleCount) return;
+    const more = listEl.createEl("button", {
+      text: tr(
+        `\u663E\u793A\u66F4\u591A \xB7 \u8FD8\u6709 ${filtered.length - visibleCount} \u6761`,
+        `Show more \xB7 ${filtered.length - visibleCount} more`
+      ),
+      cls: "vs-more-btn",
+      attr: { type: "button" }
+    });
+    const showMore = () => {
+      if (!more.isConnected) return;
+      more.remove();
+      const from = visibleCount;
+      visibleCount += PAGE_SIZE;
+      filtered.slice(from, visibleCount).forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
+      addMoreButton();
+    };
+    more.addEventListener("click", showMore);
+    if (typeof IntersectionObserver !== "undefined") {
+      moreObserver = new IntersectionObserver(
+        (seen) => {
+          if (seen.some((item) => item.isIntersecting)) showMore();
+        },
+        { rootMargin: "200px 0px" }
+      );
+      moreObserver.observe(more);
     }
   };
   renderList();
@@ -15828,6 +15850,9 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
     this.backend = "is-unknown";
     this.panelCleanup = [];
     this.headerQueued = false;
+    this.headerCleanup = [];
+    /** The bar changed while hidden (library or detail page); draw it when it shows again. */
+    this.headerStale = false;
     this.plugin = plugin;
     this.state = {
       inputDraft: "",
@@ -15897,6 +15922,7 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
   }
   async onClose() {
     disconnectLibraryCoverObserver();
+    this.cleanupHeaderResources();
     this.unsubscribe.forEach((off) => off());
     this.unsubscribe = [];
     if (this.tickTimer !== null) {
@@ -15958,13 +15984,16 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
       }),
       registerPanelCleanup: (cleanup) => {
         this.panelCleanup.push(cleanup);
+      },
+      registerHeaderCleanup: (cleanup) => {
+        this.headerCleanup.push(cleanup);
       }
     };
   }
   renderAll() {
     if (!this.actionHeaderEl) return;
-    this.actionHeaderEl.empty();
-    renderActionBar(this.actionHeaderEl, this.context());
+    this.syncHeaderVisibility();
+    this.renderHeaderNow();
     this.renderPanels();
   }
   scheduleHeaderRender() {
@@ -15972,10 +16001,40 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
     this.headerQueued = true;
     window.requestAnimationFrame(() => {
       this.headerQueued = false;
-      if (!this.actionHeaderEl) return;
-      this.actionHeaderEl.empty();
-      renderActionBar(this.actionHeaderEl, this.context());
+      this.renderHeaderNow();
     });
+  }
+  /**
+   * Draws the top bar. While it is hidden nothing is drawn: switching notes on the library page
+   * used to rebuild the hidden input box, and its height measurement forced a layout on every
+   * note open. Each draw first drops the listeners the previous one added.
+   */
+  renderHeaderNow() {
+    const header = this.actionHeaderEl;
+    if (!header) return;
+    if (header.hasAttribute("hidden")) {
+      this.headerStale = true;
+      return;
+    }
+    this.headerStale = false;
+    this.cleanupHeaderResources();
+    header.empty();
+    renderActionBar(header, this.context());
+  }
+  cleanupHeaderResources() {
+    this.headerCleanup.splice(0).forEach((cleanup) => {
+      try {
+        cleanup();
+      } catch (error) {
+        console.warn("[Video Summary] \u9876\u90E8\u680F\u6E05\u7406\u5931\u8D25", error);
+      }
+    });
+  }
+  syncHeaderVisibility() {
+    this.actionHeaderEl?.toggleAttribute(
+      "hidden",
+      this.state.tab === "library" || this.state.detail !== null
+    );
   }
   schedulePanelRender() {
     if (this.renderQueued) return;
@@ -15992,10 +16051,8 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
     this.cleanupPanelResources();
     disconnectLibraryCoverObserver();
     panel.empty();
-    this.actionHeaderEl?.toggleAttribute(
-      "hidden",
-      this.state.tab === "library" || this.state.detail !== null
-    );
+    this.syncHeaderVisibility();
+    if (this.headerStale && !this.actionHeaderEl?.hasAttribute("hidden")) this.renderHeaderNow();
     if (this.state.detail) {
       panel.scrollTop = 0;
       renderDetailPanel(panel, this.context());

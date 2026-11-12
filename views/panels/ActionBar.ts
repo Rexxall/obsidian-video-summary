@@ -239,6 +239,7 @@ function renderBackendLine(root: HTMLElement, ctx: ViewContext) {
     }
     paint();
   });
+  ctx.registerHeaderCleanup?.(off);
 
   status.addEventListener('click', () => new BackendHealthModal(ctx.plugin.app, ctx.plugin).open());
   start.addEventListener(

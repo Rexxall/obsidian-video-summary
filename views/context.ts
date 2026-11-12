@@ -53,4 +53,6 @@ export interface ViewContext {
   submitOptions(): SubmitOptions;
   /** Register DOM/listener cleanup owned by the currently rendered panel. */
   registerPanelCleanup(cleanup: () => void): void;
+  /** Register a listener owned by the top bar; dropped when the bar is drawn again. */
+  registerHeaderCleanup?(cleanup: () => void): void;
 }

@@ -4581,3 +4581,9 @@ body {
     animation: none;
   }
 }
+
+/* Library rows off screen skip layout and paint, so a long list in the sidebar costs nothing when a note opens. */
+.video-summary-view .vs-list > .vs-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
+}

@@ -121,6 +121,7 @@ export class VideoSummaryView extends ItemView {
 
   async onClose(): Promise<void> {
     disconnectLibraryCoverObserver();
+    this.cleanupHeaderResources();
     this.unsubscribe.forEach((off) => off());
     this.unsubscribe = [];
     if (this.tickTimer !== null) {
@@ -190,13 +191,16 @@ export class VideoSummaryView extends ItemView {
       registerPanelCleanup: (cleanup) => {
         this.panelCleanup.push(cleanup);
       },
+      registerHeaderCleanup: (cleanup) => {
+        this.headerCleanup.push(cleanup);
+      },
     };
   }
 
   private renderAll() {
     if (!this.actionHeaderEl) return;
-    this.actionHeaderEl.empty();
-    renderActionBar(this.actionHeaderEl, this.context());
+    this.syncHeaderVisibility();
+    this.renderHeaderNow();
     this.renderPanels();
   }
 
@@ -207,10 +211,48 @@ export class VideoSummaryView extends ItemView {
     this.headerQueued = true;
     window.requestAnimationFrame(() => {
       this.headerQueued = false;
-      if (!this.actionHeaderEl) return;
-      this.actionHeaderEl.empty();
-      renderActionBar(this.actionHeaderEl, this.context());
+      this.renderHeaderNow();
     });
+  }
+
+  private headerCleanup: Array<() => void> = [];
+  /** The bar changed while hidden (library or detail page); draw it when it shows again. */
+  private headerStale = false;
+
+  /**
+   * Draws the top bar. While it is hidden nothing is drawn: switching notes on the library page
+   * used to rebuild the hidden input box, and its height measurement forced a layout on every
+   * note open. Each draw first drops the listeners the previous one added.
+   */
+  private renderHeaderNow() {
+    const header = this.actionHeaderEl;
+    if (!header) return;
+    if (header.hasAttribute('hidden')) {
+      this.headerStale = true;
+      return;
+    }
+    this.headerStale = false;
+    this.cleanupHeaderResources();
+    header.empty();
+    renderActionBar(header, this.context());
+  }
+
+  private cleanupHeaderResources() {
+    this.headerCleanup.splice(0).forEach((cleanup) => {
+      try {
+        cleanup();
+      } catch (error) {
+        console.warn('[Video Summary] 顶部栏清理失败', error);
+      }
+    });
+  }
+
+  private syncHeaderVisibility() {
+    // 设计稿的笔记库与详情都是独立页面：只在任务页保留顶部输入区。
+    this.actionHeaderEl?.toggleAttribute(
+      'hidden',
+      this.state.tab === 'library' || this.state.detail !== null,
+    );
   }
 
   private schedulePanelRender() {
@@ -230,12 +272,8 @@ export class VideoSummaryView extends ItemView {
     disconnectLibraryCoverObserver();
     panel.empty();
 
-    // 设计稿的笔记库与详情都是独立页面：只在任务页保留顶部输入区。
-    // 旧实现把 ActionBar 永久钉在三种页面上方，实际运行时会比 2b/2c 多出半屏内容。
-    this.actionHeaderEl?.toggleAttribute(
-      'hidden',
-      this.state.tab === 'library' || this.state.detail !== null,
-    );
+    this.syncHeaderVisibility();
+    if (this.headerStale && !this.actionHeaderEl?.hasAttribute('hidden')) this.renderHeaderNow();
 
     if (this.state.detail) {
       panel.scrollTop = 0;

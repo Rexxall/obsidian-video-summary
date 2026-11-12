@@ -15,12 +15,17 @@ import {
 
 import { fire } from '../../utils/fire';
 import { tr } from '../../utils/i18n';
-const PAGE_SIZE = 80;
+/**
+ * Rows drawn at a time. Every row in the visible sidebar is restyled whenever a note opens, so a
+ * short first page keeps opening notes fast; scrolling to the end draws the next page.
+ */
+const PAGE_SIZE = 30;
 
 /** 搜索框失焦问题：面板重建后按这个标记把焦点还回去 */
 let searchHadFocus = false;
 let visibleCount = PAGE_SIZE;
 let coverObserver: IntersectionObserver | null = null;
+let moreObserver: IntersectionObserver | null = null;
 
 export function resetLibraryPaging() {
   visibleCount = PAGE_SIZE;
@@ -29,6 +34,8 @@ export function resetLibraryPaging() {
 export function disconnectLibraryCoverObserver() {
   coverObserver?.disconnect();
   coverObserver = null;
+  moreObserver?.disconnect();
+  moreObserver = null;
 }
 
 /** 笔记库：索引驱动 + 分批渲染，库大了也不会一次铺几千个 DOM 节点 */
@@ -174,19 +181,41 @@ export function renderLibraryPanel(container: HTMLElement, ctx: ViewContext) {
     filtered
       .slice(0, visibleCount)
       .forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
-    if (filtered.length > visibleCount) {
-      const more = listEl.createEl('button', {
-        text: tr(
-          `显示更多 · 还有 ${filtered.length - visibleCount} 条`,
-          `Show more · ${filtered.length - visibleCount} more`,
-        ),
-        cls: 'vs-more-btn',
-        attr: { type: 'button' },
-      });
-      more.addEventListener('click', () => {
-        visibleCount += PAGE_SIZE;
-        renderList();
-      });
+    addMoreButton();
+  };
+
+  /** Draws the next page under the rows already there, without redrawing them. */
+  const addMoreButton = () => {
+    moreObserver?.disconnect();
+    moreObserver = null;
+    if (filtered.length <= visibleCount) return;
+    const more = listEl.createEl('button', {
+      text: tr(
+        `显示更多 · 还有 ${filtered.length - visibleCount} 条`,
+        `Show more · ${filtered.length - visibleCount} more`,
+      ),
+      cls: 'vs-more-btn',
+      attr: { type: 'button' },
+    });
+    const showMore = () => {
+      if (!more.isConnected) return;
+      more.remove();
+      const from = visibleCount;
+      visibleCount += PAGE_SIZE;
+      filtered
+        .slice(from, visibleCount)
+        .forEach((entry) => renderRow(listEl, ctx, entry, coverObserver));
+      addMoreButton();
+    };
+    more.addEventListener('click', showMore);
+    if (typeof IntersectionObserver !== 'undefined') {
+      moreObserver = new IntersectionObserver(
+        (seen) => {
+          if (seen.some((item) => item.isIntersecting)) showMore();
+        },
+        { rootMargin: '200px 0px' },
+      );
+      moreObserver.observe(more);
     }
   };
 
