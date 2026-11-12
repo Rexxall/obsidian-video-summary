@@ -1,40 +1,43 @@
-import { MarkdownView, TFile, type App, type WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, type App, type WorkspaceLeaf } from 'obsidian';
 
 import { wantsReadingView } from './ReadingViewRule';
 
+/**
+ * Switches tabs that show a finished video note to reading view, once per note per tab.
+ * Obsidian tells about a newly opened file only for the active tab (file-open), and a note
+ * opened from the side panel or in the background is not always that tab, so every change of
+ * layout or active tab looks at all open tabs.
+ */
 export class ReadingViewOpener {
   private readonly seen = new WeakMap<WorkspaceLeaf, string>();
+  private pending = false;
 
   constructor(
     private readonly app: App,
     private readonly enabled: () => boolean,
   ) {}
 
-  /** Tabs Obsidian restored at start-up opened before the plugin was listening. */
-  async onLayoutReady() {
-    const paths = new Set<string>();
-    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
-      const view = leaf.view;
-      if (view instanceof MarkdownView && view.file) paths.add(view.file.path);
-    }
-    for (const path of paths) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof TFile) await this.onFileOpen(file);
-    }
+  /** Coalesces bursts of workspace events into one look a moment later. */
+  schedule() {
+    if (this.pending) return;
+    this.pending = true;
+    window.setTimeout(() => {
+      this.pending = false;
+      void this.scan();
+    }, 80);
   }
 
-  async onFileOpen(file: TFile | null) {
-    if (!(file instanceof TFile) || file.extension !== 'md') return;
-    // file-open fires while the leaf is still taking its new state; switch once it has settled.
-    await new Promise((resolve) => window.setTimeout(resolve, 60));
-    // The side panel may hold focus when it opens a note, so look at every tab showing it.
-    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+  private async scan() {
     for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
       const view = leaf.view;
-      if (!(view instanceof MarkdownView) || view.file?.path !== file.path) continue;
-      const alreadyOpenedHere = this.seen.get(leaf) === file.path;
-      this.seen.set(leaf, file.path);
-      if (!wantsReadingView(this.enabled(), frontmatter, alreadyOpenedHere)) continue;
+      if (!(view instanceof MarkdownView) || !view.file) continue;
+      const path = view.file.path;
+      if (this.seen.get(leaf) === path) continue;
+      const frontmatter = this.app.metadataCache.getFileCache(view.file)?.frontmatter;
+      // Not read yet: look again on the next event instead of deciding without it.
+      if (frontmatter === undefined && !this.app.metadataCache.getFileCache(view.file)) continue;
+      this.seen.set(leaf, path);
+      if (!wantsReadingView(this.enabled(), frontmatter, false)) continue;
       if (view.getMode() === 'preview') continue;
       await view.setState({ ...view.getState(), mode: 'preview' }, { history: false });
     }

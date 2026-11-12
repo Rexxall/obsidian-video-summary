@@ -176,10 +176,13 @@ export default class VideoSummaryPlugin extends Plugin {
       this.app,
       () => this.settings.readingViewForVideoNotes !== false,
     );
-    this.registerEvent(
-      this.app.workspace.on('file-open', (file) => void readingView.onFileOpen(file)),
-    );
-    this.app.workspace.onLayoutReady(() => void readingView.onLayoutReady());
+    for (const name of ['file-open', 'active-leaf-change', 'layout-change'] as const) {
+      this.registerEvent(
+        this.app.workspace.on(name as 'layout-change', () => readingView.schedule()),
+      );
+    }
+    this.registerEvent(this.app.metadataCache.on('resolved', () => readingView.schedule()));
+    this.app.workspace.onLayoutReady(() => readingView.schedule());
 
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);

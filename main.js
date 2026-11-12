@@ -2652,29 +2652,27 @@ var ReadingViewOpener = class {
     this.app = app;
     this.enabled = enabled;
     this.seen = /* @__PURE__ */ new WeakMap();
+    this.pending = false;
   }
-  /** Tabs Obsidian restored at start-up opened before the plugin was listening. */
-  async onLayoutReady() {
-    const paths = /* @__PURE__ */ new Set();
+  /** Coalesces bursts of workspace events into one look a moment later. */
+  schedule() {
+    if (this.pending) return;
+    this.pending = true;
+    window.setTimeout(() => {
+      this.pending = false;
+      void this.scan();
+    }, 80);
+  }
+  async scan() {
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view;
-      if (view instanceof import_obsidian.MarkdownView && view.file) paths.add(view.file.path);
-    }
-    for (const path of paths) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian.TFile) await this.onFileOpen(file);
-    }
-  }
-  async onFileOpen(file) {
-    if (!(file instanceof import_obsidian.TFile) || file.extension !== "md") return;
-    await new Promise((resolve) => window.setTimeout(resolve, 60));
-    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
-      const view = leaf.view;
-      if (!(view instanceof import_obsidian.MarkdownView) || view.file?.path !== file.path) continue;
-      const alreadyOpenedHere = this.seen.get(leaf) === file.path;
-      this.seen.set(leaf, file.path);
-      if (!wantsReadingView(this.enabled(), frontmatter, alreadyOpenedHere)) continue;
+      if (!(view instanceof import_obsidian.MarkdownView) || !view.file) continue;
+      const path = view.file.path;
+      if (this.seen.get(leaf) === path) continue;
+      const frontmatter = this.app.metadataCache.getFileCache(view.file)?.frontmatter;
+      if (frontmatter === void 0 && !this.app.metadataCache.getFileCache(view.file)) continue;
+      this.seen.set(leaf, path);
+      if (!wantsReadingView(this.enabled(), frontmatter, false)) continue;
       if (view.getMode() === "preview") continue;
       await view.setState({ ...view.getState(), mode: "preview" }, { history: false });
     }
@@ -25095,10 +25093,13 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       this.app,
       () => this.settings.readingViewForVideoNotes !== false
     );
-    this.registerEvent(
-      this.app.workspace.on("file-open", (file) => void readingView.onFileOpen(file))
-    );
-    this.app.workspace.onLayoutReady(() => void readingView.onLayoutReady());
+    for (const name of ["file-open", "active-leaf-change", "layout-change"]) {
+      this.registerEvent(
+        this.app.workspace.on(name, () => readingView.schedule())
+      );
+    }
+    this.registerEvent(this.app.metadataCache.on("resolved", () => readingView.schedule()));
+    this.app.workspace.onLayoutReady(() => readingView.schedule());
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = this.createNoteProcessor();
     const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
