@@ -27,7 +27,7 @@ Sources are in `src/`: `store.html?lang=ja&shot=2` (render at 1280×800), `tile.
 
 ### Description: English
 
-Press ⌘⇧S (Ctrl+Shift+S) on a YouTube video. The extension reads the captions the page's player has loaded and sends them, with the link and the current time, to your Obsidian vault. The Video Summary plugin for Obsidian then writes the note with the model and key you set there: a summary, timestamped key points, and the full transcript folded at the end. No server and no account; an hour-long lecture takes about a minute.
+Press ⌘⇧S (Ctrl+Shift+S) on a YouTube or Bilibili video. The extension reads the captions the page's player has loaded and sends them, with the link and the current time, to your Obsidian vault. The Video Summary plugin for Obsidian then writes the note with the model and key you set there: a summary, timestamped key points, and the full transcript folded at the end. No server and no account; an hour-long lecture takes about a minute.
 
 - Captions in the spoken language come first, written ones before automatic ones. On a dubbed video it takes the original audio's language.
 - Queue videos, scan a page for video links, copy a link to the current moment, or append links to a reading list in your vault.
@@ -37,11 +37,11 @@ Press ⌘⇧S (Ctrl+Shift+S) on a YouTube video. The extension reads the caption
 
 Works with the free, open-source Video Summary plugin for Obsidian. The extension reads a page only when you use it there and sends nothing to its developer or to anyone else.
 
-Obsidian and YouTube are trademarks of their respective owners. This extension is not made or endorsed by them.
+Obsidian, YouTube and Bilibili are trademarks of their respective owners. This extension is not made or endorsed by them.
 
 ### 简介：简体中文
 
-在 YouTube 视频页按 ⌘⇧S（Windows 上是 Ctrl+Shift+S），扩展读取播放器已经加载的字幕，连同链接和当前时间一起送进你的 Obsidian 库。Obsidian 的 Video Summary 插件用你在插件里设好的模型和密钥写成笔记：摘要、带时间戳的要点，末尾折叠着完整文稿。不用服务器，不用注册，一小时的讲座大约一分钟出笔记。
+在 YouTube 或 B 站视频页按 ⌘⇧S（Windows 上是 Ctrl+Shift+S），扩展读取播放器已经加载的字幕，连同链接和当前时间一起送进你的 Obsidian 库。Obsidian 的 Video Summary 插件用你在插件里设好的模型和密钥写成笔记：摘要、带时间戳的要点，末尾折叠着完整文稿。不用服务器，不用注册，一小时的讲座大约一分钟出笔记。
 
 - 优先取原声语言的字幕，人工字幕优先于自动字幕；多语配音的视频取原声那一种。
 - 把视频加入队列、扫描页面里的视频链接、复制当前时刻的链接，或把链接追加到库里的待看清单。
@@ -51,11 +51,11 @@ Obsidian and YouTube are trademarks of their respective owners. This extension i
 
 配合免费开源的 Obsidian 插件 Video Summary 使用。扩展只在你使用的那个页面上读取内容，不向开发者或任何第三方发送数据。
 
-Obsidian 和 YouTube 是其各自所有者的商标，本扩展并非由它们制作或认可。
+Obsidian、YouTube 和哔哩哔哩是其各自所有者的商标，本扩展并非由它们制作或认可。
 
 ### 説明：日本語
 
-YouTube の動画ページで ⌘⇧S（Windows では Ctrl+Shift+S）を押すと、プレーヤーが読み込んだ字幕を、リンクと再生位置と一緒に Obsidian の保管庫へ送ります。Obsidian 用プラグイン Video Summary が、プラグインで設定したモデルとキーでノートを書きます。要約、タイムスタンプ付きの要点、末尾に折りたたんだ全文。サーバーもアカウントも不要で、1 時間の講義ならおよそ 1 分です。
+YouTube や bilibili の動画ページで ⌘⇧S（Windows では Ctrl+Shift+S）を押すと、プレーヤーが読み込んだ字幕を、リンクと再生位置と一緒に Obsidian の保管庫へ送ります。Obsidian 用プラグイン Video Summary が、プラグインで設定したモデルとキーでノートを書きます。要約、タイムスタンプ付きの要点、末尾に折りたたんだ全文。サーバーもアカウントも不要で、1 時間の講義ならおよそ 1 分です。
 
 - 話されている言語の字幕を優先し、手動字幕を自動字幕より先に使います。吹き替えのある動画では元の音声の言語を選びます。
 - 動画をキューに追加、ページ内の動画リンクを検索、今の再生位置へのリンクをコピー、保管庫の「あとで見る」リストへリンクを追記できます。
@@ -65,7 +65,7 @@ YouTube の動画ページで ⌘⇧S（Windows では Ctrl+Shift+S）を押す�
 
 無料のオープンソース Obsidian プラグイン Video Summary と一緒に使います。拡張機能は使ったページだけを読み取り、開発者やほかの誰にもデータを送りません。
 
-Obsidian と YouTube はそれぞれの所有者の商標です。この拡張機能はそれらの企業が作成または承認したものではありません。
+Obsidian、YouTube、bilibili はそれぞれの所有者の商標です。この拡張機能はそれらの企業が作成または承認したものではありません。
 
 ## Privacy practices tab
 
@@ -90,7 +90,7 @@ Obsidian と YouTube はそれぞれの所有者の商標です。この拡張�
 
 **Data usage.** Of the dashboard's categories (Personally identifiable information, Health information, Financial and payment information, Authentication information, Personal communications, Location, Web history, User activity, Website content), tick only these:
 
-- **Website content:** the page title and the captions of the video the user sends.
+- **Website content:** the page title and the captions or subtitles of the video the user sends (YouTube captions the player loaded; Bilibili subtitles the page fetches with the user's own sign-in, which the extension neither reads nor stores).
 - **Web history:** the address of the page the user sends (only that page, only on their action).
 - **Authentication information:** only with the optional Bilibili sync, bilibili.com cookies sent to the user's own backend.
 
@@ -110,5 +110,5 @@ Free; all regions; Public (or Unlisted to try the store install first).
 
 - One page is read, and only when the user acts; installing asks for no access to all websites.
 - No media is downloaded. The extension reads the captions the player already loaded on the page.
-- The description names three products (Obsidian, YouTube, Video Summary), under the five-brand keyword-spam limit.
+- The description names four products (Obsidian, YouTube, Bilibili, Video Summary), under the five-brand keyword-spam limit.
 - Trademarks are named only to say what the extension works with, with a line that it is not made or endorsed by them.
