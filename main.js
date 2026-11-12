@@ -2647,37 +2647,28 @@ function wantsReadingView(enabled, frontmatter, alreadyOpenedHere) {
 }
 
 // core/ReadingView.ts
-var ReadingViewOpener = class {
-  constructor(app, enabled) {
-    this.app = app;
-    this.enabled = enabled;
-    this.seen = /* @__PURE__ */ new WeakMap();
-    this.pending = false;
-  }
-  /** Coalesces bursts of workspace events into one look a moment later. */
-  schedule() {
-    if (this.pending) return;
-    this.pending = true;
-    window.setTimeout(() => {
-      this.pending = false;
-      void this.scan();
-    }, 80);
-  }
-  async scan() {
-    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
-      const view = leaf.view;
-      if (!(view instanceof import_obsidian.MarkdownView) || !view.file) continue;
-      const path = view.file.path;
-      if (this.seen.get(leaf) === path) continue;
-      const frontmatter = this.app.metadataCache.getFileCache(view.file)?.frontmatter;
-      if (frontmatter === void 0 && !this.app.metadataCache.getFileCache(view.file)) continue;
-      this.seen.set(leaf, path);
-      if (!wantsReadingView(this.enabled(), frontmatter, false)) continue;
-      if (view.getMode() === "preview") continue;
-      await view.setState({ ...view.getState(), mode: "preview" }, { history: false });
+function installReadingView(app, enabled, libraryStatus) {
+  const proto = import_obsidian.WorkspaceLeaf.prototype;
+  const original = proto.openFile;
+  proto.openFile = function(file, openState) {
+    try {
+      const showing = this.view?.file?.path === file?.path;
+      const askedMode = openState?.state?.mode;
+      if (file instanceof import_obsidian.TFile && file.extension === "md" && !showing && !askedMode) {
+        const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+        const finished = libraryStatus(file.path) === "success" || wantsReadingView(true, frontmatter, false);
+        if (enabled() && finished) {
+          openState = { ...openState, state: { ...openState?.state, mode: "preview" } };
+        }
+      }
+    } catch {
     }
-  }
-};
+    return original.call(this, file, openState);
+  };
+  return () => {
+    if (proto.openFile !== original) proto.openFile = original;
+  };
+}
 
 // utils/NoteOutput.ts
 function cleanVideoScaffold(body) {
@@ -4213,32 +4204,30 @@ var NoteIndex = class {
     if (changed) this.emit();
     this.scheduleBodyScan();
   }
-  /** metadataCache 变化后刷新单个文件 */
+  /**
+   * metadataCache 变化后刷新单个文件。这在任何笔记打字停顿时都会触发，所以只有这条记录
+   * 真的变了才通知侧栏重画。
+   */
   async refreshFile(file) {
-    if (isIgnoredPath(file.path)) {
-      if (this.entries.delete(file.path)) this.emit();
-      return;
-    }
+    const before = this.entries.get(file.path);
+    const next = await this.entryFor(file);
+    if (next) this.entries.set(file.path, next);
+    else this.entries.delete(file.path);
+    if (!sameEntry(before, next)) this.emit();
+  }
+  async entryFor(file) {
+    if (isIgnoredPath(file.path)) return void 0;
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) {
-      if (this.entries.delete(file.path)) this.emit();
-      return;
-    }
+    if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) return void 0;
     if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
-      this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
-      this.emit();
-      return;
+      return this.entryFromFrontmatter(file, frontmatter);
     }
     try {
       const content = await this.app.vault.cachedRead(file);
-      if (this.isLegacyVideoNote(file, content, frontmatter)) {
-        this.entries.set(file.path, this.entryFromContent(file, content));
-      } else if (this.entries.delete(file.path)) {
-      }
+      return this.isLegacyVideoNote(file, content, frontmatter) ? this.entryFromContent(file, content) : void 0;
     } catch {
-      this.entries.delete(file.path);
+      return void 0;
     }
-    this.emit();
   }
   /**
    * 旧笔记仍允许靠正文中的单个视频链接进入索引，但 README / MOC / 索引页以及
@@ -4582,6 +4571,11 @@ function platformLabel(platform) {
     default:
       return tr("\u94FE\u63A5", "Link");
   }
+}
+function sameEntry(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return JSON.stringify({ ...a, mtime: 0 }) === JSON.stringify({ ...b, mtime: 0 });
 }
 
 // core/CourseStore.ts
@@ -25089,17 +25083,13 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     setInterfaceLanguage((0, import_obsidian28.getLanguage)());
     await this.loadSettings();
     this.initializeApiInstance();
-    const readingView = new ReadingViewOpener(
-      this.app,
-      () => this.settings.readingViewForVideoNotes !== false
+    this.register(
+      installReadingView(
+        this.app,
+        () => this.settings.readingViewForVideoNotes !== false,
+        (path) => this.noteIndex?.get(path)?.status
+      )
     );
-    for (const name of ["file-open", "active-leaf-change", "layout-change"]) {
-      this.registerEvent(
-        this.app.workspace.on(name, () => readingView.schedule())
-      );
-    }
-    this.registerEvent(this.app.metadataCache.on("resolved", () => readingView.schedule()));
-    this.app.workspace.onLayoutReady(() => readingView.schedule());
     this.fileProcessor = new FileProcessor(this.app, this);
     this.noteProcessor = this.createNoteProcessor();
     const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;

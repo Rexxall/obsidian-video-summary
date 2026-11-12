@@ -1,5 +1,5 @@
 import { ITHACA_NOTE_STYLE } from './core/NoteStyle';
-import { ReadingViewOpener } from './core/ReadingView';
+import { installReadingView } from './core/ReadingView';
 import { relinkVideoJobs } from './utils/NoteOutput';
 import {
   App,
@@ -172,17 +172,13 @@ export default class VideoSummaryPlugin extends Plugin {
     // 初始化API
     this.initializeApiInstance();
 
-    const readingView = new ReadingViewOpener(
-      this.app,
-      () => this.settings.readingViewForVideoNotes !== false,
+    this.register(
+      installReadingView(
+        this.app,
+        () => this.settings.readingViewForVideoNotes !== false,
+        (path) => this.noteIndex?.get(path)?.status,
+      ),
     );
-    for (const name of ['file-open', 'active-leaf-change', 'layout-change'] as const) {
-      this.registerEvent(
-        this.app.workspace.on(name as 'layout-change', () => readingView.schedule()),
-      );
-    }
-    this.registerEvent(this.app.metadataCache.on('resolved', () => readingView.schedule()));
-    this.app.workspace.onLayoutReady(() => readingView.schedule());
 
     // 初始化文件与笔记处理器
     this.fileProcessor = new FileProcessor(this.app, this);

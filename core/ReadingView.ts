@@ -1,45 +1,40 @@
-import { MarkdownView, type App, type WorkspaceLeaf } from 'obsidian';
+import { TFile, WorkspaceLeaf, type App, type OpenViewState } from 'obsidian';
 
 import { wantsReadingView } from './ReadingViewRule';
 
+type OpenFile = (file: TFile, openState?: OpenViewState) => Promise<void>;
+
 /**
- * Switches tabs that show a finished video note to reading view, once per note per tab.
- * Obsidian tells about a newly opened file only for the active tab (file-open), and a note
- * opened from the side panel or in the background is not always that tab, so every change of
- * layout or active tab looks at all open tabs.
+ * Finished video notes open in reading view, wherever they live and however they are opened
+ * (file list, links, search, the side panel). The mode is put into the open request itself, so
+ * the note is drawn once, in reading view, instead of in the editor first and again after a
+ * switch. A note already showing in a tab is left in whatever mode the reader chose.
  */
-export class ReadingViewOpener {
-  private readonly seen = new WeakMap<WorkspaceLeaf, string>();
-  private pending = false;
-
-  constructor(
-    private readonly app: App,
-    private readonly enabled: () => boolean,
-  ) {}
-
-  /** Coalesces bursts of workspace events into one look a moment later. */
-  schedule() {
-    if (this.pending) return;
-    this.pending = true;
-    window.setTimeout(() => {
-      this.pending = false;
-      void this.scan();
-    }, 80);
-  }
-
-  private async scan() {
-    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
-      const view = leaf.view;
-      if (!(view instanceof MarkdownView) || !view.file) continue;
-      const path = view.file.path;
-      if (this.seen.get(leaf) === path) continue;
-      const frontmatter = this.app.metadataCache.getFileCache(view.file)?.frontmatter;
-      // Not read yet: look again on the next event instead of deciding without it.
-      if (frontmatter === undefined && !this.app.metadataCache.getFileCache(view.file)) continue;
-      this.seen.set(leaf, path);
-      if (!wantsReadingView(this.enabled(), frontmatter, false)) continue;
-      if (view.getMode() === 'preview') continue;
-      await view.setState({ ...view.getState(), mode: 'preview' }, { history: false });
+export function installReadingView(
+  app: App,
+  enabled: () => boolean,
+  libraryStatus: (path: string) => string | undefined,
+): () => void {
+  const proto = WorkspaceLeaf.prototype as unknown as { openFile: OpenFile };
+  const original = proto.openFile;
+  proto.openFile = function (this: WorkspaceLeaf, file: TFile, openState?: OpenViewState) {
+    try {
+      const showing = (this.view as { file?: TFile | null } | undefined)?.file?.path === file?.path;
+      const askedMode = (openState?.state as { mode?: string } | undefined)?.mode;
+      if (file instanceof TFile && file.extension === 'md' && !showing && !askedMode) {
+        const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+        const finished =
+          libraryStatus(file.path) === 'success' || wantsReadingView(true, frontmatter, false);
+        if (enabled() && finished) {
+          openState = { ...openState, state: { ...openState?.state, mode: 'preview' } };
+        }
+      }
+    } catch {
+      // Never let this get in the way of opening a note.
     }
-  }
+    return original.call(this, file, openState);
+  };
+  return () => {
+    if (proto.openFile !== original) proto.openFile = original;
+  };
 }

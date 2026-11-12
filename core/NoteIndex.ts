@@ -231,33 +231,35 @@ export class NoteIndex {
     this.scheduleBodyScan();
   }
 
-  /** metadataCache 变化后刷新单个文件 */
+  /**
+   * metadataCache 变化后刷新单个文件。这在任何笔记打字停顿时都会触发，所以只有这条记录
+   * 真的变了才通知侧栏重画。
+   */
   async refreshFile(file: TFile) {
-    if (isIgnoredPath(file.path)) {
-      if (this.entries.delete(file.path)) this.emit();
-      return;
-    }
+    const before = this.entries.get(file.path);
+    const next = await this.entryFor(file);
+    if (next) this.entries.set(file.path, next);
+    else this.entries.delete(file.path);
+    if (!sameEntry(before, next)) this.emit();
+  }
+
+  private async entryFor(file: TFile): Promise<VideoNoteEntry | undefined> {
+    if (isIgnoredPath(file.path)) return undefined;
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) {
-      if (this.entries.delete(file.path)) this.emit();
-      return;
-    }
+    if (VideoUtils.isExplicitlyNonVideoFromFrontmatter(frontmatter)) return undefined;
     if (VideoUtils.isVideoNoteFromFrontmatter(frontmatter)) {
-      this.entries.set(file.path, this.entryFromFrontmatter(file, frontmatter));
-      this.emit();
-      return;
+      return this.entryFromFrontmatter(file, frontmatter);
     }
+    // A note without video properties may still be an older video note: check its text
+    // (cachedRead serves an open note from memory).
     try {
       const content = await this.app.vault.cachedRead(file);
-      if (this.isLegacyVideoNote(file, content, frontmatter)) {
-        this.entries.set(file.path, this.entryFromContent(file, content));
-      } else if (this.entries.delete(file.path)) {
-        // 笔记不再是视频笔记，移出索引
-      }
+      return this.isLegacyVideoNote(file, content, frontmatter)
+        ? this.entryFromContent(file, content)
+        : undefined;
     } catch {
-      this.entries.delete(file.path);
+      return undefined;
     }
-    this.emit();
   }
 
   /**
@@ -688,4 +690,12 @@ export function platformLabel(platform?: string): string {
     default:
       return tr('链接', 'Link');
   }
+}
+
+function sameEntry(a: VideoNoteEntry | undefined, b: VideoNoteEntry | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  // mtime moves on every keystroke pause in that note; the list's "edited x ago" can wait for
+  // the next redraw rather than redraw the whole library while someone types.
+  return JSON.stringify({ ...a, mtime: 0 }) === JSON.stringify({ ...b, mtime: 0 });
 }
