@@ -31,6 +31,7 @@ import {
   VideoInput,
   VideoKnowledgeArtifact,
   ProcessingResult,
+  ProcessingHistory,
 } from './types';
 import {
   BACKEND_DEFAULT_MODEL_LABEL,
@@ -116,6 +117,7 @@ import {
 } from './core/LegacyData';
 import { SETTINGS_SEARCH_TERMS } from './views/settingsSearch';
 import { tr } from './utils/i18n';
+import { followRename, resolveHistoryPath, type HistoryLookup } from './core/HistoryLinks';
 export default class VideoSummaryPlugin extends Plugin {
   settings: VideoSummarySettings;
   api: VideoSummaryAPI;
@@ -221,6 +223,10 @@ export default class VideoSummaryPlugin extends Plugin {
       (path) => this.noteLinks.get(path)?.artifactId,
     );
     this.noteLinks.subscribe(() => this.noteIndex.refreshArtifactIds());
+    this.noteIndex.subscribe(() => {
+      this.historyLookupCache = null;
+      if (!this.historyPathsFilled) window.setTimeout(() => this.fillHistoryPaths(), 2000);
+    });
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
     this.app.workspace.onLayoutReady(() => {
       void this.artifactStore
@@ -270,6 +276,7 @@ export default class VideoSummaryPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on('delete', (file) => {
         this.noteIndex.handleDelete(file);
+        this.historyLookupCache = null;
         if (file instanceof TFile && file.extension === 'md') {
           void this.handleVideoNoteDeleted(file.path).catch((error) => {
             console.warn('[Video Summary] 删除后的关联清理失败', error);
@@ -280,7 +287,11 @@ export default class VideoSummaryPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
         this.noteIndex.handleRename(file, oldPath);
+        this.historyLookupCache = null;
         if (file instanceof TFile && file.extension === 'md') {
+          if (followRename(this.settings.history || [], oldPath, file.path, file.basename)) {
+            this.queueHistorySave();
+          }
           relinkVideoJobs(this.jobs, oldPath, file);
           void this.handleVideoNoteRenamed(file, oldPath).catch((error) => {
             console.warn('[Video Summary] 重命名后的关联更新失败', error);
@@ -636,14 +647,14 @@ export default class VideoSummaryPlugin extends Plugin {
           100,
           result.artifact?.artifact_id,
         );
-        this.addToHistory(file.basename, 'success', 'info-only');
+        this.addToHistory(file.basename, 'success', 'info-only', { path: file.path });
 
         statusNotice.setMessage(tr('✅ 视频信息已更新', '✅ Video info updated'));
         window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, 'error', 0);
-        this.addToHistory(file.basename, 'error', 'info-only');
+        this.addToHistory(file.basename, 'error', 'info-only', { path: file.path });
         statusNotice.setMessage(
           tr(
             `更新失败: ${this.formatErrorForNotice(error)}`,
@@ -906,7 +917,7 @@ export default class VideoSummaryPlugin extends Plugin {
         );
 
         // 添加到历史记录
-        this.addToHistory(file.basename, 'success', mode);
+        this.addToHistory(file.basename, 'success', mode, { path: file.path });
 
         statusNotice.setMessage(tr(`✅ 处理完成`, `✅ Done`));
         window.setTimeout(() => statusNotice.hide(), 2000);
@@ -916,7 +927,7 @@ export default class VideoSummaryPlugin extends Plugin {
         await this.jobService.updateCourseProgressForFile(file, 'error', 0);
 
         // 添加到历史记录
-        this.addToHistory(file.basename, 'error', mode);
+        this.addToHistory(file.basename, 'error', mode, { path: file.path });
 
         statusNotice.setMessage(
           tr(
@@ -1022,14 +1033,14 @@ export default class VideoSummaryPlugin extends Plugin {
           100,
           result.artifact?.artifact_id,
         );
-        this.addToHistory(file.basename, 'success', mode);
+        this.addToHistory(file.basename, 'success', mode, { path: file.path });
 
         statusNotice.setMessage(tr(`✅ 全文处理完成`, `✅ Whole note processed`));
         window.setTimeout(() => statusNotice.hide(), 2000);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, 'error', 0);
-        this.addToHistory(file.basename, 'error', mode);
+        this.addToHistory(file.basename, 'error', mode, { path: file.path });
         statusNotice.setMessage(
           tr(
             `处理失败: ${this.formatErrorForNotice(error)}`,
@@ -1177,7 +1188,13 @@ export default class VideoSummaryPlugin extends Plugin {
     fileName: string,
     result: 'success' | 'error',
     mode: string,
-    meta?: { url?: string; platform?: string; error?: string; durationMs?: number },
+    meta?: {
+      url?: string;
+      platform?: string;
+      error?: string;
+      durationMs?: number;
+      path?: string;
+    },
   ) {
     if (!this.settings.history) {
       this.settings.history = [];
@@ -1186,6 +1203,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 添加新记录（失败原因一并记下，界面上就能看到为什么挂了）
     this.settings.history.push({
       file: fileName,
+      path: meta?.path,
       result: result,
       mode: mode as ProcessingMode,
       time: new Date().toLocaleString('zh-CN'),
@@ -1199,6 +1217,7 @@ export default class VideoSummaryPlugin extends Plugin {
     // 限容并直接排队落盘（不依赖调用方随后是否 saveSettings）
     this.trimHistory();
     this.queueHistorySave();
+    this.historyLookupCache = null;
   }
 
   async clearProcessingHistory() {
@@ -1621,6 +1640,64 @@ export default class VideoSummaryPlugin extends Plugin {
     } catch (error) {
       console.error('[VideoSummary] 写入 history.json 失败', error);
     }
+  }
+
+  private historyLookupCache: HistoryLookup | null = null;
+  private historyPathsFilled = false;
+
+  /**
+   * Name, title and link maps built once per change, so the history list finds each row's note
+   * without scanning the vault for every row.
+   */
+  historyLookup(): HistoryLookup {
+    if (this.historyLookupCache) return this.historyLookupCache;
+    const names = new Map<string, string>();
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const key = file.basename.normalize('NFC');
+      if (!names.has(key)) names.set(key, file.path);
+    }
+    const titles = new Map<string, string>();
+    const urls = new Map<string, string>();
+    for (const entry of this.noteIndex.getAll()) {
+      const title = entry.title?.normalize('NFC').trim();
+      if (title && !titles.has(title)) titles.set(title, entry.path);
+      if (entry.link && !urls.has(entry.link)) urls.set(entry.link, entry.path);
+    }
+    const vault = this.app.vault;
+    this.historyLookupCache = {
+      exists: (path) => vault.getAbstractFileByPath(path) instanceof TFile,
+      byName: (name) => names.get(name),
+      byTitle: (title) => titles.get(title),
+      byUrl: (url) => urls.get(url),
+    };
+    return this.historyLookupCache;
+  }
+
+  /** The note a history row stands for, or null when it was deleted or can no longer be told. */
+  resolveHistoryNote(record: Pick<ProcessingHistory, 'file' | 'path' | 'url'>): TFile | null {
+    const path = resolveHistoryPath(record, this.historyLookup());
+    const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
+    return file instanceof TFile ? file : null;
+  }
+
+  /**
+   * Older records kept only the name at the time. Once the index has every video note, the ones
+   * that can still be found get their path, so later renames carry them along.
+   */
+  private fillHistoryPaths() {
+    if (this.historyPathsFilled || this.noteIndex.isScanning()) return;
+    this.historyPathsFilled = true;
+    const lookup = this.historyLookup();
+    let changed = false;
+    for (const record of this.settings.history || []) {
+      if (record.path && lookup.exists(record.path)) continue;
+      const path = resolveHistoryPath(record, lookup);
+      if (path && path !== record.path) {
+        record.path = path;
+        changed = true;
+      }
+    }
+    if (changed) this.queueHistorySave();
   }
 
   /** 延迟合并写入，避免设置页输入等高频 saveSettings 反复写大文件 */

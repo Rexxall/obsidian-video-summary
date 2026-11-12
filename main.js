@@ -5814,11 +5814,11 @@ ${body ? `${body}
       }
     }
   }
-  async uniquePath(folder, baseName) {
-    let candidate = folder ? `${folder}/${baseName}.md` : `${baseName}.md`;
+  async uniquePath(folder, baseName2) {
+    let candidate = folder ? `${folder}/${baseName2}.md` : `${baseName2}.md`;
     let counter = 1;
     while (await this.app.vault.adapter.exists(candidate)) {
-      const name = `${baseName} (${counter})`;
+      const name = `${baseName2} (${counter})`;
       candidate = folder ? `${folder}/${name}.md` : `${name}.md`;
       counter += 1;
     }
@@ -13646,7 +13646,8 @@ function buildHistoryRows(ctx, finishedJobs) {
 }
 function renderHistoryRow(container, ctx, row) {
   const item = container.createDiv({ cls: "vs-row" });
-  const entry = findEntry(ctx, row.title);
+  const noteFile = noteFor(ctx, row);
+  const entry = noteFile ? ctx.plugin.noteIndex.get(noteFile.path) : void 0;
   const sourceUrl = row.job?.input.url || row.record?.url;
   const resultCover = safeCoverUrl(row.job?.result?.video_cover);
   if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
@@ -13673,6 +13674,10 @@ function renderHistoryRow(container, ctx, row) {
     });
   } else {
     const sub = body.createDiv({ cls: "vs-row-sub" });
+    if (row.state === "success" && !noteFile) {
+      sub.addClass("is-gone");
+      sub.createSpan({ text: tr("\u7B14\u8BB0\u5DF2\u6539\u540D\u6216\u5220\u9664", "Note renamed or deleted") });
+    }
     if (row.time) sub.createSpan({ text: formatRelative(row.time) });
     if (row.durationMs) sub.createSpan({ text: formatElapsed(row.durationMs), cls: "vs-mono" });
     if (!row.time && !row.durationMs) sub.createSpan({ text: modeLabel(row.mode) });
@@ -13684,7 +13689,7 @@ function renderHistoryRow(container, ctx, row) {
       ctx.openDetail({ kind: "history", file: row.record.file, time: row.record.time });
     }
   };
-  const notePath = row.state === "success" ? notePathFor(ctx, row, entry?.path) : null;
+  const notePath = row.state === "success" ? noteFile?.path ?? null : null;
   body.addEventListener("click", () => {
     if (notePath) void ctx.openNote(notePath);
     else openDetails();
@@ -13713,11 +13718,13 @@ function renderHistoryRow(container, ctx, row) {
   if (notePath) iconButton(actions, "info", tr("\u4EFB\u52A1\u8BE6\u60C5", "Job details"), openDetails);
   iconButton(actions, "more-horizontal", tr("\u66F4\u591A\u64CD\u4F5C", "More actions"), (event) => {
     showMenu(event, [
-      {
-        title: tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
-        icon: "file-text",
-        onClick: () => openNoteByName(ctx, row.title)
-      },
+      ...noteFile ? [
+        {
+          title: tr("\u6253\u5F00\u7B14\u8BB0", "Open note"),
+          icon: "file-text",
+          onClick: () => void ctx.openNote(noteFile.path)
+        }
+      ] : [],
       {
         title: tr("\u91CD\u8DD1\uFF08\u8DF3\u8FC7\u7F13\u5B58\uFF09", "Run again (skip cache)"),
         icon: "refresh-cw",
@@ -13782,9 +13789,6 @@ function displayTaskTitle(raw) {
   };
   const title = match[2].replace(/_\d{13}$/, "").replace(/_/g, " ").trim();
   return title ? `${sourceLabel[match[1]]} \xB7 ${title}` : raw;
-}
-function findEntry(ctx, basename) {
-  return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
 }
 function safeCoverUrl(value) {
   if (typeof value !== "string") return void 0;
@@ -13851,34 +13855,25 @@ async function rerun(ctx, row) {
     ctx.renderPanels();
     return;
   }
-  const file = findNote(ctx, row.title);
+  const file = noteFor(ctx, row);
   if (!file) {
-    new import_obsidian12.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${row.title}`, `Note not found: ${row.title}`));
+    new import_obsidian12.Notice(
+      tr(`\u8FD9\u7BC7\u7B14\u8BB0\u5DF2\u6539\u540D\u6216\u5220\u9664\uFF1A${row.title}`, `This note was renamed or deleted: ${row.title}`)
+    );
     return;
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
   ctx.renderPanels();
 }
-function notePathFor(ctx, row, indexed) {
-  const vault = ctx.plugin.app.vault;
-  for (const candidate of [row.job?.notePath, indexed]) {
-    if (candidate && vault.getAbstractFileByPath(candidate) instanceof import_obsidian12.TFile) return candidate;
-  }
-  return findNote(ctx, row.title)?.path ?? null;
-}
-function openNoteByName(ctx, name) {
-  const file = findNote(ctx, name);
-  if (!file) {
-    new import_obsidian12.Notice(tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${name}`, `Note not found: ${name}`));
-    return;
-  }
-  void ctx.openNote(file.path);
-}
-function findNote(ctx, name) {
-  const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian12.TFile) return direct;
-  const files = ctx.plugin.app.vault.getMarkdownFiles();
-  return files.find((file) => file.basename === name) || null;
+function noteFor(ctx, row) {
+  const written = row.job?.notePath;
+  const file = written ? ctx.plugin.app.vault.getAbstractFileByPath(written) : null;
+  if (file instanceof import_obsidian12.TFile) return file;
+  return ctx.plugin.resolveHistoryNote({
+    file: row.title,
+    path: row.record?.path,
+    url: row.job?.input.url || row.record?.url
+  });
 }
 function summarize(job) {
   const result = job.result;
@@ -15714,7 +15709,7 @@ function renderRecordDetail(container, ctx, record) {
     });
   }
   const actions = body.createDiv({ cls: "vs-detail-actions" });
-  const file = findNote2(ctx, record.file);
+  const file = ctx.plugin.resolveHistoryNote(record);
   if (file) {
     textButton(
       actions,
@@ -15732,7 +15727,10 @@ function renderRecordDetail(container, ctx, record) {
     );
   } else {
     body.createDiv({
-      text: tr(`\u627E\u4E0D\u5230\u7B14\u8BB0\uFF1A${record.file}`, `Note not found: ${record.file}`),
+      text: tr(
+        `\u8FD9\u7BC7\u7B14\u8BB0\u540E\u6765\u6539\u540D\u3001\u79FB\u8D70\u6216\u5220\u6389\u4E86\uFF0C\u8BB0\u5F55\u91CC\u53EA\u7559\u4E86\u5F53\u65F6\u7684\u540D\u5B57\uFF1A${record.file}`,
+        `The note was renamed, moved or deleted since; the record only kept its name then: ${record.file}`
+      ),
       cls: "vs-hint"
     });
   }
@@ -15787,11 +15785,6 @@ function openCookiesFolder(ctx) {
   if (!openPathInSystem(path)) {
     new import_obsidian16.Notice(tr(`cookies \u76EE\u5F55\uFF1A${path}`, `Cookies folder: ${path}`));
   }
-}
-function findNote2(ctx, name) {
-  const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof import_obsidian16.TFile) return direct;
-  return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
 }
 function panelComponent(ctx) {
   const component = new import_obsidian16.Component();
@@ -19648,6 +19641,7 @@ var JobService = class {
       );
       this.store.update(job.id, { state: "success", awaitingWrite: false });
       this.plugin.addToHistory(file.basename, "success", job.mode, {
+        path: file.path,
         url: job.input.url || job.input.sourceUrl,
         platform: job.platform,
         durationMs: job.endedAt && job.startedAt ? job.endedAt - job.startedAt : void 0
@@ -19899,6 +19893,7 @@ ${buildInsertionContent(result)}`
         );
       }
       this.plugin.addToHistory(file?.basename || noteName, "success", job.mode, {
+        path: file?.path,
         url: job.input.url || job.input.sourceUrl,
         platform: job.platform,
         durationMs: job.startedAt ? Date.now() - job.startedAt : void 0
@@ -25060,6 +25055,30 @@ var SETTINGS_SEARCH_TERMS = [
   "Cache and debugging"
 ];
 
+// core/HistoryLinks.ts
+function baseName(name) {
+  return name.replace(/(\s*\(\d+\)|_\d{10,})$/, "").trim();
+}
+function resolveHistoryPath(record, lookup) {
+  if (record.path && lookup.exists(record.path)) return record.path;
+  const name = (record.file || "").normalize("NFC").trim();
+  if (!name) return record.url ? lookup.byUrl(record.url) : void 0;
+  const plain = baseName(name);
+  return lookup.byName(name) ?? lookup.byTitle(name) ?? (plain !== name ? lookup.byName(plain) ?? lookup.byTitle(plain) : void 0) ?? (record.url ? lookup.byUrl(record.url) : void 0);
+}
+function followRename(history, oldPath, newPath, newName) {
+  const oldName = oldPath.replace(/^.*\//, "").replace(/\.md$/, "");
+  let changed = false;
+  for (const record of history) {
+    if (record.path === oldPath || !record.path && record.file === oldName) {
+      record.path = newPath;
+      record.file = newName;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 // main.ts
 var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
   constructor() {
@@ -25071,6 +25090,8 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     this.captureProcessingLocks = /* @__PURE__ */ new Map();
     // history.json 延迟写入
     this.historySaveTimer = null;
+    this.historyLookupCache = null;
+    this.historyPathsFilled = false;
   }
   /** Every NoteProcessor reads the same note-writing settings: style class, success text, default properties. */
   createNoteProcessor() {
@@ -25134,6 +25155,10 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
       (path) => this.noteLinks.get(path)?.artifactId
     );
     this.noteLinks.subscribe(() => this.noteIndex.refreshArtifactIds());
+    this.noteIndex.subscribe(() => {
+      this.historyLookupCache = null;
+      if (!this.historyPathsFilled) window.setTimeout(() => this.fillHistoryPaths(), 2e3);
+    });
     this.app.workspace.onLayoutReady(() => this.noteIndex.build());
     this.app.workspace.onLayoutReady(() => {
       void this.artifactStore.list().then((artifacts) => this.noteLinks.rebuild(artifacts)).catch((error) => console.warn("[Video Summary] \u7B14\u8BB0\u4E0E\u8BB0\u5F55\u5BF9\u5E94\u8868\u91CD\u5EFA\u5931\u8D25", error));
@@ -25168,6 +25193,7 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         this.noteIndex.handleDelete(file);
+        this.historyLookupCache = null;
         if (file instanceof import_obsidian28.TFile && file.extension === "md") {
           void this.handleVideoNoteDeleted(file.path).catch((error) => {
             console.warn("[Video Summary] \u5220\u9664\u540E\u7684\u5173\u8054\u6E05\u7406\u5931\u8D25", error);
@@ -25178,7 +25204,11 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         this.noteIndex.handleRename(file, oldPath);
+        this.historyLookupCache = null;
         if (file instanceof import_obsidian28.TFile && file.extension === "md") {
+          if (followRename(this.settings.history || [], oldPath, file.path, file.basename)) {
+            this.queueHistorySave();
+          }
           relinkVideoJobs(this.jobs, oldPath, file);
           void this.handleVideoNoteRenamed(file, oldPath).catch((error) => {
             console.warn("[Video Summary] \u91CD\u547D\u540D\u540E\u7684\u5173\u8054\u66F4\u65B0\u5931\u8D25", error);
@@ -25468,13 +25498,13 @@ var VideoSummaryPlugin = class extends import_obsidian28.Plugin {
           100,
           result.artifact?.artifact_id
         );
-        this.addToHistory(file.basename, "success", "info-only");
+        this.addToHistory(file.basename, "success", "info-only", { path: file.path });
         statusNotice.setMessage(tr("\u2705 \u89C6\u9891\u4FE1\u606F\u5DF2\u66F4\u65B0", "\u2705 Video info updated"));
         window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
-        this.addToHistory(file.basename, "error", "info-only");
+        this.addToHistory(file.basename, "error", "info-only", { path: file.path });
         statusNotice.setMessage(
           tr(
             `\u66F4\u65B0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
@@ -25681,13 +25711,13 @@ ${extractResult.video_transcript}
           100,
           result.artifact?.artifact_id
         );
-        this.addToHistory(file.basename, "success", mode);
+        this.addToHistory(file.basename, "success", mode, { path: file.path });
         statusNotice.setMessage(tr(`\u2705 \u5904\u7406\u5B8C\u6210`, `\u2705 Done`));
         window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
-        this.addToHistory(file.basename, "error", mode);
+        this.addToHistory(file.basename, "error", mode, { path: file.path });
         statusNotice.setMessage(
           tr(
             `\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
@@ -25780,13 +25810,13 @@ ${extractResult.video_transcript}
           100,
           result.artifact?.artifact_id
         );
-        this.addToHistory(file.basename, "success", mode);
+        this.addToHistory(file.basename, "success", mode, { path: file.path });
         statusNotice.setMessage(tr(`\u2705 \u5168\u6587\u5904\u7406\u5B8C\u6210`, `\u2705 Whole note processed`));
         window.setTimeout(() => statusNotice.hide(), 2e3);
       } catch (error) {
         await this.noteProcessor.setProcessingError(file, error);
         await this.jobService.updateCourseProgressForFile(file, "error", 0);
-        this.addToHistory(file.basename, "error", mode);
+        this.addToHistory(file.basename, "error", mode, { path: file.path });
         statusNotice.setMessage(
           tr(
             `\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
@@ -25907,6 +25937,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
     }
     this.settings.history.push({
       file: fileName,
+      path: meta?.path,
       result,
       mode,
       time: (/* @__PURE__ */ new Date()).toLocaleString("zh-CN"),
@@ -25918,6 +25949,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
     });
     this.trimHistory();
     this.queueHistorySave();
+    this.historyLookupCache = null;
   }
   async clearProcessingHistory() {
     try {
@@ -26278,6 +26310,58 @@ Suggestion: ${result.hint}`) : "";
     } catch (error) {
       console.error("[VideoSummary] \u5199\u5165 history.json \u5931\u8D25", error);
     }
+  }
+  /**
+   * Name, title and link maps built once per change, so the history list finds each row's note
+   * without scanning the vault for every row.
+   */
+  historyLookup() {
+    if (this.historyLookupCache) return this.historyLookupCache;
+    const names = /* @__PURE__ */ new Map();
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const key = file.basename.normalize("NFC");
+      if (!names.has(key)) names.set(key, file.path);
+    }
+    const titles = /* @__PURE__ */ new Map();
+    const urls = /* @__PURE__ */ new Map();
+    for (const entry of this.noteIndex.getAll()) {
+      const title = entry.title?.normalize("NFC").trim();
+      if (title && !titles.has(title)) titles.set(title, entry.path);
+      if (entry.link && !urls.has(entry.link)) urls.set(entry.link, entry.path);
+    }
+    const vault = this.app.vault;
+    this.historyLookupCache = {
+      exists: (path) => vault.getAbstractFileByPath(path) instanceof import_obsidian28.TFile,
+      byName: (name) => names.get(name),
+      byTitle: (title) => titles.get(title),
+      byUrl: (url) => urls.get(url)
+    };
+    return this.historyLookupCache;
+  }
+  /** The note a history row stands for, or null when it was deleted or can no longer be told. */
+  resolveHistoryNote(record) {
+    const path = resolveHistoryPath(record, this.historyLookup());
+    const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
+    return file instanceof import_obsidian28.TFile ? file : null;
+  }
+  /**
+   * Older records kept only the name at the time. Once the index has every video note, the ones
+   * that can still be found get their path, so later renames carry them along.
+   */
+  fillHistoryPaths() {
+    if (this.historyPathsFilled || this.noteIndex.isScanning()) return;
+    this.historyPathsFilled = true;
+    const lookup = this.historyLookup();
+    let changed = false;
+    for (const record of this.settings.history || []) {
+      if (record.path && lookup.exists(record.path)) continue;
+      const path = resolveHistoryPath(record, lookup);
+      if (path && path !== record.path) {
+        record.path = path;
+        changed = true;
+      }
+    }
+    if (changed) this.queueHistorySave();
   }
   /** 延迟合并写入，避免设置页输入等高频 saveSettings 反复写大文件 */
   queueHistorySave() {

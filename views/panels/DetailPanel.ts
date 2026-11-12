@@ -811,7 +811,7 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
   }
 
   const actions = body.createDiv({ cls: 'vs-detail-actions' });
-  const file = findNote(ctx, record.file);
+  const file = ctx.plugin.resolveHistoryNote(record);
   if (file) {
     textButton(
       actions,
@@ -829,7 +829,10 @@ function renderRecordDetail(container: HTMLElement, ctx: ViewContext, record: Pr
     );
   } else {
     body.createDiv({
-      text: tr(`找不到笔记：${record.file}`, `Note not found: ${record.file}`),
+      text: tr(
+        `这篇笔记后来改名、移走或删掉了，记录里只留了当时的名字：${record.file}`,
+        `The note was renamed, moved or deleted since; the record only kept its name then: ${record.file}`,
+      ),
       cls: 'vs-hint',
     });
   }
@@ -893,12 +896,6 @@ function openCookiesFolder(ctx: ViewContext) {
   if (!openPathInSystem(path)) {
     new Notice(tr(`cookies 目录：${path}`, `Cookies folder: ${path}`));
   }
-}
-
-function findNote(ctx: ViewContext, name: string): TFile | null {
-  const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof TFile) return direct;
-  return ctx.plugin.app.vault.getMarkdownFiles().find((file) => file.basename === name) || null;
 }
 
 /** Markdown 渲染挂在当前面板的生命周期上，面板重画时一并卸载，不挂在插件实例上。 */

@@ -412,6 +412,8 @@ export interface QuickProcessingOptions {
 
 export interface ProcessingHistory {
   file: string;
+  /** The note's path; kept up to date when the note is renamed or moved (since 2.13.3) */
+  path?: string;
   time: string;
   result: 'success' | 'error';
   mode: ProcessingMode;

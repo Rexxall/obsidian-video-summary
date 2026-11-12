@@ -2216,6 +2216,9 @@ body {
   display: block;
   color: var(--vs-err);
 }
+.video-summary-view .vs-row-sub.is-gone {
+  color: var(--text-faint);
+}
 .video-summary-view .vs-row-status {
   grid-column: 3;
   grid-row: 1;

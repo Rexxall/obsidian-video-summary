@@ -217,6 +217,7 @@ export class JobService {
       );
       this.store.update(job.id, { state: 'success', awaitingWrite: false });
       this.plugin.addToHistory(file.basename, 'success', job.mode, {
+        path: file.path,
         url: job.input.url || job.input.sourceUrl,
         platform: job.platform,
         durationMs: job.endedAt && job.startedAt ? job.endedAt - job.startedAt : undefined,
@@ -506,6 +507,7 @@ export class JobService {
         );
       }
       this.plugin.addToHistory(file?.basename || noteName, 'success', job.mode, {
+        path: file?.path,
         url: job.input.url || job.input.sourceUrl,
         platform: job.platform,
         durationMs: job.startedAt ? Date.now() - job.startedAt : undefined,

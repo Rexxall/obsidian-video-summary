@@ -397,7 +397,8 @@ function buildHistoryRows(ctx: ViewContext, finishedJobs: Job[]): HistoryRow[] {
 
 function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: HistoryRow) {
   const item = container.createDiv({ cls: 'vs-row' });
-  const entry = findEntry(ctx, row.title);
+  const noteFile = noteFor(ctx, row);
+  const entry = noteFile ? ctx.plugin.noteIndex.get(noteFile.path) : undefined;
   const sourceUrl = row.job?.input.url || row.record?.url;
   const resultCover = safeCoverUrl(row.job?.result?.video_cover);
   if (!resultCover && entry && !entry.cover) ctx.plugin.noteIndex.ensureCover(entry.path);
@@ -428,6 +429,10 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
     });
   } else {
     const sub = body.createDiv({ cls: 'vs-row-sub' });
+    if (row.state === 'success' && !noteFile) {
+      sub.addClass('is-gone');
+      sub.createSpan({ text: tr('笔记已改名或删除', 'Note renamed or deleted') });
+    }
     if (row.time) sub.createSpan({ text: formatRelative(row.time) });
     if (row.durationMs) sub.createSpan({ text: formatElapsed(row.durationMs), cls: 'vs-mono' });
     if (!row.time && !row.durationMs) sub.createSpan({ text: modeLabel(row.mode) });
@@ -442,7 +447,7 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   };
   // A finished job opens its note; the details are one button away. Failed and cancelled
   // jobs, and a finished one whose note is gone, open the details.
-  const notePath = row.state === 'success' ? notePathFor(ctx, row, entry?.path) : null;
+  const notePath = row.state === 'success' ? (noteFile?.path ?? null) : null;
   body.addEventListener('click', () => {
     if (notePath) void ctx.openNote(notePath);
     else openDetails();
@@ -480,11 +485,15 @@ function renderHistoryRow(container: HTMLElement, ctx: ViewContext, row: History
   if (notePath) iconButton(actions, 'info', tr('任务详情', 'Job details'), openDetails);
   iconButton(actions, 'more-horizontal', tr('更多操作', 'More actions'), (event) => {
     showMenu(event, [
-      {
-        title: tr('打开笔记', 'Open note'),
-        icon: 'file-text',
-        onClick: () => openNoteByName(ctx, row.title),
-      },
+      ...(noteFile
+        ? [
+            {
+              title: tr('打开笔记', 'Open note'),
+              icon: 'file-text',
+              onClick: () => void ctx.openNote(noteFile.path),
+            },
+          ]
+        : []),
       {
         title: tr('重跑（跳过缓存）', 'Run again (skip cache)'),
         icon: 'refresh-cw',
@@ -565,10 +574,6 @@ function displayTaskTitle(raw: string): string {
   return title ? `${sourceLabel[match[1]]} · ${title}` : raw;
 }
 
-function findEntry(ctx: ViewContext, basename: string) {
-  return ctx.plugin.noteIndex.getAll().find((candidate) => candidate.basename === basename);
-}
-
 /** 后端封面只允许受信平台的 HTTPS 图片；本机/私网资源必须先本地化。 */
 function safeCoverUrl(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -639,38 +644,27 @@ async function rerun(ctx: ViewContext, row: HistoryRow) {
     ctx.renderPanels();
     return;
   }
-  const file = findNote(ctx, row.title);
+  const file = noteFor(ctx, row);
   if (!file) {
-    new Notice(tr(`找不到笔记：${row.title}`, `Note not found: ${row.title}`));
+    new Notice(
+      tr(`这篇笔记已改名或删除：${row.title}`, `This note was renamed or deleted: ${row.title}`),
+    );
     return;
   }
   await ctx.plugin.jobService.submitFile(file, { ...ctx.submitOptions(), useCache: false });
   ctx.renderPanels();
 }
 
-/** The note a finished job wrote, if it is still there. */
-function notePathFor(ctx: ViewContext, row: HistoryRow, indexed?: string): string | null {
-  const vault = ctx.plugin.app.vault;
-  for (const candidate of [row.job?.notePath, indexed]) {
-    if (candidate && vault.getAbstractFileByPath(candidate) instanceof TFile) return candidate;
-  }
-  return findNote(ctx, row.title)?.path ?? null;
-}
-
-function openNoteByName(ctx: ViewContext, name: string) {
-  const file = findNote(ctx, name);
-  if (!file) {
-    new Notice(tr(`找不到笔记：${name}`, `Note not found: ${name}`));
-    return;
-  }
-  void ctx.openNote(file.path);
-}
-
-function findNote(ctx: ViewContext, name: string): TFile | null {
-  const direct = ctx.plugin.app.vault.getAbstractFileByPath(`${name}.md`);
-  if (direct instanceof TFile) return direct;
-  const files = ctx.plugin.app.vault.getMarkdownFiles();
-  return files.find((file) => file.basename === name) || null;
+/** The note a finished job wrote, if it is still there, followed through renames. */
+function noteFor(ctx: ViewContext, row: HistoryRow): TFile | null {
+  const written = row.job?.notePath;
+  const file = written ? ctx.plugin.app.vault.getAbstractFileByPath(written) : null;
+  if (file instanceof TFile) return file;
+  return ctx.plugin.resolveHistoryNote({
+    file: row.title,
+    path: row.record?.path,
+    url: row.job?.input.url || row.record?.url,
+  });
 }
 
 function summarize(job: Job): string {
