@@ -23,7 +23,7 @@
 2. Set up the backend in _Settings → Video Summary → Backend_ (macOS): choose a model, add your keys, press **Install and start**, and press Return once in the Terminal window that opens to download the backend. The check and a trial run follow by themselves. On Windows, use the [start script](INSTALL.md).
 3. Paste a link into the side panel and press **Start**.
 
-**Needs** Obsidian 1.8.7+ on desktop and Docker Desktop or OrbStack. **Costs** nothing for the plugin and the backend; the summary model is billed by your provider (eight summaries, one of them 47 minutes, cost about ¥0.4 with DeepSeek off-peak on 2026-10-29). Step-by-step guide: [INSTALL.md](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
+**Needs** Obsidian 1.11.4+ on desktop and Docker Desktop or OrbStack. **Costs** nothing for the plugin and the backend; the summary model is billed by your provider (eight summaries, one of them 47 minutes, cost about ¥0.4 with DeepSeek off-peak on 2026-10-29). Step-by-step guide: [INSTALL.md](INSTALL.md) ([English](docs/INSTALL.en.md), [日本語](docs/INSTALL.ja.md)).
 
 ## Everything else
 
@@ -142,7 +142,7 @@ Download `main.js`, `manifest.json` and `styles.css` from the [latest release](h
 gh attestation verify main.js --repo Rexxall/obsidian-video-summary
 ```
 
-Desktop only; Obsidian 1.8.7 or newer. The generated `.base` library views need Obsidian 1.9.10 with the Bases core plugin.
+Desktop only; Obsidian 1.11.4 or newer. The generated `.base` library views need Obsidian 1.9.10 with the Bases core plugin.
 
 The backend has its own release, `backend-v<version>`, linked from the plugin release under **Other downloads** (`video-summary-backend-<version>.zip`, with a `SHA256SUMS`). It needs Docker Desktop or OrbStack; on Linux run `./vs-backend.sh`. It listens only on `127.0.0.1` and checks the connection code's token on every request. Full guide: [INSTALL.md](INSTALL.md), with [English](docs/INSTALL.en.md) and [Japanese](docs/INSTALL.ja.md) versions; security notes: [backend/SECURITY.md](backend/SECURITY.md).
 

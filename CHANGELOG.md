@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## 2.13.1
+
+- Requires Obsidian 1.11.4 or later. The API key fields added in 2.13.0 use Obsidian's secret storage, which arrived in 1.11.4; on an older Obsidian the plugin stays at 2.12.5.
+
 ## 2.13.0
 
 - **Light tier: a note without a backend.** A job that carries a transcript goes straight to your summary model, with no backend and no Docker: a transcript pasted into the side panel, or the captions the browser extension sends from a YouTube page. The note appears in the job card as it is written, in the same shape as a backend note (prompt v6). A reasoning model first thinks for up to half a minute; the card says _Reading the transcript_ meanwhile. A transcript over 80,000 characters is condensed part by part first. On by default; turn it off under **Settings → Video Summary → Model → Light tier**. A link or a local file on its own still needs the backend, and the plugin says so.
