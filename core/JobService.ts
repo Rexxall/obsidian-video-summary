@@ -25,6 +25,7 @@ import {
 } from './LiteRunner';
 import { readSecret, resolveLlm } from './ModelSettings';
 import { JobDraft } from './InputParser';
+import { isPlaceholderTitle, youTubeOEmbed } from './VideoOEmbed';
 import { NoteFactory, buildInsertionContent, extractVideoInputFromPayload } from './NoteFactory';
 import { detectPlatform } from './NoteIndex';
 import {
@@ -639,9 +640,22 @@ export class JobService {
     }
     const text = (value: unknown) =>
       typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    const url = job.input?.url || job.input?.sourceUrl;
+    let title = text(fm?.video_title) || job.title;
+    let author = text(fm?.video_author);
+    // A pasted link carries no title: ask YouTube once, or the note keeps the made-up
+    // "YouTube视频_<id>" title and the postmark has no channel.
+    if (isPlaceholderTitle(title, url) || !author) {
+      const info = await youTubeOEmbed(url, async (endpoint) => {
+        const response = await requestUrl({ url: endpoint, throw: false });
+        return response.status === 200 ? (response.json as unknown) : null;
+      });
+      if (info.title && isPlaceholderTitle(title, url)) title = info.title;
+      author = author || info.author;
+    }
     return {
-      title: text(fm?.video_title) || job.title,
-      author: text(fm?.video_author),
+      title,
+      author,
       duration: text(fm?.video_duration),
       cover: text(fm?.video_cover),
       frames: text(fm?.video_frames),

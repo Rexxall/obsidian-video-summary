@@ -17822,6 +17822,32 @@ async function modelConfigFingerprint(config) {
   return Array.from(new Uint8Array(digest).slice(0, 12)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+// core/VideoOEmbed.ts
+function isPlaceholderTitle(title, url) {
+  const text2 = (title || "").trim();
+  if (!text2) return true;
+  return !!url && text2 === titleForUrl(url);
+}
+async function youTubeOEmbed(url, get) {
+  const id = youTubeVideoId(url);
+  if (!id) return {};
+  const endpoint = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(
+    `https://www.youtube.com/watch?v=${id}`
+  )}`;
+  try {
+    const json = await get(endpoint);
+    const text2 = (value) => typeof value === "string" && value.trim() ? value.trim() : void 0;
+    const info = {};
+    const title = text2(json?.title);
+    const author = text2(json?.author_name);
+    if (title) info.title = title;
+    if (author) info.author = author;
+    return info;
+  } catch {
+    return {};
+  }
+}
+
 // core/ArtifactStore.ts
 var VIDEO_KNOWLEDGE_ARTIFACT_SCHEMA_VERSION = 3;
 var ARTIFACT_FILE_SUFFIX = ".json";
@@ -20538,9 +20564,20 @@ ${buildInsertionContent(result)}`
       }
     }
     const text2 = (value) => typeof value === "string" && value.trim() ? value.trim() : void 0;
+    const url = job.input?.url || job.input?.sourceUrl;
+    let title = text2(fm?.video_title) || job.title;
+    let author = text2(fm?.video_author);
+    if (isPlaceholderTitle(title, url) || !author) {
+      const info = await youTubeOEmbed(url, async (endpoint) => {
+        const response = await (0, import_obsidian21.requestUrl)({ url: endpoint, throw: false });
+        return response.status === 200 ? response.json : null;
+      });
+      if (info.title && isPlaceholderTitle(title, url)) title = info.title;
+      author = author || info.author;
+    }
     return {
-      title: text2(fm?.video_title) || job.title,
-      author: text2(fm?.video_author),
+      title,
+      author,
       duration: text2(fm?.video_duration),
       cover: text2(fm?.video_cover),
       frames: text2(fm?.video_frames)
