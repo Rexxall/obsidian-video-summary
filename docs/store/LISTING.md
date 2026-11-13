@@ -17,7 +17,7 @@ cd browser-extension && zip -qrX ../video-summary-capture-0.9.0.zip . -x README.
 - **Name and summary:** come from the package (`_locales/*/messages.json`), in English, 简体中文 and 日本語.
 - **Category:** Productivity → Tools
 - **Language:** English, then add 简体中文 and 日本語 and paste each description below.
-- **Screenshots (1280×800):** `screenshot-1-<lang>.png` to `screenshot-5-<lang>.png` for each listing language (`en`, `zh_CN`, `ja`), in that order: popup, note anatomy, paper pieces, light and dark, background sending. The example note is plugin output for NASA Goddard's public-domain "An Introduction to the James Webb Space Telescope Mission".
+- **Screenshots (1280×800):** `screenshot-1-<lang>.png` to `screenshot-5-<lang>.png` for each listing language (`en`, `zh_CN`, `ja`), in that order: popup, note anatomy, paper pieces, light and dark, background sending. The example notes are unedited plugin output (each in its listing language) for NASA Goddard's public-domain "An Introduction to the James Webb Space Telescope Mission".
 - **Small promo tile (440×280):** `promo-small.png`
 - **Icon (128×128):** `browser-extension/icons/icon128.png`
 - **Homepage:** https://github.com/Rexxall/obsidian-video-summary

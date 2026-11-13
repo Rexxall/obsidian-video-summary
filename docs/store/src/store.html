@@ -336,7 +336,7 @@
             'Frames from the moments that matter',
             'A verdict, stamped',
             'The gist in a few lines',
-            'Every time jumps to that second',
+            'The thread, at a glance',
           ],
           h3: 'Ideas and the speaker’s own words, kept on paper.',
           h4: 'Light or dark, in your browser’s language.',
@@ -380,7 +380,7 @@
             '要所の場面をそのまま',
             '見る価値をスタンプで',
             '要点を数行で',
-            '時刻を押せばその場面へ',
+            '話の流れをひと目で',
           ],
           h3: 'アイデアも原文も、紙の上に。',
           h4: 'ライトでもダークでも、ブラウザの言語で。',
@@ -465,24 +465,35 @@
         const sec = svg.parentElement;
         const L = box.left - 26;
         const R = box.right + 26;
-        // The red-pen ring sits on the second photo's timestamp, which moves with the caption length.
-        const RING = { en: [0.374, 0.488], zh_CN: [0.33, 0.488], ja: [0.315, 0.48] }[lang];
-        const marks = [
-          { a: at(0.05, 0.235), side: 'left', y: at(0, 0.235)[1] },
-          { a: at(0.17, 0.4), side: 'left', y: at(0, 0.42)[1] },
-          { a: at(0.935, 0.33), side: 'right', y: at(0, 0.33)[1] },
-          { a: at(0.035, 0.62), side: 'left', y: at(0, 0.66)[1] },
-          { a: at(RING[0], RING[1]), side: 'right', y: at(0, 0.6)[1] },
-        ];
+        // zh_CN: older capture with photo timestamps, so the last mark is a red-pen ring on one.
+        // en/ja: current plugin output (one cover, no timestamp above the fold), so it points at the flow line.
+        const RING = lang === 'zh_CN' ? [0.33, 0.488] : null;
+        const marks = RING
+          ? [
+              { a: at(0.05, 0.235), side: 'left', y: at(0, 0.235)[1] },
+              { a: at(0.17, 0.4), side: 'left', y: at(0, 0.42)[1] },
+              { a: at(0.935, 0.33), side: 'right', y: at(0, 0.33)[1] },
+              { a: at(0.035, 0.62), side: 'left', y: at(0, 0.66)[1] },
+              { a: at(RING[0], RING[1]), side: 'right', y: at(0, 0.6)[1] },
+            ]
+          : [
+              { a: at(0.05, 0.227), side: 'left', y: at(0, 0.227)[1] },
+              { a: at(0.3, 0.45), side: 'left', y: at(0, 0.45)[1] },
+              { a: at(0.938, 0.319), side: 'right', y: at(0, 0.319)[1] },
+              { a: at(0.035, 0.787), side: 'left', y: at(0, 0.787)[1] },
+              { a: at(lang === 'ja' ? 0.885 : 0.81, 0.952), side: 'right', y: at(0, 0.952)[1] },
+            ];
         marks.forEach((m, i) => {
           const x = m.side === 'left' ? L : R;
           label(sec, c.a[i], m.side === 'left' ? x - 10 : x + 10, m.y, m.side);
-          // The last one ends at the red-pen ring instead of a dot.
-          if (i === 4) line(svg, x, m.y, m.a[0] + 26, m.a[1] + 6, true, false);
+          // On zh_CN the last one ends at the red-pen ring instead of a dot.
+          if (i === 4 && RING) line(svg, x, m.y, m.a[0] + 26, m.a[1] + 6, true, false);
           else line(svg, x, m.y, m.a[0], m.a[1]);
         });
-        const t = at(RING[0], RING[1]);
-        ring(svg, t[0], t[1], 23, 11);
+        if (RING) {
+          const t = at(RING[0], RING[1]);
+          ring(svg, t[0], t[1], 23, 11);
+        }
       }
       if (shot === '5')
         window.addEventListener('load', () => {
