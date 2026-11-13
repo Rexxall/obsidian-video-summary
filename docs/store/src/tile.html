@@ -3,53 +3,84 @@
   <head>
     <meta charset="utf-8" />
     <title>Store small promo tile</title>
+    <!-- Render at 440×280; the store also shows it at 275×175, so the name has to carry alone. -->
     <style>
+      @font-face {
+        font-family: IDisp;
+        font-style: italic;
+        src: url(fonts/BodoniModa-Italic.woff2);
+      }
       * {
         box-sizing: border-box;
         margin: 0;
       }
       html,
       body {
+        position: relative;
         width: 440px;
         height: 280px;
         overflow: hidden;
-        background: #fbfaf7;
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-        color: #1d1d1f;
+        background: #9a2a1b;
+        color: #f5e6cf;
       }
-      img {
+      body::after {
+        content: '';
         position: absolute;
-        left: 32px;
-        top: 36px;
-        width: 64px;
-        height: 64px;
+        inset: 0;
+        pointer-events: none;
+        background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .25  0 0 0 0 .2  0 0 0 .1 0'/></filter><rect width='300' height='300' filter='url(%23n)'/></svg>");
+        background-size: 200px;
+      }
+      .sun {
+        position: absolute;
+        left: 270px;
+        top: 30px;
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle closest-side,
+          #ecbf84 0,
+          #e1a868 62%,
+          #d4925a 98.2%,
+          rgb(154 42 27 / 0) 100%
+        );
+      }
+      .note {
+        position: absolute;
+        left: 276px;
+        top: 184px;
+        width: 250px;
+        height: 150px;
+        border-radius: 6px;
+        background: #f3f2ef url(note/webb-en.png) no-repeat -14px -44px / 320px auto;
+        box-shadow:
+          0 2px 5px rgb(40 8 4 / 0.32),
+          0 14px 30px rgb(40 8 4 / 0.48);
+        transform: rotate(-5deg);
       }
       h1 {
         position: absolute;
-        left: 32px;
-        top: 124px;
-        width: 380px;
-        font-size: 30px;
-        line-height: 1.1;
-        letter-spacing: -0.02em;
-        font-weight: 700;
+        left: 26px;
+        top: 50px;
+        font: italic 400 64px/0.94 IDisp, serif;
+        letter-spacing: -0.035em;
       }
-      .keys {
+      .sub {
         position: absolute;
-        left: 32px;
+        left: 30px;
         bottom: 30px;
-        font-size: 17px;
-        color: #6e6e73;
-      }
-      .keys b {
-        color: #1d1d1f;
-        font-weight: 600;
+        color: #ecbf84;
+        font: 700 15px/1 'DIN Condensed', sans-serif;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
       }
     </style>
   </head>
   <body>
-    <img src="icon128.png" alt="" />
-    <h1>Video to Obsidian note, in one shortcut.</h1>
-    <div class="keys"><b>⌘⇧S</b> on YouTube · your own model key</div>
+    <div class="sun"></div>
+    <div class="note"></div>
+    <h1>Video<br />Summary</h1>
+    <div class="sub">For Obsidian · ⌘⇧S</div>
   </body>
 </html>

@@ -5,22 +5,30 @@
     <title>Store screenshots</title>
     <!--
       Render each shot at 1280×800:
-      Chrome --headless --screenshot --window-size=1280,800 "store.html?lang=ja&shot=2"
-      Shots: 1 hero, 2 what is in a note, 3 the notebook pieces, 4 the popup, 5 background sending.
-      The video frames in note/ were blurred when captured; the note text is real plugin output.
+      Chrome --headless --allow-file-access-from-files --screenshot --window-size=1280,800 "store.html?lang=ja&shot=2"
+      Shots: 1 the popup, 2 what is in a note, 3 paper pieces, 4 light and dark, 5 background sending.
+      The red-light look is shared with the Ithaca theme's store art.
+      Notes in note/webb-*.png are real plugin output for a public-domain NASA Goddard video,
+      rendered with the Ithaca theme; the popup captures are from the packaged extension with demo data.
     -->
     <style>
+      @font-face {
+        font-family: IDisp;
+        font-style: italic;
+        src: url(fonts/BodoniModa-Italic.woff2);
+      }
       :root {
-        --bg: #fbfbfa;
-        --ink: #1d1d1f;
-        --mute: #6e6e73;
-        --red: #b3261e;
-        --paper: #f3f2ef;
-        --font:
-          -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', 'Hiragino Sans',
-          sans-serif;
-        --lift:
-          0 0 0 0.5px rgb(0 0 0 / 0.08), 0 30px 70px rgb(0 0 0 / 0.14), 0 6px 18px rgb(0 0 0 / 0.06);
+        --red: #9a2a1b;
+        --cream: #f5e6cf;
+        --amber: #ecbf84;
+        --mute: rgb(245 230 207 / 0.62);
+        --lift: 0 4px 9px rgb(40 8 4 / 0.32), 0 33px 70px rgb(40 8 4 / 0.48);
+        --sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans', sans-serif;
+        --label: 'DIN Condensed', 'PingFang SC', 'Hiragino Sans', sans-serif;
+        --disp: IDisp, 'Songti SC', serif;
+      }
+      :lang(ja) {
+        --disp: IDisp, 'Hiragino Mincho ProN', serif;
       }
       * {
         box-sizing: border-box;
@@ -32,9 +40,22 @@
         width: 1280px;
         height: 800px;
         overflow: hidden;
-        background: var(--bg);
-        color: var(--ink);
-        font-family: var(--font);
+        background: var(--red);
+        color: var(--cream);
+        font-family: var(--sans);
+      }
+      /* Grain over everything, as on the theme's poster. */
+      body::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+        background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .25  0 0 0 0 .2  0 0 0 .1 0'/></filter><rect width='300' height='300' filter='url(%23n)'/></svg>");
+        background-size: 384px;
+      }
+      .abs {
+        position: absolute;
       }
       .shot {
         display: none;
@@ -44,352 +65,296 @@
       .shot.on {
         display: block;
       }
+      .sun {
+        position: absolute;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle closest-side at 50% 50%,
+          #ecbf84 0,
+          #e1a868 62%,
+          #d4925a 98.2%,
+          rgb(154 42 27 / 0) 100%
+        );
+      }
+      .num {
+        position: absolute;
+        top: 52px;
+        left: 64px;
+        color: var(--amber);
+        font: 700 22px/1 var(--label);
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      :is(:lang(zh), :lang(ja)) .num {
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+      }
+      .brand {
+        position: absolute;
+        top: 40px;
+        right: 64px;
+        z-index: 5;
+        font: italic 400 30px/1 IDisp, serif;
+        letter-spacing: -0.02em;
+      }
       h1 {
-        font-size: 46px;
-        font-weight: 700;
-        line-height: 1.1;
-        letter-spacing: -0.025em;
+        font: italic 400 64px/1.06 var(--disp);
+        letter-spacing: -0.01em;
         text-wrap: balance;
       }
-      p.lede {
-        margin-top: 16px;
-        color: var(--mute);
-        font-size: 19px;
-        line-height: 1.5;
-        text-wrap: pretty;
+      :is(:lang(zh), :lang(ja)) h1 {
+        font-style: normal;
+        font-weight: 600;
+        font-size: 50px;
+        line-height: 1.32;
+        letter-spacing: 0.02em;
       }
-      :lang(zh) h1,
-      :lang(ja) h1 {
-        font-size: 40px;
-        line-height: 1.28;
-        letter-spacing: 0;
-      }
-      :lang(ja) :is(h1, p, .label) {
+      :lang(ja) :is(h1, .label) {
         word-break: auto-phrase;
       }
-      .credit {
+      .foot {
         position: absolute;
-        bottom: 30px;
+        bottom: 38px;
         left: 64px;
         color: var(--mute);
-        font-size: 13px;
-        letter-spacing: 0.01em;
+        font: 700 18px/1 var(--label);
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        white-space: nowrap;
       }
-      .credit b {
-        color: var(--ink);
+      .foot span {
+        margin-left: 18px;
+        letter-spacing: 0.06em;
+        text-transform: none;
+        font: 500 15px/1 var(--sans);
+      }
+      :is(:lang(zh), :lang(ja)) .foot {
+        font-size: 16px;
         font-weight: 600;
+        letter-spacing: 0.16em;
       }
       .sheet {
         position: absolute;
         overflow: hidden;
         border-radius: 12px;
-        background: var(--paper) no-repeat 0 0 / 100% auto;
+        background: #f3f2ef no-repeat 0 0 / 100% auto;
         box-shadow: var(--lift);
+      }
+      .sheet::after,
+      .pop::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow:
+          inset 0 0 0 1px rgb(255 255 255 / 0.07),
+          inset 0 1px 0 rgb(255 236 210 / 0.16);
+      }
+      .pop {
+        position: absolute;
+        overflow: hidden;
+        border-radius: 16px;
+        box-shadow: var(--lift);
+      }
+      .pop img {
+        display: block;
+        width: 100%;
+      }
+      .keys {
+        display: flex;
+        gap: 10px;
+      }
+      .key {
+        display: grid;
+        place-items: center;
+        width: 58px;
+        height: 58px;
+        border-radius: 13px;
+        background: var(--cream);
+        color: #7a2216;
+        font: 500 27px/1 -apple-system, sans-serif;
+        box-shadow:
+          0 1px 0 rgb(255 255 255 / 0.4) inset,
+          0 3px 0 #c9a882,
+          0 10px 22px rgb(40 8 4 / 0.35);
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .chip {
+        padding: 7px 16px;
+        border: 1px solid rgb(245 230 207 / 0.4);
+        border-radius: 999px;
+        font-size: 16px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .tag {
+        display: inline-block;
+        padding: 9px 18px;
+        border-radius: 999px;
+        background: var(--cream);
+        color: #7a2216;
+        font: 600 16px/1 var(--sans);
+        white-space: nowrap;
+        box-shadow: 0 8px 22px rgb(40 8 4 / 0.3);
       }
       .label {
         position: absolute;
-        width: 210px;
-        font-size: 15px;
+        width: 200px;
+        font-size: 17px;
         font-weight: 600;
-        line-height: 1.35;
+        line-height: 1.3;
         text-wrap: balance;
       }
       .label.left {
         text-align: right;
       }
+      :lang(ja) .label {
+        font-size: 16px;
+      }
       svg.lines {
         position: absolute;
         inset: 0;
+        z-index: 4;
         width: 1280px;
         height: 800px;
         overflow: visible;
         pointer-events: none;
       }
-      .keys {
-        display: flex;
-        gap: 10px;
-        margin-top: 34px;
-      }
-      .key {
-        display: grid;
-        place-items: center;
-        width: 60px;
-        height: 60px;
-        border-radius: 14px;
-        background: #fff;
-        box-shadow:
-          0 0 0 0.5px rgb(0 0 0 / 0.1),
-          0 1px 0 rgb(0 0 0 / 0.06),
-          0 6px 16px rgb(0 0 0 / 0.08);
-        font-size: 28px;
-        font-weight: 500;
-      }
-      .toast {
-        display: inline-block;
-        margin-top: 26px;
-        padding: 9px 18px;
-        border-radius: 999px;
-        background: rgb(255 255 255 / 0.95);
-        box-shadow:
-          0 0 0 0.5px rgb(0 0 0 / 0.12),
-          0 8px 28px rgb(0 0 0 / 0.14);
-        font-size: 15px;
-        font-weight: 500;
-      }
-      .chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 22px;
-      }
-      .chip {
-        padding: 4px 12px;
-        border-radius: 999px;
-        background: #efeeeb;
-        font-size: 13px;
-        font-weight: 500;
-      }
-      .tile {
-        position: absolute;
-      }
-      .tile .sheet {
-        position: relative;
-      }
-      .tile .cap {
-        margin-top: 12px;
-        font-size: 14px;
-        font-weight: 600;
-      }
-      .pop {
-        position: absolute;
-        width: 340px;
-        border-radius: 14px;
-        box-shadow:
-          0 0 0 0.5px rgb(0 0 0 / 0.14),
-          0 24px 60px rgb(0 0 0 / 0.18);
-      }
     </style>
   </head>
   <body>
+    <div class="brand">Video Summary</div>
+
     <section class="shot" data-shot="1">
+      <div class="sun" style="left: 600px; top: 30px; width: 430px; height: 430px"></div>
       <div
-        style="position: absolute; top: 50%; left: 64px; width: 420px; transform: translateY(-50%)"
-      >
-        <h1 data-t="h1"></h1>
-        <p class="lede" data-t="p1"></p>
-        <div class="keys">
-          <div class="key">⌘</div>
-          <div class="key">⇧</div>
-          <div class="key">S</div>
-        </div>
-        <div class="toast" data-t="toast"></div>
-      </div>
-      <div
-        class="sheet"
-        style="
-          top: 150px;
-          left: 548px;
-          width: 820px;
-          height: 540px;
-          background-image: url(note/top.png);
-          transform: rotate(-2deg);
-          transform-origin: top left;
-        "
+        class="sheet note"
+        style="left: 660px; top: 250px; width: 760px; height: 499px; transform: rotate(-4deg)"
       ></div>
+      <div class="pop" style="left: 800px; top: 96px; width: 400px; transform: rotate(2deg)">
+        <img id="pop-1" alt="" />
+      </div>
+      <h1 class="abs" data-t="h1" style="left: 62px; top: 196px; width: 540px"></h1>
+      <div class="abs keys" style="left: 64px; top: 548px">
+        <div class="key">⌘</div>
+        <div class="key">⇧</div>
+        <div class="key">S</div>
+      </div>
     </section>
 
     <section class="shot" data-shot="2">
+      <div class="sun" style="left: 900px; top: 520px; width: 400px; height: 400px"></div>
       <h1
+        class="abs"
         data-t="h2"
-        style="position: absolute; top: 56px; left: 0; width: 1280px; text-align: center"
+        style="top: 96px; left: 0; width: 1280px; text-align: center; font-size: 52px"
       ></h1>
-      <div
-        id="anat"
-        class="sheet"
-        style="
-          top: 172px;
-          left: 280px;
-          width: 720px;
-          height: 461px;
-          background-image: url(note/top.png);
-        "
-      ></div>
+      <div id="anat" class="sheet note" style="left: 290px; top: 196px; width: 700px; height: 460px"></div>
       <svg class="lines" id="anat-lines"></svg>
     </section>
 
     <section class="shot" data-shot="3">
-      <h1 data-t="h3" style="position: absolute; top: 56px; left: 64px; width: 1152px"></h1>
-      <div class="tile" style="top: 162px; left: 64px; width: 560px">
-        <div
-          class="sheet"
-          style="
-            height: 150px;
-            background: var(--paper) url(note/timeline.png) no-repeat 0 -8px / 100% auto;
-          "
-        ></div>
-        <div class="cap" data-t="c-time"></div>
-      </div>
-      <div class="tile" style="top: 162px; left: 656px; width: 560px">
-        <div
-          class="sheet"
-          style="
-            height: 150px;
-            background: var(--paper) url(note/receipts.png) no-repeat 0 -12px / 100% auto;
-          "
-        ></div>
-        <div class="cap" data-t="c-quote"></div>
-      </div>
-      <div class="tile" style="top: 400px; left: 64px; width: 560px">
-        <div class="sheet" style="height: 82px; background-image: url(note/sticky.png)"></div>
-        <div class="cap" data-t="c-pin"></div>
-      </div>
-      <div class="tile" style="top: 400px; left: 656px; width: 560px">
-        <div
-          class="sheet"
-          style="
-            height: 82px;
-            background: var(--paper) url(note/todo.png) no-repeat 0 -10px / 100% auto;
-          "
-        ></div>
-        <div class="cap" data-t="c-todo"></div>
-      </div>
-      <div class="tile" style="top: 552px; left: 64px; width: 1152px">
-        <div
-          class="sheet"
-          style="
-            height: 66px;
-            background: var(--paper) url(note/mermaid.png) no-repeat center / 100% auto;
-          "
-        ></div>
-        <div class="cap" data-t="c-flow"></div>
-      </div>
+      <div class="sun" style="left: 760px; top: 110px; width: 380px; height: 380px"></div>
+      <div
+        class="sheet"
+        id="pieces"
+        style="left: 500px; top: 236px; width: 840px; height: 391px; transform: rotate(-4deg)"
+      ></div>
+      <h1 class="abs" data-t="h3" style="left: 62px; top: 210px; width: 420px"></h1>
     </section>
 
     <section class="shot" data-shot="4">
-      <div
-        style="position: absolute; top: 50%; left: 64px; width: 420px; transform: translateY(-50%)"
-      >
-        <h1 data-t="h4"></h1>
-        <p class="lede" data-t="p4"></p>
-        <div class="chips">
-          <span class="chip">YouTube</span><span class="chip">bilibili</span
-          ><span class="chip" data-t="chip-lang"></span>
+      <div class="sun" style="left: 560px; top: 70px; width: 460px; height: 460px"></div>
+      <h1 class="abs" data-t="h4" style="left: 62px; top: 210px; width: 430px"></h1>
+      <div class="abs" style="left: 64px; top: 520px; width: 430px">
+        <div class="chips"><span class="chip">YouTube</span><span class="chip">bilibili</span></div>
+        <div class="chips" style="margin-top: 10px">
+          <span class="chip">English</span><span class="chip">中文</span
+          ><span class="chip">日本語</span>
         </div>
       </div>
-      <img class="pop" id="pop-a" alt="" style="top: 128px; left: 528px" />
-      <img class="pop" id="pop-b" alt="" style="top: 184px; left: 892px" />
+      <div class="pop" style="left: 540px; top: 118px; width: 340px; transform: rotate(-2deg)">
+        <img id="pop-a" alt="" />
+      </div>
+      <div class="pop" style="left: 900px; top: 176px; width: 340px; transform: rotate(2.5deg)">
+        <img id="pop-b" alt="" />
+      </div>
     </section>
 
     <section class="shot" data-shot="5">
+      <div class="sun" style="left: 520px; top: 360px; width: 420px; height: 420px"></div>
+      <h1 class="abs" data-t="h5" style="left: 62px; top: 200px; width: 430px"></h1>
+      <div class="abs" style="left: 64px; top: 520px"><span class="tag" data-t="opt"></span></div>
       <div
-        style="position: absolute; top: 50%; left: 64px; width: 420px; transform: translateY(-50%)"
+        class="pop"
+        style="left: 548px; top: 108px; width: 300px; height: 452px; transform: rotate(-2deg)"
       >
-        <h1 data-t="h5"></h1>
-        <p class="lede" data-t="p5"></p>
-        <div class="toast" data-t="toast"></div>
+        <img id="pop-s" alt="" />
       </div>
-      <img class="pop" id="pop-s" alt="" style="top: 92px; left: 540px; width: 320px" />
-      <img
-        id="bridge"
-        alt=""
-        style="
-          position: absolute;
-          top: 300px;
-          left: 812px;
-          width: 420px;
-          border-radius: 14px;
-          box-shadow: var(--lift);
-        "
-      />
+      <div
+        class="pop"
+        id="bridge-box"
+        style="left: 790px; top: 330px; width: 430px; border-radius: 14px; transform: rotate(2deg)"
+      >
+        <img id="bridge" alt="" />
+      </div>
       <svg class="lines" id="pair-lines"></svg>
     </section>
 
-    <div class="credit" data-t="credit"></div>
+    <div class="num" data-t="num"></div>
+    <div class="foot"><b data-t="foot"></b><span>github.com/Rexxall/obsidian-ithaca</span></div>
 
     <script>
       const COPY = {
         en: {
           lang: 'en',
-          h1: 'One shortcut. A note worth rereading.',
-          p1: 'Press ⌘⇧S on a YouTube or Bilibili video. The captions go to Obsidian, and your own model writes the note.',
-          toast: 'Sent with captions',
-          h2: 'Built to be reread.',
+          nums: ['01 · Capture', '02 · The note', '03 · Paper pieces', '04 · The popup', '05 · Background'],
+          h1: 'One press sends the video, the moment and its captions.',
+          h2: 'A note built to be reread.',
           a: [
             'The takeaway, in one red line',
             'Frames from the moments that matter',
-            'Verdict and source, stamped',
-            'The one point not to miss',
+            'A verdict, stamped',
+            'The gist in a few lines',
             'Every time jumps to that second',
           ],
-          h3: 'Stories, next steps and quotes, kept on paper.',
-          'c-time': 'The story as a timeline',
-          'c-quote': 'Quotes with translation and time',
-          'c-pin': 'Ideas pinned up',
-          'c-todo': 'Next steps you can tick',
-          'c-flow': 'The whole talk on one line',
-          h4: 'One press sends the video, the moment and its captions.',
-          p4: 'Light or dark, in your browser’s language.',
-          'chip-lang': 'English · 中文 · 日本語',
+          h3: 'Ideas and the speaker’s own words, kept on paper.',
+          h4: 'Light or dark, in your browser’s language.',
           h5: 'Keep watching. Obsidian writes in the background.',
-          p5: 'Optional: pair the extension with the plugin once, and Obsidian stays where it is.',
-          credit:
-            '<b>Video Summary</b> for Obsidian · Ithaca notebook look · notes from public talks, frames blurred',
+          opt: 'Optional · off by default',
+          foot: 'Pairs with the Ithaca theme',
           bridge: 'en',
         },
         zh_CN: {
           lang: 'zh',
-          h1: '一个快捷键，一篇值得重读的笔记。',
-          p1: '在 YouTube 或 B 站视频页按 ⌘⇧S，字幕送进 Obsidian，由你自己的模型写成笔记。',
-          toast: '已连同字幕发送',
+          nums: ['01 · 一键送出', '02 · 笔记', '03 · 手账小件', '04 · 弹窗', '05 · 后台发送'],
+          h1: '一键送出视频、此刻的时间和字幕。',
           h2: '做成值得重读的样子。',
-          a: [
-            '一句红笔结论',
-            '关键时刻的画面',
-            '评价和来源，盖章为证',
-            '最不能错过的一点',
-            '每个时间都能跳回那一秒',
-          ],
-          h3: '来龙去脉、下一步和原话，都落在纸上。',
-          'c-time': '时间线讲清来龙去脉',
-          'c-quote': '原话附翻译和时间',
-          'c-pin': '想法钉在墙上',
-          'c-todo': '能打勾的下一步',
-          'c-flow': '整场演讲一条线',
-          h4: '一键送出视频、此刻的时间和字幕。',
-          p4: '浅色深色，跟着浏览器的语言。',
-          'chip-lang': 'English · 中文 · 日本語',
+          a: ['一句红笔结论', '关键时刻的画面', '值不值得看，盖章为证', '几行讲清要点', '每个时间都能跳回那一秒'],
+          h3: '想法和原话，都落在纸上。',
+          h4: '浅色深色，跟着浏览器的语言。',
           h5: '继续看视频，Obsidian 在后台写笔记。',
-          p5: '可选：扩展和插件配对一次，Obsidian 就不会再跳到前台。',
-          credit:
-            'Obsidian 插件 <b>Video Summary</b> · Ithaca 手账外观 · 示例为公开演讲，画面已虚化',
+          opt: '可选 · 默认关闭',
+          foot: '搭配 Ithaca 主题',
           bridge: 'zh',
         },
         ja: {
           lang: 'ja',
-          h1: 'ショートカットひとつで、読み返したくなるノートに。',
-          p1: 'YouTube や bilibili の動画で ⌘⇧S。字幕が Obsidian に届き、あなたのモデルがノートを書きます。',
-          toast: '字幕と一緒に送りました',
+          nums: ['01 · ワンキー送信', '02 · ノート', '03 · 紙の小物', '04 · ポップアップ', '05 · バックグラウンド'],
+          h1: 'ひと押しで、動画と再生位置と字幕を送る。',
           h2: '読み返すためのノート。',
-          a: [
-            '結論は赤ペンで一行',
-            '要所の場面をそのまま',
-            '評価と出典をスタンプで',
-            '見逃せない一点',
-            '時刻を押せばその場面へ',
-          ],
-          h3: '流れも、次の一歩も、名言も、紙の上に。',
-          'c-time': '流れは時系列カードで',
-          'c-quote': '原文の引用に訳と時刻',
-          'c-pin': 'アイデアは付箋に',
-          'c-todo': 'チェックできる次の一歩',
-          'c-flow': '話の流れを一本の線に',
-          h4: 'ひと押しで、動画と再生位置と字幕を送る。',
-          p4: 'ライトでもダークでも、ブラウザの言語で。',
-          'chip-lang': 'English · 中文 · 日本語',
+          a: ['結論は赤ペンで一行', '要所の場面をそのまま', '見る価値をスタンプで', '要点を数行で', '時刻を押せばその場面へ'],
+          h3: 'アイデアも原文も、紙の上に。',
+          h4: 'ライトでもダークでも、ブラウザの言語で。',
           h5: '動画はそのまま。ノートは裏で書き上がる。',
-          p5: '任意：拡張機能とプラグインを一度ペアリングすれば、Obsidian は前に出てきません。',
-          credit:
-            'Obsidian プラグイン <b>Video Summary</b> · Ithaca ノートの見た目 · 例は公開講演、画面はぼかし済み',
+          opt: '任意 · 初期設定はオフ',
+          foot: 'Ithaca テーマと合わせて',
           bridge: 'en',
         },
       };
@@ -397,41 +362,46 @@
       const lang = q.get('lang') || 'en';
       const shot = q.get('shot') || '1';
       const c = COPY[lang];
+      c.num = c.nums[Number(shot) - 1];
       document.documentElement.lang = c.lang;
       document.querySelector(`.shot[data-shot="${shot}"]`).classList.add('on');
-      document.querySelectorAll('[data-t]').forEach((el) => {
-        const v = c[el.dataset.t];
-        if (el.dataset.t === 'credit') el.innerHTML = v;
-        else el.textContent = v;
-      });
+      document.querySelectorAll('[data-t]').forEach((el) => (el.textContent = c[el.dataset.t]));
+      document
+        .querySelectorAll('.note')
+        .forEach((el) => (el.style.backgroundImage = `url(note/webb-${lang}.png)`));
+      document.getElementById('pieces').style.backgroundImage = `url(note/webb-pieces-${lang}.png)`;
+      document.getElementById('pop-1').src = `popup/popup-current-${lang}-light.png`;
       document.getElementById('pop-a').src = `popup/popup-current-${lang}-light.png`;
       document.getElementById('pop-b').src = `popup/popup-current-${lang}-dark.png`;
       document.getElementById('pop-s').src = `popup/popup-settings-${lang}-light.png`;
       document.getElementById('bridge').src = `note/bridge-settings-${c.bridge}.png`;
 
       const NS = 'http://www.w3.org/2000/svg';
+      const LINE = '#ecbf84';
       const RED = '#b3261e';
-      function line(svg, x1, y1, x2, y2, dash, noDot) {
+      function line(svg, x1, y1, x2, y2, dash, dot = true) {
         const l = document.createElementNS(NS, 'path');
         l.setAttribute('d', `M${x1} ${y1} L${x2} ${y2}`);
-        l.setAttribute('stroke', RED);
-        l.setAttribute('stroke-width', '1.2');
+        l.setAttribute('stroke', LINE);
+        l.setAttribute('stroke-width', '1.4');
         l.setAttribute('fill', 'none');
         if (dash) l.setAttribute('stroke-dasharray', '4 5');
         svg.appendChild(l);
-        if (noDot) return;
+        if (!dot) return;
         const d = document.createElementNS(NS, 'circle');
         d.setAttribute('cx', x2);
         d.setAttribute('cy', y2);
-        d.setAttribute('r', '3.5');
+        d.setAttribute('r', '4');
         d.setAttribute('fill', RED);
+        d.setAttribute('stroke', '#fff7ec');
+        d.setAttribute('stroke-width', '1.5');
         svg.appendChild(d);
       }
       /** A red-pen ring: two loose passes, as the notes draw it. */
       function ring(svg, cx, cy, rx, ry) {
         for (const [k, rot] of [
           [1, -4],
-          [1.06, 3],
+          [1.07, 3],
         ]) {
           const e = document.createElementNS(NS, 'ellipse');
           e.setAttribute('cx', cx);
@@ -450,49 +420,44 @@
         const el = document.createElement('div');
         el.className = `label ${side}`;
         el.textContent = text;
-        el.style.left = `${side === 'left' ? x - 210 : x}px`;
-        el.style.top = `${y - 10}px`;
+        el.style.left = `${side === 'left' ? x - 200 : x}px`;
+        el.style.top = `${y - 11}px`;
         section.appendChild(el);
       }
 
       if (shot === '2') {
-        // Anchors as fractions of note/top.png (2072×1328), measured on the capture.
+        // Anchors as fractions of note/webb-<lang>.png, measured from element boxes on the capture.
         const box = document.getElementById('anat').getBoundingClientRect();
         const at = (fx, fy) => [box.left + fx * box.width, box.top + fy * box.height];
         const svg = document.getElementById('anat-lines');
         const sec = svg.parentElement;
-        const L = box.left - 28;
-        const R = box.right + 28;
+        const L = box.left - 26;
+        const R = box.right + 26;
+        // The red-pen ring sits on the second photo's timestamp, which moves with the caption length.
+        const RING = { en: [0.374, 0.488], zh_CN: [0.33, 0.488], ja: [0.315, 0.48] }[lang];
         const marks = [
-          { a: at(0.06, 0.245), side: 'left', y: at(0, 0.245)[1] },
-          { a: at(0.12, 0.43), side: 'left', y: at(0, 0.46)[1] },
-          { a: at(0.86, 0.33), side: 'right', y: at(0, 0.3)[1] },
-          { a: at(0.04, 0.84), side: 'left', y: at(0, 0.84)[1] },
-          { a: at(0.343, 0.905), side: 'right', y: at(0, 0.97)[1] },
+          { a: at(0.05, 0.235), side: 'left', y: at(0, 0.235)[1] },
+          { a: at(0.17, 0.4), side: 'left', y: at(0, 0.42)[1] },
+          { a: at(0.935, 0.33), side: 'right', y: at(0, 0.33)[1] },
+          { a: at(0.035, 0.62), side: 'left', y: at(0, 0.66)[1] },
+          { a: at(RING[0], RING[1]), side: 'right', y: at(0, 0.6)[1] },
         ];
         marks.forEach((m, i) => {
           const x = m.side === 'left' ? L : R;
           label(sec, c.a[i], m.side === 'left' ? x - 10 : x + 10, m.y, m.side);
           // The last one ends at the red-pen ring instead of a dot.
-          if (i === 4) line(svg, x, m.y, m.a[0] + 24, m.a[1] + 4, true, true);
+          if (i === 4) line(svg, x, m.y, m.a[0] + 26, m.a[1] + 6, true, false);
           else line(svg, x, m.y, m.a[0], m.a[1]);
         });
-        const t = at(0.343, 0.905);
-        ring(svg, t[0], t[1], 22, 11);
+        const t = at(RING[0], RING[1]);
+        ring(svg, t[0], t[1], 23, 11);
       }
       if (shot === '5')
         window.addEventListener('load', () => {
           const svg = document.getElementById('pair-lines');
           const a = document.getElementById('pop-s').getBoundingClientRect();
-          const b = document.getElementById('bridge').getBoundingClientRect();
-          line(
-            svg,
-            a.right - 24,
-            a.top + 196 * (a.width / 340),
-            b.left + b.width * 0.5,
-            b.top + b.height * 0.5,
-            true,
-          );
+          const b = document.getElementById('bridge-box').getBoundingClientRect();
+          line(svg, a.right - 10, a.top + a.height * 0.38, b.left + b.width * 0.45, b.top + 8, true);
         });
     </script>
   </body>
