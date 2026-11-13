@@ -38,6 +38,19 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 
+// utils/fileTitle.ts
+var CJK = /[぀-ヿ㐀-鿿＀-￯]/;
+function fileTitle(title) {
+  const cjkBefore = (text2, offset) => CJK.test(text2.slice(Math.max(0, offset - 1), offset));
+  return title.replace(/(\d):(\d)/g, "$1-$2").replace(
+    /\s*:\s*/g,
+    (match, offset, text2) => cjkBefore(text2, offset) ? "\uFF1A" : " - "
+  ).replace(
+    /\?/g,
+    (match, offset, text2) => cjkBefore(text2, offset) ? "\uFF1F" : ""
+  ).replace(/\s*[/\\|]\s*/g, " - ").replace(/["<>*]/g, "").replace(/\s{2,}/g, " ").replace(/^[\s.-]+|[\s.]+$/g, "").trim();
+}
+
 // core/NoteStyle.ts
 var NOTE_PROMPT_VERSION = "video-note-prompt-v8";
 var ITHACA_NOTE_STYLE = [
@@ -5567,7 +5580,7 @@ function progressLabel(status) {
   }[status];
 }
 function sanitizeFileName(value) {
-  return value.replace(/[<>:"/\\|?*]/g, "_").trim() || "\u89C6\u9891\u8BFE\u7A0B";
+  return fileTitle(value) || "\u89C6\u9891\u8BFE\u7A0B";
 }
 function yamlQuote(value) {
   return JSON.stringify(value);
@@ -6319,7 +6332,7 @@ function extractVideoInputFromPayload(raw) {
   return input;
 }
 function sanitizeFileName2(name) {
-  return name.replace(/[<>:"/\\|?*]/g, "_").trim() || "video_note";
+  return fileTitle(name) || "video_note";
 }
 function yamlEscape(value) {
   const trimmed = value.trim();
@@ -17303,7 +17316,7 @@ ${fieldLine}`;
           return;
         }
       }
-      const cleanTitle = titleToUse.replace(/[<>:"/\\|?*]/g, "_").trim();
+      const cleanTitle = fileTitle(titleToUse);
       if (!cleanTitle) {
         return;
       }
@@ -27346,7 +27359,7 @@ Suggestion: ${result.hint}`) : "";
           return;
         }
       }
-      const cleanTitle = titleToUse.replace(/[<>:"/\\|?*]/g, "_").trim();
+      const cleanTitle = fileTitle(titleToUse);
       if (!cleanTitle) {
         return;
       }

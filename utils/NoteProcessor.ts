@@ -1,3 +1,4 @@
+import { fileTitle } from './fileTitle';
 import { TFile, Vault, parseYaml, stringifyYaml } from 'obsidian';
 import { ProcessingResult, NoteMetadata, VideoInput, ProcessingMode } from '../types';
 import { SUPPORTED_PLATFORMS } from '../constants';
@@ -554,7 +555,7 @@ export class NoteProcessor {
       }
 
       // 清理文件名中的非法字符
-      const cleanTitle = titleToUse.replace(/[<>:"/\\|?*]/g, '_').trim();
+      const cleanTitle = fileTitle(titleToUse);
       if (!cleanTitle) {
         return; // 如果清理后为空，不重命名
       }

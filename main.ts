@@ -1,3 +1,4 @@
+import { fileTitle } from './utils/fileTitle';
 import { ITHACA_NOTE_STYLE } from './core/NoteStyle';
 import { installReadingView } from './core/ReadingView';
 import { relinkVideoJobs } from './utils/NoteOutput';
@@ -2073,7 +2074,7 @@ export default class VideoSummaryPlugin extends Plugin {
       }
 
       // 清理文件名中的非法字符
-      const cleanTitle = titleToUse.replace(/[<>:"/\\|?*]/g, '_').trim();
+      const cleanTitle = fileTitle(titleToUse);
       if (!cleanTitle) {
         return; // 如果清理后为空，不重命名
       }

@@ -1,3 +1,4 @@
+import { fileTitle } from '../utils/fileTitle';
 import type { PlaylistInfo, PlaylistItem } from '../utils/PlaylistProcessor';
 import {
   COURSE_MANIFEST_SCHEMA_VERSION,
@@ -322,7 +323,7 @@ function progressLabel(status: CourseManifestItem['progress']['status']): string
 }
 
 function sanitizeFileName(value: string): string {
-  return value.replace(/[<>:"/\\|?*]/g, '_').trim() || '视频课程';
+  return fileTitle(value) || '视频课程';
 }
 
 function yamlQuote(value: string): string {

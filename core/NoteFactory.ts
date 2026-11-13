@@ -1,3 +1,4 @@
+import { fileTitle } from '../utils/fileTitle';
 import { App, TFile } from 'obsidian';
 import { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 import { JobDraft, titleForUrl } from './InputParser';
@@ -215,7 +216,7 @@ export function extractVideoInputFromPayload(raw: unknown): VideoInput {
 }
 
 export function sanitizeFileName(name: string): string {
-  return name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'video_note';
+  return fileTitle(name) || 'video_note';
 }
 
 export function yamlEscape(value: string): string {
