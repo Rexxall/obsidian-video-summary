@@ -13374,8 +13374,8 @@ function modelErrorText(status, body = "") {
   return `\u6A21\u578B\u670D\u52A1\u8FD4\u56DE HTTP ${status}${detail ? `\uFF1A${detail}` : ""}`;
 }
 function isReasoningModel(model) {
-  const name = (model ?? "").trim().toLowerCase().replace(/^openai\//, "");
-  return /^(o\d|gpt-([5-9]|\d{2,}))/.test(name);
+  const name = (model ?? "").trim().toLowerCase().replace(/^(openai|anthropic)\//, "");
+  return /^(o\d|gpt-([5-9]|\d{2,})|claude-[a-z]+-([5-9]|\d{2,}))/.test(name);
 }
 async function streamChat(transport, request, onText, signal) {
   const attempt = async (jsonMode) => {

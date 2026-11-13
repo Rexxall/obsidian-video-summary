@@ -243,8 +243,9 @@ export function isReasoningModel(model: string | undefined): boolean {
   const name = (model ?? '')
     .trim()
     .toLowerCase()
-    .replace(/^openai\//, '');
-  return /^(o\d|gpt-([5-9]|\d{2,}))/.test(name);
+    .replace(/^(openai|anthropic)\//, '');
+  // Claude 5 and later reject `temperature` like OpenAI's reasoning models do.
+  return /^(o\d|gpt-([5-9]|\d{2,})|claude-[a-z]+-([5-9]|\d{2,}))/.test(name);
 }
 
 export async function streamChat(

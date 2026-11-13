@@ -7,6 +7,7 @@ import {
   type StreamTransport,
   chunkSegments,
   generateNote,
+  isReasoningModel,
   modelErrorText,
   parseCondensed,
   parseNoteJson,
@@ -504,4 +505,19 @@ void test('reasoning models are asked without a temperature', async () => {
     );
   }
   assert.deepEqual(temperatures, [0.4, undefined]);
+});
+
+test('models that reject temperature are recognised, Claude 5 and later included', () => {
+  for (const model of [
+    'o3',
+    'gpt-5.2',
+    'openai/gpt-6.1-sol',
+    'claude-opus-5-5',
+    'anthropic/claude-sonnet-5-5',
+  ]) {
+    assert.equal(isReasoningModel(model), true, model);
+  }
+  for (const model of ['gpt-4o', 'deepseek-chat', 'claude-3-5-sonnet', 'qwen-max']) {
+    assert.equal(isReasoningModel(model), false, model);
+  }
 });
