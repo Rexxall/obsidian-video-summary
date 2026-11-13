@@ -6,10 +6,10 @@
     <!--
       Render each shot at 1280×800:
       Chrome --headless --allow-file-access-from-files --screenshot --window-size=1280,800 "store.html?lang=ja&shot=2"
-      Shots: 1 the popup, 2 what is in a note, 3 paper pieces, 4 light and dark, 5 background sending.
+      Shots: 1 the popup, 2 what is in a note, 3 who said what, 4 languages and dark paper, 5 background sending.
       The red-light look is shared with the Ithaca theme's store art.
-      Notes in note/webb-*.png are real plugin output for a public-domain NASA Goddard video,
-      rendered with the Ithaca theme; the popup captures are from the packaged extension with demo data.
+      Notes in note/chalmers-*.png are unedited plugin output for David Chalmers's lecture at UC Berkeley
+      (CC BY), rendered with the public Ithaca theme; the popups are the extension's own popup.html with demo data.
     -->
     <style>
       @font-face {
@@ -113,12 +113,15 @@
         line-height: 1.32;
         letter-spacing: 0.02em;
       }
+      :is(:lang(zh), :lang(ja)) h1.wide {
+        font-size: 42px !important;
+      }
       :lang(ja) :is(h1, .label) {
         word-break: auto-phrase;
       }
       .foot {
         position: absolute;
-        bottom: 38px;
+        bottom: 44px;
         left: 64px;
         color: var(--mute);
         font: 700 18px/1 var(--label);
@@ -159,6 +162,10 @@
         overflow: hidden;
         border-radius: 16px;
         box-shadow: var(--lift);
+      }
+      .sheet img {
+        display: block;
+        width: 100%;
       }
       .pop img {
         display: block;
@@ -221,6 +228,15 @@
       :lang(ja) .label {
         font-size: 16px;
       }
+      .credit {
+        position: absolute;
+        bottom: 17px;
+        left: 64px;
+        color: rgb(245 230 207 / 0.5);
+        font: 400 12px/1 var(--sans);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
       svg.lines {
         position: absolute;
         inset: 0;
@@ -253,46 +269,44 @@
     </section>
 
     <section class="shot" data-shot="2">
-      <div class="sun" style="left: 900px; top: 520px; width: 400px; height: 400px"></div>
+      <div class="sun" style="left: 780px; top: 168px; width: 260px; height: 260px"></div>
       <h1
-        class="abs"
+        class="abs wide"
         data-t="h2"
-        style="top: 96px; left: 0; width: 1280px; text-align: center; font-size: 52px"
+        style="top: 92px; left: 0; width: 1280px; text-align: center; font-size: 50px"
       ></h1>
       <div
         id="anat"
         class="sheet note"
-        style="left: 290px; top: 196px; width: 700px; height: 460px"
+        style="left: 250px; top: 190px; width: 640px; height: 420px"
       ></div>
+      <div class="sheet" id="claim-box" style="left: 500px; top: 528px; width: 520px; transform: rotate(-2deg)">
+        <img id="claim" alt="" />
+      </div>
       <svg class="lines" id="anat-lines"></svg>
     </section>
 
     <section class="shot" data-shot="3">
-      <div class="sun" style="left: 760px; top: 110px; width: 380px; height: 380px"></div>
-      <div
-        class="sheet"
-        id="pieces"
-        style="left: 500px; top: 236px; width: 840px; height: 391px; transform: rotate(-4deg)"
-      ></div>
-      <h1 class="abs" data-t="h3" style="left: 62px; top: 210px; width: 420px"></h1>
+      <div class="sun" style="left: 980px; top: 470px; width: 380px; height: 380px"></div>
+      <h1 class="abs" data-t="h3" style="left: 62px; top: 210px; width: 430px"></h1>
+      <div class="sheet" style="left: 640px; top: 112px; width: 560px; transform: rotate(-2deg)">
+        <img id="chat" alt="" />
+      </div>
+      <div class="sheet" id="receipt-box" style="left: 500px; transform: rotate(4deg)">
+        <img id="receipt" alt="" />
+      </div>
     </section>
 
     <section class="shot" data-shot="4">
-      <div class="sun" style="left: 560px; top: 70px; width: 460px; height: 460px"></div>
-      <h1 class="abs" data-t="h4" style="left: 62px; top: 210px; width: 430px"></h1>
-      <div class="abs" style="left: 64px; top: 520px; width: 430px">
-        <div class="chips"><span class="chip">YouTube</span><span class="chip">bilibili</span></div>
-        <div class="chips" style="margin-top: 10px">
-          <span class="chip">English</span><span class="chip">中文</span
-          ><span class="chip">日本語</span>
-        </div>
-      </div>
-      <div class="pop" style="left: 540px; top: 118px; width: 340px; transform: rotate(-2deg)">
-        <img id="pop-a" alt="" />
-      </div>
-      <div class="pop" style="left: 900px; top: 176px; width: 340px; transform: rotate(2.5deg)">
-        <img id="pop-b" alt="" />
-      </div>
+      <div class="sun" style="left: 880px; top: 420px; width: 420px; height: 420px"></div>
+      <h1
+        class="abs wide"
+        data-t="h4"
+        style="top: 92px; left: 0; width: 1280px; text-align: center; font-size: 50px"
+      ></h1>
+      <div class="sheet strip" style="left: 150px; top: 186px; width: 300px; height: 500px; transform: rotate(-1.5deg)"><img data-strip="en-light" alt="" /></div>
+      <div class="sheet strip" style="left: 490px; top: 180px; width: 300px; height: 500px"><img data-strip="zh_CN-light" alt="" /></div>
+      <div class="sheet strip" style="left: 830px; top: 186px; width: 300px; height: 500px; transform: rotate(1.5deg)"><img data-strip="ja-dark" alt="" /></div>
     </section>
 
     <section class="shot" data-shot="5">
@@ -317,76 +331,72 @@
 
     <div class="num" data-t="num"></div>
     <div class="foot"><b data-t="foot"></b><span>github.com/Rexxall/obsidian-ithaca</span></div>
+    <div class="credit" data-t="credit"></div>
 
     <script>
       const COPY = {
         en: {
           lang: 'en',
-          nums: [
-            '01 · Capture',
-            '02 · The note',
-            '03 · Paper pieces',
-            '04 · The popup',
-            '05 · Background',
-          ],
-          h1: 'One press sends the video, the moment and its captions.',
-          h2: 'A note built to be reread.',
+          nums: ['01 · Capture', '02 · The note', '03 · Who said it', '04 · Languages', '05 · Background'],
+          h1: 'One press sends the lecture, the moment and its captions.',
+          h2: '1 h 50 min of philosophy, one page you’ll reread.',
           a: [
             'The takeaway, in one red line',
-            'Frames from the moments that matter',
-            'A verdict, stamped',
+            'Frames at the moments that matter',
             'The gist in a few lines',
-            'The thread, at a glance',
+            'A verdict, and where it came from',
+            'The core claim, circled in red',
+            'Every time jumps back to that second',
           ],
-          h3: 'Ideas and the speaker’s own words, kept on paper.',
-          h4: 'Light or dark, in your browser’s language.',
+          h3: 'Who said what, in their own words.',
+          h4: 'Your language, light or dark.',
           h5: 'Keep watching. Obsidian writes in the background.',
           opt: 'Optional · off by default',
           foot: 'Pairs with the Ithaca theme',
+          credit:
+            'Example: David Chalmers, Sarah Douglas Lecture in Philosophy and AI, UC Berkeley (CC BY)',
           bridge: 'en',
         },
         zh_CN: {
           lang: 'zh',
-          nums: ['01 · 一键送出', '02 · 笔记', '03 · 手账小件', '04 · 弹窗', '05 · 后台发送'],
-          h1: '一键送出视频、此刻的时间和字幕。',
-          h2: '做成值得重读的样子。',
+          nums: ['01 · 一键送出', '02 · 笔记', '03 · 原话', '04 · 语言', '05 · 后台发送'],
+          h1: '一键送出讲座、此刻的时间和字幕。',
+          h2: '1 小时 50 分钟的哲学课，一页愿意重读的笔记。',
           a: [
             '一句红笔结论',
             '关键时刻的画面',
-            '值不值得看，盖章为证',
             '几行讲清要点',
+            '值不值得看，出自哪里',
+            '核心论点，红笔圈出',
             '每个时间都能跳回那一秒',
           ],
-          h3: '想法和原话，都落在纸上。',
-          h4: '浅色深色，跟着浏览器的语言。',
+          h3: '谁说了什么，原话都在。',
+          h4: '跟着你的语言，浅色深色都行。',
           h5: '继续看视频，Obsidian 在后台写笔记。',
           opt: '可选 · 默认关闭',
           foot: '搭配 Ithaca 主题',
+          credit: '示例：David Chalmers，Sarah Douglas Lecture in Philosophy and AI，UC Berkeley（CC BY）',
           bridge: 'zh',
         },
         ja: {
           lang: 'ja',
-          nums: [
-            '01 · ワンキー送信',
-            '02 · ノート',
-            '03 · 紙の小物',
-            '04 · ポップアップ',
-            '05 · バックグラウンド',
-          ],
-          h1: 'ひと押しで、動画と再生位置と字幕を送る。',
-          h2: '読み返すためのノート。',
+          nums: ['01 · ワンキー送信', '02 · ノート', '03 · 発言', '04 · 言語', '05 · バックグラウンド'],
+          h1: 'ひと押しで、講義と再生位置と字幕を送る。',
+          h2: '1時間50分の哲学講義を、読み返したくなる一枚に。',
           a: [
             '結論は赤ペンで一行',
             '要所の場面をそのまま',
-            '見る価値をスタンプで',
             '要点を数行で',
-            '話の流れをひと目で',
+            '見る価値と出どころ',
+            '核心の主張を赤丸で',
+            '時刻から、その場面へ',
           ],
-          h3: 'アイデアも原文も、紙の上に。',
-          h4: 'ライトでもダークでも、ブラウザの言語で。',
+          h3: '誰が何を言ったか、本人の言葉で。',
+          h4: 'あなたの言語で、ライトでもダークでも。',
           h5: '動画はそのまま。ノートは裏で書き上がる。',
           opt: '任意 · 初期設定はオフ',
           foot: 'Ithaca テーマと合わせて',
+          credit: '例：David Chalmers「Sarah Douglas Lecture in Philosophy and AI」UC Berkeley（CC BY）',
           bridge: 'en',
         },
       };
@@ -400,13 +410,17 @@
       document.querySelectorAll('[data-t]').forEach((el) => (el.textContent = c[el.dataset.t]));
       document
         .querySelectorAll('.note')
-        .forEach((el) => (el.style.backgroundImage = `url(note/webb-${lang}.png)`));
-      document.getElementById('pieces').style.backgroundImage = `url(note/webb-pieces-${lang}.png)`;
-      document.getElementById('pop-1').src = `popup/popup-current-${lang}-light.png`;
-      document.getElementById('pop-a').src = `popup/popup-current-${lang}-light.png`;
-      document.getElementById('pop-b').src = `popup/popup-current-${lang}-dark.png`;
+        .forEach((el) => (el.style.backgroundImage = `url(note/chalmers-top-${lang}.png)`));
+      document.getElementById('pop-1').src = `popup/popup-chalmers-${lang}.png`;
+      document.getElementById('claim').src = `note/chalmers-claim-${lang}.png`;
+      document.getElementById('chat').src = `note/chalmers-chat-${lang}.png`;
+      document.getElementById('receipt').src = `note/chalmers-receipt-${lang}.png`;
+      document
+        .querySelectorAll('[data-strip]')
+        .forEach((el) => (el.src = `note/chalmers-strip-${el.dataset.strip}.png`));
       document.getElementById('pop-s').src = `popup/popup-settings-${lang}-light.png`;
       document.getElementById('bridge').src = `note/bridge-settings-${c.bridge}.png`;
+      if (shot === '5') document.querySelector('.credit').remove();
 
       const NS = 'http://www.w3.org/2000/svg';
       const LINE = '#ecbf84';
@@ -457,44 +471,67 @@
         section.appendChild(el);
       }
 
-      if (shot === '2') {
-        // Anchors as fractions of note/webb-<lang>.png, measured from element boxes on the capture.
-        const box = document.getElementById('anat').getBoundingClientRect();
-        const at = (fx, fy) => [box.left + fx * box.width, box.top + fy * box.height];
-        const svg = document.getElementById('anat-lines');
-        const sec = svg.parentElement;
-        const L = box.left - 26;
-        const R = box.right + 26;
-        // zh_CN: older capture with photo timestamps, so the last mark is a red-pen ring on one.
-        // en/ja: current plugin output (one cover, no timestamp above the fold), so it points at the flow line.
-        const RING = lang === 'zh_CN' ? [0.33, 0.488] : null;
-        const marks = RING
-          ? [
-              { a: at(0.05, 0.235), side: 'left', y: at(0, 0.235)[1] },
-              { a: at(0.17, 0.4), side: 'left', y: at(0, 0.42)[1] },
-              { a: at(0.935, 0.33), side: 'right', y: at(0, 0.33)[1] },
-              { a: at(0.035, 0.62), side: 'left', y: at(0, 0.66)[1] },
-              { a: at(RING[0], RING[1]), side: 'right', y: at(0, 0.6)[1] },
-            ]
-          : [
-              { a: at(0.05, 0.227), side: 'left', y: at(0, 0.227)[1] },
-              { a: at(0.3, 0.45), side: 'left', y: at(0, 0.45)[1] },
-              { a: at(0.938, 0.319), side: 'right', y: at(0, 0.319)[1] },
-              { a: at(0.035, 0.787), side: 'left', y: at(0, 0.787)[1] },
-              { a: at(lang === 'ja' ? 0.885 : 0.81, 0.952), side: 'right', y: at(0, 0.952)[1] },
-            ];
-        marks.forEach((m, i) => {
-          const x = m.side === 'left' ? L : R;
-          label(sec, c.a[i], m.side === 'left' ? x - 10 : x + 10, m.y, m.side);
-          // On zh_CN the last one ends at the red-pen ring instead of a dot.
-          if (i === 4 && RING) line(svg, x, m.y, m.a[0] + 26, m.a[1] + 6, true, false);
-          else line(svg, x, m.y, m.a[0], m.a[1]);
-        });
-        if (RING) {
-          const t = at(RING[0], RING[1]);
-          ring(svg, t[0], t[1], 23, 11);
-        }
+      /** A pointer, tip at (x, y). */
+      function pointer(svg, x, y) {
+        const p = document.createElementNS(NS, 'path');
+        p.setAttribute('d', `M${x} ${y} l0 21 l5.2 -5 l3.6 8.4 l3.4 -1.5 l-3.6 -8.2 l7.2 0 z`);
+        p.setAttribute('fill', '#111');
+        p.setAttribute('stroke', '#fff');
+        p.setAttribute('stroke-width', '1.4');
+        p.setAttribute('stroke-linejoin', 'round');
+        svg.appendChild(p);
       }
+
+      if (shot === '3')
+        window.addEventListener('load', () => {
+          // The receipt overlaps the foot of the chat card, whatever its height.
+          const chat = document.getElementById('chat').getBoundingClientRect();
+          const rb = document.getElementById('receipt-box');
+          rb.style.width = '440px';
+          rb.style.top = `${Math.min(Math.max(chat.bottom - 150, 380), 690 - rb.offsetHeight)}px`;
+        });
+
+      if (shot === '2')
+        window.addEventListener('load', () => {
+          // Anchors as fractions of note/chalmers-top-<lang>.png and note/chalmers-claim-<lang>.png.
+          const box = document.getElementById('anat').getBoundingClientRect();
+          const at = (fx, fy) => [box.left + fx * box.width, box.top + fy * box.height];
+          const cb = document.getElementById('claim').getBoundingClientRect();
+          // The claim slip is rotated -2deg about its centre.
+          const th = (-2 * Math.PI) / 180;
+          const cx = cb.left + cb.width / 2;
+          const cy = cb.top + cb.height / 2;
+          const el = document.getElementById('claim');
+          const w = el.offsetWidth;
+          const h = el.offsetHeight;
+          const onClaim = (fx, fy) => {
+            const dx = (fx - 0.5) * w;
+            const dy = (fy - 0.5) * h;
+            return [cx + dx * Math.cos(th) - dy * Math.sin(th), cy + dx * Math.sin(th) + dy * Math.cos(th)];
+          };
+          const RING = { en: [0.05, 0.44], zh_CN: [0.05, 0.38], ja: [0.05, 0.44] }[lang];
+          const TIME = { en: [0.615, 0.73], zh_CN: [0.29, 0.62], ja: [0.785, 0.74] }[lang];
+          const svg = document.getElementById('anat-lines');
+          const sec = svg.parentElement;
+          const L = box.left - 26;
+          const R = Math.max(box.right, cb.right) + 26;
+          const ring = onClaim(...RING);
+          const time = onClaim(...TIME);
+          const marks = [
+            { a: at(0.035, 0.3), side: 'left', y: at(0, 0.3)[1] },
+            { a: at(0.12, 0.5), side: 'left', y: at(0, 0.5)[1] },
+            { a: at(0.037, 0.74), side: 'left', y: at(0, 0.74)[1] },
+            { a: at(0.86, 0.42), side: 'right', y: at(0, 0.42)[1] },
+            { a: ring, side: 'left', y: ring[1] + 6 },
+            { a: [time[0] + 12, time[1] + 16], side: 'right', y: time[1] + 34 },
+          ];
+          marks.forEach((m, i) => {
+            const x = m.side === 'left' ? L : R;
+            label(sec, c.a[i], m.side === 'left' ? x - 10 : x + 10, m.y, m.side);
+            line(svg, x, m.y, m.a[0], m.a[1], false, i !== 5);
+          });
+          pointer(svg, time[0], time[1]);
+        });
       if (shot === '5')
         window.addEventListener('load', () => {
           const svg = document.getElementById('pair-lines');
