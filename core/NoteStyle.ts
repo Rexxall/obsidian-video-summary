@@ -227,12 +227,14 @@ export function linkTimestamps(note: string, url: string | undefined): string {
         ? part
         : part
             // Two times written side by side ([01:41][01:46]) would read as one number once linked.
-            .replace(/(\[\d{1,2}:\d{2}(?::\d{2})?\])(?=\[\d{1,2}:\d{2})/g, '$1 ')
+            .replace(/(\[\d{1,3}:\d{2}(?::\d{2})?\])(?=\[\d{1,3}:\d{2})/g, '$1 ')
             .replace(
-              /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—~〜～-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
-              (match: string, a: string, b: string, c: string | undefined) => {
+              /\[(\d{1,3}):(\d{2})(?::(\d{2}))?((?:\s*[–—~〜～-]\s*\d{1,3}:\d{2}(?::\d{2})?)?)\](?!\()/g,
+              (match: string, a: string, b: string, c: string | undefined, range: string) => {
                 const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
-                return `[${match.slice(1, -1)}](${link(seconds)})`;
+                // Models count past the hour in minutes ([87:30]); a reader expects 1:27:30.
+                const label = c || +a < 60 ? match.slice(1, -1) : `${clockOf(seconds)}${range}`;
+                return `[${label}](${link(seconds)})`;
               },
             ),
     )

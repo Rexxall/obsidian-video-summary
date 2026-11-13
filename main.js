@@ -194,11 +194,12 @@ function linkTimestamps(note, url) {
   const link = timeLinker(url);
   if (!link) return note;
   return note.split(/(^```[\s\S]*?^```)/m).map(
-    (part, index) => index % 2 === 1 ? part : part.replace(/(\[\d{1,2}:\d{2}(?::\d{2})?\])(?=\[\d{1,2}:\d{2})/g, "$1 ").replace(
-      /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—~〜～-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
-      (match, a, b, c) => {
+    (part, index) => index % 2 === 1 ? part : part.replace(/(\[\d{1,3}:\d{2}(?::\d{2})?\])(?=\[\d{1,3}:\d{2})/g, "$1 ").replace(
+      /\[(\d{1,3}):(\d{2})(?::(\d{2}))?((?:\s*[–—~〜～-]\s*\d{1,3}:\d{2}(?::\d{2})?)?)\](?!\()/g,
+      (match, a, b, c, range) => {
         const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
-        return `[${match.slice(1, -1)}](${link(seconds)})`;
+        const label = c || +a < 60 ? match.slice(1, -1) : `${clockOf(seconds)}${range}`;
+        return `[${label}](${link(seconds)})`;
       }
     )
   ).join("");

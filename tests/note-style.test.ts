@@ -96,6 +96,14 @@ test('a style saved from the old preset gets the labels of the note language too
   assert.equal(fillNoteStyle('用中文标签「原话」', { language: 'ja' }), '用中文标签「原话」');
 });
 
+test('times past the hour link too, and minutes past 60 read as hours', () => {
+  const url = 'https://www.youtube.com/watch?v=NNnIGh9g6fA';
+  assert.equal(linkTimestamps('- [87:30]', url), `- [1:27:30](${url}&t=5250)`);
+  assert.equal(linkTimestamps('- [104:41]', url), `- [1:44:41](${url}&t=6281)`);
+  assert.equal(linkTimestamps('- [1:44:41]', url), `- [1:44:41](${url}&t=6281)`);
+  assert.equal(linkTimestamps('- [59:59]', url), `- [59:59](${url}&t=3599)`);
+});
+
 test('a writing style changes the cache version, so notes in an old style are not reused', () => {
   assert.equal(promptVersionFor(''), NOTE_PROMPT_VERSION);
   assert.equal(promptVersionFor('   '), NOTE_PROMPT_VERSION);
