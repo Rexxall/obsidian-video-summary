@@ -240,7 +240,10 @@ export function modelErrorText(status: number, body = ''): string {
  */
 /** OpenAI reasoning models (o-series, gpt-5 and later); keep in step with backend/init/configure.mjs. */
 export function isReasoningModel(model: string | undefined): boolean {
-  const name = (model ?? '').trim().toLowerCase().replace(/^openai\//, '');
+  const name = (model ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^openai\//, '');
   return /^(o\d|gpt-([5-9]|\d{2,}))/.test(name);
 }
 

@@ -208,7 +208,10 @@ export function publicStatus(config) {
 }
 
 export function isReasoningModel(model) {
-  const name = String(model ?? '').trim().toLowerCase().replace(/^openai\//, '');
+  const name = String(model ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^openai\//, '');
   return /^(o\d|gpt-([5-9]|\d{2,}))/.test(name);
 }
 

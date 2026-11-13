@@ -6,3 +6,6 @@ data/
 backend/workflows/
 *.tgz
 browser-extension/vendor/
+.impeccable/
+# Kept byte for byte with the shared signature layer (check-signature.py)
+styles/ap-signature.css

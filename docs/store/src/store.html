@@ -96,7 +96,9 @@
         top: 40px;
         right: 64px;
         z-index: 5;
-        font: italic 400 30px/1 IDisp, serif;
+        font:
+          italic 400 30px/1 IDisp,
+          serif;
         letter-spacing: -0.02em;
       }
       h1 {
@@ -174,7 +176,9 @@
         border-radius: 13px;
         background: var(--cream);
         color: #7a2216;
-        font: 500 27px/1 -apple-system, sans-serif;
+        font:
+          500 27px/1 -apple-system,
+          sans-serif;
         box-shadow:
           0 1px 0 rgb(255 255 255 / 0.4) inset,
           0 3px 0 #c9a882,
@@ -255,7 +259,11 @@
         data-t="h2"
         style="top: 96px; left: 0; width: 1280px; text-align: center; font-size: 52px"
       ></h1>
-      <div id="anat" class="sheet note" style="left: 290px; top: 196px; width: 700px; height: 460px"></div>
+      <div
+        id="anat"
+        class="sheet note"
+        style="left: 290px; top: 196px; width: 700px; height: 460px"
+      ></div>
       <svg class="lines" id="anat-lines"></svg>
     </section>
 
@@ -314,7 +322,13 @@
       const COPY = {
         en: {
           lang: 'en',
-          nums: ['01 · Capture', '02 · The note', '03 · Paper pieces', '04 · The popup', '05 · Background'],
+          nums: [
+            '01 · Capture',
+            '02 · The note',
+            '03 · Paper pieces',
+            '04 · The popup',
+            '05 · Background',
+          ],
           h1: 'One press sends the video, the moment and its captions.',
           h2: 'A note built to be reread.',
           a: [
@@ -336,7 +350,13 @@
           nums: ['01 · 一键送出', '02 · 笔记', '03 · 手账小件', '04 · 弹窗', '05 · 后台发送'],
           h1: '一键送出视频、此刻的时间和字幕。',
           h2: '做成值得重读的样子。',
-          a: ['一句红笔结论', '关键时刻的画面', '值不值得看，盖章为证', '几行讲清要点', '每个时间都能跳回那一秒'],
+          a: [
+            '一句红笔结论',
+            '关键时刻的画面',
+            '值不值得看，盖章为证',
+            '几行讲清要点',
+            '每个时间都能跳回那一秒',
+          ],
           h3: '想法和原话，都落在纸上。',
           h4: '浅色深色，跟着浏览器的语言。',
           h5: '继续看视频，Obsidian 在后台写笔记。',
@@ -346,10 +366,22 @@
         },
         ja: {
           lang: 'ja',
-          nums: ['01 · ワンキー送信', '02 · ノート', '03 · 紙の小物', '04 · ポップアップ', '05 · バックグラウンド'],
+          nums: [
+            '01 · ワンキー送信',
+            '02 · ノート',
+            '03 · 紙の小物',
+            '04 · ポップアップ',
+            '05 · バックグラウンド',
+          ],
           h1: 'ひと押しで、動画と再生位置と字幕を送る。',
           h2: '読み返すためのノート。',
-          a: ['結論は赤ペンで一行', '要所の場面をそのまま', '見る価値をスタンプで', '要点を数行で', '時刻を押せばその場面へ'],
+          a: [
+            '結論は赤ペンで一行',
+            '要所の場面をそのまま',
+            '見る価値をスタンプで',
+            '要点を数行で',
+            '時刻を押せばその場面へ',
+          ],
           h3: 'アイデアも原文も、紙の上に。',
           h4: 'ライトでもダークでも、ブラウザの言語で。',
           h5: '動画はそのまま。ノートは裏で書き上がる。',
@@ -457,7 +489,14 @@
           const svg = document.getElementById('pair-lines');
           const a = document.getElementById('pop-s').getBoundingClientRect();
           const b = document.getElementById('bridge-box').getBoundingClientRect();
-          line(svg, a.right - 10, a.top + a.height * 0.38, b.left + b.width * 0.45, b.top + 8, true);
+          line(
+            svg,
+            a.right - 10,
+            a.top + a.height * 0.38,
+            b.left + b.width * 0.45,
+            b.top + 8,
+            true,
+          );
         });
     </script>
   </body>
