@@ -11,7 +11,11 @@ export interface OEmbedInfo {
 export function isPlaceholderTitle(title: string | undefined, url: string | undefined): boolean {
   const text = (title || '').trim();
   if (!text) return true;
-  return !!url && text === titleForUrl(url);
+  if (!url) return false;
+  // The inbox and the link parser name a note after the video id (YouTube视频_<id>,
+  // "YouTube <id>"); a video's own title does not carry its id.
+  const id = youTubeVideoId(url);
+  return text === titleForUrl(url) || (!!id && text.includes(id));
 }
 
 /**

@@ -43,5 +43,6 @@ test('a failed lookup or a link that is not YouTube changes nothing', async () =
 test('only a title the plugin made up from the link counts as missing', () => {
   assert.equal(isPlaceholderTitle('YouTube视频_6VqG3Jazrfs', URL), true);
   assert.equal(isPlaceholderTitle('', URL), true);
+  assert.equal(isPlaceholderTitle('YouTube 6VqG3Jazrfs', URL), true);
   assert.equal(isPlaceholderTitle('My own title', URL), false);
 });

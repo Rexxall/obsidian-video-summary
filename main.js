@@ -17826,7 +17826,9 @@ async function modelConfigFingerprint(config) {
 function isPlaceholderTitle(title, url) {
   const text2 = (title || "").trim();
   if (!text2) return true;
-  return !!url && text2 === titleForUrl(url);
+  if (!url) return false;
+  const id = youTubeVideoId(url);
+  return text2 === titleForUrl(url) || !!id && text2.includes(id);
 }
 async function youTubeOEmbed(url, get) {
   const id = youTubeVideoId(url);
