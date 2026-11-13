@@ -1,5 +1,7 @@
 <p align="right"><a href="README.zh-CN.md">中文</a> · <a href="README.ja.md">日本語</a></p>
 
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/icon-dark.svg"><img src="assets/readme/icon-light.svg" width="96" height="96" alt="Video Summary icon"></picture></p>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg">
   <img src="assets/readme/hero-light.svg" width="100%" alt="Video Summary: paste a video link, get a finished note. A finished job for a TED talk above the note it wrote, with a summary and key points.">

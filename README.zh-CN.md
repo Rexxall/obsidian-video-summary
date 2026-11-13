@@ -1,5 +1,7 @@
 <p align="right"><a href="README.md">English</a> · <a href="README.ja.md">日本語</a></p>
 
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/icon-dark.svg"><img src="assets/readme/icon-light.svg" width="96" height="96" alt="Video Summary icon"></picture></p>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-zh-dark.svg">
   <img src="assets/readme/hero-zh-light.svg" width="100%" alt="Video Summary：贴一个视频链接，拿到一篇整理好的笔记。上面是一条 TED 演讲的完成任务，下面是它写出的笔记：总结和要点。">

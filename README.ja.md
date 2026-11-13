@@ -1,5 +1,7 @@
 <div align="center">
 
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/icon-dark.svg"><img src="assets/readme/icon-light.svg" width="96" height="96" alt="Video Summary icon"></picture>
+
 # Video Summary
 
 **動画のリンク、手元の録音・録画、または文字起こしから、要約・タイムスタンプ付き文字起こし・要点をまとめた Obsidian ノートを作ります。**
