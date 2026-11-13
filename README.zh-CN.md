@@ -9,10 +9,7 @@
 
 <p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>在 Obsidian 里安装</b></a></p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/demo-dark.gif">
-  <img src="assets/readme/demo-light.gif" width="100%" alt="在 Video Summary 侧栏贴一个 YouTube 链接，点 Start。任务先显示处理中，一分钟左右变成完成。点开任务，标题下就是“打开笔记”，新笔记打开后最上面是总结，下面是要点和三个角色的表格。">
-</picture>
+<img src="assets/readme/demo.webp" width="100%" alt="在 Video Summary 侧栏贴一个 YouTube 链接，点 Start。任务完成后，从“最近完成”点开新笔记，页面往下滚，依次是关键帧、总结和带时间的要点。">
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cards-zh-dark.svg">

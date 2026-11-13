@@ -9,10 +9,7 @@
 
 <p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>Install from Obsidian</b></a></p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/demo-dark.gif">
-  <img src="assets/readme/demo-light.gif" width="100%" alt="A YouTube link is pasted into the Video Summary side panel and Start is pressed. The job shows Processing, then Done after about a minute. Its details open with Open note under the title, and the new note opens with a Summary callout, key points and a table of the talk's three characters.">
-</picture>
+<img src="assets/readme/demo.webp" width="100%" alt="In the Video Summary side panel, a YouTube link is pasted and Start is pressed. The job finishes, the new note opens from Recently finished, and the page scrolls through its key frames, summary and timestamped points.">
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cards-dark.svg">
