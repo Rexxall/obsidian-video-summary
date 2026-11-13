@@ -138,7 +138,12 @@
     "message": "See all"
   },
   "queueEmpty": {
-    "message": "Queue videos with ⌃Z or the right-click menu."
+    "message": "Queue videos with $KEY$ or the right-click menu.",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
   },
   "back": {
     "message": "Back"
@@ -409,5 +414,8 @@
   },
   "errBridgeFormat": {
     "message": "That is not a pairing code. It starts with vsb1."
+  },
+  "queueEmptyNoKey": {
+    "message": "Queue videos from the right-click menu."
   }
 }

@@ -280,7 +280,11 @@
         class="sheet note"
         style="left: 250px; top: 190px; width: 640px; height: 420px"
       ></div>
-      <div class="sheet" id="claim-box" style="left: 500px; top: 528px; width: 520px; transform: rotate(-2deg)">
+      <div
+        class="sheet"
+        id="claim-box"
+        style="left: 500px; top: 528px; width: 520px; transform: rotate(-2deg)"
+      >
         <img id="claim" alt="" />
       </div>
       <svg class="lines" id="anat-lines"></svg>
@@ -304,9 +308,21 @@
         data-t="h4"
         style="top: 92px; left: 0; width: 1280px; text-align: center; font-size: 50px"
       ></h1>
-      <div class="sheet strip" style="left: 150px; top: 186px; width: 300px; height: 500px; transform: rotate(-1.5deg)"><img data-strip="en-light" alt="" /></div>
-      <div class="sheet strip" style="left: 490px; top: 180px; width: 300px; height: 500px"><img data-strip="zh_CN-light" alt="" /></div>
-      <div class="sheet strip" style="left: 830px; top: 186px; width: 300px; height: 500px; transform: rotate(1.5deg)"><img data-strip="ja-dark" alt="" /></div>
+      <div
+        class="sheet strip"
+        style="left: 150px; top: 186px; width: 300px; height: 500px; transform: rotate(-1.5deg)"
+      >
+        <img data-strip="en-light" alt="" />
+      </div>
+      <div class="sheet strip" style="left: 490px; top: 180px; width: 300px; height: 500px">
+        <img data-strip="zh_CN-light" alt="" />
+      </div>
+      <div
+        class="sheet strip"
+        style="left: 830px; top: 186px; width: 300px; height: 500px; transform: rotate(1.5deg)"
+      >
+        <img data-strip="ja-dark" alt="" />
+      </div>
     </section>
 
     <section class="shot" data-shot="5">
@@ -337,7 +353,13 @@
       const COPY = {
         en: {
           lang: 'en',
-          nums: ['01 · Capture', '02 · The note', '03 · Who said it', '04 · Languages', '05 · Background'],
+          nums: [
+            '01 · Capture',
+            '02 · The note',
+            '03 · Who said it',
+            '04 · Languages',
+            '05 · Background',
+          ],
           h1: 'One press sends the lecture, the moment and its captions.',
           h2: '1 h 50 min of philosophy, one page you’ll reread.',
           a: [
@@ -375,12 +397,19 @@
           h5: '继续看视频，Obsidian 在后台写笔记。',
           opt: '可选 · 默认关闭',
           foot: '搭配 Ithaca 主题',
-          credit: '示例：David Chalmers，Sarah Douglas Lecture in Philosophy and AI，UC Berkeley（CC BY）',
+          credit:
+            '示例：David Chalmers，Sarah Douglas Lecture in Philosophy and AI，UC Berkeley（CC BY）',
           bridge: 'zh',
         },
         ja: {
           lang: 'ja',
-          nums: ['01 · ワンキー送信', '02 · ノート', '03 · 発言', '04 · 言語', '05 · バックグラウンド'],
+          nums: [
+            '01 · ワンキー送信',
+            '02 · ノート',
+            '03 · 発言',
+            '04 · 言語',
+            '05 · バックグラウンド',
+          ],
           h1: 'ひと押しで、講義と再生位置と字幕を送る。',
           h2: '1時間50分の哲学講義を、読み返したくなる一枚に。',
           a: [
@@ -396,7 +425,8 @@
           h5: '動画はそのまま。ノートは裏で書き上がる。',
           opt: '任意 · 初期設定はオフ',
           foot: 'Ithaca テーマと合わせて',
-          credit: '例：David Chalmers「Sarah Douglas Lecture in Philosophy and AI」UC Berkeley（CC BY）',
+          credit:
+            '例：David Chalmers「Sarah Douglas Lecture in Philosophy and AI」UC Berkeley（CC BY）',
           bridge: 'en',
         },
       };
@@ -507,7 +537,10 @@
           const onClaim = (fx, fy) => {
             const dx = (fx - 0.5) * w;
             const dy = (fy - 0.5) * h;
-            return [cx + dx * Math.cos(th) - dy * Math.sin(th), cy + dx * Math.sin(th) + dy * Math.cos(th)];
+            return [
+              cx + dx * Math.cos(th) - dy * Math.sin(th),
+              cy + dx * Math.sin(th) + dy * Math.cos(th),
+            ];
           };
           const RING = { en: [0.05, 0.44], zh_CN: [0.05, 0.38], ja: [0.05, 0.44] }[lang];
           const TIME = { en: [0.615, 0.73], zh_CN: [0.29, 0.62], ja: [0.785, 0.74] }[lang];

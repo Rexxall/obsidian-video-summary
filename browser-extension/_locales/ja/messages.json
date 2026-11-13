@@ -138,7 +138,12 @@
     "message": "すべて"
   },
   "queueEmpty": {
-    "message": "動画で ⌃Z を押すか、右クリックメニューでキューに追加できます。"
+    "message": "動画で $KEY$ を押すか、右クリックメニューでキューに追加できます。",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
   },
   "back": {
     "message": "戻る"
@@ -409,5 +414,8 @@
   },
   "errBridgeFormat": {
     "message": "ペアリングコードではありません。vsb1. で始まります。"
+  },
+  "queueEmptyNoKey": {
+    "message": "右クリックメニューで動画をキューに追加できます。"
   }
 }

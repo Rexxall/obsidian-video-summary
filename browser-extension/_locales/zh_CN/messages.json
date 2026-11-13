@@ -138,7 +138,12 @@
     "message": "全部"
   },
   "queueEmpty": {
-    "message": "在视频上按 ⌃Z 或用右键菜单加入队列。"
+    "message": "在视频上按 $KEY$ 或用右键菜单加入队列。",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
   },
   "back": {
     "message": "返回"
@@ -409,5 +414,8 @@
   },
   "errBridgeFormat": {
     "message": "这不是配对码，配对码以 vsb1. 开头。"
+  },
+  "queueEmptyNoKey": {
+    "message": "在视频上用右键菜单加入队列。"
   }
 }

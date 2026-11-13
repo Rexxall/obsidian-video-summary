@@ -237,9 +237,13 @@ function renderQueue() {
   fillQueue(els.queuePreview, [...state.queue].reverse().slice(0, 3));
 }
 
+// The queue shortcut as this browser has it (Chrome lets people change or clear it).
+let queueShortcut = '';
+
 function fillQueue(list, items) {
   if (items.length === 0) {
-    list.replaceChildren(element('div', { className: 'empty', textContent: t('queueEmpty') }));
+    const hint = queueShortcut ? t('queueEmpty', queueShortcut) : t('queueEmptyNoKey');
+    list.replaceChildren(element('div', { className: 'empty', textContent: hint }));
     return;
   }
   list.replaceChildren();
@@ -572,6 +576,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const edge = () => header.classList.toggle('scrolled', window.scrollY > 0);
   window.addEventListener('scroll', edge, { passive: true });
   edge();
+  try {
+    const commands = await chrome.commands.getAll();
+    queueShortcut =
+      commands.find((command) => command.name === 'queue_current_video')?.shortcut || '';
+  } catch {
+    queueShortcut = '';
+  }
   try {
     await refreshState();
   } catch (error) {
