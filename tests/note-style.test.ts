@@ -79,6 +79,19 @@ test('a style saved from the old preset gets the labels of the note language too
   const ja = fillNoteStyle(LEGACY_ITHACA_NOTE_STYLE, { language: 'ja' });
   assert.doesNotMatch(ja, /值得看|核心摘要|原话|行动清单/);
   assert.match(ja, /必見/);
+  assert.equal(
+    fillNoteStyle(LEGACY_ITHACA_NOTE_STYLE, { language: 'zh' }),
+    fillNoteStyle(ITHACA_NOTE_STYLE, { language: 'zh' }),
+  );
+  // An earlier preset with single receipts, kept by some vaults, is upgraded too.
+  const older = 'Quotes: "> [!receipt] 原话" callouts. Title "核心摘要". "> [!todo] 行动清单"';
+  const olderJa = fillNoteStyle(
+    older.replace('Title "核心摘要".', 'The summary callout is titled "核心摘要".'),
+    {
+      language: 'ja',
+    },
+  );
+  assert.doesNotMatch(olderJa, /原话|核心摘要|行动清单/);
   // A style the reader wrote is left as written.
   assert.equal(fillNoteStyle('用中文标签「原话」', { language: 'ja' }), '用中文标签「原话」');
 });

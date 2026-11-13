@@ -69,6 +69,22 @@ export interface NoteStyleValues {
   language?: SupportedLanguage;
 }
 
+/** Label phrases as the earlier Ithaca presets wrote them, and what replaced them. */
+const LEGACY_LABEL_PHRASES: [string, string][] = [
+  [
+    '<span class="ih-sticker">值得看</span> (or 可略读 / 可跳过, by your attention judgement; add class is-red only for 值得看)',
+    '<span class="ih-sticker">{{sticker_watch}}</span> (or {{sticker_skim}} / {{sticker_skip}}, by your attention judgement; add class is-red only for {{sticker_watch}})',
+  ],
+  [
+    'The summary callout is titled "核心摘要".',
+    'The summary callout is titled "{{summary_title}}".',
+  ],
+  ['<span class="ih-arrow">所以</span>', '<span class="ih-arrow">{{arrow_word}}</span>'],
+  ['"> [!todo] 行动清单"', '"> [!todo] {{todo_title}}"'],
+  ['"> > [!receipt] 原话"', '"> > [!receipt] {{quote_label}}"'],
+  ['"> [!receipt] 原话"', '"> [!receipt] {{quote_label}}"'],
+];
+
 /** Words the Ithaca style puts on the page, in the language of the note. */
 export const NOTE_STYLE_LABELS: Record<SupportedLanguage, Record<string, string>> = {
   zh: {
@@ -104,8 +120,10 @@ export const NOTE_STYLE_LABELS: Record<SupportedLanguage, Record<string, string>
 export function fillNoteStyle(style: string | undefined, values: NoteStyleValues): string {
   let text = (style || '').trim();
   if (!text) return '';
-  // A copy of the old preset kept in settings is the preset, not the reader's own writing.
-  if (text === LEGACY_ITHACA_NOTE_STYLE) text = ITHACA_NOTE_STYLE;
+  // Copies of the earlier presets kept in settings name their labels in Chinese; those exact
+  // phrases become placeholders, so the reader's own edits elsewhere stay as written.
+  for (const [phrase, placeholder] of LEGACY_LABEL_PHRASES)
+    text = text.split(phrase).join(placeholder);
   const labels = NOTE_STYLE_LABELS[values.language || 'zh'] || NOTE_STYLE_LABELS.zh;
   const clean = (value: string | undefined) => (value || '').replace(/[<>\n]/g, ' ').trim();
   return text

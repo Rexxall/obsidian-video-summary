@@ -78,6 +78,20 @@ var LEGACY_ITHACA_NOTE_STYLE = [
   '- Last line of the note, a paragraph of its own: <span class="ih-barcode">{{duration}} \xB7 {{video_id}}</span> (leave out an empty part).',
   '- Put <span class="ih-circ">...</span> around the single most important phrase, once. ==highlight== at most two other phrases.'
 ].join("\n");
+var LEGACY_LABEL_PHRASES = [
+  [
+    '<span class="ih-sticker">\u503C\u5F97\u770B</span> (or \u53EF\u7565\u8BFB / \u53EF\u8DF3\u8FC7, by your attention judgement; add class is-red only for \u503C\u5F97\u770B)',
+    '<span class="ih-sticker">{{sticker_watch}}</span> (or {{sticker_skim}} / {{sticker_skip}}, by your attention judgement; add class is-red only for {{sticker_watch}})'
+  ],
+  [
+    'The summary callout is titled "\u6838\u5FC3\u6458\u8981".',
+    'The summary callout is titled "{{summary_title}}".'
+  ],
+  ['<span class="ih-arrow">\u6240\u4EE5</span>', '<span class="ih-arrow">{{arrow_word}}</span>'],
+  ['"> [!todo] \u884C\u52A8\u6E05\u5355"', '"> [!todo] {{todo_title}}"'],
+  ['"> > [!receipt] \u539F\u8BDD"', '"> > [!receipt] {{quote_label}}"'],
+  ['"> [!receipt] \u539F\u8BDD"', '"> [!receipt] {{quote_label}}"']
+];
 var NOTE_STYLE_LABELS = {
   zh: {
     sticker_watch: "\u503C\u5F97\u770B",
@@ -110,7 +124,8 @@ var NOTE_STYLE_LABELS = {
 function fillNoteStyle(style, values) {
   let text2 = (style || "").trim();
   if (!text2) return "";
-  if (text2 === LEGACY_ITHACA_NOTE_STYLE) text2 = ITHACA_NOTE_STYLE;
+  for (const [phrase, placeholder] of LEGACY_LABEL_PHRASES)
+    text2 = text2.split(phrase).join(placeholder);
   const labels = NOTE_STYLE_LABELS[values.language || "zh"] || NOTE_STYLE_LABELS.zh;
   const clean2 = (value) => (value || "").replace(/[<>\n]/g, " ").trim();
   return text2.replace(
