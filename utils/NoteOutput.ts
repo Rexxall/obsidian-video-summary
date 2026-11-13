@@ -26,8 +26,8 @@ export function transcriptFoldTitle(note: string | undefined): string {
   const kana = (text.match(/[\u3040-\u30ff]/g) || []).length;
   const han = (text.match(/[\u4e00-\u9fff]/g) || []).length;
   const latin = (text.match(/[A-Za-z]/g) || []).length;
-  if (kana && kana * 10 >= han) return '文字起こし';
   if (latin && latin > (han + kana) * 4) return 'Transcript';
+  if (kana && kana * 10 >= han) return '文字起こし';
   return '原始文稿';
 }
 

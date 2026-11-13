@@ -58,6 +58,12 @@ void test('the transcript is a folded quote at the end of the note and reads bac
     video_transcript: RESULT.video_transcript,
   });
   assert.match(en, /> \[!quote\]- Transcript\n/);
+  // One Japanese line (a subtitle) in an English note does not make it Japanese.
+  const enWithLine = writeCleanVideoBody('', {
+    note: '<span class="ih-sub">ウェッブは赤外線で初期銀河を調べる望遠鏡である。</span>\n\n> [!summary] Summary\n> The James Webb Space Telescope is presented as an engineering undertaking built to expand our view of the universe. Its ambitions depend on solving linked problems of light collection, cold and deployment.',
+    video_transcript: RESULT.video_transcript,
+  });
+  assert.match(enWithLine, /> \[!quote\]- Transcript\n/);
   assert.equal(readTranscriptFold(en), RESULT.video_transcript);
   assert.equal(readTranscriptFold('no block here'), null);
 });

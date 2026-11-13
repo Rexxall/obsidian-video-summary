@@ -2769,8 +2769,8 @@ function transcriptFoldTitle(note) {
   const kana = (text2.match(/[\u3040-\u30ff]/g) || []).length;
   const han = (text2.match(/[\u4e00-\u9fff]/g) || []).length;
   const latin = (text2.match(/[A-Za-z]/g) || []).length;
-  if (kana && kana * 10 >= han) return "\u6587\u5B57\u8D77\u3053\u3057";
   if (latin && latin > (han + kana) * 4) return "Transcript";
+  if (kana && kana * 10 >= han) return "\u6587\u5B57\u8D77\u3053\u3057";
   return "\u539F\u59CB\u6587\u7A3F";
 }
 function renderTranscriptFold(transcript, title = "\u539F\u59CB\u6587\u7A3F") {
