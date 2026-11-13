@@ -61,6 +61,14 @@ export function buildNotePrompt(input) {
     : [];
   const transcript = String(input.transcript || '');
   const long = transcript.length > 12000;
+  // Length follows the video: about 150 characters a minute, from 800 up to 3,000.
+  const lastSecond = segments.reduce(function (most, segment) {
+    const end = Number(segment.end);
+    const start = Number(segment.start);
+    return Math.max(most, Number.isFinite(end) ? end : Number.isFinite(start) ? start : 0);
+  }, 0);
+  const minutes = lastSecond > 0 ? lastSecond / 60 : transcript.length / 900;
+  const budget = Math.min(3000, Math.max(800, Math.round((minutes * 150) / 100) * 100));
   function clock(seconds) {
     const total = Math.max(0, Math.floor(Number(seconds) || 0));
     const minutes = Math.floor(total / 60);
@@ -124,11 +132,12 @@ export function buildNotePrompt(input) {
     '- Write 3 to 6 central concepts as [[wiki links]] the first time they appear (links to notes the reader does not have are turned back into text).',
     '- Put the time like [12:34] after the bullet or line it supports, when the transcript has times.',
     '- Put a space between Chinese or Japanese text and Latin words or numbers. Formulas in $...$; code in fenced blocks with the language named.',
-    '- Length: at most about ' +
-      (long
-        ? '1,500 Chinese or Japanese characters (900 English words)'
-        : '800 Chinese or Japanese characters (500 English words)') +
-      ' of text; diagrams and tables are not counted.',
+    '- Length: about ' +
+      String(budget) +
+      ' Chinese or Japanese characters (' +
+      String(Math.round(budget * 0.6)) +
+      ' English words) of text; diagrams and tables are not counted. Use the room for substance, not padding.',
+    '- Keep every concrete story, example, case or number the speaker uses to make a point, each with its time; these are what make the note worth rereading. Cut repetition and filler before cutting them.',
     "- The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
     '- Write "' + lang.missing + '" only where a fact the reader would expect is not in the video.',
   ];

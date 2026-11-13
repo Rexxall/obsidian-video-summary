@@ -39,7 +39,7 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 
 // core/NoteStyle.ts
-var NOTE_PROMPT_VERSION = "video-note-prompt-v6";
+var NOTE_PROMPT_VERSION = "video-note-prompt-v7";
 var ITHACA_NOTE_STYLE = [
   'The vault uses the theme "Ithaca \u6574\u672C\u624B\u8D26". Its elements are drawn as paper, stamps and pen on the page; use them where they fit and skip any that do not.',
   "Order: postmark and sticker, photo wall, summary, diagram, body, pinned notes, quotes, barcode.",
@@ -127,7 +127,7 @@ function linkTimestamps(note, url) {
   if (!link) return note;
   return note.split(/(^```[\s\S]*?^```)/m).map(
     (part, index) => index % 2 === 1 ? part : part.replace(
-      /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\](?!\()/g,
+      /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
       (match, a, b, c) => {
         const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
         return `[${match.slice(1, -1)}](${link(seconds)})`;
@@ -13036,11 +13036,18 @@ function buildNotePrompt(input) {
   }) : [];
   const transcript = String(input.transcript || "");
   const long = transcript.length > 12e3;
+  const lastSecond = segments.reduce(function(most, segment) {
+    const end = Number(segment.end);
+    const start = Number(segment.start);
+    return Math.max(most, Number.isFinite(end) ? end : Number.isFinite(start) ? start : 0);
+  }, 0);
+  const minutes = lastSecond > 0 ? lastSecond / 60 : transcript.length / 900;
+  const budget = Math.min(3e3, Math.max(800, Math.round(minutes * 150 / 100) * 100));
   function clock3(seconds) {
     const total = Math.max(0, Math.floor(Number(seconds) || 0));
-    const minutes = Math.floor(total / 60);
+    const minutes2 = Math.floor(total / 60);
     const rest = total % 60;
-    return (minutes < 10 ? "0" : "") + minutes + ":" + (rest < 10 ? "0" : "") + rest;
+    return (minutes2 < 10 ? "0" : "") + minutes2 + ":" + (rest < 10 ? "0" : "") + rest;
   }
   const transcriptText2 = segments.length ? segments.map(function(segment) {
     const time = Number.isFinite(Number(segment.start)) ? "[" + clock3(segment.start) + "] " : "";
@@ -13077,7 +13084,8 @@ function buildNotePrompt(input) {
     "- Write 3 to 6 central concepts as [[wiki links]] the first time they appear (links to notes the reader does not have are turned back into text).",
     "- Put the time like [12:34] after the bullet or line it supports, when the transcript has times.",
     "- Put a space between Chinese or Japanese text and Latin words or numbers. Formulas in $...$; code in fenced blocks with the language named.",
-    "- Length: at most about " + (long ? "1,500 Chinese or Japanese characters (900 English words)" : "800 Chinese or Japanese characters (500 English words)") + " of text; diagrams and tables are not counted.",
+    "- Length: about " + String(budget) + " Chinese or Japanese characters (" + String(Math.round(budget * 0.6)) + " English words) of text; diagrams and tables are not counted. Use the room for substance, not padding.",
+    "- Keep every concrete story, example, case or number the speaker uses to make a point, each with its time; these are what make the note worth rereading. Cut repetition and filler before cutting them.",
     "- The workflow does not receive video frames. Describe scenes, slides, code on screen or music only when the speaker describes them, and say that it is the speaker's description.",
     '- Write "' + lang.missing + '" only where a fact the reader would expect is not in the video.'
   ];

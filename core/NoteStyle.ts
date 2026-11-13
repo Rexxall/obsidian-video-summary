@@ -5,7 +5,7 @@
  */
 
 /** Bumped with the note prompt; the style is folded in so a new style never reuses old notes. */
-export const NOTE_PROMPT_VERSION = 'video-note-prompt-v6';
+export const NOTE_PROMPT_VERSION = 'video-note-prompt-v7';
 
 export interface NoteImage {
   url: string;
@@ -134,7 +134,7 @@ export function promptVersionFor(style: string | undefined): string {
   return `${NOTE_PROMPT_VERSION}+style-${(hash >>> 0).toString(16)}`;
 }
 
-/** Times written as [12:34] or [1:02:03] become links to that second of the video. */
+/** Times written as [12:34], [1:02:03] or a range like [00:26–00:52] become links to the (first) second. */
 export function linkTimestamps(note: string, url: string | undefined): string {
   const link = timeLinker(url);
   if (!link) return note;
@@ -145,7 +145,7 @@ export function linkTimestamps(note: string, url: string | undefined): string {
       index % 2 === 1
         ? part
         : part.replace(
-            /\[(\d{1,2}):(\d{2})(?::(\d{2}))?\](?!\()/g,
+            /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
             (match: string, a: string, b: string, c: string | undefined) => {
               const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
               return `[${match.slice(1, -1)}](${link(seconds)})`;

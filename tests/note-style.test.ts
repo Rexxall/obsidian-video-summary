@@ -42,6 +42,10 @@ test('times in a note link to that second of the video, outside code and diagram
   const bilibili = linkTimestamps('- [01:05]', 'https://www.bilibili.com/video/BV1xx411c7mD?p=2');
   assert.equal(bilibili, '- [01:05](https://www.bilibili.com/video/BV1xx411c7mD?p=2&t=65)');
   assert.equal(linkTimestamps('- [01:05]', undefined), '- [01:05]');
+  assert.equal(
+    linkTimestamps('- range [00:26–00:52]', 'https://www.youtube.com/watch?v=NNnIGh9g6fA'),
+    '- range [00:26–00:52](https://www.youtube.com/watch?v=NNnIGh9g6fA&t=26)',
+  );
 });
 
 test('a writing style changes the cache version, so notes in an old style are not reused', () => {
