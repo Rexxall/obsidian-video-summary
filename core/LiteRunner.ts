@@ -184,6 +184,7 @@ export async function runLiteJob(
                 date: stampDate(),
                 duration: meta.duration,
                 videoId: youTubeVideoId(sourceUrl) || '',
+                language,
               }),
             }
           : {}),

@@ -39,8 +39,27 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 
 // core/NoteStyle.ts
-var NOTE_PROMPT_VERSION = "video-note-prompt-v7";
+var NOTE_PROMPT_VERSION = "video-note-prompt-v8";
 var ITHACA_NOTE_STYLE = [
+  'The vault uses the theme "Ithaca \u6574\u672C\u624B\u8D26". Its elements are drawn as paper, stamps and pen on the page; use them where they fit and skip any that do not.',
+  "Order: postmark and sticker, photo wall, summary, diagram, body, pinned notes, quotes, barcode.",
+  '- First line of the note: <span class="ih-postmark">{{channel}}<br>{{date}}</span> followed in the same paragraph by one sticker <span class="ih-sticker">{{sticker_watch}}</span> (or {{sticker_skim}} / {{sticker_skip}}, by your attention judgement; add class is-red only for {{sticker_watch}}). The postmark lines hold at most 7 Chinese characters or 14 Latin letters each: shorten the channel name if needed. Leave the postmark out when the channel is empty.',
+  '- Then a photo wall of the pictures offered above: "> [!photos]" with one line per picture, "> - ![](url) caption", the caption being its time like [04:30] or a few words; cover first.',
+  '- Headings: no emoji; the theme numbers the ## headings itself. The summary callout is titled "{{summary_title}}".',
+  '- The single most important conclusion, or a misconception the video corrects: one "> [!important] <short title>" (black paper).',
+  '- The one or two best concrete examples: "> [!example] <short name>", 2 or 3 sentences each (taped slips).',
+  '- Stages in time (a story, a history, a career): "> [!timeline] <title>" with 2 to 6 lines "> - **<year or step>** <what happened>" (cards left and right). The title is required.',
+  '- An exchange between people (interviews, debates): "> [!chat] <show or topic>" with one line per turn, "> - **<speaker>\uFF1A** <words>", alternating sides; merge consecutive lines of the same speaker. The title is required. Use it for the best 4 to 8 turns, not the whole conversation.',
+  '- Old background (a date long ago, where an idea came from): "> [!old] <era>" with one short paragraph (yellowed paper). Short facts instead: footnotes [^1], which the theme moves into the margin.',
+  '- Where one block leads to the next (a cause, a so-what): a paragraph of its own, <span class="ih-arrow">{{arrow_word}}</span>, 2 to 8 characters; at most twice.',
+  '- Your own thoughts beside a line: <span class="ih-mg">a short sentence</span>; in red pen <span class="ih-mg is-red">\u2026</span> where the argument is weak or lacks evidence. At most three in all.',
+  '- Thoughts and things to try after the video: "> [!pinned]" with 2 to 4 lines, one sticky note each: "> - <the thought, at most 14 Chinese characters><br><one short line on why, or what to try>" (pinned sticky notes, laid out in a row like the receipts). Things to do from the video: "> [!todo] {{todo_title}}" with "- [ ]" items, only when the video gives them.',
+  "- The reader reads on a wide screen. The diagram: flowchart LR (left to right) for any flowchart up to 8 nodes, labels of at most 10 Chinese characters; flowchart TD only for a longer chain. A mindmap stays a mindmap.",
+  '- Quotes: 2 to 6 of them, set side by side as receipts: one "> [!receipts]" line, then each quote as its own nested callout, "> > [!receipt] {{quote_label}}" followed by "> > [12:34] the words" and, when the languages differ, "> > the translation". Put a line with only ">" between two receipts.',
+  '- Last line of the note, a paragraph of its own: <span class="ih-barcode">{{duration}} \xB7 {{video_id}}</span> (leave out an empty part).',
+  '- Put <span class="ih-circ">...</span> around the single most important phrase, once. ==highlight== at most two other phrases.'
+].join("\n");
+var LEGACY_ITHACA_NOTE_STYLE = [
   'The vault uses the theme "Ithaca \u6574\u672C\u624B\u8D26". Its elements are drawn as paper, stamps and pen on the page; use them where they fit and skip any that do not.',
   "Order: postmark and sticker, photo wall, summary, diagram, body, pinned notes, quotes, barcode.",
   '- First line of the note: <span class="ih-postmark">{{channel}}<br>{{date}}</span> followed in the same paragraph by one sticker <span class="ih-sticker">\u503C\u5F97\u770B</span> (or \u53EF\u7565\u8BFB / \u53EF\u8DF3\u8FC7, by your attention judgement; add class is-red only for \u503C\u5F97\u770B). The postmark lines hold at most 7 Chinese characters or 14 Latin letters each: shorten the channel name if needed. Leave the postmark out when the channel is empty.',
@@ -59,11 +78,45 @@ var ITHACA_NOTE_STYLE = [
   '- Last line of the note, a paragraph of its own: <span class="ih-barcode">{{duration}} \xB7 {{video_id}}</span> (leave out an empty part).',
   '- Put <span class="ih-circ">...</span> around the single most important phrase, once. ==highlight== at most two other phrases.'
 ].join("\n");
+var NOTE_STYLE_LABELS = {
+  zh: {
+    sticker_watch: "\u503C\u5F97\u770B",
+    sticker_skim: "\u53EF\u7565\u8BFB",
+    sticker_skip: "\u53EF\u8DF3\u8FC7",
+    summary_title: "\u6838\u5FC3\u6458\u8981",
+    arrow_word: "\u6240\u4EE5",
+    todo_title: "\u884C\u52A8\u6E05\u5355",
+    quote_label: "\u539F\u8BDD"
+  },
+  en: {
+    sticker_watch: "Worth it",
+    sticker_skim: "Skim",
+    sticker_skip: "Skip",
+    summary_title: "Summary",
+    arrow_word: "so",
+    todo_title: "To do",
+    quote_label: "Quote"
+  },
+  ja: {
+    sticker_watch: "\u5FC5\u898B",
+    sticker_skim: "\u6D41\u3057\u898B",
+    sticker_skip: "\u30B9\u30AD\u30C3\u30D7\u53EF",
+    summary_title: "\u8981\u70B9\u307E\u3068\u3081",
+    arrow_word: "\u3060\u304B\u3089",
+    todo_title: "\u3084\u308B\u3053\u3068",
+    quote_label: "\u767A\u8A00"
+  }
+};
 function fillNoteStyle(style, values) {
-  const text2 = (style || "").trim();
+  let text2 = (style || "").trim();
   if (!text2) return "";
+  if (text2 === LEGACY_ITHACA_NOTE_STYLE) text2 = ITHACA_NOTE_STYLE;
+  const labels = NOTE_STYLE_LABELS[values.language || "zh"] || NOTE_STYLE_LABELS.zh;
   const clean2 = (value) => (value || "").replace(/[<>\n]/g, " ").trim();
-  return text2.replace(/\{\{channel\}\}/g, clean2(values.channel)).replace(/\{\{date\}\}/g, clean2(values.date)).replace(/\{\{duration\}\}/g, clean2(values.duration)).replace(/\{\{video_id\}\}/g, clean2(values.videoId));
+  return text2.replace(
+    /\{\{(sticker_watch|sticker_skim|sticker_skip|summary_title|arrow_word|todo_title|quote_label)\}\}/g,
+    (_m, key) => labels[key]
+  ).replace(/\{\{channel\}\}/g, clean2(values.channel)).replace(/\{\{date\}\}/g, clean2(values.date)).replace(/\{\{duration\}\}/g, clean2(values.duration)).replace(/\{\{video_id\}\}/g, clean2(values.videoId));
 }
 function stampDate(now = /* @__PURE__ */ new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -126,8 +179,8 @@ function linkTimestamps(note, url) {
   const link = timeLinker(url);
   if (!link) return note;
   return note.split(/(^```[\s\S]*?^```)/m).map(
-    (part, index) => index % 2 === 1 ? part : part.replace(
-      /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
+    (part, index) => index % 2 === 1 ? part : part.replace(/(\[\d{1,2}:\d{2}(?::\d{2})?\])(?=\[\d{1,2}:\d{2})/g, "$1 ").replace(
+      /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—~〜～-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
       (match, a, b, c) => {
         const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
         return `[${match.slice(1, -1)}](${link(seconds)})`;
@@ -2696,10 +2749,20 @@ function cleanCaptureScaffold(body) {
     ""
   );
 }
-function renderTranscriptFold(transcript) {
+function transcriptFoldTitle(note) {
+  const text2 = (note || "").replace(/```[\s\S]*?```/g, "").replace(/<[^>]+>|\[![\w-]+\][+-]?|\]\([^)]*\)|https?:\/\/\S+|<!--[\s\S]*?-->/g, "");
+  const kana = (text2.match(/[\u3040-\u30ff]/g) || []).length;
+  const han = (text2.match(/[\u4e00-\u9fff]/g) || []).length;
+  const latin = (text2.match(/[A-Za-z]/g) || []).length;
+  if (kana && kana * 10 >= han) return "\u6587\u5B57\u8D77\u3053\u3057";
+  if (latin && latin > (han + kana) * 4) return "Transcript";
+  return "\u539F\u59CB\u6587\u7A3F";
+}
+function renderTranscriptFold(transcript, title = "\u539F\u59CB\u6587\u7A3F") {
   if (!transcript.trim()) return "";
   const lines = transcript.trim().replace(/\r\n/g, "\n").replace(/([^\n])(?=\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])/g, "$1\n");
-  return "> [!quote]- \u539F\u59CB\u6587\u7A3F\n" + lines.split("\n").map((line) => "> " + line).join("\n");
+  return `> [!quote]- ${title}
+` + lines.split("\n").map((line) => "> " + line).join("\n");
 }
 function readTranscriptFold(content) {
   const match = content.match(
@@ -2729,7 +2792,15 @@ ${block}`.trimStart() : text2;
     next = replace(next, "generated", result.note || result.summary || "");
   }
   if (result.video_transcript?.trim()) {
-    next = replace(next, "transcript", renderTranscriptFold(result.video_transcript));
+    next = replace(
+      next,
+      "transcript",
+      renderTranscriptFold(
+        result.video_transcript,
+        // With only a new transcript, the note already in the body tells the language.
+        transcriptFoldTitle(result.note || result.summary || next)
+      )
+    );
   }
   return next.trim() + "\n";
 }
@@ -10800,7 +10871,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     if (input.localFile && !input.skipSourceFetch) {
       metadata[keys.local_file] = input.localFile;
     }
-    this.addAnalysisMetadata(metadata, input);
+    this.addAnalysisMetadata(metadata, input, language);
     return {
       name: noteName,
       metadata,
@@ -10862,7 +10933,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   cacheSourceLabel(input) {
     return input.url || input.sourceUrl || input.localFile || input.localFiles?.filter(Boolean).join(", ") || (input.transcript ? "provided-transcript" : "");
   }
-  addAnalysisMetadata(metadata, input) {
+  addAnalysisMetadata(metadata, input, language) {
     const contentType = input.contentType || this.analysisDefaults.contentType;
     const autoRoute = input.autoRoute ?? this.analysisDefaults.autoRoute;
     const contract = buildContentRoutingPromptContract(contentType, autoRoute);
@@ -10871,7 +10942,8 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
     if (this.analysisDefaults.noteStyle.trim()) {
       metadata.note_style = fillNoteStyle(this.analysisDefaults.noteStyle, {
         date: stampDate(),
-        videoId: youTubeVideoId(input.url || input.sourceUrl) || ""
+        videoId: youTubeVideoId(input.url || input.sourceUrl) || "",
+        language
       });
     }
     const images = noteImagesFor(input.url || input.sourceUrl);
@@ -13513,7 +13585,8 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
             channel: meta.author,
             date: stampDate(),
             duration: meta.duration,
-            videoId: youTubeVideoId(sourceUrl) || ""
+            videoId: youTubeVideoId(sourceUrl) || "",
+            language
           })
         } : {},
         note_images: deps.images?.length ? deps.images : noteImagesFor(sourceUrl, meta.duration)

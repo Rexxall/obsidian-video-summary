@@ -4,8 +4,10 @@
  * light tier and the backend alike.
  */
 
+import type { SupportedLanguage } from '../types';
+
 /** Bumped with the note prompt; the style is folded in so a new style never reuses old notes. */
-export const NOTE_PROMPT_VERSION = 'video-note-prompt-v7';
+export const NOTE_PROMPT_VERSION = 'video-note-prompt-v8';
 
 export interface NoteImage {
   url: string;
@@ -18,6 +20,27 @@ export interface NoteImage {
  * edit it. {{channel}}, {{date}}, {{duration}} and {{video_id}} are filled in by the plugin.
  */
 export const ITHACA_NOTE_STYLE = [
+  'The vault uses the theme "Ithaca 整本手账". Its elements are drawn as paper, stamps and pen on the page; use them where they fit and skip any that do not.',
+  'Order: postmark and sticker, photo wall, summary, diagram, body, pinned notes, quotes, barcode.',
+  '- First line of the note: <span class="ih-postmark">{{channel}}<br>{{date}}</span> followed in the same paragraph by one sticker <span class="ih-sticker">{{sticker_watch}}</span> (or {{sticker_skim}} / {{sticker_skip}}, by your attention judgement; add class is-red only for {{sticker_watch}}). The postmark lines hold at most 7 Chinese characters or 14 Latin letters each: shorten the channel name if needed. Leave the postmark out when the channel is empty.',
+  '- Then a photo wall of the pictures offered above: "> [!photos]" with one line per picture, "> - ![](url) caption", the caption being its time like [04:30] or a few words; cover first.',
+  '- Headings: no emoji; the theme numbers the ## headings itself. The summary callout is titled "{{summary_title}}".',
+  '- The single most important conclusion, or a misconception the video corrects: one "> [!important] <short title>" (black paper).',
+  '- The one or two best concrete examples: "> [!example] <short name>", 2 or 3 sentences each (taped slips).',
+  '- Stages in time (a story, a history, a career): "> [!timeline] <title>" with 2 to 6 lines "> - **<year or step>** <what happened>" (cards left and right). The title is required.',
+  '- An exchange between people (interviews, debates): "> [!chat] <show or topic>" with one line per turn, "> - **<speaker>：** <words>", alternating sides; merge consecutive lines of the same speaker. The title is required. Use it for the best 4 to 8 turns, not the whole conversation.',
+  '- Old background (a date long ago, where an idea came from): "> [!old] <era>" with one short paragraph (yellowed paper). Short facts instead: footnotes [^1], which the theme moves into the margin.',
+  '- Where one block leads to the next (a cause, a so-what): a paragraph of its own, <span class="ih-arrow">{{arrow_word}}</span>, 2 to 8 characters; at most twice.',
+  '- Your own thoughts beside a line: <span class="ih-mg">a short sentence</span>; in red pen <span class="ih-mg is-red">…</span> where the argument is weak or lacks evidence. At most three in all.',
+  '- Thoughts and things to try after the video: "> [!pinned]" with 2 to 4 lines, one sticky note each: "> - <the thought, at most 14 Chinese characters><br><one short line on why, or what to try>" (pinned sticky notes, laid out in a row like the receipts). Things to do from the video: "> [!todo] {{todo_title}}" with "- [ ]" items, only when the video gives them.',
+  '- The reader reads on a wide screen. The diagram: flowchart LR (left to right) for any flowchart up to 8 nodes, labels of at most 10 Chinese characters; flowchart TD only for a longer chain. A mindmap stays a mindmap.',
+  '- Quotes: 2 to 6 of them, set side by side as receipts: one "> [!receipts]" line, then each quote as its own nested callout, "> > [!receipt] {{quote_label}}" followed by "> > [12:34] the words" and, when the languages differ, "> > the translation". Put a line with only ">" between two receipts.',
+  '- Last line of the note, a paragraph of its own: <span class="ih-barcode">{{duration}} · {{video_id}}</span> (leave out an empty part).',
+  '- Put <span class="ih-circ">...</span> around the single most important phrase, once. ==highlight== at most two other phrases.',
+].join('\n');
+
+/** The preset as shipped before 2.13.4, with its labels in Chinese; a saved copy is upgraded when filled. */
+export const LEGACY_ITHACA_NOTE_STYLE = [
   'The vault uses the theme "Ithaca 整本手账". Its elements are drawn as paper, stamps and pen on the page; use them where they fit and skip any that do not.',
   'Order: postmark and sticker, photo wall, summary, diagram, body, pinned notes, quotes, barcode.',
   '- First line of the note: <span class="ih-postmark">{{channel}}<br>{{date}}</span> followed in the same paragraph by one sticker <span class="ih-sticker">值得看</span> (or 可略读 / 可跳过, by your attention judgement; add class is-red only for 值得看). The postmark lines hold at most 7 Chinese characters or 14 Latin letters each: shorten the channel name if needed. Leave the postmark out when the channel is empty.',
@@ -42,14 +65,54 @@ export interface NoteStyleValues {
   date?: string;
   duration?: string;
   videoId?: string;
+  /** The language the note is written in; picks the words on stickers and callout titles. */
+  language?: SupportedLanguage;
 }
+
+/** Words the Ithaca style puts on the page, in the language of the note. */
+export const NOTE_STYLE_LABELS: Record<SupportedLanguage, Record<string, string>> = {
+  zh: {
+    sticker_watch: '值得看',
+    sticker_skim: '可略读',
+    sticker_skip: '可跳过',
+    summary_title: '核心摘要',
+    arrow_word: '所以',
+    todo_title: '行动清单',
+    quote_label: '原话',
+  },
+  en: {
+    sticker_watch: 'Worth it',
+    sticker_skim: 'Skim',
+    sticker_skip: 'Skip',
+    summary_title: 'Summary',
+    arrow_word: 'so',
+    todo_title: 'To do',
+    quote_label: 'Quote',
+  },
+  ja: {
+    sticker_watch: '必見',
+    sticker_skim: '流し見',
+    sticker_skip: 'スキップ可',
+    summary_title: '要点まとめ',
+    arrow_word: 'だから',
+    todo_title: 'やること',
+    quote_label: '発言',
+  },
+};
 
 /** The style with the video's own details filled in; an unknown detail becomes empty. */
 export function fillNoteStyle(style: string | undefined, values: NoteStyleValues): string {
-  const text = (style || '').trim();
+  let text = (style || '').trim();
   if (!text) return '';
+  // A copy of the old preset kept in settings is the preset, not the reader's own writing.
+  if (text === LEGACY_ITHACA_NOTE_STYLE) text = ITHACA_NOTE_STYLE;
+  const labels = NOTE_STYLE_LABELS[values.language || 'zh'] || NOTE_STYLE_LABELS.zh;
   const clean = (value: string | undefined) => (value || '').replace(/[<>\n]/g, ' ').trim();
   return text
+    .replace(
+      /\{\{(sticker_watch|sticker_skim|sticker_skip|summary_title|arrow_word|todo_title|quote_label)\}\}/g,
+      (_m, key: string) => labels[key],
+    )
     .replace(/\{\{channel\}\}/g, clean(values.channel))
     .replace(/\{\{date\}\}/g, clean(values.date))
     .replace(/\{\{duration\}\}/g, clean(values.duration))
@@ -144,13 +207,16 @@ export function linkTimestamps(note: string, url: string | undefined): string {
     .map((part, index) =>
       index % 2 === 1
         ? part
-        : part.replace(
-            /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
-            (match: string, a: string, b: string, c: string | undefined) => {
-              const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
-              return `[${match.slice(1, -1)}](${link(seconds)})`;
-            },
-          ),
+        : part
+            // Two times written side by side ([01:41][01:46]) would read as one number once linked.
+            .replace(/(\[\d{1,2}:\d{2}(?::\d{2})?\])(?=\[\d{1,2}:\d{2})/g, '$1 ')
+            .replace(
+              /\[(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*[–—~〜～-]\s*\d{1,2}:\d{2}(?::\d{2})?)?\](?!\()/g,
+              (match: string, a: string, b: string, c: string | undefined) => {
+                const seconds = c ? +a * 3600 + +b * 60 + +c : +a * 60 + +b;
+                return `[${match.slice(1, -1)}](${link(seconds)})`;
+              },
+            ),
     )
     .join('');
 }

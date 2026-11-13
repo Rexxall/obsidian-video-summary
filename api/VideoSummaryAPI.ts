@@ -603,7 +603,7 @@ export class VideoSummaryAPI {
     if (input.localFile && !input.skipSourceFetch) {
       metadata[keys.local_file] = input.localFile;
     }
-    this.addAnalysisMetadata(metadata, input);
+    this.addAnalysisMetadata(metadata, input, language);
 
     return {
       name: noteName,
@@ -684,7 +684,11 @@ export class VideoSummaryAPI {
     );
   }
 
-  private addAnalysisMetadata(metadata: JsonRecord, input: VideoInput) {
+  private addAnalysisMetadata(
+    metadata: JsonRecord,
+    input: VideoInput,
+    language: SupportedLanguage,
+  ) {
     const contentType = input.contentType || this.analysisDefaults.contentType;
     const autoRoute = input.autoRoute ?? this.analysisDefaults.autoRoute;
     const contract = buildContentRoutingPromptContract(contentType, autoRoute);
@@ -695,6 +699,7 @@ export class VideoSummaryAPI {
       metadata.note_style = fillNoteStyle(this.analysisDefaults.noteStyle, {
         date: stampDate(),
         videoId: youTubeVideoId(input.url || input.sourceUrl) || '',
+        language,
       });
     }
     const images = noteImagesFor(input.url || input.sourceUrl);

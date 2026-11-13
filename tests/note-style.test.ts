@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { noteMessages } from '../core/LiteTier';
 import {
   ITHACA_NOTE_STYLE,
+  LEGACY_ITHACA_NOTE_STYLE,
   fillNoteStyle,
   NOTE_PROMPT_VERSION,
   linkTimestamps,
@@ -48,6 +49,40 @@ test('times in a note link to that second of the video, outside code and diagram
   );
 });
 
+test('two times written side by side stay apart, and a range may use a wave dash', () => {
+  const url = 'https://www.youtube.com/watch?v=NNnIGh9g6fA';
+  const linked = linkTimestamps('- 発言 [01:41][01:46]', url);
+  assert.equal(linked, `- 発言 [01:41](${url}&t=101) [01:46](${url}&t=106)`);
+  assert.equal(linkTimestamps('- 範囲 [01:41〜01:46]', url), `- 範囲 [01:41〜01:46](${url}&t=101)`);
+  assert.equal(linkTimestamps('- [01:41～01:46]', url), `- [01:41～01:46](${url}&t=101)`);
+});
+
+test('the Ithaca style writes its stickers and labels in the note language', () => {
+  const chinese = /值得看|可略读|可跳过|核心摘要|原话|行动清单|所以/;
+  const zh = fillNoteStyle(ITHACA_NOTE_STYLE, { language: 'zh' });
+  for (const word of ['值得看', '可略读', '可跳过', '核心摘要', '原话', '行动清单', '所以']) {
+    assert.ok(zh.includes(word), word);
+  }
+  const ja = fillNoteStyle(ITHACA_NOTE_STYLE, { language: 'ja' });
+  assert.doesNotMatch(ja, chinese);
+  assert.match(ja, /<span class="ih-sticker">必見<\/span>/);
+  assert.match(ja, /> > \[!receipt\] 発言/);
+  const en = fillNoteStyle(ITHACA_NOTE_STYLE, { language: 'en' });
+  assert.doesNotMatch(en, chinese);
+  assert.match(en, /titled "Summary"/);
+  assert.doesNotMatch(en, /\{\{/);
+  // Without a language the labels stay Chinese, as before.
+  assert.ok(fillNoteStyle(ITHACA_NOTE_STYLE, {}).includes('核心摘要'));
+});
+
+test('a style saved from the old preset gets the labels of the note language too', () => {
+  const ja = fillNoteStyle(LEGACY_ITHACA_NOTE_STYLE, { language: 'ja' });
+  assert.doesNotMatch(ja, /值得看|核心摘要|原话|行动清单/);
+  assert.match(ja, /必見/);
+  // A style the reader wrote is left as written.
+  assert.equal(fillNoteStyle('用中文标签「原话」', { language: 'ja' }), '用中文标签「原话」');
+});
+
 test('a writing style changes the cache version, so notes in an old style are not reused', () => {
   assert.equal(promptVersionFor(''), NOTE_PROMPT_VERSION);
   assert.equal(promptVersionFor('   '), NOTE_PROMPT_VERSION);
@@ -63,7 +98,7 @@ test('the light tier sends the style and the pictures to the model', () => {
     title: 'T',
     language: 'zh',
     metadata: {
-      note_style: ITHACA_NOTE_STYLE,
+      note_style: fillNoteStyle(ITHACA_NOTE_STYLE, { language: 'zh' }),
       note_images: noteImagesFor('https://youtu.be/NNnIGh9g6fA'),
     },
   });

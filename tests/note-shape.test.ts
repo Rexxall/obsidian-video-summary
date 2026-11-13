@@ -46,6 +46,19 @@ void test('the transcript is a folded quote at the end of the note and reads bac
   );
   assert.equal(readTranscriptFold(`---\nx: 1\n---\n${body}`), RESULT.video_transcript);
   assert.match(renderTranscriptFold('a'), /^> \[!quote\]- /);
+  // The fold is titled in the language the note is written in, and reads back either way.
+  const ja = writeCleanVideoBody('', {
+    note: '> [!summary] 要点まとめ\n> 動画の主張はこうです。',
+    video_transcript: RESULT.video_transcript,
+  });
+  assert.match(ja, /> \[!quote\]- 文字起こし\n/);
+  assert.equal(readTranscriptFold(ja), RESULT.video_transcript);
+  const en = writeCleanVideoBody('', {
+    note: '> [!summary] Summary\n> The talk argues that 学习 needs spacing.',
+    video_transcript: RESULT.video_transcript,
+  });
+  assert.match(en, /> \[!quote\]- Transcript\n/);
+  assert.equal(readTranscriptFold(en), RESULT.video_transcript);
   assert.equal(readTranscriptFold('no block here'), null);
 });
 

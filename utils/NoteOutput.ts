@@ -17,15 +17,29 @@ export function cleanCaptureScaffold(body: string): string {
     );
 }
 
+/** The title of the transcript fold, in the language the note itself is written in. */
+export function transcriptFoldTitle(note: string | undefined): string {
+  // Count words only: callout types, tags, links and code are English whatever the note is.
+  const text = (note || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/<[^>]+>|\[![\w-]+\][+-]?|\]\([^)]*\)|https?:\/\/\S+|<!--[\s\S]*?-->/g, '');
+  const kana = (text.match(/[\u3040-\u30ff]/g) || []).length;
+  const han = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const latin = (text.match(/[A-Za-z]/g) || []).length;
+  if (kana && kana * 10 >= han) return '文字起こし';
+  if (latin && latin > (han + kana) * 4) return 'Transcript';
+  return '原始文稿';
+}
+
 /** A single folded source section; keep the source text, not a fabricated evidence claim. */
-export function renderTranscriptFold(transcript: string): string {
+export function renderTranscriptFold(transcript: string, title = '原始文稿'): string {
   if (!transcript.trim()) return '';
   const lines = transcript
     .trim()
     .replace(/\r\n/g, '\n')
     .replace(/([^\n])(?=\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[,.]\d{1,3})?\])/g, '$1\n');
   return (
-    '> [!quote]- 原始文稿\n' +
+    `> [!quote]- ${title}\n` +
     lines
       .split('\n')
       .map((line) => '> ' + line)
@@ -69,7 +83,15 @@ export function writeCleanVideoBody(
     next = replace(next, 'generated', result.note || result.summary || '');
   }
   if (result.video_transcript?.trim()) {
-    next = replace(next, 'transcript', renderTranscriptFold(result.video_transcript));
+    next = replace(
+      next,
+      'transcript',
+      renderTranscriptFold(
+        result.video_transcript,
+        // With only a new transcript, the note already in the body tells the language.
+        transcriptFoldTitle(result.note || result.summary || next),
+      ),
+    );
   }
   return next.trim() + '\n';
 }
