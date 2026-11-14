@@ -12454,6 +12454,7 @@ function renderActionBar(container, ctx) {
     })
   );
   input.addEventListener("keydown", (event) => {
+    if (event.isComposing || event.keyCode === 229) return;
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       submitBtn.click();
@@ -23550,6 +23551,7 @@ var KnowledgeLabModal = class extends import_obsidian27.Modal {
     };
     searchButton.onclick = execute;
     query.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") execute();
     });
     query.focus();
@@ -28216,6 +28218,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
         tr("\u7C98\u8D34\u542F\u52A8\u811A\u672C\u7ED9\u7684\u8FDE\u63A5\u7801", "Paste the connection code from the start script")
       );
       text2.inputEl.addEventListener("keydown", (event) => {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === "Enter") fire(() => applyCode(text2.getValue()))();
       });
     }).addButton(

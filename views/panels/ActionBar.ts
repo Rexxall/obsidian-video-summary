@@ -143,6 +143,7 @@ export function renderActionBar(container: HTMLElement, ctx: ViewContext) {
   );
 
   input.addEventListener('keydown', (event) => {
+    if (event.isComposing || event.keyCode === 229) return;
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       submitBtn.click();

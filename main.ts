@@ -3054,6 +3054,7 @@ class VideoSummarySettingTab extends PluginSettingTab {
           tr('粘贴启动脚本给的连接码', 'Paste the connection code from the start script'),
         );
         text.inputEl.addEventListener('keydown', (event) => {
+          if (event.isComposing || event.keyCode === 229) return;
           if (event.key === 'Enter') fire(() => applyCode(text.getValue()))();
         });
       })

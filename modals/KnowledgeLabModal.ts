@@ -201,6 +201,7 @@ export class KnowledgeLabModal extends Modal {
     };
     searchButton.onclick = execute;
     query.addEventListener('keydown', (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Enter') execute();
     });
     query.focus();
