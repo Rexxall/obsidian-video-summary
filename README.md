@@ -11,6 +11,10 @@
 
 <img src="assets/readme/demo.webp" width="100%" alt="In the Video Summary side panel, a YouTube link is pasted and Start is pressed. The job finishes, the new note opens from Recently finished, and the page scrolls through its key frames, summary and timestamped points.">
 
+<img src="assets/readme/demo-light-tier.webp" width="100%" alt="On a YouTube video in Chrome, Command Shift S is pressed and the extension says Sent with captions. In Obsidian the job card shows Light tier, Writing the note, and the note streams in without the backend. The finished note then opens and scrolls.">
+
+<p align="center"><b>No backend needed for YouTube.</b> Press ⌘⇧S on a video with captions and the <a href="browser-extension/README.md">browser extension</a> hands them to your summary model.</p>
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cards-dark.svg">
   <img src="assets/readme/cards-light.svg" width="100%" alt="Any source: links, recordings or a transcript. A finished note: summary, key points, transcript. Your own backend: on your computer, with your keys.">
