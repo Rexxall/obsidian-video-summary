@@ -218,7 +218,7 @@ export class VideoSummaryView extends ItemView {
   private scheduleHeaderRender() {
     if (this.headerQueued) return;
     this.headerQueued = true;
-    window.requestAnimationFrame(() => {
+    nextFrame(() => {
       this.headerQueued = false;
       this.renderHeaderNow();
     });
@@ -267,7 +267,7 @@ export class VideoSummaryView extends ItemView {
   private schedulePanelRender() {
     if (this.renderQueued) return;
     this.renderQueued = true;
-    window.requestAnimationFrame(() => {
+    nextFrame(() => {
       this.renderQueued = false;
       this.renderPanels();
     });
@@ -373,4 +373,21 @@ export class VideoSummaryView extends ItemView {
       }
     });
   }
+}
+
+/**
+ * The next frame, or a moment later when there is none: Obsidian behind another window (the
+ * browser, while ⌘⇧S sends a video) gets no animation frames, and a card drawn only on one
+ * stayed at "writing the note" after the note was done.
+ */
+function nextFrame(draw: () => void) {
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    window.clearTimeout(timer);
+    draw();
+  };
+  const timer = window.setTimeout(once, 250);
+  window.requestAnimationFrame(once);
 }

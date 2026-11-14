@@ -665,6 +665,20 @@ async function sendToPluginInBackground(settings, item, { process }) {
   if (settings.sendInBackground !== true) return false;
   const bridge = U.parseBridgeCode(settings.obsidianBridge);
   if (!bridge) return false;
+  // Without this the request fails like a closed Obsidian, and the obsidian:// link that
+  // follows opens whichever vault has that name, not the one paired here.
+  const allowed = chrome.permissions?.contains
+    ? await chrome.permissions.contains({ origins: ['http://127.0.0.1/*'] }).catch(() => true)
+    : true;
+  if (!allowed) {
+    throw new Error(
+      t(
+        'errBridgePermission',
+        [],
+        'Background sending is not allowed yet. Open Settings in this extension and click Save to allow it.',
+      ),
+    );
+  }
   let response;
   try {
     response = await self.fetch(`http://127.0.0.1:${bridge.port}/video-summary/capture`, {

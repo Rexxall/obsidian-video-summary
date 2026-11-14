@@ -409,6 +409,9 @@
   "settingBackground": {
     "message": "Send without switching to Obsidian"
   },
+  "errBridgePermission": {
+    "message": "Background sending is not allowed yet. Open Settings in this extension and click Save to allow it."
+  },
   "errBridgeCode": {
     "message": "The Obsidian pairing code does not match. Copy it again from Video Summary settings in Obsidian."
   },

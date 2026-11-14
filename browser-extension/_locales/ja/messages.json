@@ -409,6 +409,9 @@
   "settingBackground": {
     "message": "Obsidian に切り替えずに送る"
   },
+  "errBridgePermission": {
+    "message": "バックグラウンド送信がまだ許可されていません。拡張機能の設定を開き、「保存」を押して許可してください。"
+  },
   "errBridgeCode": {
     "message": "Obsidian のペアリングコードが一致しません。Obsidian の Video Summary 設定からもう一度コピーしてください。"
   },

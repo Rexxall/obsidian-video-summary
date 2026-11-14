@@ -190,7 +190,7 @@ export async function runLiteJob(
           : {}),
         note_images: deps.images?.length ? deps.images : noteImagesFor(sourceUrl, meta.duration),
       },
-      onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
+      onProgress: ({ stage, live }) => report({ stageLabel: stageText(stage), liveText: live }),
       signal,
     });
     Object.assign(payload, json, {
@@ -285,3 +285,15 @@ export const nodeStreamTransport: StreamTransport = (request, onData, signal) =>
     req.write(request.body);
     req.end();
   });
+
+/** The light tier's stage texts in the interface language. */
+function stageText(stage: string): string {
+  const part = /^长视频，先压缩第 (\d+)\/(\d+) 段$/.exec(stage);
+  if (part) return tr(stage, `Long video: condensing part ${part[1]} of ${part[2]}`);
+  const english: Record<string, string> = {
+    正在读文稿: 'Reading the transcript',
+    正在写笔记: 'Writing the note',
+    '回复格式不对，重写一次': 'Reply was malformed, writing it again',
+  };
+  return english[stage] ? tr(stage, english[stage]) : stage;
+}

@@ -409,6 +409,9 @@
   "settingBackground": {
     "message": "后台发送，不切到 Obsidian"
   },
+  "errBridgePermission": {
+    "message": "后台发送还没授权。打开本扩展的设置，点“保存”后允许即可。"
+  },
   "errBridgeCode": {
     "message": "Obsidian 配对码不对，请到 Obsidian 的 Video Summary 设置里重新复制。"
   },

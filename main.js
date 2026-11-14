@@ -13620,7 +13620,7 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
         } : {},
         note_images: deps.images?.length ? deps.images : noteImagesFor(sourceUrl, meta.duration)
       },
-      onProgress: ({ stage, live }) => report({ stageLabel: stage, liveText: live }),
+      onProgress: ({ stage, live }) => report({ stageLabel: stageText(stage), liveText: live }),
       signal
     });
     Object.assign(payload, json, {
@@ -13682,6 +13682,16 @@ var nodeStreamTransport = (request, onData, signal) => new Promise((resolve, rej
   req.write(request.body);
   req.end();
 });
+function stageText(stage) {
+  const part = /^长视频，先压缩第 (\d+)\/(\d+) 段$/.exec(stage);
+  if (part) return tr(stage, `Long video: condensing part ${part[1]} of ${part[2]}`);
+  const english = {
+    \u6B63\u5728\u8BFB\u6587\u7A3F: "Reading the transcript",
+    \u6B63\u5728\u5199\u7B14\u8BB0: "Writing the note",
+    "\u56DE\u590D\u683C\u5F0F\u4E0D\u5BF9\uFF0C\u91CD\u5199\u4E00\u6B21": "Reply was malformed, writing it again"
+  };
+  return english[stage] ? tr(stage, english[stage]) : stage;
+}
 
 // views/panels/JobsPanel.ts
 var RECENT_HISTORY_LIMIT = 3;
@@ -16355,7 +16365,7 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
   scheduleHeaderRender() {
     if (this.headerQueued) return;
     this.headerQueued = true;
-    window.requestAnimationFrame(() => {
+    nextFrame(() => {
       this.headerQueued = false;
       this.renderHeaderNow();
     });
@@ -16395,7 +16405,7 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
   schedulePanelRender() {
     if (this.renderQueued) return;
     this.renderQueued = true;
-    window.requestAnimationFrame(() => {
+    nextFrame(() => {
       this.renderQueued = false;
       this.renderPanels();
     });
@@ -16491,6 +16501,17 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
     });
   }
 };
+function nextFrame(draw) {
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    window.clearTimeout(timer);
+    draw();
+  };
+  const timer = window.setTimeout(once, 250);
+  window.requestAnimationFrame(once);
+}
 
 // utils/FileProcessor.ts
 var import_obsidian18 = require("obsidian");
@@ -27847,7 +27868,9 @@ Suggestion: ${result.hint}`) : "";
         local_file: localFile || void 0,
         title: (params.title || "").trim() || void 0,
         action,
-        output_folder: (params.folder || "").trim() || void 0,
+        // The extension's own folder first, else the output folder set here: "Video Inbox" only
+        // when neither is set.
+        output_folder: (params.folder || "").trim() || normalizeVideoSummaryBaseFolder(this.settings.outputFolder) || void 0,
         captured_at: (params.captured_at || "").trim() || void 0
       });
       const file = this.app.vault.getAbstractFileByPath(result.entry.path);

@@ -2642,7 +2642,12 @@ export default class VideoSummaryPlugin extends Plugin {
         local_file: localFile || undefined,
         title: (params.title || '').trim() || undefined,
         action,
-        output_folder: (params.folder || '').trim() || undefined,
+        // The extension's own folder first, else the output folder set here: "Video Inbox" only
+        // when neither is set.
+        output_folder:
+          (params.folder || '').trim() ||
+          normalizeVideoSummaryBaseFolder(this.settings.outputFolder) ||
+          undefined,
         captured_at: (params.captured_at || '').trim() || undefined,
       });
       const file = this.app.vault.getAbstractFileByPath(result.entry.path);
