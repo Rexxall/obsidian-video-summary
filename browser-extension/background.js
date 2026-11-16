@@ -390,13 +390,19 @@ async function readBilibiliSubtitles() {
   // asks for the sheets with its own sign-in, the plugin downloads only the pictures.
   const frames = [];
   try {
-    const shot = await (
-      await fetch(
-        `https://api.bilibili.com/x/player/videoshot?bvid=${encodeURIComponent(video.bvid)}&cid=${encodeURIComponent(cid)}&index=1`,
-        { credentials: 'include' },
-      )
-    ).json();
-    const data = (shot && shot.data) || {};
+    // The sheet API now and then answers without its time index (about one call in five);
+    // without it no frame can be placed, so it is asked again.
+    let data = {};
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const shot = await (
+        await fetch(
+          `https://api.bilibili.com/x/player/videoshot?bvid=${encodeURIComponent(video.bvid)}&cid=${encodeURIComponent(cid)}&index=1`,
+          { credentials: 'include' },
+        )
+      ).json();
+      data = (shot && shot.data) || {};
+      if (Array.isArray(data.index) && data.index.length > 1) break;
+    }
     const sheets = Array.isArray(data.image) ? data.image : [];
     const times = Array.isArray(data.index) ? data.index.slice(1) : [];
     const cols = Number(data.img_x_len) || 10;

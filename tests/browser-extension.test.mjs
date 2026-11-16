@@ -409,6 +409,7 @@ test('Bilibili subtitles come from the signed player API, and a track longer tha
   const end = source.indexOf('function bilibiliVideoId');
   const asked = [];
   let served = 0;
+  let shots = 0;
   const cues = (n, last) =>
     Array.from({ length: n }, (_, i) => ({
       from: (i * last) / n,
@@ -433,6 +434,28 @@ test('Bilibili subtitles come from the signed player API, and a track longer tha
     },
     fetch: async (url) => {
       asked.push(String(url));
+      if (String(url).includes('/x/player/videoshot')) {
+        shots += 1;
+        // The first answer comes without its time index, as Bilibili's sometimes does.
+        const index = shots === 1 ? [] : Array.from({ length: 301 }, (_, i) => i);
+        return {
+          json: async () => ({
+            data: {
+              image: [
+                '//bimp.hdslb.com/videoshotpvhdboss/x-0001.jpg',
+                '//bimp.hdslb.com/videoshotpvhdboss/x-0002.jpg',
+                '//bimp.hdslb.com/videoshotpvhdboss/x-0003.jpg',
+                '//bimp.hdslb.com/videoshotpvhdboss/x-0004.jpg',
+              ],
+              index,
+              img_x_len: 10,
+              img_y_len: 10,
+              img_x_size: 480,
+              img_y_size: 270,
+            },
+          }),
+        };
+      }
       if (String(url).includes('/x/player/')) {
         return {
           json: async () => ({
@@ -464,6 +487,19 @@ test('Bilibili subtitles come from the signed player API, and a track longer tha
   assert.ok(asked.every((url) => !url.includes('/x/player/v2') || url.includes('/wbi/')));
   assert.ok(asked.some((url) => url.includes('cid=22')));
   assert.ok(asked.includes('https://sub/zh.json'));
+  // Three frames at a quarter, a half and three quarters, after asking the sheets again.
+  assert.equal(shots, 2);
+  // The frames come from the script's own context: compared as JSON across the boundary.
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(result.frames.map((frame) => [frame.t, frame.u.slice(-8), frame.x, frame.y])),
+    ),
+    [
+      [75, '0001.jpg', 4 * 480, 7 * 270],
+      [150, '0002.jpg', 9 * 480, 4 * 270],
+      [225, '0003.jpg', 4 * 480, 2 * 270],
+    ],
+  );
 });
 
 test('with a pairing code, a capture goes to the plugin in the background', async () => {
