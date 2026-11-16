@@ -237,6 +237,21 @@
         letter-spacing: 0.02em;
         white-space: nowrap;
       }
+      .crop img {
+        position: absolute;
+        max-width: none;
+      }
+      .lang {
+        position: absolute;
+        z-index: 3;
+        padding: 6px 13px;
+        border-radius: 999px;
+        background: var(--cream);
+        color: #7a2216;
+        font: 600 14px/1 var(--sans);
+        white-space: nowrap;
+        box-shadow: 0 6px 16px rgb(40 8 4 / 0.3);
+      }
       svg.lines {
         position: absolute;
         inset: 0;
@@ -269,21 +284,26 @@
     </section>
 
     <section class="shot" data-shot="2">
-      <div class="sun" style="left: 780px; top: 168px; width: 260px; height: 260px"></div>
+      <div class="sun" style="left: 900px; top: 470px; width: 330px; height: 330px"></div>
       <h1
         class="abs wide"
         data-t="h2"
         style="top: 92px; left: 0; width: 1280px; text-align: center; font-size: 50px"
       ></h1>
       <div
-        id="anat"
-        class="sheet note"
-        style="left: 250px; top: 190px; width: 640px; height: 420px"
+        class="sheet crop"
+        id="head"
+        style="left: 236px; top: 186px; transform: rotate(-1deg)"
+      ></div>
+      <div
+        class="sheet crop"
+        id="gist"
+        style="left: 712px; top: 224px; transform: rotate(1.2deg)"
       ></div>
       <div
         class="sheet"
         id="claim-box"
-        style="left: 500px; top: 528px; width: 520px; transform: rotate(-2deg)"
+        style="left: 600px; top: 470px; width: 600px; transform: rotate(-1.5deg)"
       >
         <img id="claim" alt="" />
       </div>
@@ -293,36 +313,44 @@
     <section class="shot" data-shot="3">
       <div class="sun" style="left: 980px; top: 470px; width: 380px; height: 380px"></div>
       <h1 class="abs" data-t="h3" style="left: 62px; top: 210px; width: 430px"></h1>
-      <div class="sheet" style="left: 640px; top: 112px; width: 560px; transform: rotate(-2deg)">
+      <div
+        class="sheet"
+        id="chat-box"
+        style="left: 560px; top: 104px; width: 657px; height: 450px; transform: rotate(-1.5deg)"
+      >
         <img id="chat" alt="" />
       </div>
-      <div class="sheet" id="receipt-box" style="left: 500px; transform: rotate(4deg)">
+      <div
+        class="sheet"
+        id="receipt-box"
+        style="left: 470px; top: 430px; width: 449px; transform: rotate(3deg)"
+      >
         <img id="receipt" alt="" />
       </div>
     </section>
 
     <section class="shot" data-shot="4">
-      <div class="sun" style="left: 880px; top: 420px; width: 420px; height: 420px"></div>
+      <div class="sun" style="left: 940px; top: 120px; width: 380px; height: 380px"></div>
       <h1
         class="abs wide"
         data-t="h4"
         style="top: 92px; left: 0; width: 1280px; text-align: center; font-size: 50px"
       ></h1>
       <div
-        class="sheet strip"
-        style="left: 150px; top: 186px; width: 300px; height: 500px; transform: rotate(-1.5deg)"
-      >
-        <img data-strip="en-light" alt="" />
-      </div>
-      <div class="sheet strip" style="left: 490px; top: 180px; width: 300px; height: 500px">
-        <img data-strip="zh_CN-light" alt="" />
-      </div>
+        class="sheet crop sum"
+        data-sum="en-light"
+        style="left: 150px; top: 192px; transform: rotate(-1.2deg)"
+      ></div>
       <div
-        class="sheet strip"
-        style="left: 830px; top: 186px; width: 300px; height: 500px; transform: rotate(1.5deg)"
-      >
-        <img data-strip="ja-dark" alt="" />
-      </div>
+        class="sheet crop sum"
+        data-sum="zh_CN-light"
+        style="left: 385px; top: 368px; transform: rotate(0.8deg)"
+      ></div>
+      <div
+        class="sheet crop sum"
+        data-sum="ja-dark"
+        style="left: 620px; top: 538px; transform: rotate(-0.6deg)"
+      ></div>
     </section>
 
     <section class="shot" data-shot="5">
@@ -445,11 +473,97 @@
       document.getElementById('claim').src = `note/chalmers-claim-${lang}.png`;
       document.getElementById('chat').src = `note/chalmers-chat-${lang}.png`;
       document.getElementById('receipt').src = `note/chalmers-receipt-${lang}.png`;
-      document
-        .querySelectorAll('[data-strip]')
-        .forEach((el) => (el.src = `note/chalmers-strip-${el.dataset.strip}.png`));
-      document.getElementById('pop-s').src = `popup/popup-settings-${lang}-light.png`;
-      document.getElementById('bridge').src = `note/bridge-settings-${c.bridge}.png`;
+      /** Shows source rectangle [x0,y0,x1,y1] of a 1080-wide strip at half size: body text stays 14 px. */
+      const K = 0.5;
+      function crop(box, src, [x0, y0, x1, y1]) {
+        const img = new Image();
+        img.src = src;
+        img.style.width = `${1080 * K}px`;
+        img.style.left = `${-x0 * K}px`;
+        img.style.top = `${-y0 * K}px`;
+        box.style.width = `${(x1 - x0) * K}px`;
+        box.style.height = `${(y1 - y0) * K}px`;
+        box.appendChild(img);
+      }
+      const STRIP = { en: 'en-light', zh_CN: 'zh_CN-light', ja: 'ja-dark' }[lang];
+      const HEAD = {
+        'en-light': [40, 180, 1060, 1200],
+        'zh_CN-light': [40, 180, 1060, 1200],
+        'ja-dark': [40, 180, 1060, 1250],
+      };
+      const SUM = {
+        'en-light': [40, 1235, 1060, 1590],
+        'zh_CN-light': [40, 1235, 1060, 1540],
+        'ja-dark': [40, 1280, 1060, 1630],
+      };
+      const NAME = { 'en-light': 'English', 'zh_CN-light': '简体中文', 'ja-dark': '日本語' };
+      if (shot === '2') {
+        crop(document.getElementById('head'), `note/chalmers-strip-${STRIP}.png`, HEAD[STRIP]);
+        crop(document.getElementById('gist'), `note/chalmers-strip-${STRIP}.png`, SUM[STRIP]);
+      }
+      document.querySelectorAll('[data-sum]').forEach((box) => {
+        crop(box, `note/chalmers-strip-${box.dataset.sum}.png`, SUM[box.dataset.sum]);
+        const tag = document.createElement('div');
+        tag.className = 'lang';
+        tag.textContent = NAME[box.dataset.sum];
+        tag.style.left = `${parseFloat(box.style.left) + 470}px`;
+        tag.style.top = `${parseFloat(box.style.top) - 14}px`;
+        box.parentElement.appendChild(tag);
+      });
+      if (shot === '2')
+        window.addEventListener('load', () => {
+          // A point on a rotated box, as fractions of its unrotated size.
+          const on = (el, deg, fx, fy) => {
+            const r = el.getBoundingClientRect();
+            const th = (deg * Math.PI) / 180;
+            const dx = (fx - 0.5) * el.offsetWidth;
+            const dy = (fy - 0.5) * el.offsetHeight;
+            return [
+              r.left + r.width / 2 + dx * Math.cos(th) - dy * Math.sin(th),
+              r.top + r.height / 2 + dx * Math.sin(th) + dy * Math.cos(th),
+            ];
+          };
+          const head = document.getElementById('head');
+          const [hx0, hy0, hx1, hy1] = HEAD[STRIP];
+          const onHead = (x, y) => on(head, -1, (x - hx0) / (hx1 - hx0), (y - hy0) / (hy1 - hy0));
+          const gist = document.getElementById('gist');
+          const claim = document.getElementById('claim-box');
+          const TAKE = { en: [70, 520], zh_CN: [70, 520], ja: [70, 560] }[lang];
+          const FRAME = { en: [70, 830], zh_CN: [70, 830], ja: [70, 860] }[lang];
+          const TIME = { en: [0.615, 0.73], zh_CN: [0.29, 0.62], ja: [0.785, 0.74] }[lang];
+          const svg = document.getElementById('anat-lines');
+          const sec = svg.parentElement;
+          const L = head.getBoundingClientRect().left - 18;
+          const take = onHead(...TAKE);
+          const frame = onHead(...FRAME);
+          label(sec, c.a[0], L - 10, take[1], 'left');
+          line(svg, L, take[1], take[0], take[1]);
+          label(sec, c.a[1], L - 10, frame[1], 'left');
+          line(svg, L, frame[1], frame[0], frame[1]);
+          const g = on(gist, 1.2, 0.6, 0.02);
+          const gl = document.createElement('div');
+          gl.className = 'label';
+          gl.textContent = c.a[2];
+          gl.style.width = '300px';
+          gl.style.left = `${g[0] - 20}px`;
+          gl.style.top = `${g[1] - 44}px`;
+          sec.appendChild(gl);
+          const time = on(claim, -1.5, ...TIME);
+          pointer(svg, time[0], time[1]);
+          const tl = document.createElement('div');
+          tl.className = 'label';
+          tl.textContent = c.a[5];
+          tl.style.width = '320px';
+          tl.style.left = `${Math.min(time[0] - 10, 1216 - 320)}px`;
+          tl.style.top = `${claim.getBoundingClientRect().bottom + 12}px`;
+          sec.appendChild(tl);
+        });
+      if (shot === '3')
+        window.addEventListener('load', () => {
+          // A longer receipt (Chinese, Japanese) rises so it stays clear of the footer.
+          const rb = document.getElementById('receipt-box');
+          rb.style.top = `${Math.min(430, 712 - rb.offsetHeight)}px`;
+        });
       if (shot === '5') document.querySelector('.credit').remove();
 
       const NS = 'http://www.w3.org/2000/svg';
@@ -512,59 +626,6 @@
         svg.appendChild(p);
       }
 
-      if (shot === '3')
-        window.addEventListener('load', () => {
-          // The receipt overlaps the foot of the chat card, whatever its height.
-          const chat = document.getElementById('chat').getBoundingClientRect();
-          const rb = document.getElementById('receipt-box');
-          rb.style.width = '440px';
-          rb.style.top = `${Math.min(Math.max(chat.bottom - 150, 380), 690 - rb.offsetHeight)}px`;
-        });
-
-      if (shot === '2')
-        window.addEventListener('load', () => {
-          // Anchors as fractions of note/chalmers-top-<lang>.png and note/chalmers-claim-<lang>.png.
-          const box = document.getElementById('anat').getBoundingClientRect();
-          const at = (fx, fy) => [box.left + fx * box.width, box.top + fy * box.height];
-          const cb = document.getElementById('claim').getBoundingClientRect();
-          // The claim slip is rotated -2deg about its centre.
-          const th = (-2 * Math.PI) / 180;
-          const cx = cb.left + cb.width / 2;
-          const cy = cb.top + cb.height / 2;
-          const el = document.getElementById('claim');
-          const w = el.offsetWidth;
-          const h = el.offsetHeight;
-          const onClaim = (fx, fy) => {
-            const dx = (fx - 0.5) * w;
-            const dy = (fy - 0.5) * h;
-            return [
-              cx + dx * Math.cos(th) - dy * Math.sin(th),
-              cy + dx * Math.sin(th) + dy * Math.cos(th),
-            ];
-          };
-          const RING = { en: [0.05, 0.44], zh_CN: [0.05, 0.38], ja: [0.05, 0.44] }[lang];
-          const TIME = { en: [0.615, 0.73], zh_CN: [0.29, 0.62], ja: [0.785, 0.74] }[lang];
-          const svg = document.getElementById('anat-lines');
-          const sec = svg.parentElement;
-          const L = box.left - 26;
-          const R = Math.max(box.right, cb.right) + 26;
-          const ring = onClaim(...RING);
-          const time = onClaim(...TIME);
-          const marks = [
-            { a: at(0.035, 0.3), side: 'left', y: at(0, 0.3)[1] },
-            { a: at(0.12, 0.5), side: 'left', y: at(0, 0.5)[1] },
-            { a: at(0.037, 0.74), side: 'left', y: at(0, 0.74)[1] },
-            { a: at(0.86, 0.42), side: 'right', y: at(0, 0.42)[1] },
-            { a: ring, side: 'left', y: ring[1] + 6 },
-            { a: [time[0] + 12, time[1] + 16], side: 'right', y: time[1] + 34 },
-          ];
-          marks.forEach((m, i) => {
-            const x = m.side === 'left' ? L : R;
-            label(sec, c.a[i], m.side === 'left' ? x - 10 : x + 10, m.y, m.side);
-            line(svg, x, m.y, m.a[0], m.a[1], false, i !== 5);
-          });
-          pointer(svg, time[0], time[1]);
-        });
       if (shot === '5')
         window.addEventListener('load', () => {
           const svg = document.getElementById('pair-lines');
