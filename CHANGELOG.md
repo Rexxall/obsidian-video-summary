@@ -2,8 +2,22 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.14.0
 
+- **Any of the main AI services writes your notes.** The summary model is now chosen from one shared list: OpenAI, Anthropic (Claude) and Google Gemini first, then DeepSeek, OpenRouter, Qwen, Kimi, Zhipu and SiliconFlow, Ollama and LM Studio on this computer, or any OpenAI-compatible server. Keys live in **Settings → Keychain** under shared names (`anthropic-api-key`, `openai-api-key` …), so a key you saved for another plugin works here without being entered again. **Check** shows whether the key works and, where the service tells, the balance; the model list puts the recommended picks first. A new install picks the first service whose key is already in the Keychain, otherwise Claude Sonnet 5.5. Your current model, address and key name carry over unchanged.
+- **Claude Code or Codex on this computer can write the notes.** Desktop only and off until you choose it: the plugin runs the program you installed and signed in to, with text only. The backend in Docker cannot reach it, so videos the backend processes keep the backend's model.
+- **Every service streams the note as it is written** on desktop, Anthropic and Gemini included. Errors say which service failed, what it means and what to do next, in your language, and never show a key.
+- **A note that could not be written keeps the AI's work.** The result is saved before the note is written. If writing fails, or Obsidian closes first, the job comes back as _Not written_ with the reason, and **Write again (no AI call)** writes it without calling the model or fetching the transcript again.
+- **History and settings are never overwritten when they cannot be read.** An unreadable `history.json` or `data.json` is set aside next to it (`*.unreadable-<time>.json`) with a notice; if it cannot even be set aside, the plugin stops writing that file for the session. `history.json` is now saved through a checked temporary file, and both files are read back after saving.
+- **Web pages become article notes without the backend.** With the light tier ready, a link to an ordinary page (a blog post, a news article, a WeChat article) is read here and written as an article note; the post itself is found and comments and sidebars are left out.
+- **Bilibili videos use the light tier.** ⌘⇧S on a Bilibili video page sends its subtitles, and the note gets the cover and three frames saved into the vault (Bilibili's pictures do not load inside notes otherwise).
+- **Dubbed YouTube videos are summarised from the original language,** not from a dubbed track's captions.
+- **Note length follows the video's length,** and time ranges link to their start.
+- **Faster to open.** Records are read once at start, older notes are scanned once and remembered, and the backend is checked only when a job or the side panel needs it.
+- **Job cards finish when Obsidian is behind another window,** for example while you press ⌘⇧S in the browser. Light-tier stages (_Reading the transcript_, _Writing the note_) follow the interface language.
+- **Captures from the browser go to your output folder** when the extension has no folder of its own; _Video Inbox_ is used only when neither is set. Background sending without permission for this computer now says so instead of falling back to an `obsidian://` link that could open another vault with the same name.
+- **Enter no longer submits while an input method is choosing characters** (Chinese, Japanese, Korean).
+- The library count is set in the shared serif-number signature; turn it off under **Settings → Video Summary → Serif numbers**.
 - **Notes are named after the video.** A pasted YouTube link now gets the video's own title and channel (from YouTube's public oEmbed), instead of "YouTube视频\_<id>" and an empty postmark. File names stay readable: "Asks: why?" becomes "Asks - why", and Chinese or Japanese titles keep full-width ： and ？.
 - **Long talks link every time.** Times past the hour written as minutes ([87:30], [104:41]) now link to the moment and read as 1:27:30.
 - **Claude 5 models work in the light tier.** The plugin no longer sends `temperature` to Claude 5 and later, which rejected it.
