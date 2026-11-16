@@ -13,7 +13,7 @@
 
 <img src="assets/readme/demo-light-tier.webp" width="100%" alt="在 Chrome 里看 YouTube 视频，按 Command Shift S，扩展提示已用字幕发送。Obsidian 侧栏里任务不经后端就跑完，从“最近完成”点开笔记往下滚。">
 
-<p align="center"><b>YouTube 不用开后端。</b>在有字幕的视频上按 ⌘⇧S，<a href="browser-extension/README.md">浏览器扩展</a>把字幕直接交给你的总结模型。</p>
+<p align="center"><b>YouTube 不用开后端。</b>在有字幕的视频上按 ⌘⇧S，<a href="https://chromewebstore.google.com/detail/video-summary-capture/jomhbnehfmgblkllekjeioancoocppjn">浏览器扩展</a>把字幕直接交给你的总结模型。</p>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cards-zh-dark.svg">

@@ -13,7 +13,7 @@
 
 <img src="assets/readme/demo-light-tier.webp" width="100%" alt="On a YouTube video in Chrome, Command Shift S is pressed and the extension says Sent with captions. In Obsidian the job runs without the backend, and the finished note opens from Recently finished and scrolls.">
 
-<p align="center"><b>No backend needed for YouTube.</b> Press ⌘⇧S on a video with captions and the <a href="browser-extension/README.md">browser extension</a> hands them to your summary model.</p>
+<p align="center"><b>No backend needed for YouTube.</b> Press ⌘⇧S on a video with captions and the <a href="https://chromewebstore.google.com/detail/video-summary-capture/jomhbnehfmgblkllekjeioancoocppjn">browser extension</a> hands them to your summary model.</p>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cards-dark.svg">
@@ -158,7 +158,7 @@ To build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
 <details>
 <summary><b>Browser extension</b></summary>
 
-`browser-extension/` contains **Video Summary Capture**, a Chromium extension that sends the video you are watching, with its timestamp, to Obsidian or to the same backend. It can also scan a page for video links, keep a queue and copy timestamped Markdown links. See [browser-extension/README.md](browser-extension/README.md).
+`browser-extension/` contains **Video Summary Capture**, a Chromium extension ([Chrome Web Store](https://chromewebstore.google.com/detail/video-summary-capture/jomhbnehfmgblkllekjeioancoocppjn)) that sends the video you are watching, with its timestamp, to Obsidian or to the same backend. It can also scan a page for video links, keep a queue and copy timestamped Markdown links. See [browser-extension/README.md](browser-extension/README.md).
 
 </details>
 

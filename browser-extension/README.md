@@ -17,11 +17,10 @@ A browser extension that sends the video you are watching to Obsidian or to your
 
 ## Install
 
-1. Open the [latest Video Summary release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) and download `video-summary-capture-<version>.zip` under **Other downloads** (it lives in its own release, `capture-v<version>`), then unzip it.
-2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and choose the unzipped folder.
-3. Open the extension, go to **Settings**, and enter your vault name and folder.
+1. Install **[Video Summary Capture from the Chrome Web Store](https://chromewebstore.google.com/detail/video-summary-capture/jomhbnehfmgblkllekjeioancoocppjn)**. It works in Chrome, Edge, Brave and other Chromium browsers, and updates itself.
+2. Open the extension, go to **Settings**, and enter your vault name and folder.
 
-Works in Chrome, Edge, Brave and other Chromium browsers.
+To try a build before it reaches the store, download `video-summary-capture-<version>.zip` from the [latest release](https://github.com/Rexxall/obsidian-video-summary/releases/latest) (under **Other downloads**), unzip it, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and choose the folder.
 
 ## Shortcuts
 
