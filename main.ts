@@ -74,6 +74,7 @@ import { BackendInstaller } from './core/BackendInstaller';
 import { renderBackendSettings, renderModelSettings } from './views/BackendSettings';
 import { LEGACY_LLM_FIELDS, hasSecretStorage, migrateAiSlot } from './core/ModelSettings';
 import { createAiClient } from './core/AiKit';
+import { asideName, readJsonGuarded, sameJson, writeJsonChecked } from './core/SafeFiles';
 import type { AiClient } from './vendor/rex-ai-kit/index';
 import { NoteArtifactLinks } from './core/NoteArtifactLinks';
 import { pageVideoDetails } from './core/LiteRunner';
@@ -237,7 +238,10 @@ export default class VideoSummaryPlugin extends Plugin {
       this.historyLookupCache = null;
       if (!this.historyPathsFilled) window.setTimeout(() => this.fillHistoryPaths(), 2000);
     });
-    this.app.workspace.onLayoutReady(() => this.noteIndex.build());
+    this.app.workspace.onLayoutReady(() => {
+      this.noteIndex.build();
+      void this.jobService.restorePending();
+    });
     // The stored records are read once at start-up and shared by the note links and the
     // memory index; reading them twice read the same JSON files twice.
     this.app.workspace.onLayoutReady(() => {
@@ -323,6 +327,7 @@ export default class VideoSummaryPlugin extends Plugin {
   }
 
   onunload() {
+    if (this.settingsCheckTimer !== null) window.clearTimeout(this.settingsCheckTimer);
     this.bridge?.stop();
     document.body.removeClass('vs-notebook-style');
     BackendHealthModal.closeAll();
@@ -1379,10 +1384,37 @@ export default class VideoSummaryPlugin extends Plugin {
     const adapter = this.app.vault.adapter;
     const dataPath = `${this.pluginDir}/data.json`;
     let raw: string | null = null;
+    let present = false;
     try {
-      raw = (await adapter.exists(dataPath)) ? await adapter.read(dataPath) : null;
+      present = await adapter.exists(dataPath);
+      raw = present ? await adapter.read(dataPath) : null;
     } catch {
       raw = null;
+    }
+    if (present && raw === null) {
+      // There but unreadable (permissions, a disk error): keep a copy before anything can
+      // save over it; without one, this session does not save settings at all.
+      const aside = asideName(dataPath, 'unreadable', Date.now());
+      let kept = false;
+      try {
+        await adapter.copy(dataPath, aside);
+        kept = true;
+      } catch {
+        this.settingsWriteBlocked = true;
+      }
+      new Notice(
+        kept
+          ? tr(
+              `Video Summary：设置文件读不出来，先用默认设置；原文件已另存为 ${aside}。`,
+              `Video Summary: the settings file could not be read, so defaults are in use. The original is kept as ${aside}.`,
+            )
+          : tr(
+              'Video Summary：设置文件读不出来，也没能另存一份。这次先用默认设置，并且不保存设置，免得盖掉原文件。',
+              'Video Summary: the settings file could not be read or copied. Defaults are in use and settings will not be saved this session, so the original is not overwritten.',
+            ),
+        15000,
+      );
+      return { stored: {}, migrated: false };
     }
     if (raw !== null && raw.trim()) {
       const salvage = salvageSettingsJson(raw);
@@ -1650,11 +1682,50 @@ export default class VideoSummaryPlugin extends Plugin {
     }
   }
 
+  /** data.json could not be read or set aside at load: saving would overwrite it. */
+  private settingsWriteBlocked = false;
+  /** history.json could not be read or set aside at load: saving would overwrite it. */
+  private historyWriteBlocked = false;
+  private saveWarned = false;
+  private settingsCheckTimer: number | null = null;
+
   async saveSettings() {
     this.trimHistory();
-    // data.json 只存配置；history / webhookHistory 落在 history.json（见 queueHistorySave）
-    await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
     this.queueHistorySave();
+    if (this.settingsWriteBlocked) return;
+    // data.json 只存配置；history / webhookHistory 落在 history.json（见 queueHistorySave）
+    const payload = { ...this.settings, history: [], webhookHistory: [] };
+    await this.saveData(payload);
+    this.checkSettingsSaved(JSON.parse(JSON.stringify(payload)) as unknown);
+  }
+
+  /** Reads data.json back once typing stops and says so if it does not hold what was saved. */
+  private checkSettingsSaved(expected: unknown) {
+    if (this.settingsCheckTimer !== null) window.clearTimeout(this.settingsCheckTimer);
+    this.settingsCheckTimer = window.setTimeout(() => {
+      this.settingsCheckTimer = null;
+      void (async () => {
+        let raw = '';
+        try {
+          raw = await this.app.vault.adapter.read(`${this.pluginDir}/data.json`);
+        } catch {
+          raw = '';
+        }
+        if (!sameJson(raw, expected)) this.warnSaveFailed('data.json');
+      })();
+    }, 1500);
+  }
+
+  private warnSaveFailed(file: string) {
+    if (this.saveWarned) return;
+    this.saveWarned = true;
+    new Notice(
+      tr(
+        `Video Summary：${file} 保存后读回来不一致，可能是磁盘或同步出了问题。插件会继续重试，请先别删插件文件夹。`,
+        `Video Summary: ${file} did not read back as saved, perhaps a disk or sync problem. The plugin keeps retrying; do not delete the plugin folder for now.`,
+      ),
+      15000,
+    );
   }
 
   // ===== history.json 读写 =====
@@ -1668,22 +1739,42 @@ export default class VideoSummaryPlugin extends Plugin {
     history?: unknown[];
     webhookHistory?: unknown[];
   } | null> {
-    try {
-      const adapter = this.app.vault.adapter;
-      if (!(await adapter.exists(this.historyFilePath))) {
-        return null;
-      }
-      const raw = await adapter.read(this.historyFilePath);
-      const parsed: unknown = JSON.parse(raw);
-      if (!isRecord(parsed)) return null;
-      return { history: asArray(parsed.history), webhookHistory: asArray(parsed.webhookHistory) };
-    } catch (error) {
-      console.error('[VideoSummary] 读取 history.json 失败（历史将从空开始）', error);
-      return null;
+    const adapter = this.app.vault.adapter;
+    const read = await readJsonGuarded(adapter, this.historyFilePath);
+    if (read.state === 'missing') return null;
+    if (read.state === 'ok' && isRecord(read.value)) {
+      return {
+        history: asArray(read.value.history),
+        webhookHistory: asArray(read.value.webhookHistory),
+      };
     }
+    // Unreadable, or JSON of another shape: start empty, never over the old file.
+    let backup = read.state === 'unreadable' ? read.backup : null;
+    if (read.state === 'ok') {
+      backup = asideName(this.historyFilePath, 'unreadable', Date.now());
+      await adapter.rename(this.historyFilePath, backup).catch(() => {
+        backup = null;
+      });
+    }
+    if (!backup) this.historyWriteBlocked = true;
+    console.error('[VideoSummary] history.json 读不出来', backup ?? '未能另存');
+    new Notice(
+      backup
+        ? tr(
+            `Video Summary：处理记录 history.json 读不出来，已另存为 ${backup}，这次从空记录开始。`,
+            `Video Summary: the job history (history.json) could not be read. It is kept as ${backup}; this session starts with an empty history.`,
+          )
+        : tr(
+            'Video Summary：处理记录 history.json 读不出来，也没能另存。在它修好之前，插件不会改写这个文件。',
+            'Video Summary: the job history (history.json) could not be read or set aside. Until it is fixed, the plugin will not write to it.',
+          ),
+      15000,
+    );
+    return null;
   }
 
   private async writeHistoryFile(): Promise<void> {
+    if (this.historyWriteBlocked) return;
     try {
       const payload = {
         version: 1,
@@ -1691,9 +1782,10 @@ export default class VideoSummaryPlugin extends Plugin {
         history: this.settings.history || [],
         webhookHistory: this.settings.webhookHistory || [],
       };
-      await this.app.vault.adapter.write(this.historyFilePath, JSON.stringify(payload));
+      await writeJsonChecked(this.app.vault.adapter, this.historyFilePath, JSON.stringify(payload));
     } catch (error) {
       console.error('[VideoSummary] 写入 history.json 失败', error);
+      this.warnSaveFailed('history.json');
     }
   }
 

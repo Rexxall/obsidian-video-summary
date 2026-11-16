@@ -13790,7 +13790,14 @@ function renderReviewJob(container, ctx, job) {
     attr: { title: job.title }
   });
   info.createDiv({ text: summarize(job), cls: "vs-job-sub" });
-  statusPill(body.createDiv({ cls: "vs-job-side" }), "review");
+  statusPill(
+    body.createDiv({ cls: "vs-job-side" }),
+    "review",
+    job.writeFailed ? { label: tr("\u5F85\u5199\u5165", "Not written") } : {}
+  );
+  if (job.writeFailed && job.error) {
+    card.createDiv({ cls: "vs-job-hint", text: job.error });
+  }
   const actions = card.createDiv({ cls: "vs-job-actions" });
   textButton(
     actions,
@@ -13800,7 +13807,7 @@ function renderReviewJob(container, ctx, job) {
   );
   textButton(
     actions,
-    tr("\u76F4\u63A5\u5199\u5165", "Write now"),
+    job.writeFailed ? tr("\u91CD\u65B0\u5199\u5165\uFF08\u4E0D\u8C03 AI\uFF09", "Write again (no AI call)") : tr("\u76F4\u63A5\u5199\u5165", "Write now"),
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
         new import_obsidian12.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
@@ -17256,6 +17263,126 @@ function canonicalPluginStatus(value) {
   return "success";
 }
 
+// core/SafeFiles.ts
+function asideName(path, kind, now) {
+  const dot = path.lastIndexOf(".");
+  const slash = path.lastIndexOf("/");
+  const stem = dot > slash ? path.slice(0, dot) : path;
+  const ext = dot > slash ? path.slice(dot) : "";
+  return `${stem}.${kind}-${now}${ext}`;
+}
+async function readJsonGuarded(adapter, path, now = Date.now()) {
+  const tmp = `${path}.tmp`;
+  let present;
+  try {
+    present = await adapter.exists(path);
+  } catch {
+    return { state: "unreadable", backup: null };
+  }
+  if (!present) {
+    const recovered = await readParsed(adapter, tmp);
+    if (recovered === void 0) return { state: "missing" };
+    await adapter.rename(tmp, path).catch(() => void 0);
+    return { state: "ok", value: recovered, recovered: true };
+  }
+  const value = await readParsed(adapter, path);
+  if (value !== void 0) return { state: "ok", value };
+  const backup = asideName(path, "unreadable", now);
+  try {
+    await adapter.rename(path, backup);
+    return { state: "unreadable", backup };
+  } catch {
+    return { state: "unreadable", backup: null };
+  }
+}
+async function readParsed(adapter, path) {
+  try {
+    if (!await adapter.exists(path)) return void 0;
+    const raw = await adapter.read(path);
+    return raw.trim() ? JSON.parse(raw) : void 0;
+  } catch {
+    return void 0;
+  }
+}
+var SaveCheckError = class extends Error {
+  constructor(path) {
+    super(`${path} did not read back as written`);
+    this.name = "SaveCheckError";
+  }
+};
+async function writeJsonChecked(adapter, path, text2) {
+  const tmp = `${path}.tmp`;
+  await adapter.write(tmp, text2);
+  if (await adapter.read(tmp) !== text2) throw new SaveCheckError(tmp);
+  if (await adapter.exists(path)) await adapter.remove(path);
+  await adapter.rename(tmp, path);
+  if (await adapter.read(path) !== text2) throw new SaveCheckError(path);
+}
+function sameJson(raw, expected) {
+  try {
+    return JSON.stringify(JSON.parse(raw)) === JSON.stringify(expected);
+  } catch {
+    return false;
+  }
+}
+
+// core/PendingResults.ts
+var WriteFailedError = class extends Error {
+  constructor(message, result) {
+    super(message);
+    this.result = result;
+    this.name = "WriteFailedError";
+  }
+};
+var PendingResults = class {
+  constructor(adapter, dir) {
+    this.adapter = adapter;
+    this.dir = dir;
+  }
+  path(id) {
+    return `${this.dir}/${id.replace(/[^\w-]/g, "_")}.json`;
+  }
+  async save(job, result, error) {
+    if (!await this.adapter.exists(this.dir)) await this.adapter.mkdir(this.dir);
+    const record = {
+      version: 1,
+      savedAt: Date.now(),
+      job: {
+        id: job.id,
+        title: job.title,
+        notePath: job.notePath,
+        input: job.input,
+        mode: job.mode,
+        language: job.language,
+        platform: job.platform,
+        lite: job.lite
+      },
+      result,
+      ...error ? { error } : {}
+    };
+    await writeJsonChecked(this.adapter, this.path(job.id), JSON.stringify(record));
+  }
+  async remove(id) {
+    const path = this.path(id);
+    if (await this.adapter.exists(path)) await this.adapter.remove(path);
+  }
+  /** Every kept result, oldest first; files that do not parse are set aside by readJsonGuarded. */
+  async list() {
+    if (!await this.adapter.exists(this.dir)) return [];
+    const { files } = await this.adapter.list(this.dir);
+    const records = [];
+    for (const file of files.filter((name) => /\.json$/.test(name))) {
+      const read = await readJsonGuarded(this.adapter, file);
+      if (read.state !== "ok") continue;
+      const record = read.value;
+      if (record?.version === 1 && record.job?.id && record.result) {
+        records.push(record);
+      }
+    }
+    return records.sort((a, b) => a.savedAt - b.savedAt);
+  }
+};
+
 // core/JobStore.ts
 var JobStore = class {
   constructor() {
@@ -17338,6 +17465,25 @@ var JobStore = class {
     this.jobs.unshift(job);
     this.emit();
     this.pump();
+    return job;
+  }
+  /** A result kept from an earlier session (PendingResults): back as ready to write. */
+  restore(record) {
+    const existing = this.get(record.job.id);
+    if (existing) return existing;
+    const job = {
+      ...record.job,
+      useCache: false,
+      state: "review",
+      result: record.result,
+      writeFailed: true,
+      error: record.error,
+      createdAt: record.savedAt,
+      endedAt: record.savedAt,
+      logs: []
+    };
+    this.jobs.push(job);
+    this.emit();
     return job;
   }
   /** 等一个任务跑到终态（命令面板走的是同步语义，需要等结果） */
@@ -17469,6 +17615,11 @@ var JobStore = class {
     } catch (error) {
       job.state = this.cancelled.has(job.id) ? "cancelled" : "error";
       job.error = error instanceof Error ? errorMessage(error) : String(error);
+      if (error instanceof WriteFailedError && job.state === "error") {
+        job.state = "review";
+        job.result = error.result;
+        job.writeFailed = true;
+      }
       this.log(job.id, job.error);
     } finally {
       this.cancelled.delete(job.id);
@@ -21372,6 +21523,8 @@ var JobService = class {
     this.liteControllers = /* @__PURE__ */ new Map();
     this.plugin = plugin;
     this.store = store;
+    const dir = plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
+    this.pending = new PendingResults(plugin.app.vault.adapter, `${dir}/data/pending-results`);
     this.noteProcessor = plugin.createNoteProcessor();
     this.noteFactory = new NoteFactory(plugin.app);
     this.store.setRunner((job, report) => this.runJob(job, report));
@@ -21490,7 +21643,13 @@ var JobService = class {
         100,
         job.input.artifactId || job.result.artifact?.artifact_id
       );
-      this.store.update(job.id, { state: "success", awaitingWrite: false });
+      this.store.update(job.id, {
+        state: "success",
+        awaitingWrite: false,
+        writeFailed: false,
+        error: void 0
+      });
+      await this.dropPending(job.id);
       this.plugin.addToHistory(file.basename, "success", job.mode, {
         path: file.path,
         url: job.input.url || job.input.sourceUrl,
@@ -21510,7 +21669,21 @@ var JobService = class {
       await this.noteProcessor.setProcessingStatus(file, "pending");
       await this.updateCourseProgressForFile(file, "pending", 0);
     }
-    this.store.update(job.id, { state: "cancelled", awaitingWrite: false });
+    this.store.update(job.id, { state: "cancelled", awaitingWrite: false, writeFailed: false });
+    await this.dropPending(job.id);
+  }
+  async dropPending(id) {
+    await this.pending.remove(id).catch((error) => {
+      console.warn("[Video Summary] \u6682\u5B58\u7ED3\u679C\u5220\u9664\u5931\u8D25", error);
+    });
+  }
+  /** Results kept by an earlier session come back as ready to write. Called once the layout is ready. */
+  async restorePending() {
+    try {
+      for (const record of await this.pending.list()) this.store.restore(record);
+    } catch (error) {
+      console.warn("[Video Summary] \u8BFB\u53D6\u6682\u5B58\u7ED3\u679C\u5931\u8D25", error);
+    }
   }
   /** 把结果按正常写入规则应用到当前打开的笔记（等价旧版"应用到当前文件"） */
   async applyToActiveNote(result, mode) {
@@ -21730,19 +21903,36 @@ ${buildInsertionContent(result)}`
         }
         return result;
       }
-      await this.persistArtifact(job, result);
-      this.assertNotCancelled(job);
-      if (file) {
+      await this.pending.save(job, result).catch((error) => {
+        console.warn("[Video Summary] \u6682\u5B58\u7ED3\u679C\u5931\u8D25", error);
+      });
+      try {
+        await this.persistArtifact(job, result);
         this.assertNotCancelled(job);
-        await this.applyResult(file, result, job.mode, job);
-        this.assertNotCancelled(job);
-        await this.updateCourseProgressForFile(
-          file,
-          "complete",
-          100,
-          job.input.artifactId || result.artifact?.artifact_id
+        if (file) {
+          this.assertNotCancelled(job);
+          await this.applyResult(file, result, job.mode, job);
+          this.assertNotCancelled(job);
+          await this.updateCourseProgressForFile(
+            file,
+            "complete",
+            100,
+            job.input.artifactId || result.artifact?.artifact_id
+          );
+        }
+      } catch (error) {
+        if (error instanceof JobCancelledError || this.store.isCancelRequested(job.id)) {
+          await this.dropPending(job.id);
+          throw error;
+        }
+        const message = messageOf3(error);
+        await this.pending.save(job, result, message).catch(() => void 0);
+        throw new WriteFailedError(
+          tr(`\u7B14\u8BB0\u6CA1\u5199\u8FDB\u53BB\uFF1A${message}`, `The note could not be written: ${message}`),
+          result
         );
       }
+      await this.dropPending(job.id);
       this.plugin.addToHistory(file?.basename || noteName, "success", job.mode, {
         path: file?.path,
         url: job.input.url || job.input.sourceUrl,
@@ -21761,7 +21951,7 @@ ${buildInsertionContent(result)}`
       let failure = error;
       if (error instanceof BackendLostError) {
         this.plugin.backend.lostWhileRunning();
-      } else if (!job.lite && mayMeanBackendGone(messageOf3(error)) && await this.plugin.backend.goneAfterFailure()) {
+      } else if (!(error instanceof WriteFailedError) && !job.lite && mayMeanBackendGone(messageOf3(error)) && await this.plugin.backend.goneAfterFailure()) {
         failure = new BackendLostError(backendLostText());
       }
       const message = messageOf3(failure);
@@ -27184,6 +27374,12 @@ var VideoSummaryPlugin = class extends import_obsidian30.Plugin {
     this.captureProcessingLocks = /* @__PURE__ */ new Map();
     // history.json 延迟写入
     this.historySaveTimer = null;
+    /** data.json could not be read or set aside at load: saving would overwrite it. */
+    this.settingsWriteBlocked = false;
+    /** history.json could not be read or set aside at load: saving would overwrite it. */
+    this.historyWriteBlocked = false;
+    this.saveWarned = false;
+    this.settingsCheckTimer = null;
     this.historyLookupCache = null;
     this.historyPathsFilled = false;
   }
@@ -27254,7 +27450,10 @@ var VideoSummaryPlugin = class extends import_obsidian30.Plugin {
       this.historyLookupCache = null;
       if (!this.historyPathsFilled) window.setTimeout(() => this.fillHistoryPaths(), 2e3);
     });
-    this.app.workspace.onLayoutReady(() => this.noteIndex.build());
+    this.app.workspace.onLayoutReady(() => {
+      this.noteIndex.build();
+      void this.jobService.restorePending();
+    });
     this.app.workspace.onLayoutReady(() => {
       void this.artifactStore.list().then((artifacts) => {
         try {
@@ -27321,6 +27520,7 @@ var VideoSummaryPlugin = class extends import_obsidian30.Plugin {
     );
   }
   onunload() {
+    if (this.settingsCheckTimer !== null) window.clearTimeout(this.settingsCheckTimer);
     this.bridge?.stop();
     document.body.removeClass("vs-notebook-style");
     BackendHealthModal.closeAll();
@@ -28179,10 +28379,33 @@ Suggestion: ${result.hint}`) : "";
     const adapter = this.app.vault.adapter;
     const dataPath = `${this.pluginDir}/data.json`;
     let raw = null;
+    let present = false;
     try {
-      raw = await adapter.exists(dataPath) ? await adapter.read(dataPath) : null;
+      present = await adapter.exists(dataPath);
+      raw = present ? await adapter.read(dataPath) : null;
     } catch {
       raw = null;
+    }
+    if (present && raw === null) {
+      const aside = asideName(dataPath, "unreadable", Date.now());
+      let kept = false;
+      try {
+        await adapter.copy(dataPath, aside);
+        kept = true;
+      } catch {
+        this.settingsWriteBlocked = true;
+      }
+      new import_obsidian30.Notice(
+        kept ? tr(
+          `Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u8BFB\u4E0D\u51FA\u6765\uFF0C\u5148\u7528\u9ED8\u8BA4\u8BBE\u7F6E\uFF1B\u539F\u6587\u4EF6\u5DF2\u53E6\u5B58\u4E3A ${aside}\u3002`,
+          `Video Summary: the settings file could not be read, so defaults are in use. The original is kept as ${aside}.`
+        ) : tr(
+          "Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u8BFB\u4E0D\u51FA\u6765\uFF0C\u4E5F\u6CA1\u80FD\u53E6\u5B58\u4E00\u4EFD\u3002\u8FD9\u6B21\u5148\u7528\u9ED8\u8BA4\u8BBE\u7F6E\uFF0C\u5E76\u4E14\u4E0D\u4FDD\u5B58\u8BBE\u7F6E\uFF0C\u514D\u5F97\u76D6\u6389\u539F\u6587\u4EF6\u3002",
+          "Video Summary: the settings file could not be read or copied. Defaults are in use and settings will not be saved this session, so the original is not overwritten."
+        ),
+        15e3
+      );
+      return { stored: {}, migrated: false };
     }
     if (raw !== null && raw.trim()) {
       const salvage = salvageSettingsJson(raw);
@@ -28409,8 +28632,38 @@ Suggestion: ${result.hint}`) : "";
   }
   async saveSettings() {
     this.trimHistory();
-    await this.saveData({ ...this.settings, history: [], webhookHistory: [] });
     this.queueHistorySave();
+    if (this.settingsWriteBlocked) return;
+    const payload = { ...this.settings, history: [], webhookHistory: [] };
+    await this.saveData(payload);
+    this.checkSettingsSaved(JSON.parse(JSON.stringify(payload)));
+  }
+  /** Reads data.json back once typing stops and says so if it does not hold what was saved. */
+  checkSettingsSaved(expected) {
+    if (this.settingsCheckTimer !== null) window.clearTimeout(this.settingsCheckTimer);
+    this.settingsCheckTimer = window.setTimeout(() => {
+      this.settingsCheckTimer = null;
+      void (async () => {
+        let raw = "";
+        try {
+          raw = await this.app.vault.adapter.read(`${this.pluginDir}/data.json`);
+        } catch {
+          raw = "";
+        }
+        if (!sameJson(raw, expected)) this.warnSaveFailed("data.json");
+      })();
+    }, 1500);
+  }
+  warnSaveFailed(file) {
+    if (this.saveWarned) return;
+    this.saveWarned = true;
+    new import_obsidian30.Notice(
+      tr(
+        `Video Summary\uFF1A${file} \u4FDD\u5B58\u540E\u8BFB\u56DE\u6765\u4E0D\u4E00\u81F4\uFF0C\u53EF\u80FD\u662F\u78C1\u76D8\u6216\u540C\u6B65\u51FA\u4E86\u95EE\u9898\u3002\u63D2\u4EF6\u4F1A\u7EE7\u7EED\u91CD\u8BD5\uFF0C\u8BF7\u5148\u522B\u5220\u63D2\u4EF6\u6587\u4EF6\u5939\u3002`,
+        `Video Summary: ${file} did not read back as saved, perhaps a disk or sync problem. The plugin keeps retrying; do not delete the plugin folder for now.`
+      ),
+      15e3
+    );
   }
   // ===== history.json 读写 =====
   get historyFilePath() {
@@ -28418,21 +28671,38 @@ Suggestion: ${result.hint}`) : "";
     return `${dir}/history.json`;
   }
   async readHistoryFile() {
-    try {
-      const adapter = this.app.vault.adapter;
-      if (!await adapter.exists(this.historyFilePath)) {
-        return null;
-      }
-      const raw = await adapter.read(this.historyFilePath);
-      const parsed = JSON.parse(raw);
-      if (!isRecord(parsed)) return null;
-      return { history: asArray(parsed.history), webhookHistory: asArray(parsed.webhookHistory) };
-    } catch (error) {
-      console.error("[VideoSummary] \u8BFB\u53D6 history.json \u5931\u8D25\uFF08\u5386\u53F2\u5C06\u4ECE\u7A7A\u5F00\u59CB\uFF09", error);
-      return null;
+    const adapter = this.app.vault.adapter;
+    const read = await readJsonGuarded(adapter, this.historyFilePath);
+    if (read.state === "missing") return null;
+    if (read.state === "ok" && isRecord(read.value)) {
+      return {
+        history: asArray(read.value.history),
+        webhookHistory: asArray(read.value.webhookHistory)
+      };
     }
+    let backup = read.state === "unreadable" ? read.backup : null;
+    if (read.state === "ok") {
+      backup = asideName(this.historyFilePath, "unreadable", Date.now());
+      await adapter.rename(this.historyFilePath, backup).catch(() => {
+        backup = null;
+      });
+    }
+    if (!backup) this.historyWriteBlocked = true;
+    console.error("[VideoSummary] history.json \u8BFB\u4E0D\u51FA\u6765", backup ?? "\u672A\u80FD\u53E6\u5B58");
+    new import_obsidian30.Notice(
+      backup ? tr(
+        `Video Summary\uFF1A\u5904\u7406\u8BB0\u5F55 history.json \u8BFB\u4E0D\u51FA\u6765\uFF0C\u5DF2\u53E6\u5B58\u4E3A ${backup}\uFF0C\u8FD9\u6B21\u4ECE\u7A7A\u8BB0\u5F55\u5F00\u59CB\u3002`,
+        `Video Summary: the job history (history.json) could not be read. It is kept as ${backup}; this session starts with an empty history.`
+      ) : tr(
+        "Video Summary\uFF1A\u5904\u7406\u8BB0\u5F55 history.json \u8BFB\u4E0D\u51FA\u6765\uFF0C\u4E5F\u6CA1\u80FD\u53E6\u5B58\u3002\u5728\u5B83\u4FEE\u597D\u4E4B\u524D\uFF0C\u63D2\u4EF6\u4E0D\u4F1A\u6539\u5199\u8FD9\u4E2A\u6587\u4EF6\u3002",
+        "Video Summary: the job history (history.json) could not be read or set aside. Until it is fixed, the plugin will not write to it."
+      ),
+      15e3
+    );
+    return null;
   }
   async writeHistoryFile() {
+    if (this.historyWriteBlocked) return;
     try {
       const payload = {
         version: 1,
@@ -28440,9 +28710,10 @@ Suggestion: ${result.hint}`) : "";
         history: this.settings.history || [],
         webhookHistory: this.settings.webhookHistory || []
       };
-      await this.app.vault.adapter.write(this.historyFilePath, JSON.stringify(payload));
+      await writeJsonChecked(this.app.vault.adapter, this.historyFilePath, JSON.stringify(payload));
     } catch (error) {
       console.error("[VideoSummary] \u5199\u5165 history.json \u5931\u8D25", error);
+      this.warnSaveFailed("history.json");
     }
   }
   /**

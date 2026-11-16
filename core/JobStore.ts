@@ -1,6 +1,7 @@
 import { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 
 import { errorMessage } from '../utils/errors';
+import { WriteFailedError, type PendingRecord } from './PendingResults';
 export type JobState = 'queued' | 'running' | 'review' | 'success' | 'error' | 'cancelled';
 
 export interface JobLogEntry {
@@ -31,6 +32,8 @@ export interface Job {
   platform?: string;
   /** 结果已拿到但还没写入笔记（预览后手动确认时用） */
   awaitingWrite?: boolean;
+  /** The model's result came back but writing the note failed; it can be written again. */
+  writeFailed?: boolean;
   /** 轻量档任务：不经过后端，后端不在时也照常跑 */
   lite?: boolean;
   /** 轻量档边写边显示的笔记正文 */
@@ -157,6 +160,26 @@ export class JobStore {
     this.jobs.unshift(job);
     this.emit();
     this.pump();
+    return job;
+  }
+
+  /** A result kept from an earlier session (PendingResults): back as ready to write. */
+  restore(record: PendingRecord): Job {
+    const existing = this.get(record.job.id);
+    if (existing) return existing;
+    const job: Job = {
+      ...record.job,
+      useCache: false,
+      state: 'review',
+      result: record.result,
+      writeFailed: true,
+      error: record.error,
+      createdAt: record.savedAt,
+      endedAt: record.savedAt,
+      logs: [],
+    };
+    this.jobs.push(job);
+    this.emit();
     return job;
   }
 
@@ -313,6 +336,12 @@ export class JobStore {
     } catch (error) {
       job.state = this.cancelled.has(job.id) ? 'cancelled' : 'error';
       job.error = error instanceof Error ? errorMessage(error) : String(error);
+      if (error instanceof WriteFailedError && job.state === 'error') {
+        // The model's work is not lost: the result waits to be written again.
+        job.state = 'review';
+        job.result = error.result;
+        job.writeFailed = true;
+      }
       this.log(job.id, job.error);
     } finally {
       this.cancelled.delete(job.id);

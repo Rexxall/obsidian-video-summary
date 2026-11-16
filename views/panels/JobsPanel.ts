@@ -318,7 +318,15 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   });
   info.createDiv({ text: summarize(job), cls: 'vs-job-sub' });
 
-  statusPill(body.createDiv({ cls: 'vs-job-side' }), 'review');
+  statusPill(
+    body.createDiv({ cls: 'vs-job-side' }),
+    'review',
+    job.writeFailed ? { label: tr('待写入', 'Not written') } : {},
+  );
+  // The model's result is kept: writing again costs no model call.
+  if (job.writeFailed && job.error) {
+    card.createDiv({ cls: 'vs-job-hint', text: job.error });
+  }
 
   const actions = card.createDiv({ cls: 'vs-job-actions' });
   textButton(
@@ -329,7 +337,9 @@ function renderReviewJob(container: HTMLElement, ctx: ViewContext, job: Job) {
   );
   textButton(
     actions,
-    tr('直接写入', 'Write now'),
+    job.writeFailed
+      ? tr('重新写入（不调 AI）', 'Write again (no AI call)')
+      : tr('直接写入', 'Write now'),
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
         new Notice(tr('已写入笔记', 'Written to the note'));

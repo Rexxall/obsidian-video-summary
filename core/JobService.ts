@@ -18,6 +18,7 @@ import {
 import { Job, JobProgress, JobStore } from './JobStore';
 import { type LiteVideoMeta, linkWantsPageCapture, liteDecision, runLiteJob } from './LiteRunner';
 import { kitChat } from './LiteChat';
+import { PendingResults, WriteFailedError } from './PendingResults';
 import { aiLang } from './AiKit';
 import { JobDraft } from './InputParser';
 import { isPlaceholderTitle, youTubeOEmbed } from './VideoOEmbed';
@@ -77,9 +78,15 @@ export class JobService {
   /** Light-tier jobs talk to the model directly; cancelling aborts that request. */
   private readonly liteControllers = new Map<string, AbortController>();
 
+  /** Results the model returned that are not in their note yet. */
+  readonly pending: PendingResults;
+
   constructor(plugin: VideoSummaryPlugin, store: JobStore) {
     this.plugin = plugin;
     this.store = store;
+    const dir =
+      plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
+    this.pending = new PendingResults(plugin.app.vault.adapter, `${dir}/data/pending-results`);
     this.noteProcessor = plugin.createNoteProcessor();
     this.noteFactory = new NoteFactory(plugin.app);
     this.store.setRunner((job, report) => this.runJob(job, report));
@@ -216,7 +223,13 @@ export class JobService {
         100,
         job.input.artifactId || job.result.artifact?.artifact_id,
       );
-      this.store.update(job.id, { state: 'success', awaitingWrite: false });
+      this.store.update(job.id, {
+        state: 'success',
+        awaitingWrite: false,
+        writeFailed: false,
+        error: undefined,
+      });
+      await this.dropPending(job.id);
       this.plugin.addToHistory(file.basename, 'success', job.mode, {
         path: file.path,
         url: job.input.url || job.input.sourceUrl,
@@ -237,7 +250,23 @@ export class JobService {
       await this.noteProcessor.setProcessingStatus(file, 'pending');
       await this.updateCourseProgressForFile(file, 'pending', 0);
     }
-    this.store.update(job.id, { state: 'cancelled', awaitingWrite: false });
+    this.store.update(job.id, { state: 'cancelled', awaitingWrite: false, writeFailed: false });
+    await this.dropPending(job.id);
+  }
+
+  private async dropPending(id: string) {
+    await this.pending.remove(id).catch((error) => {
+      console.warn('[Video Summary] 暂存结果删除失败', error);
+    });
+  }
+
+  /** Results kept by an earlier session come back as ready to write. Called once the layout is ready. */
+  async restorePending() {
+    try {
+      for (const record of await this.pending.list()) this.store.restore(record);
+    } catch (error) {
+      console.warn('[Video Summary] 读取暂存结果失败', error);
+    }
   }
 
   /** 把结果按正常写入规则应用到当前打开的笔记（等价旧版"应用到当前文件"） */
@@ -494,19 +523,37 @@ export class JobService {
         return result;
       }
 
-      await this.persistArtifact(job, result);
-      this.assertNotCancelled(job);
-      if (file) {
+      // Kept before anything is written: if the note cannot be written, the model's work waits.
+      await this.pending.save(job, result).catch((error) => {
+        console.warn('[Video Summary] 暂存结果失败', error);
+      });
+      try {
+        await this.persistArtifact(job, result);
         this.assertNotCancelled(job);
-        await this.applyResult(file, result, job.mode, job);
-        this.assertNotCancelled(job);
-        await this.updateCourseProgressForFile(
-          file,
-          'complete',
-          100,
-          job.input.artifactId || result.artifact?.artifact_id,
+        if (file) {
+          this.assertNotCancelled(job);
+          await this.applyResult(file, result, job.mode, job);
+          this.assertNotCancelled(job);
+          await this.updateCourseProgressForFile(
+            file,
+            'complete',
+            100,
+            job.input.artifactId || result.artifact?.artifact_id,
+          );
+        }
+      } catch (error) {
+        if (error instanceof JobCancelledError || this.store.isCancelRequested(job.id)) {
+          await this.dropPending(job.id);
+          throw error;
+        }
+        const message = messageOf(error);
+        await this.pending.save(job, result, message).catch(() => undefined);
+        throw new WriteFailedError(
+          tr(`笔记没写进去：${message}`, `The note could not be written: ${message}`),
+          result,
         );
       }
+      await this.dropPending(job.id);
       this.plugin.addToHistory(file?.basename || noteName, 'success', job.mode, {
         path: file?.path,
         url: job.input.url || job.input.sourceUrl,
@@ -528,6 +575,7 @@ export class JobService {
       if (error instanceof BackendLostError) {
         this.plugin.backend.lostWhileRunning();
       } else if (
+        !(error instanceof WriteFailedError) &&
         !job.lite &&
         mayMeanBackendGone(messageOf(error)) &&
         (await this.plugin.backend.goneAfterFailure())
