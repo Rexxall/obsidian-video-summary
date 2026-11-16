@@ -48,10 +48,14 @@ export function buildNotePrompt(input) {
   const style = String(metadata.note_style || '')
     .trim()
     .slice(0, 4000);
-  // Pictures of the video the note may place: the cover and a few frames.
+  // Pictures of the video the note may place: the cover and a few frames. Either a web
+  // address or a picture already saved in the vault (Bilibili's, which do not load from the web).
   const images = (Array.isArray(metadata.note_images) ? metadata.note_images : [])
     .filter(function (image) {
-      return image && typeof image.url === 'string' && /^https:\/\//.test(image.url);
+      if (!image || typeof image.url !== 'string') return false;
+      const url = image.url;
+      if (/^https:\/\//.test(url)) return true;
+      return /^[^/\\:][^\\:]*\.(jpe?g|png|webp)$/i.test(url) && url.indexOf('..') < 0;
     })
     .slice(0, 6);
   const segments = Array.isArray(input.segments)

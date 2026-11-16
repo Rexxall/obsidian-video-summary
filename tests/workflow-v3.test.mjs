@@ -141,12 +141,19 @@ test("the reader's writing style and the video's pictures reach the prompt", () 
       note_images: [
         { url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg', label: 'cover' },
         { url: 'javascript:alert(1)', label: 'bad' },
+        { url: '40%20-%20Obsidian/%E9%99%84%E4%BB%B6/BV1x-p1-1.jpg', label: 'frame near [01:00]' },
+        { url: '../secret.jpg', label: 'bad' },
+        { url: '/etc/x.png', label: 'bad' },
+        { url: 'notes/readme.md', label: 'bad' },
       ],
     },
   });
   assert.match(styled, /WRITING STYLE[^\n]*\nQuotes go in > \[!receipt\] callouts\./);
   assert.match(styled, /- https:\/\/i\.ytimg\.com\/vi\/abc\/hqdefault\.jpg \(cover\)/);
   assert.doesNotMatch(styled, /javascript:/);
+  // Bilibili's pictures are saved in the vault and offered by their vault path.
+  assert.match(styled, /- 40%20-%20Obsidian\/%E9%99%84%E4%BB%B6\/BV1x-p1-1\.jpg \(frame near/);
+  assert.doesNotMatch(styled, /secret\.jpg|\/etc\/x\.png|readme\.md/);
 });
 
 test('timed transcripts are sent once, with segment ids on each line', () => {

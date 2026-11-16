@@ -13133,7 +13133,10 @@ function buildNotePrompt(input) {
   const makeLearning = metadata.generate_learning === true;
   const style = String(metadata.note_style || "").trim().slice(0, 4e3);
   const images = (Array.isArray(metadata.note_images) ? metadata.note_images : []).filter(function(image) {
-    return image && typeof image.url === "string" && /^https:\/\//.test(image.url);
+    if (!image || typeof image.url !== "string") return false;
+    const url = image.url;
+    if (/^https:\/\//.test(url)) return true;
+    return /^[^/\\:][^\\:]*\.(jpe?g|png|webp)$/i.test(url) && url.indexOf("..") < 0;
   }).slice(0, 6);
   const segments = Array.isArray(input.segments) ? input.segments.filter(function(segment) {
     return segment && segment.id && segment.text;
