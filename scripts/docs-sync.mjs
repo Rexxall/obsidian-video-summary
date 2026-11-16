@@ -5,7 +5,7 @@
 //   node scripts/docs-sync.mjs --check   change nothing; exit 1 if a block is stale or a README / README image
 //                                        names an Obsidian version other than minAppVersion
 //
-// Keys: min (minAppVersion), version (plugin version), platform (desktop or mobile, in the README's language).
+// Keys: min (minAppVersion, trailing .0 dropped), version (plugin version), platform (desktop or mobile, in the README's language).
 // Text outside the markers is never touched. A broken, nested or unknown marker stops the run with an error.
 // A line that names another Obsidian version on purpose (say, what Bases needs) ends with <!-- docs-sync: ok -->.
 import fs from 'node:fs';
@@ -14,7 +14,9 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const check = process.argv.includes('--check');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
-const min = manifest.minAppVersion,
+// "1.13.0" is written "1.13" in prose; both count as the same version.
+const short = (v) => v.replace(/(\.0)+$/, '');
+const min = short(manifest.minAppVersion),
   desktop = manifest.isDesktopOnly === true;
 
 const lang = (file) =>
@@ -91,7 +93,7 @@ for (const file of [...readmes, ...svgs]) {
         min,
       );
       for (const m of plain.matchAll(/Obsidian\s*(?:v)?(\d+\.\d+(?:\.\d+)?)/gi)) {
-        if (m[1] !== min)
+        if (short(m[1]) !== min)
           mismatches.push(`${file}:${i + 1}: says Obsidian ${m[1]}, manifest.json says ${min}`);
       }
     });
