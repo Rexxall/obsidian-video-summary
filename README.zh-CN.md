@@ -11,7 +11,7 @@
 
 <img src="assets/readme/demo.webp" width="100%" alt="在 Video Summary 侧栏贴一个 YouTube 链接，点 Start。任务完成后，从“最近完成”点开新笔记，页面往下滚，依次是关键帧、总结和带时间的要点。">
 
-<img src="assets/readme/demo-light-tier.webp" width="100%" alt="在 Chrome 里看 YouTube 视频，按 Command Shift S，扩展提示已用字幕发送。Obsidian 侧栏的任务卡显示轻量档、正在写笔记，不开后端，笔记一行行写出来。写完后打开笔记往下滚。">
+<img src="assets/readme/demo-light-tier.webp" width="100%" alt="在 Chrome 里看 YouTube 视频，按 Command Shift S，扩展提示已用字幕发送。Obsidian 侧栏里任务不经后端就跑完，从“最近完成”点开笔记往下滚。">
 
 <p align="center"><b>YouTube 不用开后端。</b>在有字幕的视频上按 ⌘⇧S，<a href="browser-extension/README.md">浏览器扩展</a>把字幕直接交给你的总结模型。</p>
 
