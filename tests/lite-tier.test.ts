@@ -1,19 +1,18 @@
 import * as assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   SINGLE_PASS_CHARS,
-  SseReader,
-  type StreamTransport,
+  type Chat,
+  type ChatMessage,
   chunkSegments,
   generateNote,
   isReasoningModel,
-  modelErrorText,
   parseCondensed,
   parseNoteJson,
   partialJsonString,
-  streamChat,
 } from '../core/LiteTier';
+import { type ChatClient, kitChat } from '../core/LiteChat';
+import { AiError, type CompleteOptions } from '../vendor/rex-ai-kit/index';
 import {
   captureShortcut,
   linkWantsPageCapture,
@@ -25,20 +24,13 @@ import { JobStore } from '../core/JobStore';
 import { readableLive } from '../views/liveText';
 import { statusClass, statusWord } from '../views/backendText';
 
-// Tests run from the project root (tests/run-tests.mjs).
-const sse = readFileSync('tests/fixtures/lite/stream-note.sse', 'utf8');
-
-/** Replays a body in pieces of `size` characters, the way a socket splits it. */
-function replay(body: string, size: number, status = 200): StreamTransport {
-  return async (_request, onData) => {
-    if (status >= 400) return { status, errorText: body };
-    for (let i = 0; i < body.length; i += size) onData(body.slice(i, i + size));
-    return { status };
+/** A chat that answers with `reply(messages)`, handing the text over a few characters at a time. */
+function chatOf(reply: (messages: ChatMessage[], jsonMode: boolean) => string, step = 9): Chat {
+  return async (messages, jsonMode, onText) => {
+    const text = reply(messages, jsonMode);
+    for (let i = step; i < text.length + step; i += step) onText(text.slice(0, i), 0);
+    return text;
   };
-}
-
-function sseOf(text: string): string {
-  return `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;
 }
 
 const NOTE = {
@@ -50,20 +42,6 @@ const NOTE = {
   content_type: 'general',
   evidence_claims: [],
 };
-
-void test('the stream decodes the same whatever size the network pieces are', () => {
-  for (const size of [1, 7, 64, 4096]) {
-    const reader = new SseReader();
-    for (let i = 0; i < sse.length; i += size) reader.push(sse.slice(i, i + size));
-    const json = parseNoteJson(reader.text);
-    assert.equal(json.note_title, '规则与承诺');
-    assert.equal(
-      json.note,
-      '> [!summary] 摘要\n> 歌手承诺不放弃。\n\n## 要点\n- [00:08] (vs-1) "规则"',
-    );
-    assert.equal(reader.done, true);
-  }
-});
 
 void test('the note shows while its JSON is still arriving', () => {
   const full = JSON.stringify(NOTE);
@@ -86,68 +64,98 @@ void test('replies in a code fence or with text around them still parse; one wit
   assert.throws(() => parseNoteJson('no json'), /JSON/);
 });
 
-void test('a service that rejects JSON mode is asked again without it', async () => {
-  const bodies: Record<string, unknown>[] = [];
-  const transport: StreamTransport = async (request, onData) => {
-    const body = JSON.parse(request.body) as Record<string, unknown>;
-    bodies.push(body);
-    assert.equal(request.url, 'https://api.example.com/v1/chat/completions');
-    assert.equal(request.headers.Authorization, 'Bearer test-key');
-    if (body.response_format) return { status: 400, errorText: '{"error":"no json mode"}' };
-    onData(sseOf('{"note":"ok"}'));
-    return { status: 200 };
-  };
-  const text = await streamChat(
-    transport,
-    {
-      baseUrl: 'https://api.example.com/v1/',
-      apiKey: 'test-key',
-      model: 'm',
-      messages: [],
-      jsonMode: true,
+/** A kit client that records each call and answers with `answer(options)`. */
+function clientOf(answer: (options: Omit<CompleteOptions, 'model'>) => string): ChatClient & {
+  calls: Omit<CompleteOptions, 'model'>[];
+} {
+  const calls: Omit<CompleteOptions, 'model'>[] = [];
+  return {
+    calls,
+    complete: async (_slot, options) => {
+      calls.push(options);
+      const text = answer(options);
+      options.onText?.(text);
+      return { text };
     },
-    () => undefined,
+  };
+}
+
+void test('the kit chat sends system text apart, and asks again without JSON mode on a 400', async () => {
+  const client = clientOf((options) => {
+    if (options.json) throw new AiError('no json mode', 'bad-response', 400);
+    return '{"note":"ok"}';
+  });
+  const chat = kitChat(client, { provider: 'deepseek', model: 'deepseek-flash' }, 'zh');
+  const seen: string[] = [];
+  const text = await chat(
+    [
+      { role: 'system', content: 'rules' },
+      { role: 'user', content: 'transcript' },
+    ],
+    true,
+    (full) => seen.push(full),
   );
   assert.equal(text, '{"note":"ok"}');
-  assert.equal(bodies.length, 2);
-  assert.equal(bodies[1].stream, true);
+  assert.deepEqual(
+    client.calls.map((call) => call.json),
+    [true, false],
+  );
+  assert.equal(client.calls[1].system, 'rules');
+  assert.deepEqual(client.calls[1].messages, [{ role: 'user', content: 'transcript' }]);
+  assert.equal(client.calls[1].maxTokens, 8192);
+  assert.deepEqual(seen, ['{"note":"ok"}']);
 });
 
-void test('model errors say what to do and never repeat a key', async () => {
-  await assert.rejects(
-    streamChat(
-      replay(
-        '{"error":{"message":"Authentication Fails, your api key: sk-abcdef1234567890 is invalid"}}',
-        10,
-        401,
-      ),
-      { baseUrl: 'https://x', apiKey: 'k', model: 'm', messages: [], jsonMode: false },
-      () => undefined,
-    ),
-    /密钥无效/,
+void test('the kit chat gives long notes room, skips temperature for reasoning models, explains errors', async () => {
+  const client = clientOf(() => '{}');
+  await kitChat(client, { provider: 'anthropic', model: 'claude-sonnet-5-5' }, 'zh')(
+    [],
+    true,
+    () => undefined,
   );
-  const text = modelErrorText(500, '{"error":{"message":"bad key sk-abcdef1234567890"}}');
-  assert.equal(text.includes('sk-abcdef'), false);
-  assert.match(modelErrorText(402), /余额/);
-  assert.match(modelErrorText(429), /限流/);
+  await kitChat(client, { provider: 'deepseek', model: 'deepseek-flash' }, 'zh')(
+    [],
+    true,
+    () => undefined,
+  );
+  assert.deepEqual(
+    client.calls.map((call) => [call.maxTokens, call.temperature]),
+    [
+      [32000, undefined],
+      [8192, 0.4],
+    ],
+  );
+  const refused: ChatClient = {
+    complete: async () => {
+      throw new AiError('rejected', 'auth', 401, 'Invalid key sk-abcdef1234567890', 'DeepSeek');
+    },
+  };
+  await assert.rejects(
+    kitChat(refused, { provider: 'deepseek', model: 'm' }, 'zh')([], false, () => undefined),
+    (error: Error) => /DeepSeek/.test(error.message) && !error.message.includes('sk-abcdef'),
+  );
+  const cancelled: ChatClient = {
+    complete: async () => {
+      throw new AiError('Cancelled', 'aborted');
+    },
+  };
+  await assert.rejects(
+    kitChat(cancelled, { provider: 'deepseek', model: 'm' }, 'zh')([], false, () => undefined),
+    (error: unknown) => error instanceof AiError && error.kind === 'aborted',
+  );
 });
 
 void test('a reply that is not JSON is retried once with the parse error, like the backend', async () => {
   const prompts: string[] = [];
   let call = 0;
-  const transport: StreamTransport = async (request, onData) => {
-    const body = JSON.parse(request.body) as { messages: { content: string }[] };
-    prompts.push(body.messages[1].content);
+  const chat = chatOf((messages) => {
+    prompts.push(messages[1].content);
     call += 1;
-    onData(sseOf(call === 1 ? 'Sure! The note is below.' : JSON.stringify(NOTE)));
-    return { status: 200 };
-  };
+    return call === 1 ? 'Sure! The note is below.' : JSON.stringify(NOTE);
+  });
   const stages: string[] = [];
   const json = await generateNote({
-    transport,
-    baseUrl: 'https://x',
-    apiKey: 'k',
-    model: 'm',
+    chat,
     segments: [{ id: 'vs-1', start: 8, end: 12, text: 'you know the rules' }],
     language: 'zh',
     metadata: {},
@@ -173,23 +181,17 @@ void test('a very long transcript is condensed part by part, keeping the real pa
   assert.equal(parts.flat().length, segments.length);
   const known = new Map(segments.map((s) => [s.id, s]));
   let finalPrompt = '';
-  const transport: StreamTransport = async (request, onData) => {
-    const body = JSON.parse(request.body) as { messages: { content: string }[] };
-    const prompt = body.messages[1].content;
+  const chat = chatOf((messages) => {
+    const prompt = messages[1].content;
     if (prompt.includes('VIDEO_NOTE_PROMPT_V6')) {
       finalPrompt = prompt;
-      onData(sseOf(JSON.stringify(NOTE)));
-    } else {
-      const first = prompt.match(/\((vs-\d{4})\)/)?.[1] ?? '';
-      onData(sseOf(`[00:00] (${first}) the main point of this part\nnoise line`));
+      return JSON.stringify(NOTE);
     }
-    return { status: 200 };
-  };
+    const first = prompt.match(/\((vs-\d{4})\)/)?.[1] ?? '';
+    return `[00:00] (${first}) the main point of this part\nnoise line`;
+  });
   const json = await generateNote({
-    transport,
-    baseUrl: 'https://x',
-    apiKey: 'k',
-    model: 'm',
+    chat,
     segments,
     language: 'en',
     metadata: {},
@@ -251,8 +253,8 @@ void test('a light-tier result has the note, the timed transcript and segments t
   const transcript =
     "[00:01] we're no strangers to love\n[00:25] a full commitment's what I'm thinking of";
   let prompt = '';
-  const transport: StreamTransport = async (request, onData) => {
-    prompt = (JSON.parse(request.body) as { messages: { content: string }[] }).messages[1].content;
+  const chat = chatOf((messages) => {
+    prompt = messages[1].content;
     const id = prompt.match(/\((vs-[0-9a-f]{8})\) a full/)?.[1];
     const reply = {
       ...NOTE,
@@ -269,15 +271,11 @@ void test('a light-tier result has the note, the timed transcript and segments t
         },
       ],
     };
-    const text = JSON.stringify(reply);
-    for (let i = 0; i < text.length; i += 9)
-      onData(sseOf(text.slice(i, i + 9)).replace('data: [DONE]\n\n', ''));
-    onData('data: [DONE]\n\n');
-    return { status: 200 };
-  };
+    return JSON.stringify(reply);
+  });
   const live: string[] = [];
   const result = await runLiteJob(
-    { transport, baseUrl: 'https://x', apiKey: 'k', model: 'deepseek-flash' },
+    { chat, model: 'deepseek-flash' },
     { url, transcript },
     'summary',
     'zh',
@@ -305,11 +303,11 @@ void test('a light-tier result has the note, the timed transcript and segments t
 });
 
 void test('transcript-only needs no model call', async () => {
-  const transport: StreamTransport = async () => {
+  const chat: Chat = async () => {
     throw new Error('should not be called');
   };
   const result = await runLiteJob(
-    { transport, baseUrl: '', apiKey: '', model: '' },
+    { chat, model: '' },
     { transcript: 'a pasted transcript without times. It has two sentences.' },
     'transcript-only',
     'en',
@@ -363,20 +361,17 @@ void test('the text being written is shown on the job and cleared when it ends',
 });
 
 void test('a reasoning model shows that it is reading before the note starts', async () => {
-  const think = (text: string) =>
-    `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: text } }] })}\n\n`;
-  const transport: StreamTransport = async (_request, onData) => {
-    onData(think('Let me read the transcript. '));
-    onData(think('The speaker explains rules.'));
-    onData(sseOf(JSON.stringify(NOTE)));
-    return { status: 200 };
+  // The service reports thinking (no reply text yet), then the note.
+  const chat: Chat = async (_messages, _json, onText) => {
+    onText('', 28);
+    onText('', 55);
+    const text = JSON.stringify(NOTE);
+    onText(text, 55);
+    return text;
   };
   const seen: { stage: string; live?: string }[] = [];
   await generateNote({
-    transport,
-    baseUrl: 'https://x',
-    apiKey: 'k',
-    model: 'm',
+    chat,
     segments: [{ id: 'vs-1', start: 0, end: 5, text: 'hello' }],
     language: 'zh',
     metadata: {},
@@ -385,11 +380,6 @@ void test('a reasoning model shows that it is reading before the note starts', a
   const reading = seen.findIndex((p) => p.stage === '正在读文稿' && p.live === undefined);
   const writing = seen.findIndex((p) => p.stage === '正在写笔记' && !!p.live);
   assert.ok(reading >= 0 && writing > reading);
-  // The thinking never reaches the note.
-  assert.equal(
-    seen.some((p) => p.live?.includes('Let me read')),
-    false,
-  );
 });
 
 void test('more text for a note on screen updates only that text, not the whole panel', async () => {
@@ -488,23 +478,6 @@ test('a bare YouTube or Bilibili link points to the extension only when the ligh
   assert.equal(linkWantsPageCapture({ localFile: '/a.mp4' }, true), false);
   assert.equal(captureShortcut(true), '⌘⇧S');
   assert.equal(captureShortcut(false), 'Ctrl+Shift+S');
-});
-
-void test('reasoning models are asked without a temperature', async () => {
-  const temperatures: unknown[] = [];
-  const transport: StreamTransport = async (request, onData) => {
-    temperatures.push((JSON.parse(request.body) as Record<string, unknown>).temperature);
-    onData(sseOf('{}'));
-    return { status: 200 };
-  };
-  for (const model of ['deepseek-flash', 'gpt-6.1-sol']) {
-    await streamChat(
-      transport,
-      { baseUrl: 'https://x', apiKey: 'k', model, messages: [], jsonMode: true },
-      () => undefined,
-    );
-  }
-  assert.deepEqual(temperatures, [0.4, undefined]);
 });
 
 test('models that reject temperature are recognised, Claude 5 and later included', () => {

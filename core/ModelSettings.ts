@@ -1,82 +1,115 @@
 /**
- * The summary model and the two API keys chosen in settings. One place for every part of the
- * plugin that needs them: the managed backend, and anything that calls a model directly.
+ * The summary model and the speech key chosen in settings. One place for every part of the
+ * plugin that needs them: the managed backend, and the light tier that calls a model directly.
  *
- * Settings hold the *name* of a secret in Obsidian's secret storage, never the key itself.
+ * The summary model is a rex-ai-kit slot (provider, model, Keychain name). Settings hold the
+ * *name* of a secret in Obsidian's Keychain, never the key itself.
  */
 import type { App } from 'obsidian';
+import {
+  defaultModel,
+  getProvider,
+  readKey,
+  resolveProvider,
+  slotFromEndpoint,
+  type AiSlot,
+  type KeyStore,
+  type Provider,
+} from '../vendor/rex-ai-kit/index';
 
-export type LlmProviderId = 'deepseek' | 'siliconflow' | 'qwen' | 'kimi' | 'gemini' | 'custom';
+/** What a new install uses when no key is in the Keychain yet. */
+export const DEFAULT_AI_SLOT: AiSlot = { provider: 'anthropic', model: 'claude-sonnet-5-5' };
 
-export interface LlmProvider {
-  id: LlmProviderId;
-  /** Shown in the provider list; names of services are not translated. */
-  label: string;
-  labelZh?: string;
-  /** OpenAI-compatible base address; '' for custom. */
-  baseUrl: string;
-  /** Used when settings.llmModel is empty; '' when the service has no stable default. */
-  defaultModel: string;
-  /** Other model names offered in the list. */
-  models: string[];
-  /** Where a person gets a key for this service. */
-  keyUrl: string;
+/**
+ * A new install takes the first of these whose key another plugin already put in the
+ * Keychain, so someone who set up one plugin fills in nothing here. Only names are read.
+ */
+const FIRST_KEYED = ['anthropic', 'openai', 'gemini', 'deepseek'];
+
+/** The balanced pick of a provider, or the default slot's model for Anthropic. */
+function balancedModel(provider: string): string {
+  const p = getProvider(provider);
+  return p ? defaultModel(p, 'balanced') : '';
 }
 
-/** The services in INSTALL.md's "change the model" table. */
-export const LLM_PROVIDERS: LlmProvider[] = [
-  {
-    id: 'deepseek',
-    label: 'DeepSeek',
-    baseUrl: 'https://api.deepseek.com',
-    defaultModel: 'deepseek-flash',
-    models: ['deepseek-flash'],
-    keyUrl: 'https://platform.deepseek.com/api_keys',
-  },
-  {
-    id: 'siliconflow',
-    label: 'SiliconFlow',
-    labelZh: '硅基流动',
-    baseUrl: 'https://api.siliconflow.cn/v1',
-    defaultModel: 'deepseek-ai/DeepSeek-V4.1-Flash',
-    models: ['deepseek-ai/DeepSeek-V4.1-Flash'],
-    keyUrl: 'https://cloud.siliconflow.cn/account/ak',
-  },
-  {
-    id: 'qwen',
-    label: 'Qwen (DashScope)',
-    labelZh: '通义千问',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    defaultModel: 'qwen-plus',
-    models: ['qwen-plus'],
-    keyUrl: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
-  },
-  {
-    id: 'kimi',
-    label: 'Kimi',
-    baseUrl: 'https://api.moonshot.cn/v1',
-    defaultModel: '',
-    models: [],
-    keyUrl: 'https://platform.moonshot.cn/console/api-keys',
-  },
-  {
-    id: 'gemini',
-    label: 'Gemini',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    defaultModel: 'gemini-flash-latest',
-    models: ['gemini-flash-latest'],
-    keyUrl: 'https://aistudio.google.com/apikey',
-  },
-  {
-    id: 'custom',
-    label: 'Other',
-    labelZh: '其他',
-    baseUrl: '',
-    defaultModel: '',
-    models: [],
-    keyUrl: '',
-  },
-];
+export function firstKeyedSlot(keys: KeyStore | undefined): AiSlot {
+  const listed = new Set(safeList(keys));
+  for (const id of FIRST_KEYED) {
+    const p = getProvider(id);
+    if (!p) continue;
+    if (listed.has(p.secretName) || !!readKey(keys, p)) {
+      return {
+        provider: id,
+        model: id === 'anthropic' ? DEFAULT_AI_SLOT.model : balancedModel(id),
+      };
+    }
+  }
+  return { ...DEFAULT_AI_SLOT };
+}
+
+function safeList(keys: KeyStore | undefined): string[] {
+  try {
+    return keys?.listSecrets?.() ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Addresses of the providers 2.13 offered, for turning its settings into a slot. */
+const OLD_BASES: Record<string, string> = {
+  deepseek: 'https://api.deepseek.com',
+  siliconflow: 'https://api.siliconflow.cn/v1',
+  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  kimi: 'https://api.moonshot.cn/v1',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
+};
+
+/**
+ * The slot for settings saved before 2.14 (llmProvider, llmModel, llmBaseUrl, llmKeySecret).
+ * The Keychain name chosen then keeps working. Settings never touched (the old default with
+ * no key) count as a new install. Returns null when the settings already have a slot.
+ */
+export function migrateAiSlot(
+  stored: Record<string, unknown>,
+  keys: KeyStore | undefined,
+): AiSlot | null {
+  const ai = stored.ai as Partial<AiSlot> | undefined;
+  if (ai && typeof ai.provider === 'string' && ai.provider) return null;
+  const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const oldProvider = text(stored.llmProvider) || 'deepseek';
+  const oldModel = text(stored.llmModel);
+  const oldKey = text(stored.llmKeySecret);
+  if (!oldKey && !oldModel && oldProvider === 'deepseek') return firstKeyedSlot(keys);
+  const slot = slotFromEndpoint({
+    url: oldProvider === 'custom' ? text(stored.llmBaseUrl) : OLD_BASES[oldProvider] || '',
+    provider: oldProvider === 'custom' ? undefined : oldProvider,
+    model: oldModel,
+    secretName: oldKey,
+  });
+  if (!slot.model) slot.model = balancedModel(slot.provider);
+  return slot;
+}
+
+/** The fields 2.13 kept for the summary model; removed from settings once migrated. */
+export const LEGACY_LLM_FIELDS = ['llmProvider', 'llmModel', 'llmBaseUrl', 'llmKeySecret'];
+
+/**
+ * Where the backend reaches this provider with the OpenAI chat format it speaks, or '' when it
+ * cannot (Claude Code and Codex run on this computer, not in the backend).
+ */
+export function openAiCompatibleBase(provider: Provider): string {
+  switch (provider.protocol) {
+    case 'openai':
+    case 'anthropic':
+      return provider.baseUrl;
+    case 'gemini':
+      return provider.baseUrl ? `${provider.baseUrl}/openai` : '';
+    case 'ollama':
+      return provider.baseUrl ? `${provider.baseUrl}/v1` : '';
+    default:
+      return '';
+  }
+}
 
 export const SPEECH_DEFAULTS = {
   baseUrl: 'https://api.siliconflow.cn/v1',
@@ -86,32 +119,10 @@ export const SPEECH_DEFAULTS = {
 
 /** The settings fields this module reads. */
 export interface ModelSettingsFields {
-  llmProvider: LlmProviderId;
-  llmModel: string;
-  llmBaseUrl: string;
-  llmKeySecret: string;
+  ai: AiSlot;
   speechKeySecret: string;
   speechBaseUrl: string;
   speechModel: string;
-}
-
-export function llmProvider(id: string): LlmProvider {
-  return LLM_PROVIDERS.find((provider) => provider.id === id) ?? LLM_PROVIDERS[0];
-}
-
-/** Base address and model name for summaries. Either can be '' when a custom service is half filled in. */
-export function resolveLlm(
-  settings: Pick<ModelSettingsFields, 'llmProvider' | 'llmModel' | 'llmBaseUrl'>,
-): {
-  provider: LlmProvider;
-  baseUrl: string;
-  model: string;
-} {
-  const provider = llmProvider(settings.llmProvider);
-  const baseUrl = (provider.id === 'custom' ? settings.llmBaseUrl : provider.baseUrl)
-    .trim()
-    .replace(/\/+$/, '');
-  return { provider, baseUrl, model: (settings.llmModel || '').trim() || provider.defaultModel };
 }
 
 export function resolveSpeech(
@@ -152,15 +163,16 @@ export interface BackendModelConfig {
 }
 
 export function backendModelConfig(app: App, settings: ModelSettingsFields): BackendModelConfig {
-  const llm = resolveLlm(settings);
-  const chatKey = readSecret(app, settings.llmKeySecret);
+  const provider = resolveProvider(settings.ai);
+  const keys = hasSecretStorage(app) ? app.secretStorage : undefined;
+  const chatKey = readKey(keys, provider);
+  const chatBase = openAiCompatibleBase(provider);
   const speechKey = readSecret(app, settings.speechKeySecret);
   const config: BackendModelConfig = { chat: {}, speech: {} };
   // Model and address follow the key: without a key chosen here, the backend keeps its own.
-  if (chatKey) {
-    config.chat.key = chatKey;
-    if (llm.baseUrl) config.chat.base = llm.baseUrl;
-    if (llm.model) config.chat.model = llm.model;
+  if (chatKey && chatBase) {
+    config.chat = { key: chatKey, base: chatBase };
+    if (settings.ai.model) config.chat.model = settings.ai.model;
   }
   if (speechKey) {
     const speech = resolveSpeech(settings);

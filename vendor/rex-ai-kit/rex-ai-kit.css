@@ -1,0 +1,48 @@
+/* rex-ai-kit: shared "AI service" settings group. Theme variables only. */
+.rak-ai .rak-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	margin-inline: 4px 8px;
+	flex: none;
+	background: var(--background-modifier-border);
+}
+.rak-ai .rak-dot.is-ok { background: var(--color-green); }
+.rak-ai .rak-dot.is-invalid { background: var(--color-red); }
+.rak-ai .rak-dot.is-missing { background: var(--color-orange); }
+.rak-ai .rak-dot.is-error { background: var(--text-faint); }
+.rak-ai .rak-dot.is-busy { background: var(--interactive-accent); }
+@media (prefers-reduced-motion: no-preference) {
+	.rak-ai .rak-dot.is-busy { animation: rak-pulse 1s ease-in-out infinite; }
+}
+@keyframes rak-pulse { 50% { opacity: 0.35; } }
+
+.rak-ai .rak-keyline {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+	margin-top: 4px;
+}
+.rak-ai .rak-keyline:empty { display: none; }
+.rak-ai .rak-status.is-ok { color: var(--color-green); }
+.rak-ai .rak-status.is-invalid { color: var(--color-red); }
+.rak-ai .rak-status.is-missing { color: var(--color-orange); }
+.rak-ai .rak-balance { color: var(--text-normal); font-variant-numeric: tabular-nums; }
+/* Links stay quiet next to status colours; the accent comes on hover. */
+.rak-ai .rak-link { color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px; }
+.rak-ai .rak-link:hover { color: var(--text-accent); }
+.rak-ai .setting-item-description { text-wrap-style: pretty; }
+.rak-ai .rak-expiry { color: var(--color-orange); }
+.rak-ai .rak-warn .setting-item-name { color: var(--color-orange); }
+
+.rak-ai .rak-manual { width: 14em; }
+
+.rak-ai .rak-advanced { padding-top: 4px; }
+.rak-ai .rak-advanced > summary {
+	cursor: var(--cursor);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	padding: 8px 0;
+	list-style-position: inside;
+}
+.rak-ai .rak-advanced[open] > summary { color: var(--text-normal); }

@@ -1,10 +1,10 @@
 /**
  * The light tier: a transcript becomes a note by calling the person's own
- * OpenAI-compatible model directly, with no backend. Same prompt (v5) and the same
+ * model directly, with no backend. Same prompt (v5) and the same
  * JSON fields as the backend, so notes look alike whichever tier made them.
  *
- * Everything here is pure or takes its network layer as a parameter, so tests run
- * on recorded responses.
+ * Everything here is pure or takes the chat call as a parameter, so tests run
+ * on recorded replies.
  */
 import { NOTE_SYSTEM_MESSAGE, buildNotePrompt } from '../tools/note-prompt.mjs';
 
@@ -22,24 +22,17 @@ export interface ChatMessage {
   content: string;
 }
 
-export interface ChatRequest {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  messages: ChatMessage[];
-  jsonMode: boolean;
-}
-
 /**
- * Network layer for one streamed chat call. It calls onData with each piece of the
- * response body as it arrives and resolves with the status code; for an error status
- * the body is in `errorText`.
+ * One chat call to the person's model. onText gets the reply so far and how much the model
+ * has thought before it (0 when the service does not say). jsonMode asks for a JSON object
+ * where the service supports it.
  */
-export type StreamTransport = (
-  request: { url: string; headers: Record<string, string>; body: string },
-  onData: (chunk: string) => void,
+export type Chat = (
+  messages: ChatMessage[],
+  jsonMode: boolean,
+  onText: (full: string, reasoning: number) => void,
   signal?: AbortSignal,
-) => Promise<{ status: number; errorText?: string }>;
+) => Promise<string>;
 
 /** Above this many characters of transcript the text is condensed first (see below). */
 export const SINGLE_PASS_CHARS = 80_000;
@@ -156,88 +149,6 @@ export function parseCondensed(text: string, known: Map<string, LiteSegment>): L
   return out;
 }
 
-/** Pulls the content deltas out of an SSE stream as it arrives. */
-export class SseReader {
-  private buffer = '';
-  text = '';
-  /** Characters of a reasoning model's thinking (`reasoning_content`), which comes before the reply. */
-  reasoning = 0;
-  done = false;
-
-  push(chunk: string): string {
-    this.buffer += chunk;
-    let added = '';
-    let newline = this.buffer.indexOf('\n');
-    while (newline >= 0) {
-      const line = this.buffer.slice(0, newline).trim();
-      this.buffer = this.buffer.slice(newline + 1);
-      newline = this.buffer.indexOf('\n');
-      if (!line.startsWith('data:')) continue;
-      const data = line.slice(5).trim();
-      if (data === '[DONE]') {
-        this.done = true;
-        continue;
-      }
-      try {
-        const parsed = JSON.parse(data) as {
-          choices?: {
-            delta?: { content?: string; reasoning_content?: string };
-            message?: { content?: string };
-          }[];
-        };
-        const thinking = parsed.choices?.[0]?.delta?.reasoning_content;
-        if (thinking) {
-          this.reasoning += thinking.length;
-          added += ' ';
-        }
-        const piece =
-          parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.message?.content ?? '';
-        if (piece) {
-          added += piece;
-          this.text += piece;
-        }
-      } catch {
-        // A keep-alive comment or a partial line that the next chunk completes.
-      }
-    }
-    return added;
-  }
-}
-
-export class ModelCallError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'ModelCallError';
-  }
-}
-
-/** A short, key-free reason from an error body. */
-export function modelErrorText(status: number, body = ''): string {
-  let detail = '';
-  try {
-    const parsed = JSON.parse(body) as { error?: { message?: string } | string; message?: string };
-    detail =
-      (typeof parsed.error === 'string' ? parsed.error : parsed.error?.message) ||
-      parsed.message ||
-      '';
-  } catch {
-    detail = body.slice(0, 200);
-  }
-  // Never echo anything that looks like a key back to the screen.
-  detail = detail.replace(/\b(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, '••••');
-  if (status === 401 || status === 403) return `密钥无效或没有权限（HTTP ${status}）`;
-  if (status === 402) return `模型服务余额不足（HTTP ${status}）`;
-  if (status === 429) return `模型服务限流，稍后再试（HTTP ${status}）`;
-  return `模型服务返回 HTTP ${status}${detail ? `：${detail}` : ''}`;
-}
-
-/**
- * One streamed chat call. Falls back to plain mode once if the service rejects JSON mode.
- * onText gets the reply so far and how much the model has thought before it.
- */
 /** OpenAI reasoning models (o-series, gpt-5 and later); keep in step with backend/init/configure.mjs. */
 export function isReasoningModel(model: string | undefined): boolean {
   const name = (model ?? '')
@@ -246,51 +157,6 @@ export function isReasoningModel(model: string | undefined): boolean {
     .replace(/^(openai|anthropic)\//, '');
   // Claude 5 and later reject `temperature` like OpenAI's reasoning models do.
   return /^(o\d|gpt-([5-9]|\d{2,})|claude-[a-z]+-([5-9]|\d{2,}))/.test(name);
-}
-
-export async function streamChat(
-  transport: StreamTransport,
-  request: ChatRequest,
-  onText: (full: string, reasoning: number) => void,
-  signal?: AbortSignal,
-): Promise<string> {
-  const attempt = async (jsonMode: boolean) => {
-    const reader = new SseReader();
-    const body: Record<string, unknown> = {
-      model: request.model,
-      messages: request.messages,
-      stream: true,
-    };
-    // Same as the backend's chat model node. Reasoning models only take the default and answer 400.
-    if (!isReasoningModel(request.model)) body.temperature = 0.4;
-    if (jsonMode) body.response_format = { type: 'json_object' };
-    const response = await transport(
-      {
-        url: `${request.baseUrl.replace(/\/+$/, '')}/chat/completions`,
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
-          Authorization: `Bearer ${request.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      },
-      (chunk) => {
-        if (reader.push(chunk)) onText(reader.text, reader.reasoning);
-      },
-      signal,
-    );
-    reader.push('\n');
-    return { response, text: reader.text };
-  };
-  let { response, text } = await attempt(request.jsonMode);
-  if (request.jsonMode && response.status === 400) {
-    ({ response, text } = await attempt(false));
-  }
-  if (response.status >= 400) {
-    throw new ModelCallError(response.status, modelErrorText(response.status, response.errorText));
-  }
-  if (!text.trim()) throw new ModelCallError(response.status, '模型没有回内容');
-  return text;
 }
 
 /**
@@ -343,10 +209,7 @@ export function parseNoteJson(text: string): Record<string, unknown> {
 }
 
 export interface GenerateOptions {
-  transport: StreamTransport;
-  baseUrl: string;
-  apiKey: string;
-  model: string;
+  chat: Chat;
   segments: LiteSegment[];
   title?: string;
   author?: string;
@@ -367,19 +230,7 @@ export async function generateNote(options: GenerateOptions): Promise<Record<str
     messages: ChatMessage[],
     jsonMode: boolean,
     onText: (full: string, reasoning: number) => void,
-  ) =>
-    streamChat(
-      options.transport,
-      {
-        baseUrl: options.baseUrl,
-        apiKey: options.apiKey,
-        model: options.model,
-        messages,
-        jsonMode,
-      },
-      onText,
-      options.signal,
-    );
+  ) => options.chat(messages, jsonMode, onText, options.signal);
 
   let segments = options.segments;
   if (promptLength(segments) > SINGLE_PASS_CHARS) {

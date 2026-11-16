@@ -16,14 +16,9 @@ import {
   VideoKnowledgeArtifact,
 } from '../types';
 import { Job, JobProgress, JobStore } from './JobStore';
-import {
-  type LiteVideoMeta,
-  linkWantsPageCapture,
-  liteDecision,
-  nodeStreamTransport,
-  runLiteJob,
-} from './LiteRunner';
-import { readSecret, resolveLlm } from './ModelSettings';
+import { type LiteVideoMeta, linkWantsPageCapture, liteDecision, runLiteJob } from './LiteRunner';
+import { kitChat } from './LiteChat';
+import { aiLang } from './AiKit';
 import { JobDraft } from './InputParser';
 import { isPlaceholderTitle, youTubeOEmbed } from './VideoOEmbed';
 import { NoteFactory, buildInsertionContent, extractVideoInputFromPayload } from './NoteFactory';
@@ -668,7 +663,7 @@ export class JobService {
     report: (progress: JobProgress) => void,
   ): Promise<ProcessingResult> {
     const { settings } = this.plugin;
-    const llm = resolveLlm(settings);
+    const slot = { ...settings.ai };
     const controller = new AbortController();
     this.liteControllers.set(job.id, controller);
     // The note grows a few characters at a time; redraw the panel at most a few times a second.
@@ -709,10 +704,8 @@ export class JobService {
       }
       return await runLiteJob(
         {
-          transport: nodeStreamTransport,
-          baseUrl: llm.baseUrl,
-          apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || '',
-          model: llm.model,
+          chat: kitChat(this.plugin.ai, slot, aiLang()),
+          model: slot.model,
           noteStyle: settings.noteStyle,
           images,
         },

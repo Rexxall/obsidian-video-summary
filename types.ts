@@ -1,4 +1,4 @@
-import type { LlmProviderId } from './core/ModelSettings';
+import type { AiSlot, ModelCacheData } from './vendor/rex-ai-kit/index';
 import { TFile } from 'obsidian';
 
 export interface WebhookAuthConfig {
@@ -379,13 +379,10 @@ export interface VideoSummarySettings {
   backendDirPath: string;
 
   // 模型与密钥（core/ModelSettings.ts 读这些；密钥只存钥匙串里的名字）
-  llmProvider: LlmProviderId;
-  /** '' = the provider's default model */
-  llmModel: string;
-  /** Only used when llmProvider is 'custom' */
-  llmBaseUrl: string;
-  /** Name of the summary key in Obsidian's secret storage; '' = not set */
-  llmKeySecret: string;
+  /** The summary model: provider, model and Keychain name (rex-ai-kit). Holds no key. */
+  ai: AiSlot;
+  /** Model lists fetched in settings, so the picker opens without a request. */
+  modelCache: ModelCacheData;
   /** Name of the speech-to-text key in Obsidian's secret storage; '' = not set */
   speechKeySecret: string;
   /** '' = SiliconFlow */

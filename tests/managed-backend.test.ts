@@ -19,11 +19,13 @@ import {
   type BackendFacts,
 } from '../core/ManagedBackend';
 import {
-  LLM_PROVIDERS,
   modelConfigFingerprint,
-  resolveLlm,
+  firstKeyedSlot,
+  migrateAiSlot,
+  openAiCompatibleBase,
   resolveSpeech,
 } from '../core/ModelSettings';
+import { resolveProvider } from '../vendor/rex-ai-kit/index';
 
 const FAKE_KEY = 'sk-test-0123456789abcdef';
 const ok = (stdout = ''): CommandResult => ({ code: 0, stdout, stderr: '' });
@@ -199,21 +201,62 @@ void test('a backend too old to take settings, or one that rejects them, is not 
   assert.deepEqual(restarted, []);
 });
 
-void test('provider presets resolve to an address and a model; the fingerprint holds no key', async () => {
-  assert.deepEqual(
-    LLM_PROVIDERS.map((provider) => provider.id),
-    ['deepseek', 'siliconflow', 'qwen', 'kimi', 'gemini', 'custom'],
-  );
-  const deepseek = resolveLlm({ llmProvider: 'deepseek', llmModel: '', llmBaseUrl: 'ignored' });
-  assert.equal(deepseek.baseUrl, 'https://api.deepseek.com');
-  assert.equal(deepseek.model, 'deepseek-flash');
-  const custom = resolveLlm({
-    llmProvider: 'custom',
-    llmModel: ' my-model ',
-    llmBaseUrl: 'https://llm.example.com/v1/',
+void test('2.13 model settings become a kit slot that keeps the old key name', async () => {
+  const keys = (names: string[]) => ({
+    getSecret: (id: string) => (names.includes(id) ? 'k' : null),
+    listSecrets: () => names,
   });
-  assert.deepEqual([custom.baseUrl, custom.model], ['https://llm.example.com/v1', 'my-model']);
-  assert.equal(resolveLlm({ llmProvider: 'kimi', llmModel: '', llmBaseUrl: '' }).model, '');
+  // Rex's own: OpenAI through the custom address, the shared key name.
+  assert.deepEqual(
+    migrateAiSlot(
+      {
+        llmProvider: 'custom',
+        llmModel: 'gpt-6.1-sol',
+        llmBaseUrl: 'https://api.openai.com/v1',
+        llmKeySecret: 'openai-api-key',
+      },
+      keys([]),
+    ),
+    { provider: 'openai', model: 'gpt-6.1-sol' },
+  );
+  // A preset with a key of its own name and no model gets the provider's pick.
+  assert.deepEqual(
+    migrateAiSlot({ llmProvider: 'deepseek', llmModel: '', llmKeySecret: 'my-ds' }, keys([])),
+    { provider: 'deepseek', model: 'deepseek-flash', secretName: 'my-ds' },
+  );
+  // Gemini's OpenAI-compatible address becomes native Gemini with the same key.
+  assert.deepEqual(
+    migrateAiSlot(
+      { llmProvider: 'gemini', llmModel: 'gemini-flash-latest', llmKeySecret: 'gemini-api-key' },
+      keys([]),
+    ),
+    { provider: 'gemini', model: 'gemini-flash-latest' },
+  );
+  // Untouched settings are a new install: the first key already in the Keychain wins.
+  assert.deepEqual(migrateAiSlot({}, keys(['openai-api-key', 'deepseek-api-key'])), {
+    provider: 'openai',
+    model: 'gpt-6.1-terra',
+  });
+  assert.deepEqual(firstKeyedSlot(keys([])), {
+    provider: 'anthropic',
+    model: 'claude-sonnet-5-5',
+  });
+  assert.equal(migrateAiSlot({ ai: { provider: 'openai', model: 'x' } }, keys([])), null);
+});
+
+void test('the backend gets an OpenAI-compatible address, never one for a local program', () => {
+  const base = (provider: string, baseUrl?: string) =>
+    openAiCompatibleBase(resolveProvider({ provider, baseUrl }));
+  assert.equal(base('openai'), 'https://api.openai.com/v1');
+  assert.equal(base('anthropic'), 'https://api.anthropic.com/v1');
+  assert.equal(base('gemini'), 'https://generativelanguage.googleapis.com/v1beta/openai');
+  assert.equal(base('deepseek'), 'https://api.deepseek.com');
+  assert.equal(base('ollama'), 'http://localhost:11434/v1');
+  assert.equal(base('claude-code'), '');
+  assert.equal(base('custom', 'https://llm.example.com/v1/'), 'https://llm.example.com/v1');
+});
+
+void test('speech defaults; the fingerprint holds no key', async () => {
   assert.equal(
     resolveSpeech({ speechBaseUrl: '', speechModel: '' }).model,
     'FunAudioLLM/SenseVoiceSmall',

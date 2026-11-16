@@ -72,7 +72,9 @@ import { JobService } from './core/JobService';
 import { BackendControl } from './core/BackendControl';
 import { BackendInstaller } from './core/BackendInstaller';
 import { renderBackendSettings, renderModelSettings } from './views/BackendSettings';
-import { readSecret, resolveLlm } from './core/ModelSettings';
+import { LEGACY_LLM_FIELDS, hasSecretStorage, migrateAiSlot } from './core/ModelSettings';
+import { createAiClient } from './core/AiKit';
+import type { AiClient } from './vendor/rex-ai-kit/index';
 import { NoteArtifactLinks } from './core/NoteArtifactLinks';
 import { pageVideoDetails } from './core/LiteRunner';
 import { BackendHealthModal } from './views/BackendHealthModal';
@@ -126,6 +128,8 @@ export default class VideoSummaryPlugin extends Plugin {
   /** The extension's local endpoint; null on mobile or before layout is ready. */
   bridge: ExtensionBridge | null = null;
   api: VideoSummaryAPI;
+  /** The summary model (rex-ai-kit): keys read from the Keychain when a request is sent. */
+  ai: AiClient;
   fileProcessor: FileProcessor;
   noteProcessor: NoteProcessor;
   /** 任务与索引挂在插件上，侧栏开关不影响它们 */
@@ -176,6 +180,7 @@ export default class VideoSummaryPlugin extends Plugin {
     setInterfaceLanguage(getLanguage());
     // 加载设置
     await this.loadSettings();
+    this.ai = createAiClient(this.app, this.settings.modelCache);
 
     // 初始化API
     this.initializeApiInstance();
@@ -1528,6 +1533,23 @@ export default class VideoSummaryPlugin extends Plugin {
 
     // 3.0 后端只有一个模型，由 .env 决定；旧版的模型标签列表不再起作用
     const settingsRecord = this.settings as unknown as JsonRecord;
+    // 2.14: the summary model becomes a rex-ai-kit slot; the Keychain name chosen before keeps working.
+    const slot = migrateAiSlot(
+      stored,
+      hasSecretStorage(this.app) ? this.app.secretStorage : undefined,
+    );
+    if (slot) {
+      this.settings.ai = slot;
+      shouldSave = true;
+    } else {
+      this.settings.ai = { ...this.settings.ai };
+    }
+    for (const key of LEGACY_LLM_FIELDS) {
+      if (key in settingsRecord) {
+        delete settingsRecord[key];
+        shouldSave = true;
+      }
+    }
     if ('customAiModels' in settingsRecord) {
       delete settingsRecord.customAiModels;
       shouldSave = true;
@@ -1925,8 +1947,7 @@ export default class VideoSummaryPlugin extends Plugin {
   /** The light tier can make notes now: it is on and a summary model and key are set. */
   liteReady(): boolean {
     if (this.settings.liteTierEnabled === false) return false;
-    const llm = resolveLlm(this.settings);
-    return !!llm.baseUrl && !!llm.model && !!readSecret(this.app, this.settings.llmKeySecret);
+    return !!this.settings.ai.model && !!this.ai?.hasKey(this.settings.ai);
   }
 
   hasBackend(): boolean {

@@ -170,10 +170,8 @@ export const DEFAULT_SETTINGS: VideoSummarySettings = {
   preflightCheckEnabled: true, // 处理前先 ping 后端，失败时提示/建议切换
   liteTierEnabled: true, // 轻量档：YouTube 有字幕和粘贴的文稿直接调总结模型，不经过后端
   expandShortLinks: true, // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
-  llmProvider: 'deepseek',
-  llmModel: '',
-  llmBaseUrl: '',
-  llmKeySecret: '',
+  ai: { provider: 'anthropic', model: 'claude-sonnet-5-5' }, // 实际默认在 loadSettings 里按钥匙串已有的 key 挑
+  modelCache: {},
   speechKeySecret: '',
   speechBaseUrl: '',
   speechModel: '',

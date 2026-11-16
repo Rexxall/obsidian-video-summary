@@ -1,6 +1,5 @@
 /**
- * Plugin side of the light tier: which jobs it takes, the network layer for the
- * streamed model reply, and turning the model's JSON into a ProcessingResult like
+ * Plugin side of the light tier: which jobs it takes, and turning the model's JSON into a ProcessingResult like
  * the backend's.
  *
  * The light tier works from a transcript the job already carries: one the browser
@@ -21,9 +20,8 @@ import {
 } from './NoteStyle';
 import type { ProcessingMode, ProcessingResult, SupportedLanguage, VideoInput } from '../types';
 import { detectPlatform } from './Platform';
-import { type LiteSegment, type StreamTransport, generateNote, transcriptText } from './LiteTier';
+import { type Chat, type LiteSegment, generateNote, transcriptText } from './LiteTier';
 import { normalizeRichProcessingResult, parseTranscriptSegments } from './KnowledgeModel';
-import { desktopRequire } from '../utils/desktop';
 import { tr } from '../utils/i18n';
 
 export type LiteDecision =
@@ -75,9 +73,9 @@ export function captureShortcut(isMac: boolean): string {
 }
 
 export interface LiteDeps {
-  transport: StreamTransport;
-  baseUrl: string;
-  apiKey: string;
+  /** The person's model, through rex-ai-kit (see LiteChat.ts). */
+  chat: Chat;
+  /** Recorded with the result, like the backend's model name. */
   model: string;
   /** The reader's writing style, followed over the prompt's defaults. */
   noteStyle?: string;
@@ -165,10 +163,7 @@ export async function runLiteJob(
 
   if (mode === 'summary') {
     const json = await generateNote({
-      transport: deps.transport,
-      baseUrl: deps.baseUrl,
-      apiKey: deps.apiKey,
-      model: deps.model,
+      chat: deps.chat,
       segments,
       title: meta.title,
       author: meta.author,
@@ -215,76 +210,6 @@ export async function runLiteJob(
     autoRoute: input.autoRoute,
   });
 }
-
-interface NodeResponse {
-  statusCode?: number;
-  setEncoding(encoding: string): void;
-  on(event: 'data', listener: (chunk: string) => void): void;
-  on(event: 'end', listener: () => void): void;
-  on(event: 'error', listener: (error: Error) => void): void;
-}
-interface NodeRequest {
-  on(event: 'error', listener: (error: Error) => void): void;
-  setTimeout(ms: number, listener: () => void): void;
-  destroy(error?: Error): void;
-  write(body: string): void;
-  end(): void;
-}
-interface NodeHttp {
-  request(
-    url: URL,
-    options: { method: string; headers: Record<string, string | number> },
-    onResponse: (response: NodeResponse) => void,
-  ): NodeRequest;
-}
-
-/**
- * Streams the reply through Node's http(s) on desktop: requestUrl returns only the
- * whole body, and a renderer fetch is subject to the model service's CORS rules.
- * A connection that sends nothing for two minutes is dropped.
- */
-export const nodeStreamTransport: StreamTransport = (request, onData, signal) =>
-  new Promise((resolve, reject) => {
-    const url = new URL(request.url);
-    const http = desktopRequire(url.protocol === 'http:' ? 'http' : 'https') as
-      | NodeHttp
-      | undefined;
-    if (!http?.request) {
-      reject(new Error(tr('轻量档需要桌面版 Obsidian', 'The light tier needs desktop Obsidian')));
-      return;
-    }
-    const length = new TextEncoder().encode(request.body).length;
-    const req = http.request(
-      url,
-      { method: 'POST', headers: { ...request.headers, 'Content-Length': length } },
-      (response) => {
-        const status = response.statusCode || 0;
-        let errorText = '';
-        response.setEncoding('utf8');
-        response.on('data', (chunk) => {
-          if (status >= 400) errorText += chunk;
-          else onData(chunk);
-        });
-        response.on('end', () => resolve({ status, errorText }));
-        response.on('error', reject);
-      },
-    );
-    req.on('error', reject);
-    req.setTimeout(120_000, () =>
-      req.destroy(
-        new Error(tr('模型服务两分钟没有回应', 'The model service went quiet for two minutes')),
-      ),
-    );
-    if (signal) {
-      if (signal.aborted) {
-        req.destroy(new Error('请求被取消'));
-        return;
-      }
-      signal.addEventListener('abort', () => req.destroy(new Error('请求被取消')), { once: true });
-    }
-    req.write(request.body);
-    req.end();
-  });
 
 /** The light tier's stage texts in the interface language. */
 function stageText(stage: string): string {

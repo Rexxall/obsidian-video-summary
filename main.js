@@ -155,21 +155,21 @@ function noteImagesFor(url, duration) {
   if (!id) return [];
   const base = `https://i.ytimg.com/vi/${id}/`;
   const total = durationSeconds(duration);
-  const at = (part, words) => total ? `frame near [${clockOf(Math.round(total * part))}]` : `frame ${words}`;
+  const at2 = (part, words) => total ? `frame near [${clockOf(Math.round(total * part))}]` : `frame ${words}`;
   return [
     { url: `${base}hqdefault.jpg`, label: "cover" },
-    { url: `${base}hq1.jpg`, label: at(0.25, "about a quarter into the video") },
-    { url: `${base}hq2.jpg`, label: at(0.5, "about halfway") },
-    { url: `${base}hq3.jpg`, label: at(0.75, "about three quarters in") }
+    { url: `${base}hq1.jpg`, label: at2(0.25, "about a quarter into the video") },
+    { url: `${base}hq2.jpg`, label: at2(0.5, "about halfway") },
+    { url: `${base}hq3.jpg`, label: at2(0.75, "about three quarters in") }
   ];
 }
 function youTubeVideoId(url) {
   return youTubeId(url);
 }
 function durationSeconds(text2) {
-  const parts = String(text2 || "").trim().split(":").map(Number);
-  if (parts.length < 2 || parts.length > 3 || parts.some((n) => !Number.isFinite(n))) return 0;
-  return parts.reduce((total, n) => total * 60 + n, 0);
+  const parts2 = String(text2 || "").trim().split(":").map(Number);
+  if (parts2.length < 2 || parts2.length > 3 || parts2.some((n) => !Number.isFinite(n))) return 0;
+  return parts2.reduce((total, n) => total * 60 + n, 0);
 }
 function clockOf(seconds) {
   const h = Math.floor(seconds / 3600);
@@ -317,16 +317,16 @@ function safeManagedVaultImagePath(value, expectedRoot) {
     return void 0;
   }
   if (!candidate.startsWith(`${root}/`)) return void 0;
-  const parts = candidate.split("/");
+  const parts2 = candidate.split("/");
   const rootParts = root.split("/");
   if (rootParts.some((part) => !part || part === "." || part === "..") || rootParts[rootParts.length - 1] !== "_video-summary-assets") {
     return void 0;
   }
-  if (parts.some((part) => !part || part === "." || part === "..")) return void 0;
-  const marker = parts.lastIndexOf("_video-summary-assets");
-  if (marker !== rootParts.length - 1 || marker !== parts.length - 3) return void 0;
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/.test(parts[marker + 1] || "")) return void 0;
-  if (!/^[A-Za-z0-9._-]+\.(?:png|jpe?g)$/i.test(parts[parts.length - 1] || "")) return void 0;
+  if (parts2.some((part) => !part || part === "." || part === "..")) return void 0;
+  const marker = parts2.lastIndexOf("_video-summary-assets");
+  if (marker !== rootParts.length - 1 || marker !== parts2.length - 3) return void 0;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/.test(parts2[marker + 1] || "")) return void 0;
+  if (!/^[A-Za-z0-9._-]+\.(?:png|jpe?g)$/i.test(parts2[parts2.length - 1] || "")) return void 0;
   return candidate;
 }
 function safeVaultRelativeMediaPath(value) {
@@ -1707,12 +1707,12 @@ function parseTimingLine(line) {
 }
 function parseClock(value) {
   const normalized = value.trim().replace(",", ".");
-  const parts = normalized.split(":").map(Number);
-  if (parts.some((part) => !Number.isFinite(part)) || parts.length < 2 || parts.length > 3) {
+  const parts2 = normalized.split(":").map(Number);
+  if (parts2.some((part) => !Number.isFinite(part)) || parts2.length < 2 || parts2.length > 3) {
     return null;
   }
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts2.length === 2) return parts2[0] * 60 + parts2[1];
+  return parts2[0] * 3600 + parts2[1] * 60 + parts2[2];
 }
 function dedupeRollingCues(segments) {
   const result = [];
@@ -1889,8 +1889,11 @@ var chinese = true;
 function setInterfaceLanguage(code) {
   chinese = /^zh\b/i.test(code ?? "");
 }
-function tr(zh, en) {
-  return chinese ? zh : en;
+function isChinese() {
+  return chinese;
+}
+function tr(zh2, en2) {
+  return chinese ? zh2 : en2;
 }
 
 // shared/platforms.mjs
@@ -1959,10 +1962,10 @@ function canonicalizeVideoUrl(url, opts = {}) {
       let pathname = u.pathname.replace(/\/$/, "");
       if (bvid && !/\/video\/BV/i.test(pathname)) pathname = `/video/${bvid}`;
       let out = u.origin + pathname;
-      const parts = [];
-      if (keepP && u.searchParams.get("p")) parts.push(`p=${u.searchParams.get("p")}`);
-      if (keepTimestamp && u.searchParams.get("t")) parts.push(`t=${u.searchParams.get("t")}`);
-      if (parts.length) out += `?${parts.join("&")}`;
+      const parts2 = [];
+      if (keepP && u.searchParams.get("p")) parts2.push(`p=${u.searchParams.get("p")}`);
+      if (keepTimestamp && u.searchParams.get("t")) parts2.push(`t=${u.searchParams.get("t")}`);
+      if (parts2.length) out += `?${parts2.join("&")}`;
       return out;
     }
     if (host.includes("douyin.com") || host.includes("tiktok.com")) {
@@ -2147,10 +2150,9 @@ var DEFAULT_SETTINGS = {
   // 轻量档：YouTube 有字幕和粘贴的文稿直接调总结模型，不经过后端
   expandShortLinks: true,
   // 短链（b23.tv / v.douyin.com 等）先展开再发给后端
-  llmProvider: "deepseek",
-  llmModel: "",
-  llmBaseUrl: "",
-  llmKeySecret: "",
+  ai: { provider: "anthropic", model: "claude-sonnet-5-5" },
+  // 实际默认在 loadSettings 里按钥匙串已有的 key 挑
+  modelCache: {},
   speechKeySecret: "",
   speechBaseUrl: "",
   speechModel: "",
@@ -2933,9 +2935,9 @@ function pathExists(path) {
     return false;
   }
 }
-function joinPath(...parts) {
+function joinPath(...parts2) {
   const path = desktopRequire("path");
-  return path ? path.join(...parts) : parts.join("/");
+  return path ? path.join(...parts2) : parts2.join("/");
 }
 async function pickFolderInSystem(title) {
   const electron = desktopRequire("electron");
@@ -3118,7 +3120,7 @@ function decodeBody(chunks) {
 }
 
 // main.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 
 // core/DemoNote.ts
 var DEMO_TRANSCRIPT = "\u4E3B\u6301\u4EBA\uFF1A\u6B22\u8FCE\u6536\u542C\u672C\u671F\u8282\u76EE\u3002\u4ECA\u5929\u6211\u4EEC\u804A\u4E00\u804A\u201C\u5982\u4F55\u8BFB\u4E00\u7BC7\u8BBA\u6587\u201D\u3002\u5F88\u591A\u540C\u5B66\u62FF\u5230\u8BBA\u6587\u5C31\u4ECE\u7B2C\u4E00\u9875\u8BFB\u5230\u6700\u540E\u4E00\u9875\uFF0C\u7ED3\u679C\u4E00\u4E0B\u5348\u8FC7\u53BB\u4E86\uFF0C\u4EC0\u4E48\u4E5F\u6CA1\u8BB0\u4F4F\u3002\n\n\u5609\u5BBE\uFF1A\u5BF9\uFF0C\u6211\u63A8\u8350\u4E09\u904D\u8BFB\u6CD5\u3002\u7B2C\u4E00\u904D\u53EA\u82B1\u4E94\u5230\u5341\u5206\u949F\uFF0C\u8BFB\u6807\u9898\u3001\u6458\u8981\u3001\u5F15\u8A00\u548C\u7ED3\u8BBA\uFF0C\u518D\u626B\u4E00\u773C\u56FE\u8868\u3002\u8BFB\u5B8C\u8981\u80FD\u56DE\u7B54\u4E94\u4E2A\u95EE\u9898\uFF1A\u8FD9\u7BC7\u5C5E\u4E8E\u4EC0\u4E48\u7C7B\u578B\uFF0C\u548C\u54EA\u4E9B\u5DF2\u6709\u5DE5\u4F5C\u76F8\u5173\uFF0C\u7ED3\u8BBA\u770B\u8D77\u6765\u5BF9\u4E0D\u5BF9\uFF0C\u4E3B\u8981\u8D21\u732E\u662F\u4EC0\u4E48\uFF0C\u5199\u5F97\u6E05\u4E0D\u6E05\u695A\u3002\n\n\u4E3B\u6301\u4EBA\uFF1A\u7B2C\u4E8C\u904D\u5462\uFF1F\n\n\u5609\u5BBE\uFF1A\u7B2C\u4E8C\u904D\u5927\u7EA6\u4E00\u5C0F\u65F6\uFF0C\u8BA4\u771F\u770B\u56FE\u548C\u8868\uFF0C\u6CE8\u610F\u5750\u6807\u8F74\u548C\u8BEF\u5DEE\u7EBF\uFF0C\u628A\u4E0D\u61C2\u7684\u53C2\u8003\u6587\u732E\u6807\u51FA\u6765\u3002\u8FD9\u4E00\u904D\u4E0D\u7528\u7BA1\u8BC1\u660E\u7EC6\u8282\u3002\u8BFB\u5B8C\u4E4B\u540E\uFF0C\u4F60\u5E94\u8BE5\u80FD\u628A\u8BBA\u6587\u7684\u4E3B\u8981\u8BBA\u8BC1\u8BB2\u7ED9\u522B\u4EBA\u542C\u3002\n\n\u4E3B\u6301\u4EBA\uFF1A\u7B2C\u4E09\u904D\u662F\u4E0D\u662F\u5C31\u662F\u9010\u5B57\u9010\u53E5\u4E86\uFF1F\n\n\u5609\u5BBE\uFF1A\u7B2C\u4E09\u904D\u662F\u201C\u865A\u62DF\u590D\u73B0\u201D\uFF1A\u5047\u8BBE\u4F60\u662F\u4F5C\u8005\uFF0C\u81EA\u5DF1\u4ECE\u5934\u628A\u5DE5\u4F5C\u91CD\u505A\u4E00\u904D\uFF0C\u518D\u548C\u539F\u6587\u5BF9\u6BD4\u3002\u8FD9\u6837\u6700\u5BB9\u6613\u53D1\u73B0\u9690\u85CF\u7684\u5047\u8BBE\u548C\u7F3A\u9677\u3002\u4E00\u822C\u8981\u56DB\u5230\u4E94\u4E2A\u5C0F\u65F6\uFF0C\u53EA\u6709\u5BA1\u7A3F\u6216\u8005\u8981\u5728\u8FD9\u7BC7\u57FA\u7840\u4E0A\u505A\u7814\u7A76\u65F6\u624D\u9700\u8981\u3002\n\n\u4E3B\u6301\u4EBA\uFF1A\u6700\u540E\u7ED9\u5927\u5BB6\u4E00\u4E2A\u5EFA\u8BAE\uFF1F\n\n\u5609\u5BBE\uFF1A\u8BFB\u5B8C\u6BCF\u7BC7\u8BBA\u6587\uFF0C\u90FD\u7528\u4E09\u53E5\u8BDD\u5199\u4E0B\u5B83\u89E3\u51B3\u4E86\u4EC0\u4E48\u95EE\u9898\u3001\u600E\u4E48\u89E3\u51B3\u3001\u8FD8\u6709\u4EC0\u4E48\u6CA1\u89E3\u51B3\u3002\u79EF\u7D2F\u4E0B\u6765\u5C31\u662F\u4F60\u81EA\u5DF1\u7684\u6587\u732E\u7EFC\u8FF0\u3002";
@@ -3884,8 +3886,8 @@ function parsePlaylistUrl(url) {
   throw new Error("\u65E0\u6CD5\u4ECE B\u7AD9\u94FE\u63A5\u8BC6\u522B\u5408\u96C6\u6216\u6536\u85CF\u5939 ID");
 }
 async function obsidianRequester(request) {
-  const { requestUrl: requestUrl5 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
-  const response = await requestUrl5({
+  const { requestUrl: requestUrl6 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl6({
     url: request.url,
     method: request.method,
     headers: request.headers,
@@ -4923,8 +4925,8 @@ function extractYouTubeVideoId(value) {
     } else if (hostname === "youtube.com" || hostname === "m.youtube.com") {
       candidate = url.searchParams.get("v");
       if (!candidate) {
-        const parts = url.pathname.split("/").filter(Boolean);
-        if (["embed", "shorts", "live"].includes(parts[0])) candidate = parts[1] ?? null;
+        const parts2 = url.pathname.split("/").filter(Boolean);
+        if (["embed", "shorts", "live"].includes(parts2[0])) candidate = parts2[1] ?? null;
       }
     }
     return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : void 0;
@@ -5099,9 +5101,9 @@ var CourseStore = class {
     return `${this.root}/${courseId}.json`;
   }
   async ensureRoot() {
-    const parts = this.root.split("/").filter(Boolean);
+    const parts2 = this.root.split("/").filter(Boolean);
     let current = "";
-    for (const part of parts) {
+    for (const part of parts2) {
       current = current ? `${current}/${part}` : part;
       if (!await this.adapter.exists(current)) await this.adapter.mkdir(current);
     }
@@ -5503,10 +5505,10 @@ function dedupeIncoming(items) {
   const unique = [];
   const positions = /* @__PURE__ */ new Map();
   for (const item of items) {
-    const list = positions.get(item.canonicalKey) ?? [];
-    list.push(item.position);
-    positions.set(item.canonicalKey, list);
-    if (list.length === 1) unique.push(item);
+    const list2 = positions.get(item.canonicalKey) ?? [];
+    list2.push(item.position);
+    positions.set(item.canonicalKey, list2);
+    if (list2.length === 1) unique.push(item);
   }
   const duplicates = [...positions.entries()].filter(([, value]) => value.length > 1).map(([canonicalKey, value]) => ({
     canonical_key: canonicalKey,
@@ -5733,11 +5735,11 @@ function titleForTranscript(text2) {
   const snippet = firstLine.substring(0, 12).replace(/[<>:"/\\|?*\s]/g, "_");
   return snippet ? `\u6587\u7A3F_${stamp2}_${snippet}` : `\u6587\u7A3F\u5904\u7406_${stamp2}`;
 }
-function buildInput(parts) {
+function buildInput(parts2) {
   const input = {};
-  if (parts.url) input.url = parts.url;
-  if (parts.transcript) input.transcript = parts.transcript;
-  if (parts.localFile) input.localFile = parts.localFile;
+  if (parts2.url) input.url = parts2.url;
+  if (parts2.transcript) input.transcript = parts2.transcript;
+  if (parts2.localFile) input.localFile = parts2.localFile;
   return input;
 }
 function splitLocalFiles(value) {
@@ -6122,11 +6124,11 @@ function segmentLink(segment, sourceUrl, allowTimestamps) {
   return url ? `[${label}](<${escapeMarkdownDestination(url)}>)` : label;
 }
 function segmentMeta(segment) {
-  const parts = [SOURCE_LABELS[segment.source]];
-  if (segment.speaker) parts.push(segment.speaker);
-  if (segment.timing_quality === "estimated") parts.push("\u4F30\u7B97\u65F6\u95F4");
-  if (segment.visual_text) parts.push(`\u5C4F\u5E55\uFF1A${escapeInline2(segment.visual_text)}`);
-  return parts.join(" \xB7 ");
+  const parts2 = [SOURCE_LABELS[segment.source]];
+  if (segment.speaker) parts2.push(segment.speaker);
+  if (segment.timing_quality === "estimated") parts2.push("\u4F30\u7B97\u65F6\u95F4");
+  if (segment.visual_text) parts2.push(`\u5C4F\u5E55\uFF1A${escapeInline2(segment.visual_text)}`);
+  return parts2.join(" \xB7 ");
 }
 function appendRanges(lines, title, ranges, sourceUrl, allowTimestamps) {
   if (!Array.isArray(ranges) || ranges.length === 0) return;
@@ -6247,9 +6249,9 @@ ${body ? `${body}
     return activeFile?.parent?.path && activeFile.parent.path !== "/" ? activeFile.parent.path : "";
   }
   async ensureFolder(folder) {
-    const parts = folder.split("/").map((part) => part.trim()).filter(Boolean);
+    const parts2 = folder.split("/").map((part) => part.trim()).filter(Boolean);
     let current = "";
-    for (const part of parts) {
+    for (const part of parts2) {
       current = current ? `${current}/${part}` : part;
       if (!this.app.vault.getAbstractFileByPath(current)) {
         await this.app.vault.createFolder(current);
@@ -7336,9 +7338,9 @@ var BatchProcessingModal = class extends import_obsidian7.Modal {
     await syncCourseIndexAtomic(this.app.vault, this.courseStore, manifest.course_id);
   }
   async ensureDirectoryExists(dirPath) {
-    const parts = dirPath.split("/").filter(Boolean);
+    const parts2 = dirPath.split("/").filter(Boolean);
     let current = "";
-    for (const part of parts) {
+    for (const part of parts2) {
       current = current ? `${current}/${part}` : part;
       if (!this.app.vault.getAbstractFileByPath(current)) {
         await this.app.vault.createFolder(current);
@@ -8375,18 +8377,18 @@ var QRMath = (function() {
   };
   return _this;
 })();
-var qrPolynomial = function(num, shift) {
-  if (typeof num.length == "undefined") {
-    throw num.length + "/" + shift;
+var qrPolynomial = function(num2, shift) {
+  if (typeof num2.length == "undefined") {
+    throw num2.length + "/" + shift;
   }
   const _num = (function() {
     let offset = 0;
-    while (offset < num.length && num[offset] == 0) {
+    while (offset < num2.length && num2[offset] == 0) {
       offset += 1;
     }
-    const _num2 = new Array(num.length - offset + shift);
-    for (let i = 0; i < num.length - offset; i += 1) {
-      _num2[i] = num[i + offset];
+    const _num2 = new Array(num2.length - offset + shift);
+    for (let i = 0; i < num2.length - offset; i += 1) {
+      _num2[i] = num2[i + offset];
     }
     return _num2;
   })();
@@ -8398,27 +8400,27 @@ var qrPolynomial = function(num, shift) {
     return _num.length;
   };
   _this.multiply = function(e) {
-    const num2 = new Array(_this.getLength() + e.getLength() - 1);
+    const num3 = new Array(_this.getLength() + e.getLength() - 1);
     for (let i = 0; i < _this.getLength(); i += 1) {
       for (let j = 0; j < e.getLength(); j += 1) {
-        num2[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i)) + QRMath.glog(e.getAt(j)));
+        num3[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i)) + QRMath.glog(e.getAt(j)));
       }
     }
-    return qrPolynomial(num2, 0);
+    return qrPolynomial(num3, 0);
   };
   _this.mod = function(e) {
     if (_this.getLength() - e.getLength() < 0) {
       return _this;
     }
     const ratio = QRMath.glog(_this.getAt(0)) - QRMath.glog(e.getAt(0));
-    const num2 = new Array(_this.getLength());
+    const num3 = new Array(_this.getLength());
     for (let i = 0; i < _this.getLength(); i += 1) {
-      num2[i] = _this.getAt(i);
+      num3[i] = _this.getAt(i);
     }
     for (let i = 0; i < e.getLength(); i += 1) {
-      num2[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i)) + ratio);
+      num3[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i)) + ratio);
     }
-    return qrPolynomial(num2, 0).mod(e);
+    return qrPolynomial(num3, 0).mod(e);
   };
   return _this;
 };
@@ -8656,16 +8658,16 @@ var QRRSBlock = (function() {
       throw "bad rs block @ typeNumber:" + typeNumber + "/errorCorrectionLevel:" + errorCorrectionLevel;
     }
     const length = rsBlock.length / 3;
-    const list = [];
+    const list2 = [];
     for (let i = 0; i < length; i += 1) {
       const count2 = rsBlock[i * 3 + 0];
       const totalCount = rsBlock[i * 3 + 1];
       const dataCount = rsBlock[i * 3 + 2];
       for (let j = 0; j < count2; j += 1) {
-        list.push(qrRSBlock(totalCount, dataCount));
+        list2.push(qrRSBlock(totalCount, dataCount));
       }
     }
-    return list;
+    return list2;
   };
   return _this;
 })();
@@ -8680,9 +8682,9 @@ var qrBitBuffer = function() {
     const bufIndex = Math.floor(index / 8);
     return (_buffer[bufIndex] >>> 7 - index % 8 & 1) == 1;
   };
-  _this.put = function(num, length) {
+  _this.put = function(num2, length) {
     for (let i = 0; i < length; i += 1) {
-      _this.putBit((num >>> length - i - 1 & 1) == 1);
+      _this.putBit((num2 >>> length - i - 1 & 1) == 1);
     }
   };
   _this.getLengthInBits = function() {
@@ -8726,11 +8728,11 @@ var qrNumber = function(data) {
     }
   };
   const strToNum = function(s) {
-    let num = 0;
+    let num2 = 0;
     for (let i = 0; i < s.length; i += 1) {
-      num = num * 10 + chatToNum(s.charAt(i));
+      num2 = num2 * 10 + chatToNum(s.charAt(i));
     }
-    return num;
+    return num2;
   };
   const chatToNum = function(c) {
     if ("0" <= c && c <= "9") {
@@ -8946,8 +8948,8 @@ var base64EncodeOutputStream = function() {
   };
   return _this;
 };
-var base64DecodeInputStream = function(str2) {
-  const _str = str2;
+var base64DecodeInputStream = function(str3) {
+  const _str = str3;
   let _pos = 0;
   let _buffer = 0;
   let _buflen = 0;
@@ -11875,7 +11877,7 @@ var _VideoSummaryAPI = class _VideoSummaryAPI {
   }
 };
 /** Network layer for webhook calls; Obsidian's requestUrl by default, replaceable in tests. */
-_VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl5 }) => requestUrl5(request));
+_VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(require("obsidian"))).then(({ requestUrl: requestUrl6 }) => requestUrl6(request));
 var VideoSummaryAPI = _VideoSummaryAPI;
 
 // views/VideoSummaryView.ts
@@ -11987,9 +11989,9 @@ function findContainerForPort(inspectOutput, port) {
   return matches.find((container) => container.running) ?? matches[0] ?? null;
 }
 async function locateContainer(run, port) {
-  const list = await run("docker", ["ps", "-aq"], { timeoutMs: 8e3 });
-  if (list.code !== 0) return null;
-  const ids = list.stdout.split(/\s+/).filter(Boolean);
+  const list2 = await run("docker", ["ps", "-aq"], { timeoutMs: 8e3 });
+  if (list2.code !== 0) return null;
+  const ids = list2.stdout.split(/\s+/).filter(Boolean);
   if (ids.length === 0) return null;
   const inspect = await run("docker", ["inspect", "--format", INSPECT_FORMAT, ...ids], {
     timeoutMs: 8e3
@@ -12275,9 +12277,9 @@ var _BackendHealthModal = class _BackendHealthModal extends import_obsidian10.Mo
       "Start backend opens Docker and starts the backend container that is already installed. It downloads and updates nothing."
     ) : faultNextStep(diagnosis, endpoint, backend.canStart()));
     if (step2) el.createDiv({ cls: "vs-health-step", text: step2 });
-    const list = el.createDiv({ cls: "vs-health-list" });
+    const list2 = el.createDiv({ cls: "vs-health-list" });
     const row = (label, value, tone = "none") => {
-      const item = list.createDiv({ cls: "vs-health-row" });
+      const item = list2.createDiv({ cls: "vs-health-row" });
       item.createSpan({ cls: "vs-health-label", text: label });
       item.createSpan({ cls: `vs-health-value is-${tone}`, text: value });
     };
@@ -12313,7 +12315,7 @@ var _BackendHealthModal = class _BackendHealthModal extends import_obsidian10.Mo
     row(tr("\u5DE5\u4F5C\u6D41", "Workflow"), ...workflowValue());
     row(tr("\u5730\u5740", "Address"), endpoint ? endpoint.replace(/[?#].*$/, "") : dash);
     const actions = el.createDiv({ cls: "vs-health-actions" });
-    const busy = snapshot.status === "starting" || snapshot.status === "checking";
+    const busy2 = snapshot.status === "starting" || snapshot.status === "checking";
     const origin = safeExternalHttpUrl(endpointOrigin(endpoint));
     if (origin && !serviceDown && checked) {
       const open = actions.createEl("button", {
@@ -12326,7 +12328,7 @@ var _BackendHealthModal = class _BackendHealthModal extends import_obsidian10.Mo
       text: tr("\u91CD\u65B0\u68C0\u67E5", "Check again"),
       attr: { type: "button" }
     });
-    recheck.disabled = busy;
+    recheck.disabled = busy2;
     recheck.addEventListener(
       "click",
       fire(() => backend.monitor.check())
@@ -12343,7 +12345,7 @@ var _BackendHealthModal = class _BackendHealthModal extends import_obsidian10.Mo
           )
         }
       });
-      start.disabled = busy;
+      start.disabled = busy2;
       start.addEventListener(
         "click",
         fire(() => backend.start())
@@ -13080,15 +13082,15 @@ function isBilibiliImage(url) {
   return BILIBILI_IMAGE.test(String(url || "").replace(/^http:\/\//, "https://"));
 }
 function parseSheetFrames(text2) {
-  let list;
+  let list2;
   try {
-    list = JSON.parse(String(text2 || "[]"));
+    list2 = JSON.parse(String(text2 || "[]"));
   } catch {
     return [];
   }
-  if (!Array.isArray(list)) return [];
+  if (!Array.isArray(list2)) return [];
   const whole = (n, max) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= max;
-  return list.slice(0, 4).filter(
+  return list2.slice(0, 4).filter(
     (item) => !!item && typeof item === "object" && isBilibiliImage(item.u) && whole(item.x, 2e4) && whole(item.y, 2e4) && whole(item.w, 4e3) && item.w > 0 && whole(item.h, 4e3) && item.h > 0 && typeof item.t === "number"
   );
 }
@@ -13261,21 +13263,21 @@ function promptLength(segments) {
   return segments.reduce((sum, segment) => sum + segment.text.length + 20, 0);
 }
 function chunkSegments(segments, size = CHUNK_CHARS) {
-  const parts = [];
+  const parts2 = [];
   let current = [];
   let length = 0;
   for (const segment of segments) {
     const add = segment.text.length + 20;
     if (current.length && length + add > size) {
-      parts.push(current);
+      parts2.push(current);
       current = [];
       length = 0;
     }
     current.push(segment);
     length += add;
   }
-  if (current.length) parts.push(current);
-  return parts;
+  if (current.length) parts2.push(current);
+  return parts2;
 }
 function noteMessages(request) {
   return [
@@ -13326,108 +13328,9 @@ function parseCondensed(text2, known) {
   }
   return out;
 }
-var SseReader = class {
-  constructor() {
-    this.buffer = "";
-    this.text = "";
-    /** Characters of a reasoning model's thinking (`reasoning_content`), which comes before the reply. */
-    this.reasoning = 0;
-    this.done = false;
-  }
-  push(chunk) {
-    this.buffer += chunk;
-    let added = "";
-    let newline = this.buffer.indexOf("\n");
-    while (newline >= 0) {
-      const line = this.buffer.slice(0, newline).trim();
-      this.buffer = this.buffer.slice(newline + 1);
-      newline = this.buffer.indexOf("\n");
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (data === "[DONE]") {
-        this.done = true;
-        continue;
-      }
-      try {
-        const parsed = JSON.parse(data);
-        const thinking = parsed.choices?.[0]?.delta?.reasoning_content;
-        if (thinking) {
-          this.reasoning += thinking.length;
-          added += " ";
-        }
-        const piece = parsed.choices?.[0]?.delta?.content ?? parsed.choices?.[0]?.message?.content ?? "";
-        if (piece) {
-          added += piece;
-          this.text += piece;
-        }
-      } catch {
-      }
-    }
-    return added;
-  }
-};
-var ModelCallError = class extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-    this.name = "ModelCallError";
-  }
-};
-function modelErrorText(status, body = "") {
-  let detail = "";
-  try {
-    const parsed = JSON.parse(body);
-    detail = (typeof parsed.error === "string" ? parsed.error : parsed.error?.message) || parsed.message || "";
-  } catch {
-    detail = body.slice(0, 200);
-  }
-  detail = detail.replace(/\b(sk|key)[-_][A-Za-z0-9_-]{8,}/gi, "\u2022\u2022\u2022\u2022");
-  if (status === 401 || status === 403) return `\u5BC6\u94A5\u65E0\u6548\u6216\u6CA1\u6709\u6743\u9650\uFF08HTTP ${status}\uFF09`;
-  if (status === 402) return `\u6A21\u578B\u670D\u52A1\u4F59\u989D\u4E0D\u8DB3\uFF08HTTP ${status}\uFF09`;
-  if (status === 429) return `\u6A21\u578B\u670D\u52A1\u9650\u6D41\uFF0C\u7A0D\u540E\u518D\u8BD5\uFF08HTTP ${status}\uFF09`;
-  return `\u6A21\u578B\u670D\u52A1\u8FD4\u56DE HTTP ${status}${detail ? `\uFF1A${detail}` : ""}`;
-}
 function isReasoningModel(model) {
   const name = (model ?? "").trim().toLowerCase().replace(/^(openai|anthropic)\//, "");
   return /^(o\d|gpt-([5-9]|\d{2,})|claude-[a-z]+-([5-9]|\d{2,}))/.test(name);
-}
-async function streamChat(transport, request, onText, signal) {
-  const attempt = async (jsonMode) => {
-    const reader = new SseReader();
-    const body = {
-      model: request.model,
-      messages: request.messages,
-      stream: true
-    };
-    if (!isReasoningModel(request.model)) body.temperature = 0.4;
-    if (jsonMode) body.response_format = { type: "json_object" };
-    const response2 = await transport(
-      {
-        url: `${request.baseUrl.replace(/\/+$/, "")}/chat/completions`,
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-          Authorization: `Bearer ${request.apiKey}`
-        },
-        body: JSON.stringify(body)
-      },
-      (chunk) => {
-        if (reader.push(chunk)) onText(reader.text, reader.reasoning);
-      },
-      signal
-    );
-    reader.push("\n");
-    return { response: response2, text: reader.text };
-  };
-  let { response, text: text2 } = await attempt(request.jsonMode);
-  if (request.jsonMode && response.status === 400) {
-    ({ response, text: text2 } = await attempt(false));
-  }
-  if (response.status >= 400) {
-    throw new ModelCallError(response.status, modelErrorText(response.status, response.errorText));
-  }
-  if (!text2.trim()) throw new ModelCallError(response.status, "\u6A21\u578B\u6CA1\u6709\u56DE\u5185\u5BB9");
-  return text2;
 }
 function partialJsonString(buffer, key) {
   const match = new RegExp(`"${key}"\\s*:\\s*"`).exec(buffer);
@@ -13469,28 +13372,17 @@ function parseNoteJson(text2) {
   return value;
 }
 async function generateNote(options) {
-  const chat = (messages, jsonMode, onText) => streamChat(
-    options.transport,
-    {
-      baseUrl: options.baseUrl,
-      apiKey: options.apiKey,
-      model: options.model,
-      messages,
-      jsonMode
-    },
-    onText,
-    options.signal
-  );
+  const chat = (messages, jsonMode, onText) => options.chat(messages, jsonMode, onText, options.signal);
   let segments = options.segments;
   if (promptLength(segments) > SINGLE_PASS_CHARS) {
     const known = new Map(segments.map((segment) => [segment.id, segment]));
-    const parts = chunkSegments(segments);
+    const parts2 = chunkSegments(segments);
     const condensed = [];
-    for (let i = 0; i < parts.length; i += 1) {
-      options.onProgress({ stage: `\u957F\u89C6\u9891\uFF0C\u5148\u538B\u7F29\u7B2C ${i + 1}/${parts.length} \u6BB5` });
-      const text2 = await chat(condenseMessages(parts[i], i, parts.length), false, () => void 0);
+    for (let i = 0; i < parts2.length; i += 1) {
+      options.onProgress({ stage: `\u957F\u89C6\u9891\uFF0C\u5148\u538B\u7F29\u7B2C ${i + 1}/${parts2.length} \u6BB5` });
+      const text2 = await chat(condenseMessages(parts2[i], i, parts2.length), false, () => void 0);
       const lines = parseCondensed(text2, known);
-      condensed.push(...lines.length ? lines : parts[i].slice(0, 20));
+      condensed.push(...lines.length ? lines : parts2[i].slice(0, 20));
     }
     segments = condensed;
   }
@@ -13598,10 +13490,7 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
   };
   if (mode === "summary") {
     const json = await generateNote({
-      transport: deps.transport,
-      baseUrl: deps.baseUrl,
-      apiKey: deps.apiKey,
-      model: deps.model,
+      chat: deps.chat,
       segments,
       title: meta.title,
       author: meta.author,
@@ -13643,46 +13532,6 @@ async function runLiteJob(deps, input, mode, language, report, signal, meta = {}
     autoRoute: input.autoRoute
   });
 }
-var nodeStreamTransport = (request, onData, signal) => new Promise((resolve, reject) => {
-  const url = new URL(request.url);
-  const http = desktopRequire(url.protocol === "http:" ? "http" : "https");
-  if (!http?.request) {
-    reject(new Error(tr("\u8F7B\u91CF\u6863\u9700\u8981\u684C\u9762\u7248 Obsidian", "The light tier needs desktop Obsidian")));
-    return;
-  }
-  const length = new TextEncoder().encode(request.body).length;
-  const req = http.request(
-    url,
-    { method: "POST", headers: { ...request.headers, "Content-Length": length } },
-    (response) => {
-      const status = response.statusCode || 0;
-      let errorText = "";
-      response.setEncoding("utf8");
-      response.on("data", (chunk) => {
-        if (status >= 400) errorText += chunk;
-        else onData(chunk);
-      });
-      response.on("end", () => resolve({ status, errorText }));
-      response.on("error", reject);
-    }
-  );
-  req.on("error", reject);
-  req.setTimeout(
-    12e4,
-    () => req.destroy(
-      new Error(tr("\u6A21\u578B\u670D\u52A1\u4E24\u5206\u949F\u6CA1\u6709\u56DE\u5E94", "The model service went quiet for two minutes"))
-    )
-  );
-  if (signal) {
-    if (signal.aborted) {
-      req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88"));
-      return;
-    }
-    signal.addEventListener("abort", () => req.destroy(new Error("\u8BF7\u6C42\u88AB\u53D6\u6D88")), { once: true });
-  }
-  req.write(request.body);
-  req.end();
-});
 function stageText(stage) {
   const part = /^长视频，先压缩第 (\d+)\/(\d+) 段$/.exec(stage);
   if (part) return tr(stage, `Long video: condensing part ${part[1]} of ${part[2]}`);
@@ -14805,21 +14654,21 @@ function renderReaderPanel(container, ctx, job) {
     });
     return;
   }
-  const list = reader.createDiv({ cls: "vs-reader-transcript" });
+  const list2 = reader.createDiv({ cls: "vs-reader-transcript" });
   const footer = reader.createDiv({ cls: "vs-reader-footer" });
   const highlights = /* @__PURE__ */ new Set();
   let visibleCount2 = Math.min(PAGE_SIZE2, segments.length);
   let activeId = "";
   let query = "";
   const renderRows = () => {
-    list.empty();
+    list2.empty();
     footer.empty();
     const matching = query ? segments.filter(
       (segment) => `${segment.speaker || ""} ${segment.text} ${segment.visual_text || ""}`.toLocaleLowerCase().includes(query)
     ) : segments;
     const visible = matching.slice(0, query ? 400 : visibleCount2);
     visible.forEach((segment) => {
-      const row = list.createEl("button", {
+      const row = list2.createEl("button", {
         cls: `vs-reader-segment${segment.id === activeId ? " is-active" : ""}${highlights.has(segment.id) ? " is-highlighted" : ""}`,
         attr: {
           type: "button",
@@ -14906,7 +14755,7 @@ function renderReaderPanel(container, ctx, job) {
         }
         activeId = segment.id;
         player.seek(segment.start);
-        markActiveRow(list, activeId);
+        markActiveRow(list2, activeId);
       });
     });
     if (!query && visibleCount2 < matching.length) {
@@ -14937,7 +14786,7 @@ function renderReaderPanel(container, ctx, job) {
     const active = activeSegmentAt(segments, seconds);
     if (!active || active.id === activeId) return;
     activeId = active.id;
-    markActiveRow(list, activeId, true);
+    markActiveRow(list2, activeId, true);
   });
   ctx.registerPanelCleanup(offTime);
   let searchTimer = 0;
@@ -15198,11 +15047,11 @@ function activeSegmentAt(segments, seconds) {
   }
   return candidate;
 }
-function markActiveRow(list, activeId, scroll = false) {
-  list.querySelectorAll(".vs-reader-segment.is-active").forEach((row2) => {
+function markActiveRow(list2, activeId, scroll = false) {
+  list2.querySelectorAll(".vs-reader-segment.is-active").forEach((row2) => {
     row2.removeClass("is-active");
   });
-  const row = list.querySelector(
+  const row = list2.querySelector(
     `.vs-reader-segment[data-segment-id="${cssEscape(activeId)}"]`
   );
   if (!row) return;
@@ -16664,10 +16513,10 @@ function withCssClass(fm, cssClass) {
   const name = cssClass.trim();
   if (!/^[A-Za-z][\w-]*$/.test(name)) return;
   const raw = fm.cssclasses ?? fm.cssclass;
-  const list = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
-  if (!list.includes(name)) list.push(name);
+  const list2 = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
+  if (!list2.includes(name)) list2.push(name);
   delete fm.cssclass;
-  fm.cssclasses = list;
+  fm.cssclasses = list2;
 }
 
 // utils/noteProperties.ts
@@ -16710,14 +16559,14 @@ function parseDefaultProperties(text2) {
     const key = line.slice(0, colon).trim();
     const value = line.slice(colon + 1).trim();
     if (!KEY_PATTERN.test(key) || isReserved(key) || !value) continue;
-    const list = LIST_KEYS.has(key);
-    const values = list ? splitList(key, value) : [value];
+    const list2 = LIST_KEYS.has(key);
+    const values = list2 ? splitList(key, value) : [value];
     if (values.length === 0) continue;
     const existing = byKey.get(key);
-    if (existing && list) {
+    if (existing && list2) {
       for (const item of values) if (!existing.values.includes(item)) existing.values.push(item);
     } else if (!existing) {
-      byKey.set(key, { key, values, list });
+      byKey.set(key, { key, values, list: list2 });
     }
   }
   return Array.from(byKey.values());
@@ -16899,10 +16748,10 @@ function circleText(markdown, text2) {
 function addDoneStamp(fm) {
   if (typeof fm.status !== "string" || fm.status.trim() !== DONE_STATUS) return;
   const raw = fm.cssclasses ?? fm.cssclass;
-  const list = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
-  if (list.some((cls) => STAMP_CLASSES.includes(cls))) return;
+  const list2 = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[\s,]+/) : []).map((value) => String(value).trim()).filter(Boolean);
+  if (list2.some((cls) => STAMP_CLASSES.includes(cls))) return;
   if ("cssclass" in fm && !("cssclasses" in fm)) delete fm.cssclass;
-  fm.cssclasses = [...list, DONE_STAMP_CLASS];
+  fm.cssclasses = [...list2, DONE_STAMP_CLASS];
 }
 function escapeHtml(text2) {
   return text2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -17635,7 +17484,7 @@ var JobStore = class {
 };
 
 // core/JobService.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 
 // core/ArticleReader.ts
 function isArticleLink(url) {
@@ -17751,73 +17600,1458 @@ async function bilibiliNoteImages(app, url, notePath, cover, framesJson) {
   return images;
 }
 
-// core/ModelSettings.ts
-var LLM_PROVIDERS = [
+// vendor/rex-ai-kit/types.ts
+var AiError = class extends Error {
+  constructor(message, kind, status, detail, provider) {
+    super(message);
+    this.kind = kind;
+    this.status = status;
+    this.detail = detail;
+    this.provider = provider;
+    this.name = "AiError";
+  }
+};
+
+// vendor/rex-ai-kit/catalog.ts
+var PROVIDERS = [
   {
-    id: "deepseek",
-    label: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    defaultModel: "deepseek-flash",
-    models: ["deepseek-flash"],
-    keyUrl: "https://platform.deepseek.com/api_keys"
+    id: "openai",
+    name: "OpenAI",
+    group: "official",
+    protocol: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    secretName: "openai-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    cors: true,
+    consoleUrl: "https://platform.openai.com/api-keys",
+    usageUrl: "https://platform.openai.com/usage",
+    picks: [
+      { id: "gpt-6-luna", scene: "cheap", note: "fast, reads images" },
+      { id: "gpt-6.1-terra", scene: "balanced", note: "natural writing" },
+      { id: "gpt-6.1-sol", scene: "strong" }
+    ]
   },
   {
-    id: "siliconflow",
-    label: "SiliconFlow",
-    labelZh: "\u7845\u57FA\u6D41\u52A8",
-    baseUrl: "https://api.siliconflow.cn/v1",
-    defaultModel: "deepseek-ai/DeepSeek-V4.1-Flash",
-    models: ["deepseek-ai/DeepSeek-V4.1-Flash"],
-    keyUrl: "https://cloud.siliconflow.cn/account/ak"
-  },
-  {
-    id: "qwen",
-    label: "Qwen (DashScope)",
-    labelZh: "\u901A\u4E49\u5343\u95EE",
-    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    defaultModel: "qwen-plus",
-    models: ["qwen-plus"],
-    keyUrl: "https://bailian.console.aliyun.com/?tab=model#/api-key"
-  },
-  {
-    id: "kimi",
-    label: "Kimi",
-    baseUrl: "https://api.moonshot.cn/v1",
-    defaultModel: "",
-    models: [],
-    keyUrl: "https://platform.moonshot.cn/console/api-keys"
+    id: "anthropic",
+    name: "Anthropic (Claude)",
+    group: "official",
+    protocol: "anthropic",
+    baseUrl: "https://api.anthropic.com/v1",
+    secretName: "anthropic-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    cors: true,
+    consoleUrl: "https://platform.claude.com/settings/keys",
+    usageUrl: "https://platform.claude.com/cost",
+    picks: [
+      { id: "claude-haiku-5-5", scene: "cheap" },
+      { id: "claude-sonnet-5-5", scene: "balanced", note: "structured long writing" },
+      { id: "claude-opus-5-5", scene: "strong" }
+    ]
   },
   {
     id: "gemini",
-    label: "Gemini",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    defaultModel: "gemini-flash-latest",
-    models: ["gemini-flash-latest"],
-    keyUrl: "https://aistudio.google.com/apikey"
+    name: "Google Gemini",
+    group: "official",
+    protocol: "gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    secretName: "gemini-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    cors: true,
+    consoleUrl: "https://aistudio.google.com/apikey",
+    usageUrl: "https://aistudio.google.com/usage",
+    hint: "On the free tier Google may use your content to improve its products.",
+    picks: [
+      { id: "gemini-3.5-flash-lite", scene: "cheap", note: "free tier" },
+      { id: "gemini-3.8-flash", scene: "balanced", note: "free tier" }
+    ]
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    group: "more",
+    protocol: "openai",
+    baseUrl: "https://api.deepseek.com",
+    secretName: "deepseek-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    balance: "deepseek",
+    consoleUrl: "https://platform.deepseek.com/api_keys",
+    picks: [{ id: "deepseek-flash", scene: "cheap" }]
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    group: "more",
+    protocol: "openai",
+    baseUrl: "https://openrouter.ai/api/v1",
+    secretName: "openrouter-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    balance: "openrouter",
+    cors: true,
+    consoleUrl: "https://openrouter.ai/keys",
+    picks: []
+  },
+  {
+    id: "qwen",
+    name: "Qwen (Alibaba Model Studio)",
+    names: { zh: "\u901A\u4E49\u5343\u95EE\uFF08\u963F\u91CC\u4E91\u767E\u70BC\uFF09", ja: "Qwen\uFF08Alibaba Model Studio\uFF09" },
+    group: "more",
+    protocol: "openai",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    secretName: "qwen-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    consoleUrl: "https://bailian.console.aliyun.com/?apiKey=1",
+    picks: [{ id: "qwen-plus", scene: "balanced" }]
+  },
+  {
+    id: "kimi",
+    name: "Kimi (Moonshot)",
+    names: { zh: "Kimi\uFF08Moonshot\uFF09", ja: "Kimi\uFF08Moonshot\uFF09" },
+    group: "more",
+    protocol: "openai",
+    baseUrl: "https://api.moonshot.cn/v1",
+    secretName: "kimi-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    balance: "kimi",
+    consoleUrl: "https://platform.moonshot.cn/console/api-keys",
+    picks: []
+  },
+  {
+    id: "zhipu",
+    name: "Zhipu GLM",
+    names: { zh: "\u667A\u8C31 GLM" },
+    group: "more",
+    protocol: "openai",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    secretName: "zhipu-api-key",
+    needsKey: true,
+    modelsPath: null,
+    consoleUrl: "https://open.bigmodel.cn/usercenter/apikeys",
+    picks: [
+      { id: "glm-5.3-flash", scene: "cheap" },
+      { id: "glm-5.3", scene: "balanced" }
+    ]
+  },
+  {
+    id: "siliconflow",
+    name: "SiliconFlow",
+    names: { zh: "\u7845\u57FA\u6D41\u52A8" },
+    group: "more",
+    protocol: "openai",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    secretName: "siliconflow-api-key",
+    needsKey: true,
+    modelsPath: "/models?sub_type=chat",
+    balance: "siliconflow",
+    consoleUrl: "https://cloud.siliconflow.cn/account/ak",
+    picks: [{ id: "deepseek-ai/DeepSeek-V4.1-Flash", scene: "cheap" }]
+  },
+  {
+    id: "ollama",
+    name: "Ollama",
+    group: "local",
+    protocol: "ollama",
+    baseUrl: "http://localhost:11434",
+    secretName: "",
+    needsKey: false,
+    modelsPath: "/api/tags",
+    cors: true,
+    picks: []
+  },
+  {
+    id: "lmstudio",
+    name: "LM Studio",
+    group: "local",
+    protocol: "openai",
+    baseUrl: "http://localhost:1234/v1",
+    secretName: "",
+    needsKey: false,
+    modelsPath: "/models",
+    cors: true,
+    picks: []
+  },
+  {
+    id: "claude-code",
+    name: "Claude Code (this computer)",
+    names: { zh: "Claude Code\uFF08\u672C\u673A\uFF09", ja: "Claude Code\uFF08\u3053\u306E\u30D1\u30BD\u30B3\u30F3\uFF09" },
+    group: "local",
+    protocol: "cli",
+    baseUrl: "",
+    secretName: "",
+    needsKey: false,
+    modelsPath: null,
+    localAgent: "claude",
+    hint: "Runs the Claude Code you installed and signed in to on this computer, one request at a time.",
+    picks: [
+      { id: "haiku", scene: "cheap" },
+      { id: "sonnet", scene: "balanced" },
+      { id: "opus", scene: "strong" }
+    ]
+  },
+  {
+    id: "codex",
+    name: "Codex (this computer)",
+    names: { zh: "Codex\uFF08\u672C\u673A\uFF09", ja: "Codex\uFF08\u3053\u306E\u30D1\u30BD\u30B3\u30F3\uFF09" },
+    group: "local",
+    protocol: "cli",
+    baseUrl: "",
+    secretName: "",
+    needsKey: false,
+    modelsPath: null,
+    localAgent: "codex",
+    hint: "Runs the Codex CLI you installed and signed in to on this computer, one request at a time.",
+    picks: [
+      { id: "gpt-6-luna", scene: "cheap" },
+      { id: "gpt-6.1-terra", scene: "balanced" },
+      { id: "gpt-6.1-sol", scene: "strong" }
+    ]
   },
   {
     id: "custom",
-    label: "Other",
-    labelZh: "\u5176\u4ED6",
+    name: "Other (OpenAI compatible)",
+    names: { zh: "\u5176\u4ED6\uFF08OpenAI \u517C\u5BB9\uFF09", ja: "\u305D\u306E\u4ED6\uFF08OpenAI \u4E92\u63DB\uFF09" },
+    group: "custom",
+    protocol: "openai",
     baseUrl: "",
-    defaultModel: "",
-    models: [],
-    keyUrl: ""
+    secretName: "custom-ai-api-key",
+    needsKey: true,
+    modelsPath: "/models",
+    picks: []
   }
 ];
+var BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]));
+function getProvider(id) {
+  return BY_ID.get(id);
+}
+function providerName(p, lang = "en") {
+  return lang !== "en" && p.names?.[lang] || p.name;
+}
+function resolveProvider(slot, lang = "en") {
+  const base = BY_ID.get(slot.provider) ?? BY_ID.get("custom");
+  return {
+    ...base,
+    name: providerName(base, lang),
+    baseUrl: (slot.baseUrl?.trim() || base.baseUrl).replace(/\/+$/, ""),
+    secretName: slot.secretName?.trim() || base.secretName
+  };
+}
+function inferProviderId(url) {
+  const u = url.toLowerCase();
+  if (!u) return "custom";
+  if (u.includes("api.openai.com")) return "openai";
+  if (u.includes("anthropic.com")) return "anthropic";
+  if (u.includes("generativelanguage.googleapis.com")) return "gemini";
+  if (u.includes("deepseek.com")) return "deepseek";
+  if (u.includes("openrouter.ai")) return "openrouter";
+  if (u.includes("dashscope") || u.includes("aliyuncs.com")) return "qwen";
+  if (u.includes("moonshot")) return "kimi";
+  if (u.includes("bigmodel.cn")) return "zhipu";
+  if (u.includes("siliconflow")) return "siliconflow";
+  if (u.includes(":11434")) return "ollama";
+  if (u.includes(":1234")) return "lmstudio";
+  return "custom";
+}
+var hostOf = (url) => {
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return "";
+  }
+};
+function slotFromEndpoint(old) {
+  const url = (old.url ?? "").trim();
+  const named = old.provider && old.provider !== "custom" && BY_ID.has(old.provider) ? old.provider : void 0;
+  const provider = named ?? inferProviderId(url);
+  const p = BY_ID.get(provider);
+  const clean2 = url.replace(/\/+$/, "").replace(provider === "ollama" ? /\/v1$/ : /$^/, "");
+  const sameServer = !!clean2 && !!p.baseUrl && hostOf(clean2) === hostOf(p.baseUrl) && p.group !== "local";
+  const keepUrl = !!clean2 && !sameServer && clean2 !== p.baseUrl;
+  const secret = old.secretName?.trim();
+  return {
+    provider,
+    model: old.model?.trim() ?? "",
+    ...secret && secret !== p.secretName ? { secretName: secret } : {},
+    ...keepUrl ? { baseUrl: clean2 } : {}
+  };
+}
+
+// vendor/rex-ai-kit/json.ts
+function at(v, ...path) {
+  let cur = v;
+  for (const k of path) {
+    if (cur === null || typeof cur !== "object") return void 0;
+    cur = cur[k];
+  }
+  return cur;
+}
+var str2 = (v) => typeof v === "string" ? v : void 0;
+var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : void 0;
+var numLike = (v) => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : void 0;
+  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return Number(v);
+  return void 0;
+};
+var list = (v) => Array.isArray(v) ? v : [];
+var isoSeconds = (v) => {
+  const t = typeof v === "string" ? Date.parse(v) : NaN;
+  return Number.isFinite(t) ? t / 1e3 : void 0;
+};
+
+// vendor/rex-ai-kit/cli.ts
+var DEFAULT_AGENT_SYSTEM = "Do what the user asks and reply with the answer only. Do not use tools.";
+function cliSpec(provider, o, exe) {
+  const turns = o.messages.map((m) => {
+    if (typeof m.content !== "string" && m.content.some((p) => p.type === "image"))
+      throw new AiError(`${provider.name}: images are not supported here. Pick an API provider for image input.`, "bad-response", void 0, "images", provider.name);
+    const text2 = typeof m.content === "string" ? m.content : m.content.map((p) => p.type === "text" ? p.text : "").join("\n");
+    return o.messages.length > 1 ? `${m.role === "user" ? "User" : "Assistant"}: ${text2}` : text2;
+  });
+  const json = o.json ? "\n\nReply with a single JSON object and nothing else." : "";
+  if (provider.localAgent === "claude") {
+    const args2 = ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", "", "--no-session-persistence", "--setting-sources", "project"];
+    if (o.model) args2.push("--model", o.model);
+    args2.push("--system-prompt", o.system || DEFAULT_AGENT_SYSTEM);
+    return { command: exe, args: args2, stdin: turns.join("\n\n") + json };
+  }
+  const file = "rex-ai-kit-codex-instructions.md";
+  const args = ["exec", "--json", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "-c", `model_instructions_file={tmp}/${file}`];
+  if (o.model) args.push("-m", o.model);
+  args.push("-");
+  return { command: exe, args, stdin: turns.join("\n\n") + json, files: [{ name: file, content: o.system || DEFAULT_AGENT_SYSTEM }] };
+}
+function applyCliLine(provider, ev, acc) {
+  const type = at(ev, "type");
+  if (provider.localAgent === "claude") {
+    if (type === "stream_event" && at(ev, "event", "type") === "content_block_delta" && at(ev, "event", "delta", "type") === "text_delta") {
+      acc.streamed = true;
+      return str2(at(ev, "event", "delta", "text")) ?? "";
+    }
+    if (type === "result") {
+      const u = (k) => num(at(ev, "usage", k));
+      acc.usage = { inputTokens: (u("input_tokens") ?? 0) + (u("cache_creation_input_tokens") ?? 0) + (u("cache_read_input_tokens") ?? 0), outputTokens: u("output_tokens"), cachedTokens: u("cache_read_input_tokens") };
+      const isError = !!at(ev, "is_error");
+      const result = at(ev, "result");
+      acc.stop = isError ? "error" : "stop";
+      if (isError) acc.error = str2(result) ?? str2(at(ev, "subtype")) ?? "error";
+      if (!acc.streamed && typeof result === "string" && !isError) return result;
+    }
+    return "";
+  }
+  if (type === "item.completed" && at(ev, "item", "type") === "agent_message") return (acc.text ? "\n\n" : "") + (str2(at(ev, "item", "text")) ?? "");
+  if (type === "turn.completed") {
+    acc.usage = { inputTokens: num(at(ev, "usage", "input_tokens")), outputTokens: num(at(ev, "usage", "output_tokens")), cachedTokens: num(at(ev, "usage", "cached_input_tokens")) };
+    acc.stop = "stop";
+  }
+  if (type === "turn.failed" || type === "error") acc.error = str2(at(ev, "error", "message")) ?? str2(at(ev, "message")) ?? "failed";
+  return "";
+}
+var busy = false;
+async function completeCli(provider, o, runner, exeOverride) {
+  if (!runner) throw new AiError(`${provider.name} only works in Obsidian on a computer.`, "bad-response", void 0, "desktop-only", provider.name);
+  const exe = await runner.find(provider.localAgent, exeOverride);
+  if (!exe) throw new AiError(`${provider.name}: not found on this computer. Install it and sign in once in a terminal, or set its path under Advanced.`, "no-key", void 0, void 0, provider.name);
+  if (busy) throw new AiError(`${provider.name}: another request is still running. Local agents run one request at a time.`, "rate", void 0, "busy", provider.name);
+  busy = true;
+  const acc = { text: "", usage: {}, stop: void 0, error: void 0, streamed: false };
+  try {
+    const spec = cliSpec(provider, o, exe);
+    const { code, stderr } = await runner.run(
+      spec,
+      (line) => {
+        let ev;
+        try {
+          ev = JSON.parse(line);
+        } catch {
+          return;
+        }
+        const piece = applyCliLine(provider, ev, acc);
+        if (piece) {
+          acc.text += piece;
+          o.onText?.(piece);
+        }
+      },
+      o.signal
+    );
+    if (o.signal?.aborted) throw new AiError("Cancelled", "aborted");
+    if (acc.error) throw new AiError(`${provider.name}: ${acc.error.slice(0, 300)}`, /log ?in|auth|sign/i.test(acc.error) ? "auth" : "server", void 0, acc.error.slice(0, 300), provider.name);
+    if (code !== 0 && !acc.text) {
+      const msg = stderr.trim().split("\n").slice(-3).join(" ").slice(0, 300);
+      throw new AiError(`${provider.name}: exited with code ${code}${msg ? ` (${msg})` : ""}`, /log ?in|auth|sign/i.test(msg) ? "auth" : "server", void 0, msg || void 0, provider.name);
+    }
+    return { text: acc.text, usage: acc.usage, stop: acc.stop ?? "stop" };
+  } finally {
+    busy = false;
+  }
+}
+function nodeCliRunner(timeoutMs = 5 * 60 * 1e3) {
+  const req = window.require;
+  if (typeof req !== "function") return void 0;
+  let cp, fs, os, path, proc;
+  try {
+    cp = req("child_process");
+    fs = req("fs");
+    os = req("os");
+    path = req("path");
+    proc = req("process");
+  } catch {
+    return void 0;
+  }
+  const home = os.homedir();
+  const dirs = [
+    ...String(proc.env.PATH ?? "").split(path.delimiter),
+    path.join(home, ".local/bin"),
+    path.join(home, ".claude/local"),
+    path.join(home, ".npm-global/bin"),
+    path.join(home, ".bun/bin"),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    path.join(home, "AppData/Roaming/npm")
+  ].filter(Boolean);
+  const env = { ...proc.env, PATH: Array.from(new Set(dirs)).join(path.delimiter) };
+  return {
+    find(agent, override) {
+      const candidates = override?.trim() ? [override.trim()] : dirs.flatMap((d) => [path.join(d, agent), path.join(d, `${agent}.cmd`), path.join(d, `${agent}.exe`)]);
+      for (const c of candidates) {
+        try {
+          fs.accessSync(c, fs.constants.X_OK);
+          return Promise.resolve(c);
+        } catch {
+        }
+      }
+      return Promise.resolve(null);
+    },
+    run(spec, onLine, signal) {
+      const tmp = os.tmpdir();
+      for (const f of spec.files ?? []) fs.writeFileSync(path.join(tmp, f.name), f.content);
+      const args = spec.args.map((a) => a.split("{tmp}").join(tmp));
+      return new Promise((resolve, reject) => {
+        const child = cp.spawn(spec.command, args, { cwd: tmp, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+        let buf = "";
+        let stderr = "";
+        const kill = () => child.kill("SIGTERM");
+        const timer = window.setTimeout(kill, timeoutMs);
+        signal?.addEventListener("abort", kill, { once: true });
+        child.stdout.setEncoding("utf8");
+        child.stdout.on("data", (d) => {
+          buf += String(d);
+          let i;
+          while ((i = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, i).trim();
+            buf = buf.slice(i + 1);
+            if (line) onLine(line);
+          }
+        });
+        child.stderr.on("data", (d) => {
+          stderr = (stderr + String(d)).slice(-4e3);
+        });
+        child.on("error", (e) => {
+          window.clearTimeout(timer);
+          reject(new AiError(`Could not start ${path.basename(spec.command)}: ${e instanceof Error ? e.message : String(e)}`, "network"));
+        });
+        child.on("close", (code) => {
+          window.clearTimeout(timer);
+          signal?.removeEventListener("abort", kill);
+          if (buf.trim()) onLine(buf.trim());
+          resolve({ code: typeof code === "number" ? code : -1, stderr });
+        });
+        child.stdin.end(spec.stdin);
+      });
+    }
+  };
+}
+
+// vendor/rex-ai-kit/http.ts
+var parse = (text2) => {
+  try {
+    return text2 ? JSON.parse(text2) : null;
+  } catch {
+    return null;
+  }
+};
+function requestUrlTransport(requestUrl6) {
+  return async (req) => {
+    if (req.signal?.aborted) throw new AiError("Cancelled", "aborted");
+    const run = requestUrl6({ url: req.url, method: req.method, headers: req.headers, body: req.body, throw: false });
+    const res = await (req.signal ? raceAbort(run, req.signal) : run);
+    return { status: res.status, text: res.text, json: parse(res.text) };
+  };
+}
+function raceAbort(p, signal) {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(new AiError("Cancelled", "aborted"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+function errorText(res) {
+  const j = res.json;
+  const err = at(j, "error");
+  const msg = str2(at(err, "message")) ?? str2(err) ?? str2(at(j, "message")) ?? str2(at(j, "detail")) ?? str2(at(j, 0, "error", "message"));
+  if (typeof msg === "string" && msg.trim()) return redact(msg.trim()).slice(0, 300);
+  return redact(res.text?.trim() ?? "").slice(0, 200);
+}
+function redact(text2, secrets = []) {
+  let out = text2;
+  for (const s of secrets) if (s && s.length >= 6) out = out.split(s).join("[key]");
+  return out.replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [key]").replace(/\bsk-[A-Za-z0-9_*-]{8,}/g, "[key]").replace(/\bAIza[A-Za-z0-9_-]{20,}/g, "[key]").replace(/([?&](?:key|api_key|token)=)[^&\s]+/gi, "$1[key]");
+}
+var QUOTA_WORDS = /insufficient|balance|quota|billing|arrearage|exceeded your current|credit|余额|额度|欠费/i;
+var MISSING_MODEL = /model.{0,40}(not.?exist|not.?found|does not exist|unknown|no such|invalid)|(invalid|unknown) model|模型.{0,10}(不存在|无效)/i;
+function classifyHttp(status, detail) {
+  if (status === 402) return "quota";
+  if (status === 401 || status === 403) return QUOTA_WORDS.test(detail) ? "quota" : "auth";
+  if (status === 429) return QUOTA_WORDS.test(detail) ? "quota" : "rate";
+  if (status === 404) return "model";
+  if ((status === 400 || status === 422) && MISSING_MODEL.test(detail)) return "model";
+  if (status === 400 && /api.?key/i.test(detail)) return "auth";
+  if (status === 408 || status === 504) return "timeout";
+  if (status === 0) return "network";
+  if (status >= 500) return "server";
+  return "bad-response";
+}
+function toError(res, providerName2) {
+  const detail = errorText(res);
+  const s = res.status;
+  const kind = classifyHttp(s, detail);
+  const tail = detail ? ` (${detail})` : "";
+  const head = {
+    auth: "key rejected",
+    quota: "out of balance or quota",
+    rate: "too many requests",
+    model: "model not available",
+    timeout: "timed out",
+    network: "could not reach the server",
+    server: `server error ${s}`,
+    "bad-response": `HTTP ${s}`,
+    "no-key": "no API key",
+    aborted: "cancelled"
+  };
+  return new AiError(`${providerName2}: ${head[kind]}${tail}`, kind, s, detail || void 0, providerName2);
+}
+async function* sseData(chunks) {
+  let buf = "";
+  for await (const chunk of chunks) {
+    buf += chunk;
+    let i;
+    while ((i = buf.search(/\r?\n\r?\n/)) >= 0) {
+      const event = buf.slice(0, i);
+      buf = buf.slice(i).replace(/^\r?\n\r?\n/, "");
+      const data = event.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).replace(/^ /, "")).join("\n");
+      if (data) yield data;
+    }
+  }
+  const tail = buf.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).replace(/^ /, "")).join("\n");
+  if (tail) yield tail;
+}
+async function* ndjsonLines(chunks) {
+  let buf = "";
+  for await (const chunk of chunks) {
+    buf += chunk;
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (line) yield line;
+    }
+  }
+  if (buf.trim()) yield buf.trim();
+}
+
+// vendor/rex-ai-kit/chat.ts
+var DEFAULT_MAX_TOKENS = 4096;
+var ANTHROPIC_VERSION = "2023-06-01";
+var parts = (c) => typeof c === "string" ? [{ type: "text", text: c }] : c;
+var textOf = (c) => parts(c).filter((p) => p.type === "text").map((p) => p.text).join("\n");
+function authHeaders(provider, key) {
+  if (!key) return {};
+  switch (provider.protocol) {
+    case "anthropic":
+      return { "x-api-key": key, "anthropic-version": ANTHROPIC_VERSION, "anthropic-dangerous-direct-browser-access": "true" };
+    case "gemini":
+      return { "x-goog-api-key": key };
+    default:
+      return { Authorization: `Bearer ${key}` };
+  }
+}
+function buildRequest(provider, key, o, stream) {
+  const headers = { "Content-Type": "application/json", ...authHeaders(provider, key) };
+  const maxTokens = o.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const base = provider.baseUrl;
+  switch (provider.protocol) {
+    case "anthropic": {
+      const body = {
+        model: o.model,
+        max_tokens: maxTokens,
+        messages: o.messages.map((m) => ({
+          role: m.role,
+          content: parts(m.content).map(
+            (p) => p.type === "text" ? { type: "text", text: p.text } : { type: "image", source: { type: "base64", media_type: p.mime, data: p.data } }
+          )
+        }))
+      };
+      const system = [o.system, o.json ? "Reply with a single JSON object and nothing else." : ""].filter(Boolean).join("\n\n");
+      if (system) body.system = system.length >= 4e3 ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : system;
+      if (o.temperature !== void 0) body.temperature = o.temperature;
+      if (stream) body.stream = true;
+      return { url: `${base}/messages`, method: "POST", headers, body: JSON.stringify(body), signal: o.signal };
+    }
+    case "gemini": {
+      const gen = { maxOutputTokens: maxTokens };
+      if (o.temperature !== void 0) gen.temperature = o.temperature;
+      if (o.json) gen.responseMimeType = "application/json";
+      const body = {
+        contents: o.messages.map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: parts(m.content).map((p) => p.type === "text" ? { text: p.text } : { inline_data: { mime_type: p.mime, data: p.data } })
+        })),
+        generationConfig: gen
+      };
+      if (o.system) body.systemInstruction = { parts: [{ text: o.system }] };
+      const model = o.model.replace(/^models\//, "");
+      const url = stream ? `${base}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse` : `${base}/models/${encodeURIComponent(model)}:generateContent`;
+      return { url, method: "POST", headers, body: JSON.stringify(body), signal: o.signal };
+    }
+    case "ollama": {
+      const messages = [];
+      if (o.system) messages.push({ role: "system", content: o.system });
+      for (const m of o.messages) {
+        const imgs = parts(m.content).filter((p) => p.type === "image");
+        messages.push({ role: m.role, content: textOf(m.content), ...imgs.length ? { images: imgs.map((i) => i.data) } : {} });
+      }
+      const options = { num_predict: maxTokens };
+      if (o.temperature !== void 0) options.temperature = o.temperature;
+      const body = { model: o.model, messages, stream, options };
+      if (o.json) body.format = "json";
+      return { url: `${base}/api/chat`, method: "POST", headers, body: JSON.stringify(body), signal: o.signal };
+    }
+    default: {
+      const messages = [];
+      if (o.system) messages.push({ role: provider.id === "openai" ? "developer" : "system", content: o.system });
+      for (const m of o.messages) {
+        if (typeof m.content === "string") messages.push({ role: m.role, content: m.content });
+        else
+          messages.push({
+            role: m.role,
+            content: m.content.map(
+              (p) => p.type === "text" ? { type: "text", text: p.text } : { type: "image_url", image_url: { url: `data:${p.mime};base64,${p.data}` } }
+            )
+          });
+      }
+      const body = { model: o.model, messages };
+      body[provider.id === "openai" ? "max_completion_tokens" : "max_tokens"] = maxTokens;
+      if (o.temperature !== void 0) body.temperature = o.temperature;
+      if (o.json) body.response_format = { type: "json_object" };
+      if (stream) {
+        body.stream = true;
+        body.stream_options = { include_usage: true };
+      }
+      return { url: `${base}/chat/completions`, method: "POST", headers, body: JSON.stringify(body), signal: o.signal };
+    }
+  }
+}
+var STOP = {
+  stop: "stop",
+  end_turn: "stop",
+  stop_sequence: "stop",
+  STOP: "stop",
+  length: "length",
+  max_tokens: "length",
+  MAX_TOKENS: "length",
+  content_filter: "filter",
+  SAFETY: "filter",
+  refusal: "filter"
+};
+var stopOf = (raw) => typeof raw === "string" ? STOP[raw] ?? raw : void 0;
+function parseResponse(provider, json) {
+  switch (provider.protocol) {
+    case "anthropic": {
+      const text2 = list(at(json, "content")).filter((b) => at(b, "type") === "text").map((b) => str2(at(b, "text")) ?? "").join("");
+      return {
+        text: text2,
+        stop: stopOf(at(json, "stop_reason")),
+        usage: { inputTokens: num(at(json, "usage", "input_tokens")), outputTokens: num(at(json, "usage", "output_tokens")), cachedTokens: num(at(json, "usage", "cache_read_input_tokens")) }
+      };
+    }
+    case "gemini": {
+      const cand = at(json, "candidates", 0);
+      const text2 = list(at(cand, "content", "parts")).filter((p) => typeof at(p, "text") === "string" && !at(p, "thought")).map((p) => str2(at(p, "text")) ?? "").join("");
+      return {
+        text: text2,
+        stop: stopOf(at(cand, "finishReason") ?? at(json, "promptFeedback", "blockReason")),
+        usage: {
+          inputTokens: num(at(json, "usageMetadata", "promptTokenCount")),
+          outputTokens: num(at(json, "usageMetadata", "candidatesTokenCount")),
+          cachedTokens: num(at(json, "usageMetadata", "cachedContentTokenCount"))
+        }
+      };
+    }
+    case "ollama":
+      return { text: str2(at(json, "message", "content")) ?? "", stop: stopOf(at(json, "done_reason")), usage: { inputTokens: num(at(json, "prompt_eval_count")), outputTokens: num(at(json, "eval_count")) } };
+    default: {
+      const choice = at(json, "choices", 0);
+      const content = at(choice, "message", "content");
+      const text2 = typeof content === "string" ? content : list(content).map((c) => str2(at(c, "text")) ?? "").join("");
+      return {
+        text: text2,
+        stop: stopOf(at(choice, "finish_reason")),
+        usage: {
+          inputTokens: num(at(json, "usage", "prompt_tokens")),
+          outputTokens: num(at(json, "usage", "completion_tokens")),
+          cachedTokens: num(at(json, "usage", "prompt_tokens_details", "cached_tokens")) ?? num(at(json, "usage", "prompt_cache_hit_tokens"))
+        }
+      };
+    }
+  }
+}
+function applyStreamEvent(provider, ev, acc) {
+  const type = at(ev, "type");
+  switch (provider.protocol) {
+    case "anthropic":
+      if (type === "message_start") acc.usage.inputTokens = num(at(ev, "message", "usage", "input_tokens"));
+      if (type === "message_delta") {
+        acc.usage.outputTokens = num(at(ev, "usage", "output_tokens"));
+        acc.stop = stopOf(at(ev, "delta", "stop_reason")) ?? acc.stop;
+      }
+      if (type === "error") {
+        const msg = str2(at(ev, "error", "message")) ?? "stream error";
+        throw new AiError(`${provider.name}: ${msg}`, "server", void 0, msg, provider.name);
+      }
+      return type === "content_block_delta" && at(ev, "delta", "type") === "text_delta" ? str2(at(ev, "delta", "text")) ?? "" : "";
+    case "gemini": {
+      const r = parseResponse(provider, ev);
+      if (r.usage?.inputTokens !== void 0) acc.usage = r.usage;
+      acc.stop = r.stop ?? acc.stop;
+      return r.text;
+    }
+    case "ollama":
+      if (at(ev, "done")) {
+        acc.usage = { inputTokens: num(at(ev, "prompt_eval_count")), outputTokens: num(at(ev, "eval_count")) };
+        acc.stop = stopOf(at(ev, "done_reason"));
+      }
+      return str2(at(ev, "message", "content")) ?? "";
+    default: {
+      if (at(ev, "usage")) acc.usage = { inputTokens: num(at(ev, "usage", "prompt_tokens")), outputTokens: num(at(ev, "usage", "completion_tokens")) };
+      const c = at(ev, "choices", 0);
+      const fin = at(c, "finish_reason");
+      if (fin) acc.stop = stopOf(fin);
+      return str2(at(c, "delta", "content")) ?? "";
+    }
+  }
+}
+async function complete(provider, key, o, deps) {
+  if (!o.timeoutMs) return completeOnce(provider, key, o, deps);
+  const ctl = new AbortController();
+  let timedOut = false;
+  const onAbort = () => ctl.abort();
+  if (o.signal?.aborted) ctl.abort();
+  o.signal?.addEventListener("abort", onAbort, { once: true });
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, o.timeoutMs);
+  try {
+    return await completeOnce(provider, key, { ...o, signal: ctl.signal }, deps);
+  } catch (e) {
+    if (timedOut) throw new AiError(`${provider.name}: no reply after ${Math.round(o.timeoutMs / 1e3)} s`, "timeout", void 0, void 0, provider.name);
+    throw e;
+  } finally {
+    window.clearTimeout(timer);
+    o.signal?.removeEventListener("abort", onAbort);
+  }
+}
+async function completeOnce(provider, key, o, deps) {
+  if (provider.protocol === "cli") return completeCli(provider, o, deps.cli, deps.cliPath);
+  if (provider.needsKey && !key) throw new AiError(`${provider.name}: no API key. Add one in Settings \u2192 Keychain.`, "no-key", void 0, void 0, provider.name);
+  if (!provider.baseUrl) throw new AiError(`${provider.name}: no server address set`, "bad-response");
+  const canStream = !!(o.onText && deps.stream && (provider.cors || deps.stream.anyOrigin));
+  if (!canStream) {
+    const res2 = await deps.transport(buildRequest(provider, key, o, false)).catch((e) => {
+      throw e instanceof AiError ? e : wrapNetwork(e, provider, o.signal);
+    });
+    if (res2.status < 200 || res2.status >= 300) throw toError(res2, provider.name);
+    const out = parseResponse(provider, res2.json);
+    if (o.onText && out.text) o.onText(out.text);
+    return out;
+  }
+  const res = await deps.stream(buildRequest(provider, key, o, true)).catch((e) => {
+    throw wrapNetwork(e, provider, o.signal);
+  });
+  if (res.status < 200 || res.status >= 300) {
+    const text3 = res.text ? await res.text().catch(() => "") : "";
+    let json = null;
+    try {
+      json = JSON.parse(text3);
+    } catch {
+      json = null;
+    }
+    throw toError({ status: res.status, text: text3, json }, provider.name);
+  }
+  const acc = { usage: {} };
+  let text2 = "";
+  const events = provider.protocol === "ollama" ? ndjsonLines(res.chunks) : sseData(res.chunks);
+  try {
+    for await (const data of events) {
+      if (data === "[DONE]") break;
+      let ev;
+      try {
+        ev = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      const piece = applyStreamEvent(provider, ev, acc);
+      if (piece) {
+        text2 += piece;
+        o.onText(piece);
+      }
+    }
+  } catch (e) {
+    throw e instanceof AiError ? e : wrapNetwork(e, provider, o.signal);
+  }
+  return { text: text2, usage: acc.usage, stop: acc.stop };
+}
+function wrapNetwork(e, provider, signal) {
+  if (signal?.aborted || e instanceof Error && e.name === "AbortError") return new AiError("Cancelled", "aborted");
+  const msg = e instanceof Error ? e.message : String(e);
+  return new AiError(`${provider.name}: could not reach the server (${redact(msg)})`, "network", void 0, redact(msg), provider.name);
+}
+
+// vendor/rex-ai-kit/models.ts
+var NOT_CHAT = /(embed|whisper|tts|transcribe|dall-e|gpt-image|imagen|moderation|audio|realtime|search-preview|davinci|babbage|rerank|veo|aqa)/i;
+function normaliseModels(provider, json) {
+  let out = [];
+  switch (provider.protocol) {
+    case "gemini":
+      out = list(at(json, "models")).filter((m) => list(at(m, "supportedGenerationMethods")).includes("generateContent")).map((m) => ({ id: (str2(at(m, "name")) ?? "").replace(/^models\//, ""), label: str2(at(m, "displayName")) }));
+      break;
+    case "ollama":
+      out = list(at(json, "models")).map((m) => ({ id: str2(at(m, "name")) ?? str2(at(m, "model")) ?? "", created: isoSeconds(at(m, "modified_at")) }));
+      break;
+    case "anthropic":
+      out = list(at(json, "data")).map((m) => {
+        const vision = at(m, "capabilities", "image_input");
+        return {
+          id: str2(at(m, "id")) ?? "",
+          label: str2(at(m, "display_name")),
+          created: isoSeconds(at(m, "created_at")),
+          vision: typeof vision === "boolean" ? vision : void 0
+        };
+      });
+      break;
+    default:
+      out = list(at(json, "data")).map((m) => {
+        const input = list(at(m, "architecture", "input_modalities"));
+        return {
+          id: str2(at(m, "id")) ?? "",
+          label: str2(at(m, "name")),
+          created: num(at(m, "created")),
+          vision: Array.isArray(at(m, "architecture", "input_modalities")) ? input.includes("image") : void 0
+        };
+      });
+  }
+  const seen = /* @__PURE__ */ new Set();
+  return out.filter((m) => m.id && !NOT_CHAT.test(m.id) && !seen.has(m.id) && seen.add(m.id)).sort((a, b) => (b.created ?? 0) - (a.created ?? 0) || a.id.localeCompare(b.id));
+}
+async function fetchModels(provider, key, transport, signal) {
+  if (!provider.modelsPath) return provider.picks.map((p) => ({ id: p.id }));
+  if (provider.needsKey && !key) throw new AiError(`${provider.name}: no API key`, "no-key", void 0, void 0, provider.name);
+  const sep = provider.modelsPath.includes("?") ? "&" : "?";
+  const url = `${provider.baseUrl}${provider.modelsPath}${provider.protocol === "anthropic" ? `${sep}limit=1000` : provider.protocol === "gemini" ? `${sep}pageSize=1000` : ""}`;
+  const res = await transport({ url, method: "GET", headers: authHeaders(provider, key), signal });
+  if (res.status < 200 || res.status >= 300) throw toError(res, provider.name);
+  return normaliseModels(provider, res.json);
+}
+function pickerRows(provider, live, prefer = "balanced") {
+  const order = [prefer, ...["cheap", "balanced", "strong"].filter((s) => s !== prefer)];
+  const picks = [...provider.picks].sort((a, b) => order.indexOf(a.scene) - order.indexOf(b.scene));
+  const ids = new Set(picks.map((p) => p.id));
+  return [...picks.map((pick) => ({ id: pick.id, pick })), ...(live ?? []).filter((m) => !ids.has(m.id)).map((m) => ({ id: m.id }))];
+}
+function defaultModel(provider, prefer = "balanced", live) {
+  return provider.picks.find((p) => p.scene === prefer)?.id ?? provider.picks[0]?.id ?? live?.[0]?.id ?? "";
+}
+var ModelCache = class {
+  constructor(saved, ttlMs = 24 * 60 * 60 * 1e3, now = Date.now) {
+    this.ttlMs = ttlMs;
+    this.now = now;
+    this.map = { ...saved ?? {} };
+  }
+  k(p) {
+    return `${p.id}|${p.baseUrl}`;
+  }
+  get(p) {
+    return this.map[this.k(p)]?.models;
+  }
+  fresh(p) {
+    const e = this.map[this.k(p)];
+    return !!e && this.now() - e.at < this.ttlMs;
+  }
+  /** Milliseconds since the list was fetched, or null when there is none. */
+  age(p) {
+    const e = this.map[this.k(p)];
+    return e ? this.now() - e.at : null;
+  }
+  set(p, models) {
+    this.map[this.k(p)] = { at: this.now(), models };
+  }
+  toJSON() {
+    return this.map;
+  }
+};
+
+// vendor/rex-ai-kit/account.ts
+async function checkKey(provider, key, transport, signal) {
+  if (provider.needsKey && !key) return { status: "missing" };
+  if (!provider.modelsPath) return { status: "ok", detail: "This provider has no endpoint to test keys; it will be checked on first use." };
+  try {
+    const models = await fetchModels(provider, key, transport, signal);
+    return { status: "ok", models };
+  } catch (e) {
+    if (e instanceof AiError && e.kind === "auth") return { status: "invalid", detail: e.message };
+    if (e instanceof AiError && e.kind === "no-key") return { status: "missing" };
+    return { status: "error", detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+var money = (amount, currency) => {
+  const sym = currency === "CNY" ? "\xA5" : currency === "USD" ? "$" : "";
+  return sym ? `${sym}${amount.toFixed(2)}` : `${amount.toFixed(2)} ${currency}`;
+};
+var BALANCE_PATH = {
+  deepseek: "/user/balance",
+  openrouter: "/key",
+  siliconflow: "/user/info",
+  kimi: "/users/me/balance"
+};
+async function fetchBalance(provider, key, transport, signal) {
+  if (!provider.balance || !key) return null;
+  const res = await transport({ url: `${provider.baseUrl}${BALANCE_PATH[provider.balance]}`, method: "GET", headers: authHeaders(provider, key), signal });
+  if (res.status < 200 || res.status >= 300) throw new AiError(`${provider.name}: balance unavailable${errorText(res) ? ` (${errorText(res)})` : ""}`, "bad-response", res.status);
+  return parseBalance(provider, res.json);
+}
+function parseBalance(provider, j) {
+  switch (provider.balance) {
+    case "deepseek": {
+      const info = list(at(j, "balance_infos"))[0];
+      const amount = numLike(at(info, "total_balance"));
+      if (amount === void 0) return null;
+      const currency = str2(at(info, "currency")) ?? "CNY";
+      return { amount, currency, text: money(amount, currency) };
+    }
+    case "openrouter": {
+      const d = at(j, "data");
+      if (!d || typeof d !== "object") return null;
+      const usage = numLike(at(d, "usage")) ?? 0;
+      const limit = numLike(at(d, "limit"));
+      if (limit === void 0) return { amount: void 0, currency: "USD", text: `$${usage.toFixed(2)} used, no limit` };
+      const left = numLike(at(d, "limit_remaining")) ?? limit - usage;
+      return { amount: left, currency: "USD", text: `$${left.toFixed(2)} left of $${limit.toFixed(2)}` };
+    }
+    case "siliconflow": {
+      const amount = numLike(at(j, "data", "totalBalance")) ?? numLike(at(j, "data", "balance"));
+      if (amount === void 0) return null;
+      return { amount, currency: "CNY", text: money(amount, "CNY") };
+    }
+    case "kimi": {
+      const amount = numLike(at(j, "data", "available_balance"));
+      if (amount === void 0) return null;
+      return { amount, currency: "CNY", text: money(amount, "CNY") };
+    }
+    default:
+      return null;
+  }
+}
+
+// vendor/rex-ai-kit/client.ts
+function readKey(store, provider) {
+  if (!provider.needsKey || !provider.secretName) return null;
+  try {
+    return store?.getSecret(provider.secretName)?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+var AiClient = class {
+  constructor(o) {
+    this.o = o;
+    this.cache = o.cache ?? new ModelCache();
+  }
+  provider(slot) {
+    return resolveProvider(slot, this.o.lang);
+  }
+  get lang() {
+    return this.o.lang ?? "en";
+  }
+  hasKey(slot) {
+    const p = this.provider(slot);
+    if (p.localAgent) return true;
+    return !p.needsKey || !!readKey(this.o.keys, p);
+  }
+  complete(slot, opts) {
+    const p = this.provider(slot);
+    return complete(p, readKey(this.o.keys, p), { ...opts, model: opts.model ?? slot.model }, { transport: this.o.transport, stream: this.o.stream, cli: this.o.cli, cliPath: slot.baseUrl });
+  }
+  /** Cached list unless stale or forced. Only call from settings UI or a user action. */
+  async models(slot, force = false, signal) {
+    const p = this.provider(slot);
+    if (!force && this.cache.fresh(p)) return this.cache.get(p);
+    const list2 = await fetchModels(p, readKey(this.o.keys, p), this.o.transport, signal);
+    this.cache.set(p, list2);
+    return list2;
+  }
+  /** True when this client can run local agents (desktop with a runner). */
+  get canRunLocal() {
+    return !!this.o.cli;
+  }
+  async check(slot, signal) {
+    const p = this.provider(slot);
+    if (p.localAgent) {
+      const exe = await this.o.cli?.find(p.localAgent, slot.baseUrl);
+      return exe ? { status: "ok", detail: exe } : { status: "missing", detail: "not found" };
+    }
+    const r = await checkKey(p, readKey(this.o.keys, p), this.o.transport, signal);
+    if (r.status === "ok" && r.models?.length) this.cache.set(p, r.models);
+    return r;
+  }
+  balance(slot, signal) {
+    const p = this.provider(slot);
+    return fetchBalance(p, readKey(this.o.keys, p), this.o.transport, signal);
+  }
+};
+
+// vendor/rex-ai-kit/i18n.ts
+var en = {
+  heading: "AI service",
+  provider: "Provider",
+  key: "API key",
+  keyDesc: "Pick a key from Settings \u2192 Keychain. Every plugin uses the same key for this provider.",
+  groups: { official: "Official APIs", more: "More providers", local: "On this computer", custom: "Custom" },
+  modelError: (msg) => `Could not load the list: ${msg}`,
+  keyNone: "No key needed for a model on this computer.",
+  check: "Check",
+  checking: "Checking\u2026",
+  ok: "Key works",
+  missing: "No key selected",
+  invalid: "Key rejected",
+  error: "Could not check",
+  balance: "Balance",
+  usage: "See usage",
+  getKey: "Get a key",
+  model: "Model",
+  modelDesc: "Recommended first. The full list comes from the provider.",
+  recommended: "Recommended",
+  all: "All",
+  allCount: (n, ago2) => `All \xB7 ${n} \xB7 ${ago2}`,
+  manual: "Type a model name\u2026",
+  manualPh: "model-id",
+  refresh: "Refresh list",
+  cheap: "cheap",
+  balanced: "balanced",
+  strong: "strong",
+  advanced: "Advanced",
+  baseUrl: "Server address",
+  baseUrlDesc: "Leave empty for the provider default. Use it for a proxy or a self-hosted server.",
+  secretName: "Keychain name",
+  secretNameDesc: "Only change this to use a different key than the shared one.",
+  expiry: "Free credit expires",
+  expiryDesc: "Optional. Within 30 days of this date the key row turns orange.",
+  expiresSoon: (d) => `Free credit expires ${d}`,
+  program: "Program",
+  notFound: "Not found on this computer. Install it and sign in once in a terminal, or set its path under Advanced.",
+  programPath: "Program path",
+  programPathDesc: "Leave empty to look in the usual install folders.",
+  justNow: "just now",
+  minAgo: (n) => `${n} min ago`,
+  hAgo: (n) => `${n} h ago`,
+  dAgo: (n) => `${n} d ago`
+};
+var zh = {
+  ...en,
+  heading: "AI \u670D\u52A1",
+  provider: "\u670D\u52A1\u5546",
+  key: "API \u5BC6\u94A5",
+  keyDesc: "\u4ECE\u201C\u8BBE\u7F6E \u2192 \u94A5\u5319\u4E32\u201D\u9009\u4E00\u628A\u5BC6\u94A5\uFF0C\u5404\u63D2\u4EF6\u5171\u7528\u3002",
+  groups: { official: "\u5B98\u65B9 API", more: "\u66F4\u591A\u670D\u52A1\u5546", local: "\u672C\u673A", custom: "\u81EA\u5B9A\u4E49" },
+  modelError: (msg) => `\u5217\u8868\u6CA1\u53D6\u5230\uFF1A${msg}`,
+  keyNone: "\u672C\u673A\u6A21\u578B\u4E0D\u9700\u8981\u5BC6\u94A5\u3002",
+  check: "\u68C0\u67E5",
+  checking: "\u68C0\u67E5\u4E2D\u2026",
+  ok: "\u5BC6\u94A5\u53EF\u7528",
+  missing: "\u8FD8\u6CA1\u9009\u5BC6\u94A5",
+  invalid: "\u5BC6\u94A5\u88AB\u62D2\u7EDD",
+  error: "\u68C0\u67E5\u5931\u8D25",
+  balance: "\u4F59\u989D",
+  usage: "\u53BB\u540E\u53F0\u770B\u7528\u91CF",
+  getKey: "\u83B7\u53D6\u5BC6\u94A5",
+  model: "\u6A21\u578B",
+  modelDesc: "\u63A8\u8350\u7684\u5728\u6700\u524D\uFF0C\u5B8C\u6574\u5217\u8868\u6765\u81EA\u670D\u52A1\u5546\u3002",
+  recommended: "\u63A8\u8350",
+  all: "\u5168\u90E8",
+  allCount: (n, ago2) => `\u5168\u90E8 \xB7 ${n} \u4E2A \xB7 ${ago2}`,
+  manual: "\u624B\u52A8\u8F93\u5165\u6A21\u578B\u540D\u2026",
+  refresh: "\u5237\u65B0\u5217\u8868",
+  cheap: "\u4FBF\u5B9C",
+  balanced: "\u5747\u8861",
+  strong: "\u5F3A",
+  advanced: "\u9AD8\u7EA7",
+  baseUrl: "\u63A5\u53E3\u5730\u5740",
+  baseUrlDesc: "\u7559\u7A7A\u7528\u670D\u52A1\u5546\u9ED8\u8BA4\u5730\u5740\u3002\u8D70\u4EE3\u7406\u6216\u81EA\u5EFA\u670D\u52A1\u65F6\u518D\u586B\u3002",
+  secretName: "\u94A5\u5319\u4E32\u540D\u79F0",
+  secretNameDesc: "\u53EA\u6709\u60F3\u7528\u548C\u5171\u4EAB\u5BC6\u94A5\u4E0D\u540C\u7684\u53E6\u4E00\u628A\u65F6\u624D\u6539\u3002",
+  expiry: "\u8D60\u9001\u989D\u5EA6\u5230\u671F\u65E5",
+  expiryDesc: "\u9009\u586B\u3002\u79BB\u5230\u671F 30 \u5929\u4EE5\u5185\uFF0C\u5BC6\u94A5\u8FD9\u4E00\u884C\u4F1A\u53D8\u6210\u6A59\u8272\u3002",
+  expiresSoon: (d) => `\u8D60\u9001\u989D\u5EA6 ${d} \u5230\u671F`,
+  program: "\u7A0B\u5E8F",
+  notFound: "\u8FD9\u53F0\u7535\u8111\u4E0A\u6CA1\u627E\u5230\u3002\u5148\u88C5\u597D\u5E76\u5728\u7EC8\u7AEF\u91CC\u767B\u5F55\u4E00\u6B21\uFF0C\u6216\u5728\u201C\u9AD8\u7EA7\u201D\u91CC\u586B\u8DEF\u5F84\u3002",
+  programPath: "\u7A0B\u5E8F\u8DEF\u5F84",
+  programPathDesc: "\u7559\u7A7A\u5C31\u5728\u5E38\u89C1\u7684\u5B89\u88C5\u4F4D\u7F6E\u91CC\u627E\u3002",
+  justNow: "\u521A\u521A",
+  minAgo: (n) => `${n} \u5206\u949F\u524D`,
+  hAgo: (n) => `${n} \u5C0F\u65F6\u524D`,
+  dAgo: (n) => `${n} \u5929\u524D`
+};
+var ja = {
+  ...en,
+  heading: "AI \u30B5\u30FC\u30D3\u30B9",
+  provider: "\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC",
+  key: "API \u30AD\u30FC",
+  keyDesc: "\u300C\u8A2D\u5B9A \u2192 \u30AD\u30FC\u30C1\u30A7\u30FC\u30F3\u300D\u304B\u3089\u30AD\u30FC\u3092\u9078\u3073\u307E\u3059\u3002\u30D7\u30E9\u30B0\u30A4\u30F3\u9593\u3067\u5171\u6709\u3055\u308C\u307E\u3059\u3002",
+  groups: { official: "\u516C\u5F0F API", more: "\u305D\u306E\u4ED6\u306E\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC", local: "\u3053\u306E\u30D1\u30BD\u30B3\u30F3", custom: "\u30AB\u30B9\u30BF\u30E0" },
+  modelError: (msg) => `\u4E00\u89A7\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\uFF1A${msg}`,
+  keyNone: "\u3053\u306E\u30D1\u30BD\u30B3\u30F3\u4E0A\u306E\u30E2\u30C7\u30EB\u306B\u306F\u30AD\u30FC\u306F\u4E0D\u8981\u3067\u3059\u3002",
+  check: "\u78BA\u8A8D",
+  checking: "\u78BA\u8A8D\u4E2D\u2026",
+  ok: "\u30AD\u30FC\u306F\u6709\u52B9\u3067\u3059",
+  missing: "\u30AD\u30FC\u304C\u672A\u9078\u629E\u3067\u3059",
+  invalid: "\u30AD\u30FC\u304C\u62D2\u5426\u3055\u308C\u307E\u3057\u305F",
+  error: "\u78BA\u8A8D\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
+  balance: "\u6B8B\u9AD8",
+  usage: "\u5229\u7528\u72B6\u6CC1\u3092\u898B\u308B",
+  getKey: "\u30AD\u30FC\u3092\u53D6\u5F97",
+  model: "\u30E2\u30C7\u30EB",
+  modelDesc: "\u304A\u3059\u3059\u3081\u304C\u5148\u982D\u306B\u4E26\u3073\u307E\u3059\u3002\u4E00\u89A7\u306F\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u304B\u3089\u53D6\u5F97\u3057\u307E\u3059\u3002",
+  recommended: "\u304A\u3059\u3059\u3081",
+  all: "\u3059\u3079\u3066",
+  allCount: (n, ago2) => `\u3059\u3079\u3066 \xB7 ${n} \u4EF6 \xB7 ${ago2}`,
+  manual: "\u30E2\u30C7\u30EB\u540D\u3092\u5165\u529B\u2026",
+  refresh: "\u4E00\u89A7\u3092\u66F4\u65B0",
+  cheap: "\u5B89\u3044",
+  balanced: "\u30D0\u30E9\u30F3\u30B9",
+  strong: "\u9AD8\u6027\u80FD",
+  advanced: "\u8A73\u7D30",
+  baseUrl: "\u30B5\u30FC\u30D0\u30FC\u30A2\u30C9\u30EC\u30B9",
+  baseUrlDesc: "\u7A7A\u6B04\u306A\u3089\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u306E\u65E2\u5B9A\u5024\u3002\u30D7\u30ED\u30AD\u30B7\u3084\u81EA\u524D\u306E\u30B5\u30FC\u30D0\u30FC\u3092\u4F7F\u3046\u3068\u304D\u3060\u3051\u5165\u529B\u3057\u307E\u3059\u3002",
+  secretName: "\u30AD\u30FC\u30C1\u30A7\u30FC\u30F3\u540D",
+  secretNameDesc: "\u5171\u6709\u30AD\u30FC\u3068\u306F\u5225\u306E\u30AD\u30FC\u3092\u4F7F\u3044\u305F\u3044\u3068\u304D\u3060\u3051\u5909\u66F4\u3057\u307E\u3059\u3002",
+  expiry: "\u7121\u6599\u30AF\u30EC\u30B8\u30C3\u30C8\u306E\u671F\u9650",
+  expiryDesc: "\u4EFB\u610F\u3002\u671F\u9650\u307E\u3067 30 \u65E5\u3092\u5207\u308B\u3068\u30AD\u30FC\u306E\u884C\u304C\u30AA\u30EC\u30F3\u30B8\u306B\u306A\u308A\u307E\u3059\u3002",
+  expiresSoon: (d) => `\u7121\u6599\u30AF\u30EC\u30B8\u30C3\u30C8\u306F ${d} \u306B\u671F\u9650\u5207\u308C`,
+  program: "\u30D7\u30ED\u30B0\u30E9\u30E0",
+  notFound: "\u3053\u306E\u30D1\u30BD\u30B3\u30F3\u306B\u898B\u3064\u304B\u308A\u307E\u305B\u3093\u3002\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3057\u3066\u30BF\u30FC\u30DF\u30CA\u30EB\u3067\u4E00\u5EA6\u30ED\u30B0\u30A4\u30F3\u3059\u308B\u304B\u3001\u300C\u8A73\u7D30\u300D\u3067\u30D1\u30B9\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+  programPath: "\u30D7\u30ED\u30B0\u30E9\u30E0\u306E\u30D1\u30B9",
+  programPathDesc: "\u7A7A\u6B04\u306A\u3089\u4E00\u822C\u7684\u306A\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u5148\u3092\u63A2\u3057\u307E\u3059\u3002",
+  justNow: "\u305F\u3063\u305F\u4ECA",
+  minAgo: (n) => `${n} \u5206\u524D`,
+  hAgo: (n) => `${n} \u6642\u9593\u524D`,
+  dAgo: (n) => `${n} \u65E5\u524D`
+};
+var STRINGS = { en, zh, ja };
+function ago(s, ms) {
+  const m = Math.floor(ms / 6e4);
+  if (m < 1) return s.justNow;
+  if (m < 60) return s.minAgo(m);
+  const h = Math.floor(m / 60);
+  if (h < 24) return s.hAgo(h);
+  return s.dAgo(Math.floor(h / 24));
+}
+
+// vendor/rex-ai-kit/util.ts
+var GRANT_WARN_DAYS = 30;
+function grantWarning(expiry, now = /* @__PURE__ */ new Date()) {
+  if (!expiry) return null;
+  const d = /* @__PURE__ */ new Date(`${expiry}T23:59:59`);
+  if (isNaN(d.getTime())) return null;
+  const days = (d.getTime() - now.getTime()) / 864e5;
+  return days >= 0 && days <= GRANT_WARN_DAYS ? expiry : null;
+}
+
+// vendor/rex-ai-kit/explain.ts
+var ADVICE = {
+  en: {
+    "no-key": "No API key selected. Pick one from the Keychain in the plugin\u2019s AI service settings, or use \u201CGet a key\u201D.",
+    auth: "The key was rejected. Check that it belongs to this provider and has not expired, then press Check.",
+    quota: "Out of balance or quota. Top up on the provider\u2019s site, or switch to another provider.",
+    rate: "Too many requests right now. Wait a moment and try again.",
+    model: "This model does not exist or the key cannot use it. Refresh the model list and pick another.",
+    timeout: "No reply in time. The service may be busy: try again later, and if it keeps happening check your network or server address.",
+    network: "Could not reach the service. Check your network, proxy and server address.",
+    server: "The provider had an error. Try again in a moment, or switch to another provider.",
+    "bad-response": "The service replied in a form the plugin cannot read. Try another model.",
+    aborted: "Cancelled.",
+    localMissing: "Not found on this computer. Install it and sign in once in a terminal, or set its path under Advanced.",
+    localAuth: "The program is not signed in. Run it once in a terminal and sign in.",
+    busy: "Another request is still running. Wait for it to finish, then try again.",
+    images: "Programs on this computer cannot read images. Pick an API provider for this.",
+    desktopOnly: "This only works in Obsidian on a computer. Pick an API provider on this device.",
+    said: "The service said"
+  },
+  zh: {
+    "no-key": "\u8FD8\u6CA1\u9009\u5BC6\u94A5\u3002\u5230\u63D2\u4EF6\u8BBE\u7F6E\u7684\u201CAI \u670D\u52A1\u201D\u91CC\uFF0C\u4ECE\u94A5\u5319\u4E32\u9009\u4E00\u628A\uFF0C\u6216\u70B9\u201C\u83B7\u53D6\u5BC6\u94A5\u201D\u3002",
+    auth: "\u5BC6\u94A5\u88AB\u62D2\u7EDD\u3002\u6838\u5BF9\u5B83\u662F\u5426\u5C5E\u4E8E\u8FD9\u5BB6\u670D\u52A1\u5546\u3001\u6709\u6CA1\u6709\u8FC7\u671F\uFF0C\u518D\u70B9\u201C\u68C0\u67E5\u201D\u3002",
+    quota: "\u4F59\u989D\u6216\u989D\u5EA6\u4E0D\u8DB3\u3002\u53BB\u670D\u52A1\u5546\u540E\u53F0\u5145\u503C\uFF0C\u6216\u6362\u4E00\u5BB6\u670D\u52A1\u5546\u3002",
+    rate: "\u8BF7\u6C42\u592A\u9891\u7E41\uFF0C\u7A0D\u7B49\u4E00\u4F1A\u513F\u518D\u8BD5\u3002",
+    model: "\u8FD9\u4E2A\u6A21\u578B\u4E0D\u5B58\u5728\uFF0C\u6216\u8FD9\u628A\u5BC6\u94A5\u4E0D\u80FD\u7528\u5B83\u3002\u5237\u65B0\u6A21\u578B\u5217\u8868\uFF0C\u6362\u4E00\u4E2A\u3002",
+    timeout: "\u7B49\u4E86\u592A\u4E45\u6CA1\u6709\u56DE\u590D\u3002\u670D\u52A1\u53EF\u80FD\u7E41\u5FD9\uFF0C\u7A0D\u540E\u518D\u8BD5\uFF1B\u4E00\u76F4\u8FD9\u6837\u5C31\u68C0\u67E5\u7F51\u7EDC\u6216\u63A5\u53E3\u5730\u5740\u3002",
+    network: "\u8FDE\u4E0D\u4E0A\u670D\u52A1\u3002\u68C0\u67E5\u7F51\u7EDC\u3001\u4EE3\u7406\u548C\u63A5\u53E3\u5730\u5740\u3002",
+    server: "\u670D\u52A1\u5546\u90A3\u8FB9\u51FA\u9519\u4E86\u3002\u7A0D\u540E\u518D\u8BD5\uFF0C\u6216\u5148\u6362\u4E00\u5BB6\u3002",
+    "bad-response": "\u670D\u52A1\u6709\u56DE\u590D\uFF0C\u4F46\u683C\u5F0F\u8BFB\u4E0D\u51FA\u6765\u3002\u6362\u4E00\u4E2A\u6A21\u578B\u8BD5\u8BD5\u3002",
+    aborted: "\u5DF2\u53D6\u6D88\u3002",
+    localMissing: "\u8FD9\u53F0\u7535\u8111\u4E0A\u6CA1\u627E\u5230\u8FD9\u4E2A\u7A0B\u5E8F\u3002\u88C5\u597D\u5E76\u5728\u7EC8\u7AEF\u91CC\u767B\u5F55\u4E00\u6B21\uFF0C\u6216\u5728\u201C\u9AD8\u7EA7\u201D\u91CC\u586B\u8DEF\u5F84\u3002",
+    localAuth: "\u7A0B\u5E8F\u8FD8\u6CA1\u767B\u5F55\u3002\u5728\u7EC8\u7AEF\u91CC\u8FD0\u884C\u4E00\u6B21\u5E76\u767B\u5F55\u3002",
+    busy: "\u4E0A\u4E00\u6761\u8BF7\u6C42\u8FD8\u5728\u8DD1\uFF0C\u7B49\u5B83\u7ED3\u675F\u518D\u8BD5\u3002",
+    images: "\u672C\u673A\u7A0B\u5E8F\u4E0D\u6536\u56FE\u7247\u3002\u8BC6\u56FE\u8BF7\u9009\u4E00\u5BB6 API \u670D\u52A1\u5546\u3002",
+    desktopOnly: "\u53EA\u80FD\u5728\u7535\u8111\u4E0A\u7684 Obsidian \u91CC\u7528\u3002\u8FD9\u53F0\u8BBE\u5907\u8BF7\u9009\u4E00\u5BB6 API \u670D\u52A1\u5546\u3002",
+    said: "\u670D\u52A1\u5546\u539F\u8BDD"
+  },
+  ja: {
+    "no-key": "\u30AD\u30FC\u304C\u9078\u3070\u308C\u3066\u3044\u307E\u305B\u3093\u3002\u30D7\u30E9\u30B0\u30A4\u30F3\u8A2D\u5B9A\u306E\u300CAI \u30B5\u30FC\u30D3\u30B9\u300D\u3067\u30AD\u30FC\u30C1\u30A7\u30FC\u30F3\u304B\u3089\u9078\u3076\u304B\u3001\u300C\u30AD\u30FC\u3092\u53D6\u5F97\u300D\u3092\u62BC\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    auth: "\u30AD\u30FC\u304C\u62D2\u5426\u3055\u308C\u307E\u3057\u305F\u3002\u3053\u306E\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u306E\u30AD\u30FC\u304B\u3001\u671F\u9650\u5207\u308C\u3067\u306A\u3044\u304B\u3092\u78BA\u304B\u3081\u3066\u300C\u78BA\u8A8D\u300D\u3092\u62BC\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    quota: "\u6B8B\u9AD8\u307E\u305F\u306F\u30AF\u30A9\u30FC\u30BF\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u306E\u30B5\u30A4\u30C8\u3067\u30C1\u30E3\u30FC\u30B8\u3059\u308B\u304B\u3001\u5225\u306E\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u306B\u5207\u308A\u66FF\u3048\u3066\u304F\u3060\u3055\u3044\u3002",
+    rate: "\u30EA\u30AF\u30A8\u30B9\u30C8\u304C\u591A\u3059\u304E\u307E\u3059\u3002\u5C11\u3057\u5F85\u3063\u3066\u304B\u3089\u3082\u3046\u4E00\u5EA6\u8A66\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    model: "\u3053\u306E\u30E2\u30C7\u30EB\u306F\u5B58\u5728\u3057\u306A\u3044\u304B\u3001\u3053\u306E\u30AD\u30FC\u3067\u306F\u4F7F\u3048\u307E\u305B\u3093\u3002\u30E2\u30C7\u30EB\u4E00\u89A7\u3092\u66F4\u65B0\u3057\u3066\u5225\u306E\u3082\u306E\u3092\u9078\u3093\u3067\u304F\u3060\u3055\u3044\u3002",
+    timeout: "\u6642\u9593\u5185\u306B\u8FD4\u4E8B\u304C\u3042\u308A\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u6DF7\u3093\u3067\u3044\u308B\u53EF\u80FD\u6027\u304C\u3042\u308A\u307E\u3059\u3002\u5F8C\u3067\u8A66\u3057\u3001\u7D9A\u304F\u306A\u3089\u30CD\u30C3\u30C8\u30EF\u30FC\u30AF\u304B\u30B5\u30FC\u30D0\u30FC\u30A2\u30C9\u30EC\u30B9\u3092\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    network: "\u30B5\u30FC\u30D3\u30B9\u306B\u63A5\u7D9A\u3067\u304D\u307E\u305B\u3093\u3002\u30CD\u30C3\u30C8\u30EF\u30FC\u30AF\u3001\u30D7\u30ED\u30AD\u30B7\u3001\u30B5\u30FC\u30D0\u30FC\u30A2\u30C9\u30EC\u30B9\u3092\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    server: "\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u5074\u3067\u30A8\u30E9\u30FC\u304C\u8D77\u304D\u307E\u3057\u305F\u3002\u5C11\u3057\u5F85\u3064\u304B\u3001\u5225\u306E\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u306B\u5207\u308A\u66FF\u3048\u3066\u304F\u3060\u3055\u3044\u3002",
+    "bad-response": "\u8FD4\u4E8B\u306F\u3042\u308A\u307E\u3057\u305F\u304C\u8AAD\u307F\u53D6\u308C\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u5225\u306E\u30E2\u30C7\u30EB\u3092\u8A66\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    aborted: "\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u307E\u3057\u305F\u3002",
+    localMissing: "\u3053\u306E\u30D1\u30BD\u30B3\u30F3\u306B\u898B\u3064\u304B\u308A\u307E\u305B\u3093\u3002\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3057\u3066\u30BF\u30FC\u30DF\u30CA\u30EB\u3067\u4E00\u5EA6\u30ED\u30B0\u30A4\u30F3\u3059\u308B\u304B\u3001\u300C\u8A73\u7D30\u300D\u3067\u30D1\u30B9\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    localAuth: "\u30D7\u30ED\u30B0\u30E9\u30E0\u304C\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u3044\u307E\u305B\u3093\u3002\u30BF\u30FC\u30DF\u30CA\u30EB\u3067\u4E00\u5EA6\u8D77\u52D5\u3057\u3066\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    busy: "\u524D\u306E\u30EA\u30AF\u30A8\u30B9\u30C8\u304C\u307E\u3060\u52D5\u3044\u3066\u3044\u307E\u3059\u3002\u7D42\u308F\u3063\u3066\u304B\u3089\u3082\u3046\u4E00\u5EA6\u8A66\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+    images: "\u3053\u306E\u30D1\u30BD\u30B3\u30F3\u306E\u30D7\u30ED\u30B0\u30E9\u30E0\u306F\u753B\u50CF\u3092\u8AAD\u3081\u307E\u305B\u3093\u3002\u753B\u50CF\u306B\u306F API \u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u3092\u9078\u3093\u3067\u304F\u3060\u3055\u3044\u3002",
+    desktopOnly: "\u30D1\u30BD\u30B3\u30F3\u7248\u306E Obsidian \u3067\u3060\u3051\u4F7F\u3048\u307E\u3059\u3002\u3053\u306E\u7AEF\u672B\u3067\u306F API \u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u3092\u9078\u3093\u3067\u304F\u3060\u3055\u3044\u3002",
+    said: "\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u306E\u8FD4\u7B54"
+  }
+};
+function explainError(e, lang = "en") {
+  const a = ADVICE[lang];
+  if (!(e instanceof AiError)) return e instanceof Error ? e.message : String(e);
+  if (e.kind === "aborted") return a.aborted;
+  const local = PROVIDERS.some((p) => p.localAgent && [p.name, p.names?.zh, p.names?.ja].includes(e.provider));
+  let advice = a[e.kind];
+  if (e.detail === "images") advice = a.images;
+  else if (e.detail === "desktop-only") advice = a.desktopOnly;
+  else if (e.detail === "busy") advice = a.busy;
+  else if (local && e.kind === "no-key") advice = a.localMissing;
+  else if (local && e.kind === "auth") advice = a.localAuth;
+  const who = e.provider ? `${e.provider}${lang === "en" ? ": " : "\uFF1A"}` : "";
+  const detail = e.detail ? redact(e.detail) : "";
+  const said = detail && !["images", "desktop-only", "busy"].includes(detail) ? lang === "en" ? ` ${a.said}: ${detail}` : `${a.said}\uFF1A${detail}` : "";
+  return `${who}${advice}${said}`;
+}
+
+// vendor/rex-ai-kit/node.ts
+function nodeStream(idleMs = 12e4) {
+  const req = window.require;
+  if (typeof req !== "function") return void 0;
+  let http, https2;
+  try {
+    http = req("http");
+    https2 = req("https");
+  } catch {
+    return void 0;
+  }
+  const transport = (request) => new Promise((resolve, reject) => {
+    if (request.signal?.aborted) {
+      reject(new AiError("Cancelled", "aborted"));
+      return;
+    }
+    const url = new URL(request.url);
+    const body = request.body ?? "";
+    const headers = { ...request.headers };
+    if (request.method === "POST") headers["Content-Length"] = new TextEncoder().encode(body).length;
+    const queue = [];
+    let finished = false;
+    let failure = null;
+    let wake = null;
+    const poke = () => {
+      const w = wake;
+      wake = null;
+      w?.();
+    };
+    const client = (url.protocol === "http:" ? http : https2).request(url, { method: request.method, headers }, (response) => {
+      const status = response.statusCode || 0;
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        queue.push(chunk);
+        poke();
+      });
+      response.on("end", () => {
+        finished = true;
+        poke();
+      });
+      response.on("error", (error) => {
+        failure = error;
+        poke();
+      });
+      const chunks = (async function* () {
+        for (; ; ) {
+          if (queue.length) {
+            yield queue.shift();
+            continue;
+          }
+          if (failure) throw failure;
+          if (finished) return;
+          await new Promise((r) => wake = r);
+        }
+      })();
+      resolve({
+        status,
+        chunks,
+        text: async () => {
+          let all = "";
+          for await (const c of chunks) all += c;
+          return all;
+        }
+      });
+    });
+    const fail = (error) => {
+      failure = error;
+      poke();
+      reject(error);
+    };
+    client.on("error", fail);
+    client.setTimeout(idleMs, () => client.destroy(new AiError(`No data for ${Math.round(idleMs / 1e3)} s`, "timeout")));
+    request.signal?.addEventListener("abort", () => client.destroy(new AiError("Cancelled", "aborted")), { once: true });
+    if (body) client.write(body);
+    client.end();
+  });
+  transport.anyOrigin = true;
+  return transport;
+}
+
+// core/LiteChat.ts
+function maxTokensFor(provider) {
+  return ["openai", "anthropic", "gemini", "openrouter"].includes(provider) ? 32e3 : 8192;
+}
+function kitChat(client, slot, lang) {
+  return async (messages, jsonMode, onText, signal) => {
+    const system = messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
+    const turns = messages.filter(
+      (message) => message.role !== "system"
+    ).map((message) => ({ role: message.role, content: message.content }));
+    const ask = (json) => {
+      let full = "";
+      return client.complete(slot, {
+        system: system || void 0,
+        messages: turns,
+        json,
+        maxTokens: maxTokensFor(slot.provider),
+        // Same as the backend's chat node; reasoning models only take the default.
+        temperature: isReasoningModel(slot.model) ? void 0 : 0.4,
+        signal,
+        onText: (piece) => {
+          full += piece;
+          onText(full, 0);
+        }
+      });
+    };
+    try {
+      let reply;
+      try {
+        reply = await ask(jsonMode);
+      } catch (error) {
+        if (!(jsonMode && error instanceof AiError && error.status === 400)) throw error;
+        reply = await ask(false);
+      }
+      if (!reply.text.trim()) {
+        throw new AiError("The model sent an empty reply", "bad-response", void 0, void 0);
+      }
+      return reply.text;
+    } catch (error) {
+      if (error instanceof AiError && error.kind === "aborted") throw error;
+      throw new Error(explainError(error, lang));
+    }
+  };
+}
+
+// core/AiKit.ts
+var import_obsidian21 = require("obsidian");
+
+// core/ModelSettings.ts
+var DEFAULT_AI_SLOT = { provider: "anthropic", model: "claude-sonnet-5-5" };
+var FIRST_KEYED = ["anthropic", "openai", "gemini", "deepseek"];
+function balancedModel(provider) {
+  const p = getProvider(provider);
+  return p ? defaultModel(p, "balanced") : "";
+}
+function firstKeyedSlot(keys) {
+  const listed = new Set(safeList(keys));
+  for (const id of FIRST_KEYED) {
+    const p = getProvider(id);
+    if (!p) continue;
+    if (listed.has(p.secretName) || !!readKey(keys, p)) {
+      return {
+        provider: id,
+        model: id === "anthropic" ? DEFAULT_AI_SLOT.model : balancedModel(id)
+      };
+    }
+  }
+  return { ...DEFAULT_AI_SLOT };
+}
+function safeList(keys) {
+  try {
+    return keys?.listSecrets?.() ?? [];
+  } catch {
+    return [];
+  }
+}
+var OLD_BASES = {
+  deepseek: "https://api.deepseek.com",
+  siliconflow: "https://api.siliconflow.cn/v1",
+  qwen: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  kimi: "https://api.moonshot.cn/v1",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai"
+};
+function migrateAiSlot(stored, keys) {
+  const ai = stored.ai;
+  if (ai && typeof ai.provider === "string" && ai.provider) return null;
+  const text2 = (value) => typeof value === "string" ? value.trim() : "";
+  const oldProvider = text2(stored.llmProvider) || "deepseek";
+  const oldModel = text2(stored.llmModel);
+  const oldKey = text2(stored.llmKeySecret);
+  if (!oldKey && !oldModel && oldProvider === "deepseek") return firstKeyedSlot(keys);
+  const slot = slotFromEndpoint({
+    url: oldProvider === "custom" ? text2(stored.llmBaseUrl) : OLD_BASES[oldProvider] || "",
+    provider: oldProvider === "custom" ? void 0 : oldProvider,
+    model: oldModel,
+    secretName: oldKey
+  });
+  if (!slot.model) slot.model = balancedModel(slot.provider);
+  return slot;
+}
+var LEGACY_LLM_FIELDS = ["llmProvider", "llmModel", "llmBaseUrl", "llmKeySecret"];
+function openAiCompatibleBase(provider) {
+  switch (provider.protocol) {
+    case "openai":
+    case "anthropic":
+      return provider.baseUrl;
+    case "gemini":
+      return provider.baseUrl ? `${provider.baseUrl}/openai` : "";
+    case "ollama":
+      return provider.baseUrl ? `${provider.baseUrl}/v1` : "";
+    default:
+      return "";
+  }
+}
 var SPEECH_DEFAULTS = {
   baseUrl: "https://api.siliconflow.cn/v1",
   model: "FunAudioLLM/SenseVoiceSmall",
   keyUrl: "https://cloud.siliconflow.cn/account/ak"
 };
-function llmProvider(id) {
-  return LLM_PROVIDERS.find((provider) => provider.id === id) ?? LLM_PROVIDERS[0];
-}
-function resolveLlm(settings) {
-  const provider = llmProvider(settings.llmProvider);
-  const baseUrl = (provider.id === "custom" ? settings.llmBaseUrl : provider.baseUrl).trim().replace(/\/+$/, "");
-  return { provider, baseUrl, model: (settings.llmModel || "").trim() || provider.defaultModel };
-}
 function resolveSpeech(settings) {
   return {
     baseUrl: ((settings.speechBaseUrl || "").trim() || SPEECH_DEFAULTS.baseUrl).replace(/\/+$/, ""),
@@ -17837,14 +19071,15 @@ function readSecret(app, name) {
   }
 }
 function backendModelConfig(app, settings) {
-  const llm = resolveLlm(settings);
-  const chatKey = readSecret(app, settings.llmKeySecret);
+  const provider = resolveProvider(settings.ai);
+  const keys = hasSecretStorage(app) ? app.secretStorage : void 0;
+  const chatKey = readKey(keys, provider);
+  const chatBase = openAiCompatibleBase(provider);
   const speechKey = readSecret(app, settings.speechKeySecret);
   const config = { chat: {}, speech: {} };
-  if (chatKey) {
-    config.chat.key = chatKey;
-    if (llm.baseUrl) config.chat.base = llm.baseUrl;
-    if (llm.model) config.chat.model = llm.model;
+  if (chatKey && chatBase) {
+    config.chat = { key: chatKey, base: chatBase };
+    if (settings.ai.model) config.chat.model = settings.ai.model;
   }
   if (speechKey) {
     const speech = resolveSpeech(settings);
@@ -17856,6 +19091,21 @@ async function modelConfigFingerprint(config) {
   const bytes = new TextEncoder().encode(JSON.stringify(config));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest).slice(0, 12)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+// core/AiKit.ts
+function aiLang() {
+  return isChinese() ? "zh" : "en";
+}
+function createAiClient(app, cache) {
+  return new AiClient({
+    keys: hasSecretStorage(app) ? app.secretStorage : void 0,
+    transport: requestUrlTransport(import_obsidian21.requestUrl),
+    stream: import_obsidian21.Platform.isDesktopApp ? nodeStream() : void 0,
+    cache: new ModelCache(cache),
+    cli: import_obsidian21.Platform.isDesktopApp ? nodeCliRunner() : void 0,
+    lang: aiLang()
+  });
 }
 
 // core/VideoOEmbed.ts
@@ -18136,9 +19386,9 @@ var ArtifactStore = class {
     return `${this.rootPath}/${artifactId}${ARTIFACT_FILE_SUFFIX}`;
   }
   async ensureRoot() {
-    const parts = this.rootPath.split("/").filter(Boolean);
+    const parts2 = this.rootPath.split("/").filter(Boolean);
     let current = "";
-    for (const part of parts) {
+    for (const part of parts2) {
       current = current ? `${current}/${part}` : part;
       if (!await this.adapter.exists(current)) {
         try {
@@ -18759,8 +20009,8 @@ function youtubeVideoId(url, host) {
   } else if (host === "youtube.com" || host === "m.youtube.com") {
     candidate = url.searchParams.get("v") || "";
     if (!candidate) {
-      const parts = url.pathname.split("/").filter(Boolean);
-      if (["embed", "shorts", "live"].includes(parts[0])) candidate = parts[1] || "";
+      const parts2 = url.pathname.split("/").filter(Boolean);
+      if (["embed", "shorts", "live"].includes(parts2[0])) candidate = parts2[1] || "";
     }
   }
   return /^[A-Za-z0-9_-]{6,20}$/.test(candidate) ? candidate : void 0;
@@ -19034,9 +20284,9 @@ function parseDurationSeconds(value) {
     const seconds = Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
     return seconds > 0 ? seconds : void 0;
   }
-  const parts = normalized.split(":").map(Number);
-  if ((parts.length === 2 || parts.length === 3) && parts.every((part) => Number.isFinite(part) && part >= 0) && parts[parts.length - 1] < 60 && (parts.length === 2 || parts[1] < 60)) {
-    const seconds = parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0] * 3600 + parts[1] * 60 + parts[2];
+  const parts2 = normalized.split(":").map(Number);
+  if ((parts2.length === 2 || parts2.length === 3) && parts2.every((part) => Number.isFinite(part) && part >= 0) && parts2[parts2.length - 1] < 60 && (parts2.length === 2 || parts2[1] < 60)) {
+    const seconds = parts2.length === 2 ? parts2[0] * 60 + parts2[1] : parts2[0] * 3600 + parts2[1] * 60 + parts2[2];
     return seconds > 0 ? seconds : void 0;
   }
   return void 0;
@@ -19472,16 +20722,16 @@ function uniqueClaimRatio(claims) {
   return new Set(claims.map((claim) => normalizeSearchText(claim.claim))).size / claims.length;
 }
 function localRationale(signals) {
-  const parts = [];
-  if (signals.informationDensity >= 0.68) parts.push("\u4FE1\u606F\u5BC6\u5EA6\u8F83\u9AD8");
-  else if (signals.informationDensity <= 0.35) parts.push("\u4FE1\u606F\u5BC6\u5EA6\u6709\u9650");
-  if (signals.actionability >= 0.58) parts.push("\u53EF\u76F4\u63A5\u6267\u884C\u7684\u5185\u5BB9\u8F83\u591A");
-  if (signals.promotionalRatio >= 0.5) parts.push("\u63A8\u5E7F\u5185\u5BB9\u5360\u6BD4\u8F83\u9AD8");
-  if (signals.repetitionRatio >= 0.45) parts.push("\u91CD\u590D\u5EA6\u8F83\u9AD8");
+  const parts2 = [];
+  if (signals.informationDensity >= 0.68) parts2.push("\u4FE1\u606F\u5BC6\u5EA6\u8F83\u9AD8");
+  else if (signals.informationDensity <= 0.35) parts2.push("\u4FE1\u606F\u5BC6\u5EA6\u6709\u9650");
+  if (signals.actionability >= 0.58) parts2.push("\u53EF\u76F4\u63A5\u6267\u884C\u7684\u5185\u5BB9\u8F83\u591A");
+  if (signals.promotionalRatio >= 0.5) parts2.push("\u63A8\u5E7F\u5185\u5BB9\u5360\u6BD4\u8F83\u9AD8");
+  if (signals.repetitionRatio >= 0.45) parts2.push("\u91CD\u590D\u5EA6\u8F83\u9AD8");
   if (signals.vaultRelevance !== void 0 && signals.vaultRelevance >= 0.5) {
-    parts.push("\u4E0E\u63D0\u4F9B\u7684\u77E5\u8BC6\u5E93\u4E0A\u4E0B\u6587\u76F8\u5173");
+    parts2.push("\u4E0E\u63D0\u4F9B\u7684\u77E5\u8BC6\u5E93\u4E0A\u4E0B\u6587\u76F8\u5173");
   }
-  return `${parts.length ? parts.join("\uFF0C") : "\u73B0\u6709\u8BC1\u636E\u5448\u73B0\u4E2D\u7B49\u89C2\u770B\u4EF7\u503C"}\uFF1B\u8FD9\u662F\u900F\u660E\u89C4\u5219\u7684\u4FDD\u5B88\u4F30\u7B97\u3002`;
+  return `${parts2.length ? parts2.join("\uFF0C") : "\u73B0\u6709\u8BC1\u636E\u5448\u73B0\u4E2D\u7B49\u89C2\u770B\u4EF7\u503C"}\uFF1B\u8FD9\u662F\u900F\u660E\u89C4\u5219\u7684\u4FDD\u5B88\u4F30\u7B97\u3002`;
 }
 function weightedAvailable(values) {
   let totalWeight = 0;
@@ -19721,8 +20971,8 @@ function mediaAssetRoot(outputFolder) {
 }
 async function fetchLoopbackBinary(url, signal) {
   if (signal.aborted) throw new Error("Aborted");
-  const { requestUrl: requestUrl5 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
-  const response = await requestUrl5({ url, method: "GET", throw: false });
+  const { requestUrl: requestUrl6 } = await Promise.resolve().then(() => __toESM(require("obsidian")));
+  const response = await requestUrl6({ url, method: "GET", throw: false });
   if (signal.aborted) throw new Error("Aborted");
   if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
   const header = (name) => Object.entries(response.headers).find(([key]) => key.toLowerCase() === name)?.[1];
@@ -19736,9 +20986,9 @@ async function fetchLoopbackBinary(url, signal) {
   };
 }
 async function ensureDirectory(adapter, directory) {
-  const parts = directory.split("/").filter(Boolean);
+  const parts2 = directory.split("/").filter(Boolean);
   let current = "";
-  for (const part of parts) {
+  for (const part of parts2) {
     current = current ? `${current}/${part}` : part;
     if (!await adapter.exists(current)) await adapter.mkdir(current);
   }
@@ -20156,7 +21406,7 @@ var JobService = class {
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       });
       if (!file) {
-        new import_obsidian21.Notice(tr(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`, `Could not create the note: ${draft.title}`));
+        new import_obsidian22.Notice(tr(`\u521B\u5EFA\u7B14\u8BB0\u5931\u8D25: ${draft.title}`, `Could not create the note: ${draft.title}`));
         continue;
       }
       this.store.enqueue({
@@ -20186,7 +21436,7 @@ var JobService = class {
    */
   async submitPreparedFile(file, input, options) {
     if (!input.url && !input.transcript && !input.localFile && !input.localFiles?.length) {
-      new import_obsidian21.Notice(
+      new import_obsidian22.Notice(
         tr("\u7B14\u8BB0\u91CC\u6CA1\u6709\u94FE\u63A5\u3001\u6587\u7A3F\u6216\u672C\u5730\u6587\u4EF6", "The note has no link, transcript or local file")
       );
       return null;
@@ -20228,7 +21478,7 @@ var JobService = class {
     if (!job.result) return false;
     const file = this.fileFor(job);
     if (!file) {
-      new import_obsidian21.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+      new import_obsidian22.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
       return false;
     }
     try {
@@ -20249,7 +21499,7 @@ var JobService = class {
       });
       return true;
     } catch (error) {
-      new import_obsidian21.Notice(tr(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`, `Could not write: ${messageOf3(error)}`));
+      new import_obsidian22.Notice(tr(`\u5199\u5165\u5931\u8D25: ${messageOf3(error)}`, `Could not write: ${messageOf3(error)}`));
       return false;
     }
   }
@@ -20266,7 +21516,7 @@ var JobService = class {
   async applyToActiveNote(result, mode) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian21.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
+      new import_obsidian22.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
       return;
     }
     try {
@@ -20288,16 +21538,16 @@ var JobService = class {
       const saved = await this.persistArtifact(context, result);
       await this.applyResult(activeFile, result, mode, context);
       await this.updateCourseProgressForFile(activeFile, "complete", 100, saved.artifact_id);
-      new import_obsidian21.Notice(tr("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", "Applied to the current note"));
+      new import_obsidian22.Notice(tr("\u5DF2\u5E94\u7528\u5230\u5F53\u524D\u7B14\u8BB0", "Applied to the current note"));
     } catch (error) {
-      new import_obsidian21.Notice(tr(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`, `Could not apply: ${messageOf3(error)}`));
+      new import_obsidian22.Notice(tr(`\u5E94\u7528\u5931\u8D25: ${messageOf3(error)}`, `Could not apply: ${messageOf3(error)}`));
     }
   }
   /** 把结果插到当前打开的笔记末尾 */
   async insertIntoActiveNote(result) {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian21.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
+      new import_obsidian22.Notice(tr("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u7B14\u8BB0", "Open a note first"));
       return;
     }
     await this.plugin.app.vault.process(
@@ -20306,7 +21556,7 @@ var JobService = class {
 
 ${buildInsertionContent(result)}`
     );
-    new import_obsidian21.Notice(tr("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0", "Inserted into the current note"));
+    new import_obsidian22.Notice(tr("\u5DF2\u63D2\u5165\u5F53\u524D\u7B14\u8BB0", "Inserted into the current note"));
   }
   /** 用结果新建一篇笔记 */
   async createNoteFromResult(job) {
@@ -20324,7 +21574,7 @@ ${buildInsertionContent(result)}`
         successStatusValue: this.plugin.settings.successStatusValue ?? "success"
       }
     );
-    if (file) new import_obsidian21.Notice(tr(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`, `Created note: ${file.basename}`));
+    if (file) new import_obsidian22.Notice(tr(`\u5DF2\u521B\u5EFA\u7B14\u8BB0: ${file.basename}`, `Created note: ${file.basename}`));
   }
   async createNoteFromJson(jsonText, language) {
     let parsed;
@@ -20335,7 +21585,7 @@ ${buildInsertionContent(result)}`
       result = this.plugin.api.normalizeWebhookPayload(parsed);
       input = extractVideoInputFromPayload(parsed);
     } catch (error) {
-      new import_obsidian21.Notice(
+      new import_obsidian22.Notice(
         tr(`JSON \u89E3\u6790\u5931\u8D25: ${messageOf3(error)}`, `Could not parse the JSON: ${messageOf3(error)}`)
       );
       return null;
@@ -20381,7 +21631,7 @@ ${buildInsertionContent(result)}`
             file,
             this.plugin.settings.successStatusValue ?? "success"
           );
-          new import_obsidian21.Notice(
+          new import_obsidian22.Notice(
             tr(
               `${existingFile ? "\u5DF2\u66F4\u65B0" : "\u5DF2\u6839\u636E JSON \u521B\u5EFA"}\u7B14\u8BB0: ${file.basename}`,
               `${existingFile ? "Updated" : "Created from JSON"}: ${file.basename}`
@@ -20394,7 +21644,7 @@ ${buildInsertionContent(result)}`
           } catch (statusError) {
             console.error("[Video Summary] JSON \u5931\u8D25\u72B6\u6001\u5199\u56DE\u5931\u8D25", statusError);
           }
-          new import_obsidian21.Notice(
+          new import_obsidian22.Notice(
             tr(
               `JSON \u7B14\u8BB0\u5199\u5165\u5931\u8D25\uFF0C\u5DF2\u4FDD\u7559\u4E3A\u9519\u8BEF\u72B6\u6001: ${messageOf3(error)}`,
               `Could not write the JSON note; kept as an error: ${messageOf3(error)}`
@@ -20406,7 +21656,7 @@ ${buildInsertionContent(result)}`
       }
       return null;
     } catch (error) {
-      new import_obsidian21.Notice(
+      new import_obsidian22.Notice(
         tr(
           `JSON \u5DE5\u4EF6\u6216\u7B14\u8BB0\u521B\u5EFA\u5931\u8D25: ${messageOf3(error)}`,
           `Could not create the JSON artifact or note: ${messageOf3(error)}`
@@ -20419,7 +21669,7 @@ ${buildInsertionContent(result)}`
   async fileForArtifactId(artifactId) {
     const known = this.plugin.noteLinks.pathFor(artifactId);
     const knownFile = known ? this.plugin.app.vault.getAbstractFileByPath(known) : null;
-    if (knownFile instanceof import_obsidian21.TFile) return knownFile;
+    if (knownFile instanceof import_obsidian22.TFile) return knownFile;
     for (const file of this.plugin.app.vault.getMarkdownFiles()) {
       const cached = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
       let current = stringValue(cached?.video_artifact_id);
@@ -20540,13 +21790,13 @@ ${buildInsertionContent(result)}`
       (draft) => isArticleLink(draft.input.url) && !draft.input.transcript?.trim() && !draft.input.localFile && !draft.input.localFiles?.length
     );
     if (pages.length === 0) return;
-    const notice = new import_obsidian21.Notice(tr("\u6B63\u5728\u8BFB\u53D6\u7F51\u9875\u6B63\u6587\u2026", "Reading the page\u2026"), 0);
+    const notice = new import_obsidian22.Notice(tr("\u6B63\u5728\u8BFB\u53D6\u7F51\u9875\u6B63\u6587\u2026", "Reading the page\u2026"), 0);
     try {
       await Promise.all(
         pages.map(async (draft) => {
           const url = draft.input.url;
           try {
-            const reply = await (0, import_obsidian21.requestUrl)({ url, method: "GET", throw: false });
+            const reply = await (0, import_obsidian22.requestUrl)({ url, method: "GET", throw: false });
             if (reply.status >= 400 || !reply.text) return;
             const doc = new DOMParser().parseFromString(reply.text, "text/html");
             const { title, text: text2 } = extractArticle(doc);
@@ -20581,7 +21831,7 @@ ${buildInsertionContent(result)}`
       return;
     }
     this.plugin.jobs.setHeld(true);
-    new import_obsidian21.Notice(
+    new import_obsidian22.Notice(
       tr(
         "\u8FD9\u6761\u8981\u5B8C\u6574\u6863\uFF1A\u53EA\u6709\u94FE\u63A5\u6216\u672C\u5730\u6587\u4EF6\u65F6\uFF0C\u7531\u540E\u7AEF\u4E0B\u8F7D\u5E76\u8F6C\u5199\u3002\u88C5\u597D\u540E\u7AEF\u540E\u5B83\u4F1A\u81EA\u52A8\u5F00\u59CB\u3002\n\u4E0D\u88C5\u540E\u7AEF\uFF1A\u5728 YouTube \u6216 B \u7AD9\u7684\u89C6\u9891\u9875\u7528\u6D4F\u89C8\u5668\u6269\u5C55\u53D1\u9001\uFF0C\u6216\u8D34\u6587\u7A3F\u3002",
         "This one needs the full tier: with only a link or a local file, the backend downloads and transcribes it. It starts by itself once a backend is installed.\nWithout a backend: send from the YouTube or Bilibili page with the browser extension, or paste a transcript."
@@ -20595,8 +21845,8 @@ ${buildInsertionContent(result)}`
     let fm = file ? this.plugin.app.metadataCache.getFileCache(file)?.frontmatter : void 0;
     if (file && !fm) {
       try {
-        const info = (0, import_obsidian21.getFrontMatterInfo)(await this.plugin.app.vault.read(file));
-        fm = info.exists ? (0, import_obsidian21.parseYaml)(info.frontmatter) : void 0;
+        const info = (0, import_obsidian22.getFrontMatterInfo)(await this.plugin.app.vault.read(file));
+        fm = info.exists ? (0, import_obsidian22.parseYaml)(info.frontmatter) : void 0;
       } catch {
         fm = void 0;
       }
@@ -20607,7 +21857,7 @@ ${buildInsertionContent(result)}`
     let author = text2(fm?.video_author);
     if (isPlaceholderTitle(title, url) || !author) {
       const info = await youTubeOEmbed(url, async (endpoint) => {
-        const response = await (0, import_obsidian21.requestUrl)({ url: endpoint, throw: false });
+        const response = await (0, import_obsidian22.requestUrl)({ url: endpoint, throw: false });
         return response.status === 200 ? response.json : null;
       });
       if (info.title && isPlaceholderTitle(title, url)) title = info.title;
@@ -20624,7 +21874,7 @@ ${buildInsertionContent(result)}`
   /** Light tier: the job's transcript, then the person's model, streamed. */
   async runLite(job, report) {
     const { settings } = this.plugin;
-    const llm = resolveLlm(settings);
+    const slot = { ...settings.ai };
     const controller = new AbortController();
     this.liteControllers.set(job.id, controller);
     let lastLive = 0;
@@ -20662,10 +21912,8 @@ ${buildInsertionContent(result)}`
       }
       return await runLiteJob(
         {
-          transport: nodeStreamTransport,
-          baseUrl: llm.baseUrl,
-          apiKey: readSecret(this.plugin.app, settings.llmKeySecret) || "",
-          model: llm.model,
+          chat: kitChat(this.plugin.ai, slot, aiLang()),
+          model: slot.model,
           noteStyle: settings.noteStyle,
           images
         },
@@ -20849,7 +22097,7 @@ ${buildInsertionContent(result)}`
   attentionContextFor(job) {
     if (!job.notePath) return void 0;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian21.TFile)) return void 0;
+    if (!(file instanceof import_obsidian22.TFile)) return void 0;
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const terms = uniqueStrings4(
       [
@@ -20920,7 +22168,7 @@ ${buildInsertionContent(result)}`
     const ids = new Set(previous?.course_ids || []);
     if (!job.notePath) return [...ids].sort();
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    if (!(file instanceof import_obsidian21.TFile)) return [...ids].sort();
+    if (!(file instanceof import_obsidian22.TFile)) return [...ids].sort();
     const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
     const values = [frontmatter?.video_course_id, frontmatter?.video_course_ids].flat();
     const currentFileIds = /* @__PURE__ */ new Set();
@@ -20940,7 +22188,7 @@ ${buildInsertionContent(result)}`
   fileFor(job) {
     if (!job.notePath) return null;
     const file = this.plugin.app.vault.getAbstractFileByPath(job.notePath);
-    return file instanceof import_obsidian21.TFile ? file : null;
+    return file instanceof import_obsidian22.TFile ? file : null;
   }
 };
 function basenameOf(path) {
@@ -21002,7 +22250,7 @@ function withAnalysisOptions(input, options) {
 }
 
 // core/BackendControl.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 var FRESH_MS = 6e4;
 var INTERVAL_MS = 5 * 6e4;
 var BackendControl = class {
@@ -21059,7 +22307,7 @@ var BackendControl = class {
   }
   /** Start backend only makes sense for a backend on this computer. */
   canStart() {
-    return import_obsidian22.Platform.isDesktopApp && isLocalEndpoint(this.endpoint());
+    return import_obsidian23.Platform.isDesktopApp && isLocalEndpoint(this.endpoint());
   }
   /** The address or the token changed: forget what was known and look again. */
   endpointChanged() {
@@ -21080,7 +22328,7 @@ var BackendControl = class {
     const snapshot = this.monitor.snapshot();
     if (snapshot.status === "starting") {
       this.notice?.hide();
-      this.notice = new import_obsidian22.Notice(
+      this.notice = new import_obsidian23.Notice(
         tr(
           `\u4EFB\u52A1\u5728\u7B49\u540E\u7AEF\uFF1A${snapshot.step || "\u6B63\u5728\u542F\u52A8"}\u3002\u540E\u7AEF\u5E94\u7B54\u540E\u81EA\u52A8\u5F00\u59CB\u3002`,
           `The job is waiting: ${snapshot.step || "the backend is starting"}. It starts by itself once the backend answers.`
@@ -21187,12 +22435,12 @@ var BackendControl = class {
           await this.rememberBackendDir(picked);
           result = await this.launchOnce(picked);
         } else if (picked) {
-          new import_obsidian22.Notice(tr("\u8FD9\u4E2A\u6587\u4EF6\u5939\u91CC\u6CA1\u6709 compose.yaml", "That folder has no compose.yaml"), 6e3);
+          new import_obsidian23.Notice(tr("\u8FD9\u4E2A\u6587\u4EF6\u5939\u91CC\u6CA1\u6709 compose.yaml", "That folder has no compose.yaml"), 6e3);
         }
       }
       if (result.backendDir) await this.rememberBackendDir(result.backendDir);
       if (result.ok) {
-        new import_obsidian22.Notice(
+        new import_obsidian23.Notice(
           waiting > 0 ? tr(
             `\u540E\u7AEF\u5DF2\u542F\u52A8\uFF0C${waiting} \u4E2A\u7B49\u5F85\u7684\u4EFB\u52A1\u5F00\u59CB\u5904\u7406`,
             `Backend started; ${waiting} waiting ${waiting === 1 ? "job is" : "jobs are"} now running`
@@ -21206,7 +22454,7 @@ var BackendControl = class {
         this.monitor.snapshot().diagnosis,
         this.endpoint()
       );
-      new import_obsidian22.Notice(this.lastStartFailure, 12e3);
+      new import_obsidian23.Notice(this.lastStartFailure, 12e3);
       return false;
     } finally {
       this.monitor.endStart();
@@ -21237,7 +22485,7 @@ var BackendControl = class {
       ) : faultNextStep(diagnosis, endpoint, false)
     });
     if (fromPage) {
-      const keys = captureShortcut(import_obsidian22.Platform.isMacOS);
+      const keys = captureShortcut(import_obsidian23.Platform.isMacOS);
       box.createDiv({
         cls: "vs-backend-notice-step",
         text: tr(
@@ -21260,12 +22508,12 @@ var BackendControl = class {
         })
       );
     }
-    this.notice = new import_obsidian22.Notice(fragment, startable ? 2e4 : 1e4);
+    this.notice = new import_obsidian23.Notice(fragment, startable ? 2e4 : 1e4);
   }
 };
 
 // core/BackendInstaller.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // core/ManagedBackend.ts
 var BACKEND_IMAGE_REPO = "ghcr.io/rexxall/video-summary-backend";
@@ -21477,7 +22725,7 @@ async function applyModelConfig(run, containerId, config) {
 }
 
 // core/BackendInstaller.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var ONLINE_WAIT_MS = 30 * 6e4;
 var RESTART_WAIT_MS = 4 * 6e4;
 var APPLY_DEBOUNCE_MS = 1500;
@@ -21507,7 +22755,7 @@ var BackendInstaller = class {
   }
   /** Only a backend on this computer, on a desktop that can run docker, can be set up from here. */
   supported() {
-    return import_obsidian23.Platform.isDesktopApp && (import_obsidian23.Platform.isMacOS || import_obsidian23.Platform.isLinux);
+    return import_obsidian24.Platform.isDesktopApp && (import_obsidian24.Platform.isMacOS || import_obsidian24.Platform.isLinux);
   }
   /** Where the backend folder is, or where it will be written. */
   backendDir() {
@@ -21677,7 +22925,7 @@ var BackendInstaller = class {
           `\u6CA1\u80FD\u628A\u8BBE\u7F6E\u4EA4\u7ED9\u540E\u7AEF\uFF1A${result.detail || "\u672A\u77E5\u539F\u56E0"}`,
           `Could not hand the settings to the backend: ${result.detail || "unknown reason"}`
         );
-        if (announce) new import_obsidian23.Notice(message, 1e4);
+        if (announce) new import_obsidian24.Notice(message, 1e4);
         throw new Error(message);
       }
       monitor.setStep(
@@ -21689,13 +22937,13 @@ var BackendInstaller = class {
           "\u540E\u7AEF\u91CD\u542F\u540E\u6CA1\u6709\u5E94\u7B54\u3002\u6253\u5F00\u540E\u7AEF\u4F53\u68C0\u770B\u5361\u5728\u54EA\u4E00\u6B65\u3002",
           "The backend did not answer after restarting. Open the backend check-up to see where it stopped."
         );
-        if (announce) new import_obsidian23.Notice(message, 1e4);
+        if (announce) new import_obsidian24.Notice(message, 1e4);
         throw new Error(message);
       }
       settings.backendAppliedConfig = fingerprint;
       await this.plugin.saveSettings();
       if (announce)
-        new import_obsidian23.Notice(
+        new import_obsidian24.Notice(
           tr("\u540E\u7AEF\u5DF2\u6362\u4E0A\u65B0\u7684\u6A21\u578B\u548C\u5BC6\u94A5", "The backend now uses the new model and keys"),
           4e3
         );
@@ -21733,7 +22981,7 @@ var BackendInstaller = class {
       writeTextOutsideVault(
         dir,
         INSTALL_SCRIPT_NAME,
-        installScript({ chinese: (0, import_obsidian24.getLanguage)().startsWith("zh"), update }),
+        installScript({ chinese: (0, import_obsidian25.getLanguage)().startsWith("zh"), update }),
         493
       );
     } catch (error) {
@@ -21752,7 +23000,7 @@ var BackendInstaller = class {
   }
   async openTerminal() {
     const script = joinPath(this.backendDir(), INSTALL_SCRIPT_NAME);
-    const opened = import_obsidian23.Platform.isMacOS ? (await runProgram("/usr/bin/open", ["-a", "Terminal", script], { timeoutMs: 8e3 })).code === 0 : await openFileInSystem(script);
+    const opened = import_obsidian24.Platform.isMacOS ? (await runProgram("/usr/bin/open", ["-a", "Terminal", script], { timeoutMs: 8e3 })).code === 0 : await openFileInSystem(script);
     if (!opened) {
       throw new Error(
         tr(
@@ -21896,8 +23144,199 @@ function sleep(ms) {
 }
 
 // views/BackendSettings.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian27 = require("obsidian");
+
+// vendor/rex-ai-kit/settingsUI.ts
 var import_obsidian26 = require("obsidian");
+var MANUAL = "__manual__";
+function renderAiSettings(containerEl, o) {
+  const s = STRINGS[o.lang ?? "en"];
+  const scene = o.scene ?? "balanced";
+  const root = containerEl.createDiv({ cls: "rak-ai" });
+  let slot = { ...o.slot };
+  let aborter = new AbortController();
+  let status = { kind: "idle" };
+  let balanceText = null;
+  let modelError = null;
+  const save2 = async () => {
+    await o.onChange({ ...slot });
+  };
+  const draw = () => {
+    root.empty();
+    const p = resolveProvider(slot);
+    if (o.heading !== false) new import_obsidian26.Setting(root).setName(s.heading).setHeading();
+    const showHint = !!p.hint && !p.localAgent && (p.id !== "gemini" || !!o.privateContent);
+    new import_obsidian26.Setting(root).setName(s.provider).setDesc(showHint ? p.hint : "").addDropdown((d) => {
+      const local = !!o.allowLocalAgents && o.client.canRunLocal;
+      fillProviders(d, s, o.lang ?? "en", (p2) => (!p2.localAgent || local) && (!o.filter || o.filter(p2)));
+      d.setValue(getProvider(slot.provider) ? slot.provider : "custom");
+      d.onChange(async (id) => {
+        aborter.abort();
+        aborter = new AbortController();
+        const np = resolveProvider({ provider: id });
+        slot = { provider: id, model: defaultModel(np, scene, o.client.cache.get(np)), grantExpiry: void 0 };
+        status = { kind: "idle" };
+        balanceText = null;
+        modelError = null;
+        await save2();
+        draw();
+      });
+    });
+    if (p.localAgent) {
+      const row = new import_obsidian26.Setting(root).setName(s.program).setDesc(p.hint ?? "");
+      if (status.kind === "busy") row.controlEl.createSpan({ cls: "rak-dot is-busy" });
+      row.addButton(
+        (b) => b.setButtonText(status.kind === "busy" ? s.checking : s.check).setDisabled(status.kind === "busy").onClick(async () => {
+          status = { kind: "busy" };
+          draw();
+          const r = await o.client.check(slot);
+          status = { kind: r.status, detail: r.status === "ok" ? r.detail : s.notFound };
+          draw();
+        })
+      );
+      if (status.kind === "ok" || status.kind === "missing")
+        row.descEl.createDiv({ cls: `rak-keyline` }).createSpan({ cls: `rak-status is-${status.kind}`, text: status.detail ?? "" });
+    } else if (p.needsKey) {
+      const keyRow = new import_obsidian26.Setting(root).setName(s.key).setDesc(s.keyDesc);
+      keyRow.addComponent(
+        (el) => new import_obsidian26.SecretComponent(o.app, el).setValue(p.secretName).onChange(async (name) => {
+          slot.secretName = name && name !== resolveProvider({ provider: slot.provider }).secretName ? name : void 0;
+          status = { kind: "idle" };
+          balanceText = null;
+          await save2();
+          draw();
+        })
+      );
+      if (status.kind === "busy") keyRow.controlEl.createSpan({ cls: "rak-dot is-busy", attr: { "aria-label": s.checking } });
+      keyRow.addButton(
+        (b) => b.setButtonText(status.kind === "busy" ? s.checking : s.check).setDisabled(status.kind === "busy").onClick(async () => {
+          status = { kind: "busy" };
+          draw();
+          const r = await o.client.check(slot, aborter.signal);
+          status = { kind: r.status, detail: r.detail };
+          if (r.status === "ok" && p.balance) {
+            balanceText = await o.client.balance(slot, aborter.signal).then((b2) => b2 ? `${s.balance} ${b2.text}` : null).catch(() => null);
+          }
+          draw();
+        })
+      );
+      const line = keyRow.descEl.createDiv({ cls: "rak-keyline" });
+      if (status.kind === "idle" && !o.client.hasKey(slot)) line.createSpan({ cls: "rak-status is-missing", text: s.missing });
+      if (status.kind !== "idle" && status.kind !== "busy") line.createSpan({ cls: `rak-status is-${status.kind}`, text: status.detail && status.kind !== "ok" ? `${statusLabel(s, status.kind)} \xB7 ${status.detail}` : statusLabel(s, status.kind) });
+      if (balanceText) line.createSpan({ cls: "rak-balance", text: balanceText });
+      if (!o.client.hasKey(slot) || status.kind === "missing" || status.kind === "invalid") {
+        if (p.consoleUrl) linkTo(line, p.consoleUrl, s.getKey);
+      } else if (!balanceText && (p.usageUrl ?? p.consoleUrl)) linkTo(line, p.usageUrl ?? p.consoleUrl, s.usage);
+      const warn = grantWarning(slot.grantExpiry);
+      if (warn) {
+        keyRow.settingEl.addClass("rak-warn");
+        line.createSpan({ cls: "rak-expiry", text: s.expiresSoon(warn) });
+      }
+    } else if (!p.localAgent) {
+      new import_obsidian26.Setting(root).setName(s.key).setDesc(s.keyNone);
+    }
+    const modelRow = new import_obsidian26.Setting(root).setName(s.model).setDesc(p.modelsPath ? s.modelDesc : "");
+    if (modelError) modelRow.descEl.createDiv({ cls: "rak-keyline" }).createSpan({ cls: "rak-status is-invalid", text: s.modelError(modelError) });
+    const cached = o.client.cache.get(p);
+    const rows = pickerRows(p, cached, scene);
+    let manualInput = null;
+    const known = rows.some((r) => r.id === slot.model);
+    const showManual = !!slot.model && !known;
+    modelRow.addDropdown((d) => {
+      const sel = d.selectEl;
+      const picks = rows.filter((r) => r.pick);
+      const rest = rows.filter((r) => !r.pick);
+      if (picks.length) {
+        const g = sel.createEl("optgroup", { attr: { label: s.recommended } });
+        for (const r of picks) g.createEl("option", { value: r.id, text: `${r.id} \xB7 ${s[r.pick.scene]}` });
+      }
+      if (rest.length) {
+        const age = o.client.cache.age(p);
+        const g = sel.createEl("optgroup", { attr: { label: age != null ? s.allCount(rest.length, ago(s, age)) : s.all } });
+        for (const r of rest) g.createEl("option", { value: r.id, text: r.id });
+      }
+      sel.createEl("option", { value: MANUAL, text: s.manual });
+      d.setValue(showManual ? MANUAL : slot.model || picks[0]?.id || rest[0]?.id || MANUAL);
+      d.onChange(async (v) => {
+        if (v === MANUAL) {
+          manualInput?.inputEl.focus();
+          draw();
+          manualInput?.inputEl.focus();
+          return;
+        }
+        slot.model = v;
+        await save2();
+      });
+    });
+    if (showManual || rows.length === 0) {
+      modelRow.addText((t) => {
+        manualInput = t;
+        t.setPlaceholder(s.manualPh).setValue(slot.model ?? "");
+        t.inputEl.addClass("rak-manual");
+        t.onChange(async (v) => {
+          slot.model = v.trim();
+          await save2();
+        });
+      });
+    }
+    if (p.modelsPath) {
+      modelRow.addExtraButton(
+        (b) => b.setIcon("refresh-cw").setTooltip(s.refresh).onClick(async () => {
+          modelError = null;
+          try {
+            await o.client.models(slot, true, aborter.signal);
+          } catch (e) {
+            modelError = e instanceof Error ? e.message : String(e);
+          }
+          draw();
+        })
+      );
+    }
+    const det = root.createEl("details", { cls: "rak-advanced" });
+    det.createEl("summary", { text: s.advanced });
+    new import_obsidian26.Setting(det).setName(p.localAgent ? s.programPath : s.baseUrl).setDesc(p.localAgent ? s.programPathDesc : s.baseUrlDesc).addText(
+      (t) => t.setPlaceholder(p.localAgent ? `/usr/local/bin/${p.localAgent}` : resolveProvider({ provider: slot.provider }).baseUrl || "https://\u2026/v1").setValue(slot.baseUrl ?? "").onChange(async (v) => {
+        slot.baseUrl = v.trim() || void 0;
+        await save2();
+      })
+    );
+    if (p.needsKey) {
+      new import_obsidian26.Setting(det).setName(s.expiry).setDesc(s.expiryDesc).addText((t) => {
+        t.inputEl.type = "date";
+        t.setValue(slot.grantExpiry ?? "").onChange(async (v) => {
+          slot.grantExpiry = v || void 0;
+          await save2();
+        });
+      });
+    }
+  };
+  draw();
+  return {
+    destroy() {
+      aborter.abort();
+      root.remove();
+    }
+  };
+}
+function fillProviders(d, s, lang, filter) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const p of PROVIDERS) {
+    if (filter && !filter(p)) continue;
+    groups.set(p.group, [...groups.get(p.group) ?? [], p]);
+  }
+  for (const [g, list2] of groups) {
+    const og = d.selectEl.createEl("optgroup", { attr: { label: s.groups[g] } });
+    for (const p of list2) og.createEl("option", { value: p.id, text: providerName(p, lang) });
+  }
+}
+function statusLabel(s, k) {
+  return k === "ok" ? s.ok : k === "missing" ? s.missing : k === "invalid" ? s.invalid : k === "error" ? s.error : k === "busy" ? s.checking : "";
+}
+function linkTo(parent, href, text2) {
+  parent.createEl("a", { cls: "rak-link", text: text2, href, attr: { target: "_blank", rel: "noopener" } });
+}
+
+// views/BackendSettings.ts
 var ORBSTACK_URL = "https://orbstack.dev/download";
 var refreshBackendGroup = null;
 var DOCKER_DESKTOP_URL = "https://www.docker.com/products/docker-desktop/";
@@ -21924,7 +23363,7 @@ function renderBackendSettings(parent, host) {
       snapshot.step,
       snapshot.diagnosis?.fault,
       plugin.hasBackend(),
-      !!readSecret(host.app, plugin.settings.llmKeySecret)
+      plugin.ai.hasKey(plugin.settings.ai)
     ]);
   };
   const draw = () => {
@@ -21962,6 +23401,7 @@ function renderModelSettings(parent, host) {
   const root = parent.createDiv({ cls: "vs-settings-section vs-model-settings" });
   let disposed = false;
   let lastKey = "";
+  let stopRows = null;
   const stateKey = () => JSON.stringify([isManaged(plugin), isExternal(plugin)]);
   const draw = () => {
     if (disposed) return;
@@ -21977,15 +23417,12 @@ function renderModelSettings(parent, host) {
         )
       });
     }
-    drawModelRows(root, host, {
+    stopRows?.();
+    stopRows = drawModelRows(root, host, {
       applyToBackend: managed,
-      disabled: false,
-      onChange: () => {
-        draw();
-        refreshBackendGroup?.();
-      }
+      onChange: () => refreshBackendGroup?.()
     });
-    new import_obsidian25.Setting(root).setName(tr("\u8F7B\u91CF\u6863", "Light tier")).setDesc(
+    new import_obsidian27.Setting(root).setName(tr("\u8F7B\u91CF\u6863", "Light tier")).setDesc(
       tr(
         "YouTube \u6709\u5B57\u5E55\u7684\u89C6\u9891\u548C\u7C98\u8D34\u7684\u6587\u7A3F\u76F4\u63A5\u4EA4\u7ED9\u603B\u7ED3\u6A21\u578B\uFF0C\u4E0D\u7ECF\u8FC7\u540E\u7AEF\uFF0C\u8FB9\u5199\u8FB9\u663E\u793A\u3002",
         "YouTube videos with captions and pasted transcripts go straight to the summary model, without the backend, and appear as they are written."
@@ -22004,6 +23441,7 @@ function renderModelSettings(parent, host) {
   draw();
   return () => {
     disposed = true;
+    stopRows?.();
     offInstaller();
   };
 }
@@ -22011,8 +23449,8 @@ function drawBackend(root, host, redraw) {
   const { plugin } = host;
   const { installer } = plugin;
   const progress = installer.progress();
-  const busy = progress.phase === "terminal" || progress.phase === "configure" || progress.phase === "check" || progress.phase === "trial";
-  if (busy) {
+  const busy2 = progress.phase === "terminal" || progress.phase === "configure" || progress.phase === "check" || progress.phase === "trial";
+  if (busy2) {
     drawProgress(root, host);
     return;
   }
@@ -22037,9 +23475,9 @@ function drawProgress(root, host) {
     cls: "vs-install-track",
     attr: { role: "list", "aria-label": tr("\u5B89\u88C5\u8FDB\u5EA6", "Install progress") }
   });
-  const at = order.indexOf(progress.phase);
+  const at2 = order.indexOf(progress.phase);
   labels.forEach((label, index) => {
-    const state = index < at ? "is-done" : index === at ? "is-now" : "";
+    const state = index < at2 ? "is-done" : index === at2 ? "is-now" : "";
     const item = track.createDiv({
       cls: `vs-install-stage ${state}`.trim(),
       attr: { role: "listitem" }
@@ -22073,13 +23511,13 @@ function drawFirstRun(root, host, redraw) {
   const progress = installer.progress();
   if (progress.phase === "failed") drawFailure(root, host);
   if (!facts) {
-    new import_obsidian25.Setting(root).setName(
+    new import_obsidian27.Setting(root).setName(
       tr("\u6B63\u5728\u770B\u8FD9\u53F0\u7535\u8111\u4E0A\u6709\u6CA1\u6709 Docker\u2026", "Looking for Docker on this computer\u2026")
     );
     return;
   }
   if (facts.docker === "missing") {
-    const setting = new import_obsidian25.Setting(root).setName(tr("\u5148\u88C5 Docker", "Install Docker first"));
+    const setting = new import_obsidian27.Setting(root).setName(tr("\u5148\u88C5 Docker", "Install Docker first"));
     const desc = createFragment();
     desc.appendText(
       tr(
@@ -22103,7 +23541,7 @@ function drawFirstRun(root, host, redraw) {
   }
   if (facts.docker === "stopped") {
     const app = dockerEngineApp();
-    new import_obsidian25.Setting(root).setName(tr("\u6253\u5F00 Docker", "Open Docker")).setDesc(tr("Docker \u5DF2\u7ECF\u88C5\u4E86\uFF0C\u4F46\u6CA1\u5728\u8FD0\u884C\u3002", "Docker is installed but not running.")).addButton(
+    new import_obsidian27.Setting(root).setName(tr("\u6253\u5F00 Docker", "Open Docker")).setDesc(tr("Docker \u5DF2\u7ECF\u88C5\u4E86\uFF0C\u4F46\u6CA1\u5728\u8FD0\u884C\u3002", "Docker is installed but not running.")).addButton(
       (button) => button.setButtonText(
         app ? tr(`\u6253\u5F00 ${app.name}`, `Open ${app.name}`) : tr("\u91CD\u65B0\u68C0\u67E5", "Check again")
       ).setCta().onClick(async () => {
@@ -22119,8 +23557,8 @@ function drawFirstRun(root, host, redraw) {
     );
     return;
   }
-  const ready = !!readSecret(host.app, plugin.settings.llmKeySecret);
-  new import_obsidian25.Setting(root).setName(tr("\u5B89\u88C5\u5E76\u542F\u52A8", "Install and start")).setDesc(
+  const ready = plugin.ai.hasKey(plugin.settings.ai);
+  new import_obsidian27.Setting(root).setName(tr("\u5B89\u88C5\u5E76\u542F\u52A8", "Install and start")).setDesc(
     ready ? tr(
       `\u5199\u597D\u540E\u7AEF\u6587\u4EF6\u5939\uFF08${installer.backendDir()}\uFF09\uFF0C\u518D\u6253\u5F00\u7EC8\u7AEF\uFF0C\u7531\u4F60\u6309\u56DE\u8F66\u4E0B\u8F7D\u7EA6 550 MB \u7684\u540E\u7AEF\u955C\u50CF\u3002\u4E4B\u540E\u7684\u68C0\u67E5\u548C\u8BD5\u8DD1\u81EA\u52A8\u5B8C\u6210\u3002`,
       `Writes the backend folder (${installer.backendDir()}), then opens Terminal, where you press Return to download the backend image (about 550 MB). The check and the trial run follow by themselves.`
@@ -22153,7 +23591,7 @@ function drawInstalled(root, host) {
   }
   host.renderBilibili(root);
   if (managed && facts?.container) {
-    new import_obsidian25.Setting(root).setName(tr("\u5F00\u673A\u540E\u81EA\u52A8\u542F\u52A8", "Start with the computer")).setDesc(
+    new import_obsidian27.Setting(root).setName(tr("\u5F00\u673A\u540E\u81EA\u52A8\u542F\u52A8", "Start with the computer")).setDesc(
       tr(
         "Docker \u542F\u52A8\u65F6\u628A\u540E\u7AEF\u4E00\u8D77\u5E26\u8D77\u6765\u3002Docker \u81EA\u5DF1\u8981\u8BBE\u6210\u767B\u5F55\u65F6\u6253\u5F00\u3002",
         "Docker brings the backend up when it starts. Docker itself has to open at login."
@@ -22161,7 +23599,7 @@ function drawInstalled(root, host) {
     ).addToggle(
       (toggle) => toggle.setValue(installer.autoStart()).onChange(async (value) => {
         if (!await installer.setAutoStart(value)) {
-          new import_obsidian25.Notice(tr("\u6CA1\u6539\u6210\uFF0CDocker \u6CA1\u6709\u63A5\u53D7\u3002", "Not changed; Docker did not accept it."));
+          new import_obsidian27.Notice(tr("\u6CA1\u6539\u6210\uFF0CDocker \u6CA1\u6709\u63A5\u53D7\u3002", "Not changed; Docker did not accept it."));
         }
       })
     );
@@ -22232,92 +23670,51 @@ function drawInstalled(root, host) {
 function drawModelRows(root, host, options) {
   const { plugin, app } = host;
   const { settings } = plugin;
-  const chinese2 = (0, import_obsidian26.getLanguage)().startsWith("zh");
-  const changed = async (redraw = false) => {
+  const changed = async () => {
     await plugin.saveSettings();
     if (options.applyToBackend) plugin.installer.scheduleApply();
-    if (redraw) options.onChange();
+    options.onChange();
   };
-  const lock = (setting) => {
-    if (!options.disabled) return;
-    setting.setDisabled(true);
-    setting.settingEl.addClass("is-disabled", "vs-row-locked");
-    setting.controlEl.setAttr("inert", "");
-    setting.controlEl.setAttr("aria-disabled", "true");
-  };
-  const provider = llmProvider(settings.llmProvider);
-  const llm = resolveLlm(settings);
-  const model = new import_obsidian25.Setting(root).setName(tr("\u603B\u7ED3\u6A21\u578B", "Summary model"));
-  model.addDropdown((dropdown) => {
-    for (const item of LLM_PROVIDERS) {
-      dropdown.addOption(item.id, chinese2 && item.labelZh || item.label);
-    }
-    dropdown.setValue(provider.id).onChange(async (value) => {
-      settings.llmProvider = value;
-      settings.llmModel = "";
-      await changed(true);
-    });
-  });
-  if (provider.id === "custom") {
-    model.addText(
-      (text2) => text2.setPlaceholder("https://api.example.com/v1").setValue(settings.llmBaseUrl || "").onChange(async (value) => {
-        settings.llmBaseUrl = value.trim();
-        await changed();
-      })
-    );
-  }
-  model.addText((text2) => {
-    text2.setPlaceholder(provider.defaultModel || tr("\u6A21\u578B\u540D", "Model name")).setValue(settings.llmModel || "").onChange(async (value) => {
-      settings.llmModel = value.trim();
+  const ui = renderAiSettings(root, {
+    app,
+    client: plugin.ai,
+    slot: settings.ai,
+    scene: "balanced",
+    lang: aiLang(),
+    heading: false,
+    // Claude Code and Codex on this computer: the transcript is text, so they can write notes.
+    allowLocalAgents: true,
+    onChange: async (slot) => {
+      settings.ai = slot;
+      settings.modelCache = plugin.ai.cache.toJSON();
       await changed();
-    });
-    text2.inputEl.setAttr("aria-label", tr("\u6A21\u578B\u540D", "Model name"));
-    text2.inputEl.addClass("vs-model-name");
-  });
-  lock(model);
-  if (!llm.model && !options.disabled) {
-    model.setDesc(
-      tr(
-        "\u8FD9\u5BB6\u6CA1\u6709\u56FA\u5B9A\u7684\u9ED8\u8BA4\u6A21\u578B\uFF0C\u586B\u5B83\u63A7\u5236\u53F0\u91CC\u7684\u6A21\u578B\u540D\u3002",
-        "This service has no fixed default; enter a model name from its console."
-      )
-    );
-  }
-  if (!hasSecretStorage(app)) {
-    new import_obsidian25.Setting(root).setName(tr("\u5BC6\u94A5", "Keys")).setDesc(
-      tr(
-        "\u5728\u8BBE\u7F6E\u91CC\u7BA1\u7406\u5BC6\u94A5\u9700\u8981 Obsidian 1.11.4 \u6216\u66F4\u65B0\u3002\u65E7\u7248\u8BF7\u5728\u540E\u7AEF\u7684 .env \u91CC\u586B\u5BC6\u94A5\u3002",
-        "Managing keys here needs Obsidian 1.11.4 or newer. On older versions, put the keys in the backend's .env."
-      )
-    );
-    return;
-  }
-  const keyRow = (name, current, keyUrl, save2) => {
-    const setting = new import_obsidian25.Setting(root).setName(name);
-    if (keyUrl) {
-      const desc = createFragment();
-      desc.createEl("a", { text: tr("\u53BB\u54EA\u62FF", "Where to get one"), href: keyUrl });
-      setting.setDesc(desc);
+      localNote();
     }
-    setting.addComponent(
-      (el) => new import_obsidian25.SecretComponent(app, el).setValue(current || "").onChange(async (value) => {
-        save2((value || "").trim());
-        await changed(true);
-      })
+  });
+  const note = root.createEl("p", { cls: "setting-item-description vs-model-local-note" });
+  const localNote = () => {
+    const local = !!getProvider(settings.ai.provider)?.localAgent;
+    note.toggleAttribute("hidden", !(local && options.applyToBackend));
+    note.setText(
+      tr(
+        "\u540E\u7AEF\u5728 Docker \u91CC\uFF0C\u7528\u4E0D\u4E86\u8FD9\u53F0\u7535\u8111\u4E0A\u7684\u7A0B\u5E8F\uFF1A\u540E\u7AEF\u5904\u7406\u7684\u89C6\u9891\u4ECD\u7528\u5B83\u81EA\u5DF1\u7684\u6A21\u578B\u3002",
+        "The backend runs in Docker and cannot use programs on this computer: videos it processes keep its own model."
+      )
     );
-    lock(setting);
   };
-  keyRow(tr("\u603B\u7ED3\u5BC6\u94A5", "Summary key"), settings.llmKeySecret, provider.keyUrl, (secret) => {
-    settings.llmKeySecret = secret;
-  });
-  keyRow(
-    tr("\u8BED\u97F3\u8F6C\u5199\u5BC6\u94A5", "Speech-to-text key"),
-    settings.speechKeySecret,
-    SPEECH_DEFAULTS.keyUrl,
-    (secret) => {
-      settings.speechKeySecret = secret;
-    }
+  localNote();
+  if (!hasSecretStorage(app)) return () => ui.destroy();
+  const speech = new import_obsidian27.Setting(root).setName(tr("\u8BED\u97F3\u8F6C\u5199\u5BC6\u94A5", "Speech-to-text key"));
+  const desc = createFragment();
+  desc.createEl("a", { text: tr("\u53BB\u54EA\u62FF", "Where to get one"), href: SPEECH_DEFAULTS.keyUrl });
+  speech.setDesc(desc);
+  speech.addComponent(
+    (el) => new import_obsidian27.SecretComponent(app, el).setValue(settings.speechKeySecret || "").onChange(async (value) => {
+      settings.speechKeySecret = (value || "").trim();
+      await changed();
+    })
   );
+  return () => ui.destroy();
 }
 
 // core/NoteArtifactLinks.ts
@@ -23393,8 +24790,8 @@ function roundScore2(value) {
 }
 
 // modals/KnowledgeLabModal.ts
-var import_obsidian27 = require("obsidian");
-var KnowledgeLabModal = class extends import_obsidian27.Modal {
+var import_obsidian28 = require("obsidian");
+var KnowledgeLabModal = class extends import_obsidian28.Modal {
   constructor(app, plugin, mode) {
     super(app);
     this.artifacts = [];
@@ -23609,9 +25006,9 @@ var KnowledgeLabModal = class extends import_obsidian27.Modal {
       );
       const details = card.createEl("details", { cls: "vs-memory-score-details" });
       details.createEl("summary", { text: tr("\u4E3A\u4EC0\u4E48\u6392\u5728\u8FD9\u91CC", "Why it ranks here") });
-      const list = details.createEl("ul");
+      const list2 = details.createEl("ul");
       result.score_explanation.forEach((component) => {
-        list.createEl("li", { text: component.explanation });
+        list2.createEl("li", { text: component.explanation });
       });
       this.renderKeyframe(card, result);
       if (sourceArtifactId && sourceArtifactId !== result.artifact_id && !relationTargets.has(result.artifact_id)) {
@@ -23630,8 +25027,8 @@ var KnowledgeLabModal = class extends import_obsidian27.Modal {
     let source;
     const localPath = safeManagedVaultImagePath(reference.path, result.media_asset_root);
     if (localPath) {
-      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian27.normalizePath)(localPath));
-      if (file instanceof import_obsidian27.TFile) source = this.app.vault.getResourcePath(file);
+      const file = this.app.vault.getAbstractFileByPath((0, import_obsidian28.normalizePath)(localPath));
+      if (file instanceof import_obsidian28.TFile) source = this.app.vault.getResourcePath(file);
     }
     if (!source) return;
     card.createEl("img", {
@@ -23732,15 +25129,15 @@ var KnowledgeLabModal = class extends import_obsidian27.Modal {
       tr("\u6309\u6807\u9898\u3001\u4F5C\u8005\u6216\u5E73\u53F0\u8FC7\u6EE4", "Filter by title, author or platform")
     );
     const count2 = toolbar.createSpan({ cls: "vs-claim-lab-count" });
-    const list = this.contentEl.createDiv({ cls: "vs-claim-lab-artifacts" });
+    const list2 = this.contentEl.createDiv({ cls: "vs-claim-lab-artifacts" });
     const selected = /* @__PURE__ */ new Set();
     const renderList = () => {
-      list.empty();
+      list2.empty();
       const keyword = artifactSearch.value.trim().toLocaleLowerCase();
       this.artifacts.filter(
         (artifact) => [artifact.title, artifact.author, artifact.platform, artifact.artifact_id].filter(Boolean).join(" ").toLocaleLowerCase().includes(keyword)
       ).forEach((artifact) => {
-        const row = list.createEl("label", { cls: "vs-claim-lab-artifact" });
+        const row = list2.createEl("label", { cls: "vs-claim-lab-artifact" });
         const checkbox = row.createEl("input", {
           attr: { type: "checkbox", value: artifact.artifact_id }
         });
@@ -23775,7 +25172,7 @@ var KnowledgeLabModal = class extends import_obsidian27.Modal {
     const status = actions.createSpan();
     generate.onclick = async () => {
       if (selected.size < 2) {
-        new import_obsidian27.Notice(tr("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6", "Pick at least two saved artifacts"));
+        new import_obsidian28.Notice(tr("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E24\u4E2A\u6301\u4E45\u5316\u5DE5\u4EF6", "Pick at least two saved artifacts"));
         return;
       }
       generate.disabled = true;
@@ -23798,21 +25195,21 @@ var KnowledgeLabModal = class extends import_obsidian27.Modal {
     };
   }
   async saveClaimLab(labId, report) {
-    const baseFolder = (0, import_obsidian27.normalizePath)(
+    const baseFolder = (0, import_obsidian28.normalizePath)(
       `${this.plugin.settings.outputFolder || "\u89C6\u9891\u603B\u7ED3"}/\u77E5\u8BC6\u5B9E\u9A8C\u5BA4`
     );
     await ensureFolder(this.app, baseFolder);
     const selectionHash = stableTextHash(report.artifact_ids.join("|"));
-    const path = (0, import_obsidian27.normalizePath)(
+    const path = (0, import_obsidian28.normalizePath)(
       `${baseFolder}/\u8BBA\u70B9\u5B9E\u9A8C\u5BA4-${selectionHash || labId.replace(/^claim-lab-/, "")}.md`
     );
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing && !(existing instanceof import_obsidian27.TFile)) {
+    if (existing && !(existing instanceof import_obsidian28.TFile)) {
       throw new Error(`\u76EE\u6807\u8DEF\u5F84\u4E0D\u662F Markdown \u6587\u4EF6\uFF1A${path}`);
     }
-    const before = existing instanceof import_obsidian27.TFile ? await this.app.vault.read(existing) : "";
+    const before = existing instanceof import_obsidian28.TFile ? await this.app.vault.read(existing) : "";
     const after = upsertClaimLabMarkdown(before, report);
-    if (existing instanceof import_obsidian27.TFile) {
+    if (existing instanceof import_obsidian28.TFile) {
       if (after !== before) await this.app.vault.modify(existing, after);
       return existing;
     }
@@ -23821,12 +25218,12 @@ var KnowledgeLabModal = class extends import_obsidian27.Modal {
 };
 async function ensureFolder(app, folderPath) {
   let current = "";
-  for (const part of (0, import_obsidian27.normalizePath)(folderPath).split("/").filter(Boolean)) {
+  for (const part of (0, import_obsidian28.normalizePath)(folderPath).split("/").filter(Boolean)) {
     current = current ? `${current}/${part}` : part;
     const existing = app.vault.getAbstractFileByPath(current);
     if (!existing) {
       await app.vault.createFolder(current);
-    } else if (!(existing instanceof import_obsidian27.TFolder)) {
+    } else if (!(existing instanceof import_obsidian28.TFolder)) {
       throw new Error(`\u65E0\u6CD5\u521B\u5EFA\u6587\u4EF6\u5939\uFF0C\u8DEF\u5F84\u5DF2\u88AB\u6587\u4EF6\u5360\u7528\uFF1A${current}`);
     }
   }
@@ -23979,9 +25376,9 @@ var LearningProgressStore = class {
     }
     return sidecars.sort((left, right) => right.updated_at.localeCompare(left.updated_at));
   }
-  async listDue(at = this.now()) {
+  async listDue(at2 = this.now()) {
     const sidecars = await this.list();
-    return sidecars.flatMap((sidecar) => Object.values(sidecar.items)).filter((item) => learningReviewState(item, at) === "due").sort((left, right) => {
+    return sidecars.flatMap((sidecar) => Object.values(sidecar.items)).filter((item) => learningReviewState(item, at2) === "due").sort((left, right) => {
       const byDue = left.due_at.localeCompare(right.due_at);
       return byDue || left.key.localeCompare(right.key);
     }).map(clone3);
@@ -24026,10 +25423,10 @@ var LearningProgressStore = class {
     validateLearningProgressSidecar(raw, normalized);
     return clone3(raw);
   }
-  async loadOrCreate(artifactId, at) {
+  async loadOrCreate(artifactId, at2) {
     const existing = await this.load(artifactId);
     if (existing) return existing;
-    const timestamp = at.toISOString();
+    const timestamp = at2.toISOString();
     return {
       schema_version: LEARNING_PROGRESS_SCHEMA_VERSION,
       artifact_id: artifactId,
@@ -24042,9 +25439,9 @@ var LearningProgressStore = class {
     return `${this.rootPath}/${normalizeArtifactId(artifactId)}${LEARNING_FILE_SUFFIX}`;
   }
   async ensureRoot() {
-    const parts = this.rootPath.split("/").filter(Boolean);
+    const parts2 = this.rootPath.split("/").filter(Boolean);
     let current = "";
-    for (const part of parts) {
+    for (const part of parts2) {
       current = current ? `${current}/${part}` : part;
       if (await this.adapter.exists(current)) continue;
       try {
@@ -24169,9 +25566,9 @@ function scheduleLearningAttempt(previous, input) {
     updated_at: attemptedAt
   };
 }
-function learningReviewState(item, at = /* @__PURE__ */ new Date()) {
+function learningReviewState(item, at2 = /* @__PURE__ */ new Date()) {
   if (item.suspended) return "suspended";
-  const timestamp = typeof at === "string" ? Date.parse(at) : at.getTime();
+  const timestamp = typeof at2 === "string" ? Date.parse(at2) : at2.getTime();
   if (!Number.isFinite(timestamp)) {
     throw new LearningProgressValidationError("review time must be a valid date");
   }
@@ -24391,8 +25788,8 @@ function clone3(value) {
 }
 
 // views/LearningReviewModal.ts
-var import_obsidian28 = require("obsidian");
-var LearningReviewModal = class extends import_obsidian28.Modal {
+var import_obsidian29 = require("obsidian");
+var LearningReviewModal = class extends import_obsidian29.Modal {
   constructor(app, options) {
     super(app);
     this.queue = [];
@@ -24602,7 +25999,7 @@ var LearningReviewModal = class extends import_obsidian28.Modal {
     submit2.addEventListener("click", () => {
       const answer = this.selectedAnswer.trim();
       if (!answer) {
-        new import_obsidian28.Notice(tr("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848", "Pick or write an answer first"));
+        new import_obsidian29.Notice(tr("\u8BF7\u5148\u9009\u62E9\u6216\u586B\u5199\u7B54\u6848", "Pick or write an answer first"));
         return;
       }
       void this.record(item, answer, answersMatch(answer, item.answer));
@@ -24647,7 +26044,7 @@ var LearningReviewModal = class extends import_obsidian28.Modal {
       this.completedKeys.add(learningItemKey(item.item_kind, item.item_id));
       this.render();
     } catch (error) {
-      new import_obsidian28.Notice(error instanceof Error ? errorMessage(error) : String(error));
+      new import_obsidian29.Notice(error instanceof Error ? errorMessage(error) : String(error));
     }
   }
   renderResult(container, result) {
@@ -24703,7 +26100,7 @@ var LearningReviewModal = class extends import_obsidian28.Modal {
     const path = this.options.artifact.source.note_path;
     if (!path) return;
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian28.TFile)) return;
+    if (!(file instanceof import_obsidian29.TFile)) return;
     const sidecar = await this.options.store.getArtifactProgress(this.options.artifact.artifact_id);
     const currentItems = learningItemsFromArtifact(this.options.artifact);
     const progressByKey = sidecar?.items || {};
@@ -24759,7 +26156,7 @@ var LearningReviewModal = class extends import_obsidian28.Modal {
       window.open(externalUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    new import_obsidian28.Notice(
+    new import_obsidian29.Notice(
       tr(
         "\u8BC1\u636E\u6709\u65F6\u95F4\u70B9\uFF0C\u4F46\u5F53\u524D\u5165\u53E3\u6CA1\u6709\u64AD\u653E\u5668\u5B9A\u4F4D\u56DE\u8C03",
         "The evidence has a timestamp, but this view cannot move the player"
@@ -24767,7 +26164,7 @@ var LearningReviewModal = class extends import_obsidian28.Modal {
     );
   }
 };
-function selectReviewItems(items, sidecar, mode, at) {
+function selectReviewItems(items, sidecar, mode, at2) {
   const getProgress = (item) => sidecar?.items[learningItemKey(item.item_kind, item.item_id)];
   return items.filter((item) => {
     const progress = getProgress(item);
@@ -24777,7 +26174,7 @@ function selectReviewItems(items, sidecar, mode, at) {
       const last = progress?.attempts[progress.attempts.length - 1];
       return last?.correct === false;
     }
-    return !progress || learningReviewState(progress, at) === "due";
+    return !progress || learningReviewState(progress, at2) === "due";
   }).sort((left, right) => {
     const leftProgress = getProgress(left);
     const rightProgress = getProgress(right);
@@ -25329,9 +26726,9 @@ var ReproducibilityStore = class {
     return `${this.rootPath}/${artifactId}${MANIFEST_FILE_SUFFIX}`;
   }
   async ensureRoot() {
-    const parts = this.rootPath.split("/");
+    const parts2 = this.rootPath.split("/");
     let current = "";
-    for (const part of parts) {
+    for (const part of parts2) {
       current = current ? `${current}/${part}` : part;
       if (await this.adapter.exists(current)) continue;
       try {
@@ -25428,11 +26825,11 @@ function normalizeRootPath(value) {
     throw new ReproducibilityStoreValidationError("rootPath must be Vault-relative");
   }
   const normalized = raw.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
-  const parts = normalized.split("/");
-  if (parts.some((part) => !part || part === "." || part === ".." || part.includes("\0"))) {
+  const parts2 = normalized.split("/");
+  if (parts2.some((part) => !part || part === "." || part === ".." || part.includes("\0"))) {
     throw new ReproducibilityStoreValidationError("rootPath contains an unsafe segment");
   }
-  return parts.join("/");
+  return parts2.join("/");
 }
 function assertArtifactId2(value) {
   if (typeof value !== "string" || !SAFE_ARTIFACT_ID4.test(value)) {
@@ -25444,7 +26841,7 @@ function clone4(value) {
 }
 
 // main.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 
 // utils/settingGroups.ts
 function markSettingGroups(root) {
@@ -25559,11 +26956,11 @@ function addMissing(base, more, key) {
   }
   return extra;
 }
-function dedupeHistory(list) {
-  return addMissing([], [list], historyKey);
+function dedupeHistory(list2) {
+  return addMissing([], [list2], historyKey);
 }
-function dedupeWebhook(list) {
-  return addMissing([], [list], webhookKey);
+function dedupeWebhook(list2) {
+  return addMissing([], [list2], webhookKey);
 }
 function outermostObjects(text2) {
   const found = [];
@@ -25775,7 +27172,7 @@ function followRename(history, oldPath, newPath, newName) {
 }
 
 // main.ts
-var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
+var VideoSummaryPlugin = class extends import_obsidian30.Plugin {
   constructor() {
     super(...arguments);
     /** The extension's local endpoint; null on mobile or before layout is ready. */
@@ -25806,8 +27203,9 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
     );
   }
   async onload() {
-    setInterfaceLanguage((0, import_obsidian29.getLanguage)());
+    setInterfaceLanguage((0, import_obsidian30.getLanguage)());
     await this.loadSettings();
+    this.ai = createAiClient(this.app, this.settings.modelCache);
     this.initializeApiInstance();
     this.register(
       installReadingView(
@@ -25890,7 +27288,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
     this.addSettingTab(new VideoSummarySettingTab(this.app, this));
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
-        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian30.TFile && file.extension === "md") {
           void this.noteIndex.refreshFile(file);
         }
       })
@@ -25899,7 +27297,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       this.app.vault.on("delete", (file) => {
         this.noteIndex.handleDelete(file);
         this.historyLookupCache = null;
-        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian30.TFile && file.extension === "md") {
           void this.handleVideoNoteDeleted(file.path).catch((error) => {
             console.warn("[Video Summary] \u5220\u9664\u540E\u7684\u5173\u8054\u6E05\u7406\u5931\u8D25", error);
           });
@@ -25910,7 +27308,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       this.app.vault.on("rename", (file, oldPath) => {
         this.noteIndex.handleRename(file, oldPath);
         this.historyLookupCache = null;
-        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian30.TFile && file.extension === "md") {
           if (followRename(this.settings.history || [], oldPath, file.path, file.basename)) {
             this.queueHistorySave();
           }
@@ -26074,7 +27472,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
   registerContextMenu() {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
-        if (file instanceof import_obsidian29.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian30.TFile && file.extension === "md") {
           menu.addItem((item) => {
             item.setTitle(tr("\u89C6\u9891\u603B\u7ED3 - \u5FEB\u901F\u5904\u7406", "Video Summary - quick process")).setIcon("video").onClick(async () => {
               await this.processFile(file);
@@ -26093,7 +27491,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian30.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -26101,7 +27499,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -26111,7 +27509,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       }
       new VideoSummaryModal(this.app, this, editor, view).open();
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not process the current note: ${this.formatErrorForNotice(error)}`
@@ -26124,7 +27522,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian30.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -26132,7 +27530,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -26142,7 +27540,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       }
       await this.processFileWithMode(file, mode);
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u5904\u7406\u5F53\u524D\u7B14\u8BB0\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not process the current note: ${this.formatErrorForNotice(error)}`
@@ -26155,13 +27553,13 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian30.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
       const videoInput = this.noteProcessor.buildVideoInput(content);
       if (!videoInput.url && !videoInput.transcript && !videoInput.localFile) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -26174,7 +27572,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian29.Notice(tr("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", "Getting video info..."), 0);
+      const statusNotice = new import_obsidian30.Notice(tr("\u6B63\u5728\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...", "Getting video info..."), 0);
       try {
         const result = await this.api.processVideo(
           file.basename,
@@ -26221,7 +27619,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u66F4\u65B0\u89C6\u9891\u4FE1\u606F\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not update the video info: ${this.formatErrorForNotice(error)}`
@@ -26234,12 +27632,12 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian30.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       await this.processFile(file);
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u91CD\u65B0\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not process again: ${this.formatErrorForNotice(error)}`
@@ -26252,7 +27650,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian30.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const content = await this.app.vault.read(file);
@@ -26260,7 +27658,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       const providedTranscript = this.extractProvidedTranscript(content);
       const localFileName = this.extractLocalFileName(content);
       if (!url && !providedTranscript && !localFileName) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u4E2D\u6CA1\u6709\u627E\u5230\u89C6\u9891\u94FE\u63A5\u3001\u6587\u7A3F\u5185\u5BB9\u6216\u672C\u5730\u6587\u4EF6\u540D",
             "No video link, transcript or local file name in this note"
@@ -26273,7 +27671,7 @@ var VideoSummaryPlugin = class extends import_obsidian29.Plugin {
       }
       const requestLanguage = mode === "summary" ? this.settings.quickSummaryOptions.language : mode === "transcript-only" ? this.settings.quickTranscriptOptions.language : this.settings.defaultLanguage;
       const requestTimeoutMinutes = mode === "summary" ? this.settings.quickSummaryOptions.timeoutMinutes : mode === "transcript-only" ? this.settings.quickTranscriptOptions.timeoutMinutes : this.settings.timeoutMinutes;
-      const statusNotice = new import_obsidian29.Notice(
+      const statusNotice = new import_obsidian30.Notice(
         tr(
           `\u6B63\u5728\u5904\u7406: ${this.getModeDisplayText(mode)}`,
           `Processing: ${this.getModeDisplayText(mode)}`
@@ -26434,7 +27832,7 @@ ${extractResult.video_transcript}
         window.setTimeout(() => statusNotice.hide(), 3e3);
       }
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Processing failed: ${this.formatErrorForNotice(error)}`
@@ -26447,12 +27845,12 @@ ${extractResult.video_transcript}
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian30.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       const fullText = editor.getValue();
       if (!fullText.trim()) {
-        new import_obsidian29.Notice(tr("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9", "The note has no text"));
+        new import_obsidian30.Notice(tr("\u7B14\u8BB0\u4E2D\u6CA1\u6709\u53D1\u73B0\u4EFB\u4F55\u6587\u672C\u5185\u5BB9", "The note has no text"));
         return;
       }
       const requestLanguage = this.settings.quickSummaryOptions?.language || this.settings.defaultLanguage;
@@ -26462,7 +27860,7 @@ ${extractResult.video_transcript}
       }
       await this.noteProcessor.setProcessingStatus(file, "running");
       await this.jobService.updateCourseProgressForFile(file, "processing", 10);
-      const statusNotice = new import_obsidian29.Notice(
+      const statusNotice = new import_obsidian30.Notice(
         tr(`\u6B63\u5728\u5C06\u5168\u6587\u53D1\u9001\u5904\u7406...`, `Sending the whole note for processing...`),
         0
       );
@@ -26533,7 +27931,7 @@ ${extractResult.video_transcript}
         window.setTimeout(() => statusNotice.hide(), 5e3);
       }
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u5904\u7406\u542F\u52A8\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Could not start: ${this.formatErrorForNotice(error)}`
@@ -26567,7 +27965,7 @@ ${extractResult.video_transcript}
         }
       }
       if (pendingFiles.length === 0) {
-        new import_obsidian29.Notice(tr("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0", "No pending video notes found"));
+        new import_obsidian30.Notice(tr("\u6CA1\u6709\u627E\u5230\u5F85\u5904\u7406\u7684\u89C6\u9891\u7B14\u8BB0", "No pending video notes found"));
         return;
       }
       const confirmed = await this.showConfirmDialog(
@@ -26586,7 +27984,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       if (!await this.ensureBackendReady()) {
         return;
       }
-      const progressNotice = new import_obsidian29.Notice(
+      const progressNotice = new import_obsidian30.Notice(
         tr(
           `\u6B63\u5728\u5904\u7406 ${pendingFiles.length} \u4E2A\u89C6\u9891...`,
           `Processing ${pendingFiles.length} videos...`
@@ -26623,7 +28021,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       );
       window.setTimeout(() => progressNotice.hide(), 3e3);
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u6279\u91CF\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `Batch processing failed: ${this.formatErrorForNotice(error)}`
@@ -26662,9 +28060,9 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
     try {
       this.settings.history = [];
       await this.saveSettings();
-      new import_obsidian29.Notice(tr("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406", "Processing history cleared"));
+      new import_obsidian30.Notice(tr("\u5904\u7406\u5386\u53F2\u5DF2\u6E05\u7406", "Processing history cleared"));
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u6E05\u7406\u5386\u53F2\u5931\u8D25: ${errorMessage(error)}`,
           `Could not clear the history: ${errorMessage(error)}`
@@ -26690,7 +28088,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
       const result = await this.api.testConnection();
       const label = tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
       if (result.success) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             `${label} \u8FDE\u63A5\u6210\u529F\uFF08${result.durationMs ?? 0}ms\uFF09`,
             `${label} connected (${result.durationMs ?? 0} ms)`
@@ -26700,7 +28098,7 @@ ${pendingFiles.slice(0, 10).map((f) => `\u2022 ${f.basename}`).join("\n")}${pend
         const hint = result.hint ? tr(`
 \u5EFA\u8BAE: ${result.hint}`, `
 Suggestion: ${result.hint}`) : "";
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             `${label} \u8FDE\u63A5\u5931\u8D25: ${result.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
             `${label} connection failed: ${result.error || "unknown error"}${hint}`
@@ -26709,7 +28107,7 @@ Suggestion: ${result.hint}`) : "";
         );
       }
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u8FDE\u63A5\u5931\u8D25: ${this.api.formatUserFacingError(error)}`,
           `Connection failed: ${this.api.formatUserFacingError(error)}`
@@ -26735,7 +28133,7 @@ Suggestion: ${result.hint}`) : "";
     const content = await this.app.vault.cachedRead(file);
     const urls = VideoUtils.extractVideoUrls(content);
     if (urls.length === 0) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u201C${file.basename}\u201D\u91CC\u6CA1\u6709\u627E\u5230\u652F\u6301\u7684\u89C6\u9891\u94FE\u63A5`,
           `No supported video link in "${file.basename}"`
@@ -26745,7 +28143,7 @@ Suggestion: ${result.hint}`) : "";
     }
     const view = await this.activateView();
     view?.prefillInput(urls.join("\n"));
-    new import_obsidian29.Notice(
+    new import_obsidian30.Notice(
       tr(
         `\u5DF2\u628A ${urls.length} \u4E2A\u89C6\u9891\u94FE\u63A5\u653E\u8FDB\u4FA7\u680F\uFF0C\u9009\u597D\u6A21\u5F0F\u540E\u70B9\u201C\u5F00\u59CB\u201D`,
         `Put ${urls.length} video links into the side panel; pick a mode and press Start`
@@ -26790,7 +28188,7 @@ Suggestion: ${result.hint}`) : "";
       const salvage = salvageSettingsJson(raw);
       if (!salvage.corrupt) return { stored: salvage.settings, migrated: false };
       await adapter.write(`${this.pluginDir}/data.corrupt-${Date.now()}.json`, raw);
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `Video Summary\uFF1A\u8BBE\u7F6E\u6587\u4EF6\u635F\u574F\uFF08\u540C\u6B65\u51B2\u7A81\uFF09\uFF0C\u5DF2\u6551\u56DE ${salvage.history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${salvage.webhookHistory.length} \u6761\u7ED3\u679C\uFF0C\u539F\u6587\u4EF6\u53E6\u5B58\u4E3A data.corrupt-*.json\u3002`,
           `Video Summary: the settings file was damaged by a sync conflict. Recovered ${salvage.history.length} job records and ${salvage.webhookHistory.length} results; the original is saved as data.corrupt-*.json.`
@@ -26844,7 +28242,7 @@ Suggestion: ${result.hint}`) : "";
         }
       }
       await this.copyFolder(`${folder}/data`, `${this.pluginDir}/data`);
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `Video Summary\uFF1A\u5DF2\u4ECE\u65E7\u7248\u63D2\u4EF6\u76EE\u5F55\uFF08${folder}\uFF09\u5BFC\u5165\u8BBE\u7F6E\u3001${history.length} \u6761\u5904\u7406\u8BB0\u5F55\u548C ${webhookHistory.length} \u6761\u7ED3\u679C\u3002\u786E\u8BA4\u65E0\u8BEF\u540E\u53EF\u505C\u7528\u5E76\u5220\u9664\u65E7\u7248\u3002`,
           `Video Summary: imported settings, ${history.length} job records and ${webhookHistory.length} results from the old plugin folder (${folder}). Once everything looks right, disable and delete the old version.`
@@ -26913,6 +28311,22 @@ Suggestion: ${result.hint}`) : "";
       shouldSave = true;
     }
     const settingsRecord = this.settings;
+    const slot = migrateAiSlot(
+      stored,
+      hasSecretStorage(this.app) ? this.app.secretStorage : void 0
+    );
+    if (slot) {
+      this.settings.ai = slot;
+      shouldSave = true;
+    } else {
+      this.settings.ai = { ...this.settings.ai };
+    }
+    for (const key of LEGACY_LLM_FIELDS) {
+      if (key in settingsRecord) {
+        delete settingsRecord[key];
+        shouldSave = true;
+      }
+    }
     if ("customAiModels" in settingsRecord) {
       delete settingsRecord.customAiModels;
       shouldSave = true;
@@ -27051,7 +28465,7 @@ Suggestion: ${result.hint}`) : "";
     }
     const vault = this.app.vault;
     this.historyLookupCache = {
-      exists: (path) => vault.getAbstractFileByPath(path) instanceof import_obsidian29.TFile,
+      exists: (path) => vault.getAbstractFileByPath(path) instanceof import_obsidian30.TFile,
       byName: (name) => names.get(name),
       byTitle: (title) => titles.get(title),
       byUrl: (url) => urls.get(url)
@@ -27062,7 +28476,7 @@ Suggestion: ${result.hint}`) : "";
   resolveHistoryNote(record) {
     const path = resolveHistoryPath(record, this.historyLookup());
     const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
-    return file instanceof import_obsidian29.TFile ? file : null;
+    return file instanceof import_obsidian30.TFile ? file : null;
   }
   /**
    * Older records kept only the name at the time. Once the index has every video note, the ones
@@ -27230,7 +28644,7 @@ Suggestion: ${result.hint}`) : "";
   async setActiveWebhook(profileId, options = {}) {
     const profile = this.settings.webhookProfiles.find((p) => p.id === profileId);
     if (!profile) {
-      new import_obsidian29.Notice(tr("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E", "Webhook configuration not found"));
+      new import_obsidian30.Notice(tr("\u672A\u627E\u5230\u5BF9\u5E94\u7684 webhook \u914D\u7F6E", "Webhook configuration not found"));
       return null;
     }
     this.settings.activeWebhookId = profileId;
@@ -27238,7 +28652,7 @@ Suggestion: ${result.hint}`) : "";
     this.initializeApiInstance(profile.url);
     await this.saveSettings();
     if (!options.silent) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(`\u5DF2\u5207\u6362\u5230 ${profile.name || profile.url}`, `Switched to ${profile.name || profile.url}`)
       );
     }
@@ -27256,8 +28670,7 @@ Suggestion: ${result.hint}`) : "";
   /** The light tier can make notes now: it is on and a summary model and key are set. */
   liteReady() {
     if (this.settings.liteTierEnabled === false) return false;
-    const llm = resolveLlm(this.settings);
-    return !!llm.baseUrl && !!llm.model && !!readSecret(this.app, this.settings.llmKeySecret);
+    return !!this.settings.ai.model && !!this.ai?.hasKey(this.settings.ai);
   }
   hasBackend() {
     const profile = this.getActiveWebhookProfile();
@@ -27268,7 +28681,7 @@ Suggestion: ${result.hint}`) : "";
   async openDemoNote() {
     const path = DEMO_NOTE_NAME();
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian29.TFile)) {
+    if (!(file instanceof import_obsidian30.TFile)) {
       const created = await this.app.vault.create(path, demoNoteContent());
       const cssClass = this.settings.noteCssClass ?? "";
       if (cssClass) {
@@ -27279,7 +28692,7 @@ Suggestion: ${result.hint}`) : "";
       }
       file = created;
     }
-    if (file instanceof import_obsidian29.TFile) await this.app.workspace.getLeaf(false).openFile(file);
+    if (file instanceof import_obsidian30.TFile) await this.app.workspace.getLeaf(false).openFile(file);
   }
   openSettingsPage() {
     const settingApi = this.app.setting;
@@ -27328,7 +28741,7 @@ Suggestion: ${result.hint}`) : "";
     const finished = await this.jobs.waitFor(job.id);
     if (!finished) return;
     if (finished.state === "error") {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u5904\u7406\u5931\u8D25: ${finished.error || "\u672A\u77E5\u9519\u8BEF"}`,
           `Processing failed: ${finished.error || "unknown error"}`
@@ -27338,11 +28751,11 @@ Suggestion: ${result.hint}`) : "";
       throw new Error(finished.error || "\u5904\u7406\u5931\u8D25");
     }
     if (finished.state === "cancelled") {
-      new import_obsidian29.Notice(tr("\u5904\u7406\u5DF2\u53D6\u6D88", "Processing cancelled"));
+      new import_obsidian30.Notice(tr("\u5904\u7406\u5DF2\u53D6\u6D88", "Processing cancelled"));
       return;
     }
     if (finished.state === "review") {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `${this.getModeDisplayText(mode)}\u5DF2\u5C31\u7EEA\uFF0C\u53BB\u4FA7\u680F\u786E\u8BA4\u5199\u5165`,
           `${this.getModeDisplayText(mode)} ready; confirm writing it in the side panel`
@@ -27351,7 +28764,7 @@ Suggestion: ${result.hint}`) : "";
       );
       return;
     }
-    new import_obsidian29.Notice(tr(`${this.getModeDisplayText(mode)}\u5B8C\u6210`, `${this.getModeDisplayText(mode)} done`));
+    new import_obsidian30.Notice(tr(`${this.getModeDisplayText(mode)}\u5B8C\u6210`, `${this.getModeDisplayText(mode)} done`));
   }
   /**
    * 刷新视频总结视图
@@ -27428,13 +28841,13 @@ Suggestion: ${result.hint}`) : "";
     try {
       const file = view.file;
       if (!file) {
-        new import_obsidian29.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
+        new import_obsidian30.Notice(tr("\u65E0\u6CD5\u83B7\u53D6\u5F53\u524D\u6587\u4EF6", "Cannot get the current file"));
         return;
       }
       await this.noteProcessor.setProcessingStatus(file, "excluded");
-      new import_obsidian29.Notice(tr("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0", "Marked as not a video note"));
+      new import_obsidian30.Notice(tr("\u5DF2\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0", "Marked as not a video note"));
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u6807\u8BB0\u4E3A\u975E\u89C6\u9891\u7B14\u8BB0\u5931\u8D25: ${errorMessage(error)}`,
           `Could not mark it: ${errorMessage(error)}`
@@ -27446,7 +28859,7 @@ Suggestion: ${result.hint}`) : "";
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u5F53\u524D\u7B14\u8BB0\u8FD8\u6CA1\u6709\u6301\u4E45\u5316\u89C6\u9891\u5DE5\u4EF6\uFF0C\u8BF7\u5148\u5904\u7406\u4E00\u6B21\u3002",
             "This note has no saved video artifact yet; process it once first."
@@ -27458,7 +28871,7 @@ Suggestion: ${result.hint}`) : "";
       const artifact = await this.artifactStore.load(artifactId);
       const learningCount = (artifact.learning?.flashcards?.length || 0) + (artifact.learning?.questions?.length || 0);
       if (learningCount === 0) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u8FD9\u4EFD\u5DE5\u4EF6\u6CA1\u6709\u5B66\u4E60\u5361\uFF1B\u91CD\u65B0\u5904\u7406\u65F6\u5F00\u542F\u201C\u751F\u6210\u5B66\u4E60\u7EC3\u4E60\u201D\u3002",
             'This artifact has no learning cards; turn on "Generate learning exercises" and process it again.'
@@ -27472,7 +28885,7 @@ Suggestion: ${result.hint}`) : "";
         artifact,
         onOpenEvidence: async (_source, target2) => {
           if (target2.start === null) {
-            new import_obsidian29.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
+            new import_obsidian30.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
             return;
           }
           const view = await this.activateView();
@@ -27481,7 +28894,7 @@ Suggestion: ${result.hint}`) : "";
         }
       }).open();
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u6253\u5F00\u5B66\u4E60\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
           `Could not open the review: ${this.formatErrorForNotice(error)}`
@@ -27511,11 +28924,11 @@ Suggestion: ${result.hint}`) : "";
         (left, right) => left.firstDue.localeCompare(right.firstDue) || right.dueCount - left.dueCount || String(left.artifact.title || "").localeCompare(String(right.artifact.title || ""))
       );
       if (candidates.length === 0) {
-        new import_obsidian29.Notice(tr("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002", "No video learning cards are due."));
+        new import_obsidian30.Notice(tr("\u5F53\u524D\u6CA1\u6709\u5230\u671F\u7684\u89C6\u9891\u5B66\u4E60\u5361\u3002", "No video learning cards are due."));
         return;
       }
       const total = candidates.reduce((sum, item) => sum + item.dueCount, 0);
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u5171\u6709 ${candidates.length} \u4E2A\u89C6\u9891\u3001${total} \u5F20\u5B66\u4E60\u5361\u5230\u671F\u3002`,
           `${candidates.length} videos, ${total} cards due.`
@@ -27525,7 +28938,7 @@ Suggestion: ${result.hint}`) : "";
       const openAt = (index) => {
         const candidate = candidates[index];
         if (!candidate) {
-          new import_obsidian29.Notice(tr("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002", "All due reviews done."));
+          new import_obsidian30.Notice(tr("\u672C\u8F6E\u5230\u671F\u590D\u4E60\u5DF2\u5B8C\u6210\u3002", "All due reviews done."));
           return;
         }
         new LearningReviewModal(this.app, {
@@ -27534,12 +28947,12 @@ Suggestion: ${result.hint}`) : "";
           mode: "due",
           onOpenEvidence: async (artifact, target2) => {
             if (target2.start === null) {
-              new import_obsidian29.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
+              new import_obsidian30.Notice(tr("\u8FD9\u6761\u8BC1\u636E\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This evidence has no reliable timestamp"));
               return;
             }
             const notePath = artifact.source.note_path;
             const noteFile = notePath ? this.app.vault.getAbstractFileByPath(notePath) : null;
-            if (notePath && noteFile instanceof import_obsidian29.TFile) {
+            if (notePath && noteFile instanceof import_obsidian30.TFile) {
               const view = await this.activateView();
               view?.openArtifact(notePath, artifact.artifact_id, target2.start);
               return;
@@ -27549,7 +28962,7 @@ Suggestion: ${result.hint}`) : "";
               window.open(externalUrl, "_blank", "noopener,noreferrer");
               return;
             }
-            new import_obsidian29.Notice(
+            new import_obsidian30.Notice(
               tr(
                 "\u5DE5\u4EF6\u539F\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u64AD\u653E\u5668\u3002",
                 "The artifact's original note is gone; cannot find the player."
@@ -27567,7 +28980,7 @@ Suggestion: ${result.hint}`) : "";
       };
       openAt(0);
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u6253\u5F00\u5230\u671F\u590D\u4E60\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
           `Could not open the due review: ${this.formatErrorForNotice(error)}`
@@ -27580,7 +28993,7 @@ Suggestion: ${result.hint}`) : "";
     try {
       const artifactId = await this.artifactIdForFile(file);
       if (!artifactId) {
-        new import_obsidian29.Notice(tr("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", "This note has no reproducible artifact."), 6e3);
+        new import_obsidian30.Notice(tr("\u5F53\u524D\u7B14\u8BB0\u6CA1\u6709\u53EF\u590D\u73B0\u5DE5\u4EF6\u3002", "This note has no reproducible artifact."), 6e3);
         return;
       }
       const manifest = await this.reproducibilityStore.load(artifactId);
@@ -27618,7 +29031,7 @@ Suggestion: ${result.hint}`) : "";
         }
       );
       if (!job) return;
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           "\u5DF2\u63D0\u4EA4\u65E0\u6E90\u91CD\u5904\u7406\uFF1A\u672C\u5730\u6587\u7A3F\u4F1A\u91CD\u65B0\u603B\u7ED3\uFF0C\u6821\u9A8C\u8FC7\u7684\u65E7\u8BC1\u636E\u4F5C\u4E3A\u7F3A\u5931\u56DE\u9000\uFF1B\u4E0D\u4F1A\u4E0B\u8F7D\u6765\u6E90\uFF0C\u7ED3\u679C\u4F7F\u7528\u5F53\u524D\u540E\u7AEF\u914D\u7F6E\u3002",
           "Sent for source-free reprocessing: the local transcript is summarised again and checked old evidence is kept as a fallback; nothing is downloaded and the current backend settings are used."
@@ -27630,7 +29043,7 @@ Suggestion: ${result.hint}`) : "";
         throw new Error(finished.error || "\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25");
       }
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u53EF\u590D\u73B0\u91CD\u5904\u7406\u5931\u8D25\uFF1A${this.formatErrorForNotice(error)}`,
           `Reproducible reprocessing failed: ${this.formatErrorForNotice(error)}`
@@ -27655,11 +29068,11 @@ Suggestion: ${result.hint}`) : "";
     await this.ensureVaultFolder(folder);
     const path = folder ? `${folder}/Video Summary Library.base` : "Video Summary Library.base";
     const existing = this.app.vault.getAbstractFileByPath(path);
-    const existingContent = existing instanceof import_obsidian29.TFile ? await this.app.vault.read(existing) : void 0;
+    const existingContent = existing instanceof import_obsidian30.TFile ? await this.app.vault.read(existing) : void 0;
     const result = upsertVideoSummaryBase(existingContent);
     if (result.status === "created") {
       await this.app.vault.create(path, result.content);
-    } else if (result.status === "updated" && existing instanceof import_obsidian29.TFile) {
+    } else if (result.status === "updated" && existing instanceof import_obsidian30.TFile) {
       await this.app.vault.modify(existing, result.content);
     }
     if (notify) {
@@ -27667,7 +29080,7 @@ Suggestion: ${result.hint}`) : "";
         `\u5DF2\u4FDD\u7559\u7528\u6237\u4FEE\u6539\u7684 Base\uFF1A${path}\u3002\u5982\u9700\u65B0\u7248\uFF0C\u8BF7\u5148\u53E6\u5B58\u6216\u624B\u52A8\u5220\u9664\u8BE5\u6587\u4EF6\u3002`,
         `Kept your edited Base: ${path}. Save it under another name or delete it to get the new version.`
       ) : `${result.reason} ${path}`;
-      new import_obsidian29.Notice(message, 7e3);
+      new import_obsidian30.Notice(message, 7e3);
     }
   }
   async putCaptureIfAbsent(sourceHash, draft) {
@@ -27677,7 +29090,7 @@ Suggestion: ${result.hint}`) : "";
       const remembered = this.capturedEntries.get(sourceHash);
       if (remembered) {
         const rememberedFile = this.app.vault.getAbstractFileByPath(remembered.path);
-        if (rememberedFile instanceof import_obsidian29.TFile) {
+        if (rememberedFile instanceof import_obsidian30.TFile) {
           return { created: false, entry: { ...remembered } };
         }
         this.capturedEntries.delete(sourceHash);
@@ -27736,7 +29149,7 @@ Suggestion: ${result.hint}`) : "";
       (item) => item.source.source_hash === sourceHash && item.source.note_path
     );
     const artifactFile = artifact?.source.note_path ? this.app.vault.getAbstractFileByPath(artifact.source.note_path) : null;
-    return artifact?.source.note_path && artifactFile instanceof import_obsidian29.TFile ? {
+    return artifact?.source.note_path && artifactFile instanceof import_obsidian30.TFile ? {
       path: artifact.source.note_path,
       source_hash: sourceHash,
       source_identity: sourceIdentity,
@@ -27816,9 +29229,9 @@ Suggestion: ${result.hint}`) : "";
     }
   }
   async ensureVaultFolder(folder) {
-    const parts = folder.split("/").filter(Boolean);
+    const parts2 = folder.split("/").filter(Boolean);
     let current = "";
-    for (const part of parts) {
+    for (const part of parts2) {
       current = current ? `${current}/${part}` : part;
       if (!this.app.vault.getAbstractFileByPath(current)) {
         await this.app.vault.createFolder(current);
@@ -27835,7 +29248,7 @@ Suggestion: ${result.hint}`) : "";
   }
   /** Start, restart or stop the extension's local endpoint to match the settings. */
   async startExtensionBridge() {
-    if (!import_obsidian29.Platform.isDesktopApp) return;
+    if (!import_obsidian30.Platform.isDesktopApp) return;
     if (this.settings.extensionBridgeEnabled !== true) {
       this.bridge?.stop();
       return;
@@ -27855,7 +29268,7 @@ Suggestion: ${result.hint}`) : "";
       const rawUrl = (params.url || params.link || "").trim();
       const localFile = (params.local_file || params.localFile || "").trim();
       if (!rawUrl && !localFile) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u534F\u8BAE\u8C03\u7528 video-summary \u7F3A\u5C11 URL \u6216 local_file \u53C2\u6570",
             "The video-summary link is missing a URL or local_file"
@@ -27876,7 +29289,7 @@ Suggestion: ${result.hint}`) : "";
         captured_at: (params.captured_at || "").trim() || void 0
       });
       const file = this.app.vault.getAbstractFileByPath(result.entry.path);
-      if (!(file instanceof import_obsidian29.TFile)) {
+      if (!(file instanceof import_obsidian30.TFile)) {
         throw new Error(`\u6355\u83B7\u4ED3\u50A8\u8FD4\u56DE\u7684\u7B14\u8BB0\u4E0D\u5B58\u5728\uFF1A${result.entry.path}`);
       }
       const transcript = (params.transcript || "").trim();
@@ -27894,13 +29307,13 @@ Suggestion: ${result.hint}`) : "";
       }
       if (!options.background) await this.app.workspace.getLeaf(true).openFile(file);
       if (!result.should_process) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           result.status === "created" ? tr("\u5DF2\u79BB\u7EBF\u52A0\u5165\u89C6\u9891\u6536\u4EF6\u7BB1", "Added to the video inbox offline") : tr("\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5DF2\u6253\u5F00\u539F\u7B14\u8BB0", "Already captured; opened the existing note")
         );
         return;
       }
       if (rawUrl && !isSupportedProtocolVideoUrl(rawUrl)) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u5F53\u524D\u81EA\u52A8\u5904\u7406\u53EA\u652F\u6301 YouTube\u3001\u54D4\u54E9\u54D4\u54E9\u3001\u6296\u97F3\u3001\u6296\u97F3\u56FD\u9645\u7248\u548C\u5C0F\u7EA2\u4E66\u94FE\u63A5\uFF0C\u901A\u7528 URL \u672A\u53D1\u9001\u5230\u540E\u7AEF\u3002",
             "Captured to the inbox. Automatic processing supports YouTube, Bilibili, Douyin, TikTok and Xiaohongshu links only, so this URL was not sent."
@@ -27911,7 +29324,7 @@ Suggestion: ${result.hint}`) : "";
       }
       if (localFile) {
         if (!isSupportedLocalMediaPath(localFile)) {
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u8BE5\u672C\u5730\u8DEF\u5F84\u4E0D\u662F\u53D7\u652F\u6301\u7684\u97F3\u89C6\u9891\u6587\u4EF6\uFF0C\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002",
               "Captured to the inbox. This local path is not a supported media file and was not read or sent."
@@ -27920,7 +29333,7 @@ Suggestion: ${result.hint}`) : "";
           );
           return;
         }
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u5DF2\u6355\u83B7\u5230\u6536\u4EF6\u7BB1\uFF1B\u540E\u7AEF\u8BFB\u4E0D\u5230\u7535\u8111\u4E0A\u7684\u7EDD\u5BF9\u8DEF\u5F84\u3002\u8BF7\u5148\u628A\u6587\u4EF6\u590D\u5236\u5230\u540E\u7AEF\u6587\u4EF6\u5939\u7684 uploads \u91CC\uFF0C\u518D\u7528\u6587\u4EF6\u540D\u63D0\u4EA4\u3002",
             "Captured to the inbox. The backend cannot read absolute paths on your computer: copy the file into the backend's uploads folder and submit its name."
@@ -27942,7 +29355,7 @@ Confirm only if you recognise where it came from.`
           )
         );
         if (!confirmed) {
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               "\u5DF2\u4FDD\u7559\u5728\u89C6\u9891\u6536\u4EF6\u7BB1\uFF1B\u672C\u5730\u6587\u4EF6\u672A\u8BFB\u53D6\u6216\u53D1\u9001\u3002",
               "Kept in the video inbox; the local file was not read or sent."
@@ -27952,7 +29365,7 @@ Confirm only if you recognise where it came from.`
           return;
         }
       }
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         result.status === "created" ? tr("\u5DF2\u6355\u83B7\uFF0C\u5F00\u59CB\u5904\u7406", "Captured; processing") : tr("\u8BE5\u6765\u6E90\u5DF2\u5B58\u5728\uFF0C\u5F00\u59CB\u91CD\u65B0\u5904\u7406", "Already captured; processing again")
       );
       const requestedMode = (params.mode || "").trim();
@@ -27961,7 +29374,7 @@ Confirm only if you recognise where it came from.`
       ) ? requestedMode : this.settings.defaultMode;
       const activeProcessing = this.captureProcessingLocks.get(result.entry.source_hash);
       if (activeProcessing) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr("\u8BE5\u6765\u6E90\u5DF2\u7ECF\u5728\u5904\u7406\uFF0C\u672C\u6B21\u6CA1\u6709\u91CD\u590D\u63D0\u4EA4\u3002", "Already processing; not sent twice."),
           5e3
         );
@@ -27977,7 +29390,7 @@ Confirm only if you recognise where it came from.`
         }
       }
     } catch (error) {
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `video-summary \u534F\u8BAE\u5904\u7406\u5931\u8D25: ${this.formatErrorForNotice(error)}`,
           `video-summary link failed: ${this.formatErrorForNotice(error)}`
@@ -27990,7 +29403,7 @@ Confirm only if you recognise where it came from.`
 function normalizeSuccessStatusValue(value) {
   return normalizeSuccessStatusText(value, DEFAULT_SETTINGS.successStatusValue);
 }
-var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
+var VideoSummarySettingTab = class extends import_obsidian30.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     /** Where the page was last drawn: containerEl before Obsidian 1.13, the definition row from 1.13. */
@@ -28032,7 +29445,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
   }
   /** A row of buttons outside any group, ending on the same right line as the controls. */
   buttonRow(parent, build) {
-    build(new import_obsidian29.ButtonComponent(parent.createDiv({ cls: "ap-button-row" })));
+    build(new import_obsidian30.ButtonComponent(parent.createDiv({ cls: "ap-button-row" })));
   }
   redraw() {
     if (this.host) this.renderPage(this.host);
@@ -28073,7 +29486,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
     this.group(containerEl, tr("\u5904\u7406", "Processing"));
     this.createBasicSection(containerEl);
     this.createQuickProcessingSection(containerEl);
-    if (import_obsidian29.Platform.isDesktopApp) {
+    if (import_obsidian30.Platform.isDesktopApp) {
       this.group(containerEl, tr("\u6D4F\u89C8\u5668\u6269\u5C55", "Browser extension"));
       this.createExtensionBridgeSection(containerEl);
     }
@@ -28095,7 +29508,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
   }
   /** 一段的标题 */
   group(containerEl, title) {
-    const head = new import_obsidian29.Setting(containerEl).setName(title).setHeading();
+    const head = new import_obsidian30.Setting(containerEl).setName(title).setHeading();
     head.settingEl.addClass("vs-settings-group");
   }
   /** 页头：标题 + 版本副行 + 后端状态（点一下测试连接） */
@@ -28150,7 +29563,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
     );
     titleRow.addClass("setup-guide-title-row");
     if (this.plugin.settings.setupGuideDismissed) {
-      new import_obsidian29.Setting(section3).setName(tr("\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210", "First-run setup done")).setDesc(
+      new import_obsidian30.Setting(section3).setName(tr("\u9996\u6B21\u914D\u7F6E\u5DF2\u5B8C\u6210", "First-run setup done")).setDesc(
         tr(
           "\u6362\u4E86\u540E\u7AEF\u3001\u8FDE\u63A5\u51FA\u9519\u6216\u60F3\u91CD\u65B0\u68C0\u67E5\u65F6\uFF0C\u518D\u6253\u5F00\u5B83\u3002",
           "Open it again after changing the backend, when the connection fails, or to check again."
@@ -28192,7 +29605,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
     const applyCode = async (raw) => {
       const code = parseConnectionCode(raw, DEFAULT_N8N_WEBHOOK_URL);
       if (!code) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             "\u8FD9\u4E0D\u662F\u8FDE\u63A5\u7801\u3002\u8BF7\u7C98\u8D34\u542F\u52A8\u811A\u672C\u6700\u540E\u663E\u793A\u7684\u90A3\u4E00\u6574\u884C\u3002",
             "That is not a connection code. Paste the whole last line the start script printed."
@@ -28203,10 +29616,10 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
       }
       await this.applyConnectionCode(code);
       if (codeInput) codeInput.value = "";
-      new import_obsidian29.Notice(tr("\u8FDE\u63A5\u7801\u5DF2\u4FDD\u5B58\uFF0C\u6B63\u5728\u68C0\u67E5\u2026", "Connection code saved; checking\u2026"));
+      new import_obsidian30.Notice(tr("\u8FDE\u63A5\u7801\u5DF2\u4FDD\u5B58\uFF0C\u6B63\u5728\u68C0\u67E5\u2026", "Connection code saved; checking\u2026"));
       await runCheck(false);
     };
-    new import_obsidian29.Setting(section3).setName(tr("\u2460 \u8FDE\u63A5\u7801", "\u2460 Connection code")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u2460 \u8FDE\u63A5\u7801", "\u2460 Connection code")).setDesc(
       tr(
         "\u542F\u52A8\u811A\u672C\u7684\u6700\u540E\u4E00\u884C\uFF0C\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F\u3002\u8FDE\u63A5\u7801\u76F8\u5F53\u4E8E\u53E3\u4EE4\uFF0C\u4E0D\u8981\u53D1\u7ED9\u522B\u4EBA\u3002",
         "The last line of the start script, already on your clipboard. It works like a password; keep it to yourself."
@@ -28227,7 +29640,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
         try {
           clip = await navigator.clipboard.readText();
         } catch {
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               "\u8BFB\u4E0D\u5230\u526A\u8D34\u677F\uFF0C\u8BF7\u624B\u52A8\u7C98\u8D34\u5230\u8F93\u5165\u6846\u540E\u6309\u56DE\u8F66\u3002",
               "Cannot read the clipboard; paste into the box and press Enter."
@@ -28238,7 +29651,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
         await applyCode(clip);
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u2461 \u68C0\u67E5", "\u2461 Check")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u2461 \u68C0\u67E5", "\u2461 Check")).setDesc(
       tr(
         "\u5FEB\u901F\u68C0\u67E5\u53EA\u770B\u540E\u7AEF\u548C\u8FDE\u63A5\u7801\uFF1B\u5B8C\u6574\u68C0\u67E5\u8FD8\u4F1A\u786E\u8BA4\u6A21\u578B\u548C\u8BED\u97F3\u8F6C\u5199\u7684\u5BC6\u94A5\u771F\u7684\u80FD\u7528\u3002",
         "The quick check covers the backend and the connection code; the full check also confirms the model and speech-to-text keys work."
@@ -28258,7 +29671,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
     );
     section3.appendChild(results);
     const trialResult = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian29.Setting(section3).setName(tr("\u2462 \u8BD5\u8FD0\u884C", "\u2462 Trial run")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u2462 \u8BD5\u8FD0\u884C", "\u2462 Trial run")).setDesc(
       tr(
         "\u7528\u4E00\u6BB5\u5185\u7F6E\u7684\u77ED\u6587\u7A3F\u751F\u6210\u4E00\u6B21\u603B\u7ED3\uFF0C\u786E\u8BA4\u6574\u6761\u6D41\u7A0B\u80FD\u8DD1\u901A\u3002\u4F1A\u6D88\u8017\u6781\u5C11\u91CF\u6A21\u578B\u989D\u5EA6\u3002",
         "Summarises a short built-in text to confirm the whole chain works. Uses a tiny amount of model credit."
@@ -28337,7 +29750,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
       polling = 0;
     };
     this.stopLoginPolling = stop;
-    new import_obsidian29.Setting(section3).setName(title ?? tr("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09", "\u2463 Bilibili login (optional)")).setDesc(
+    new import_obsidian30.Setting(section3).setName(title ?? tr("\u2463 \u54D4\u54E9\u54D4\u54E9\u767B\u5F55\uFF08\u53EF\u9009\uFF09", "\u2463 Bilibili login (optional)")).setDesc(
       tr(
         "\u7528\u54D4\u54E9\u54D4\u54E9\u624B\u673A\u5BA2\u6237\u7AEF\u626B\u7801\u767B\u5F55\u540E\uFF0C\u80FD\u62FF\u5230\u5B83\u7684\u5B57\u5E55\u548C AI \u5B57\u5E55\uFF0C\u4E0D\u7528\u518D\u8F6C\u5199\u3002\u767B\u5F55\u4FE1\u606F\u53EA\u4EA4\u7ED9\u4F60\u81EA\u5DF1\u7684\u540E\u7AEF\uFF0C\u63D2\u4EF6\u4E0D\u4FDD\u5B58\u3002",
         "Scan with the Bilibili phone app to log in; the backend can then use Bilibili subtitles and AI subtitles instead of transcribing. The login goes only to your own backend; the plugin does not keep it."
@@ -28367,9 +29780,9 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
           )
         );
         const started = Date.now();
-        let busy = false;
+        let busy2 = false;
         polling = window.setInterval(() => {
-          if (busy) return;
+          if (busy2) return;
           if (Date.now() - started > 18e4) {
             stop();
             panel.empty();
@@ -28381,12 +29794,12 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
             );
             return;
           }
-          busy = true;
+          busy2 = true;
           fire(async () => {
             try {
               await tick();
             } finally {
-              busy = false;
+              busy2 = false;
             }
           })();
         }, 2e3);
@@ -28502,9 +29915,9 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
       tr("\u5404\u5E73\u53F0\u8BF4\u660E", "Platforms"),
       "platform-matrix-section"
     );
-    const list = section3.createDiv({ cls: "platform-matrix-list" });
+    const list2 = section3.createDiv({ cls: "platform-matrix-list" });
     platformCapabilities().forEach((item) => {
-      const row = list.createDiv({ cls: `platform-matrix-row is-${item.status}` });
+      const row = list2.createDiv({ cls: `platform-matrix-row is-${item.status}` });
       row.createEl("strong", { text: item.platform });
       row.createSpan({ text: item.requirements, cls: "platform-matrix-need" });
       row.createSpan({
@@ -28541,7 +29954,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
       `\u6B63\u5728\u63A5\u6536 \xB7 \u7AEF\u53E3 ${plugin.settings.extensionBridgePort}`,
       `Receiving \xB7 port ${plugin.settings.extensionBridgePort}`
     ) : state === "port-in-use" ? tr("\u7AEF\u53E3\u88AB\u5360\u7528\uFF0C\u6362\u4E00\u4E2A\u7AEF\u53E3\u518D\u8BD5", "The port is in use; choose another one") : state === "unavailable" ? tr("\u8FD9\u53F0\u8BBE\u5907\u4E0D\u80FD\u63A5\u6536", "Not available on this device") : tr("\u5DF2\u5173\u95ED", "Off");
-    new import_obsidian29.Setting(containerEl).setName(tr("\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian", "Receive in the background")).setDesc(stateText).addToggle(
+    new import_obsidian30.Setting(containerEl).setName(tr("\u540E\u53F0\u63A5\u6536\uFF0C\u4E0D\u5207\u5230 Obsidian", "Receive in the background")).setDesc(stateText).addToggle(
       (toggle) => toggle.setValue(plugin.settings.extensionBridgeEnabled === true).onChange(async (value) => {
         plugin.settings.extensionBridgeEnabled = value;
         await restart();
@@ -28552,7 +29965,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
       plugin.settings.extensionBridgePort,
       plugin.settings.extensionBridgeToken
     );
-    const codeSetting = new import_obsidian29.Setting(containerEl).setName(tr("\u914D\u5BF9\u7801", "Pairing code")).setDesc(
+    const codeSetting = new import_obsidian30.Setting(containerEl).setName(tr("\u914D\u5BF9\u7801", "Pairing code")).setDesc(
       tr(
         "\u7C98\u8D34\u5230\u6269\u5C55\u7684\u201C\u8BBE\u7F6E \u2192 Obsidian \u914D\u5BF9\u7801\u201D\u3002",
         "Paste it into the extension under Settings \u2192 Obsidian pairing code."
@@ -28563,7 +29976,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
     codeSetting.addButton(
       (button) => button.setButtonText(tr("\u590D\u5236", "Copy")).onClick(async () => {
         await navigator.clipboard.writeText(code);
-        new import_obsidian29.Notice(tr("\u5DF2\u590D\u5236\u914D\u5BF9\u7801", "Pairing code copied"));
+        new import_obsidian30.Notice(tr("\u5DF2\u590D\u5236\u914D\u5BF9\u7801", "Pairing code copied"));
       })
     ).addExtraButton(
       (button) => button.setIcon("refresh-cw").setTooltip(
@@ -28573,7 +29986,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
         await restart();
       })
     );
-    new import_obsidian29.Setting(containerEl).setName(tr("\u7AEF\u53E3", "Port")).addText((text2) => {
+    new import_obsidian30.Setting(containerEl).setName(tr("\u7AEF\u53E3", "Port")).addText((text2) => {
       text2.inputEl.type = "number";
       text2.setValue(String(plugin.settings.extensionBridgePort));
       text2.inputEl.addEventListener("change", async () => {
@@ -28594,7 +30007,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
       cls: "setting-item-description"
     });
     const resultBox = section3.createDiv({ cls: "setup-diagnostic-result" });
-    new import_obsidian29.Setting(section3).setName(tr("\u540E\u7AEF\u6587\u4EF6\u5939", "Backend folder")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u540E\u7AEF\u6587\u4EF6\u5939", "Backend folder")).setDesc(
       tr(
         "\u6709 compose.yaml \u7684\u90A3\u4E2A\u6587\u4EF6\u5939\u3002\u201C\u542F\u52A8\u540E\u7AEF\u201D\u627E\u4E0D\u5230\u73B0\u6210\u7684\u5BB9\u5668\u65F6\uFF0C\u5728\u8FD9\u91CC\u8FD0\u884C docker compose up\u3002",
         "The folder with compose.yaml. When Start backend finds no existing container, it runs docker compose up here."
@@ -28605,7 +30018,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u540E\u7AEF\u955C\u50CF", "Backend image")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u540E\u7AEF\u955C\u50CF", "Backend image")).setDesc(
       tr(
         "\u7559\u7A7A\u7528\u5B98\u65B9\u955C\u50CF\u3002\u4E0B\u8F7D\u4E0D\u52A8\u65F6\u53EF\u4EE5\u586B\u955C\u50CF\u7AD9\u4E0A\u7684\u540C\u4E00\u4E2A\u955C\u50CF\uFF0C\u4E0B\u6B21\u5B89\u88C5\u6216\u66F4\u65B0\u65F6\u751F\u6548\u3002",
         "Leave empty for the official image. When the download does not work, enter the same image on a mirror; it applies at the next install or update."
@@ -28616,7 +30029,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("Cookies \u76EE\u5F55", "Cookies folder")).addText(
+    new import_obsidian30.Setting(section3).setName(tr("Cookies \u76EE\u5F55", "Cookies folder")).addText(
       (text2) => text2.setPlaceholder("/path/to/video-summary-backend/cookies").setValue(this.plugin.settings.cookiesDirPath || "").onChange(async (value) => {
         this.plugin.settings.cookiesDirPath = value.trim();
         await this.plugin.saveSettings();
@@ -28625,12 +30038,12 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
       (button) => button.setButtonText(tr("\u6253\u5F00\u76EE\u5F55", "Open folder")).onClick(() => {
         const dir = (this.plugin.settings.cookiesDirPath || "").trim();
         if (!dir) {
-          new import_obsidian29.Notice(tr("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84", "Fill in the cookies folder first"));
+          new import_obsidian30.Notice(tr("\u8BF7\u5148\u586B\u5199 cookies \u76EE\u5F55\u8DEF\u5F84", "Fill in the cookies folder first"));
           return;
         }
         try {
           if (!openPathInSystem(dir)) {
-            new import_obsidian29.Notice(
+            new import_obsidian30.Notice(
               tr(
                 "\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u6253\u5F00\u7CFB\u7EDF\u76EE\u5F55\uFF08\u4EC5\u684C\u9762\u7AEF\u53EF\u7528\uFF09",
                 "Opening system folders is not available here (desktop only)"
@@ -28638,7 +30051,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
             );
           }
         } catch (error) {
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               `\u6253\u5F00\u76EE\u5F55\u5931\u8D25: ${error.message}`,
               `Could not open the folder: ${error.message}`
@@ -28709,7 +30122,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
         text: tr(`\u627E\u5230 ${files.length} \u4E2A cookies \u6587\u4EF6`, `Found ${files.length} cookies files`)
       });
       const now = Date.now();
-      const list = containerEl.createEl("ul", { cls: "setup-warning-list" });
+      const list2 = containerEl.createEl("ul", { cls: "setup-warning-list" });
       let hasStale = false;
       files.forEach((name) => {
         try {
@@ -28718,14 +30131,14 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
           const sizeKb = Math.max(1, Math.round(stat.size / 1024));
           const stale = ageDays > STALE_DAYS;
           if (stale) hasStale = true;
-          list.createEl("li", {
+          list2.createEl("li", {
             text: tr(
               `${stale ? "\u26A0\uFE0F " : ""}${name} \u2014 ${sizeKb}KB\uFF0C\u66F4\u65B0\u4E8E ${ageDays} \u5929\u524D${stale ? `\uFF08\u8D85\u8FC7 ${STALE_DAYS} \u5929\uFF0C\u53EF\u80FD\u5DF2\u5931\u6548\uFF09` : ""}`,
               `${stale ? "\u26A0\uFE0F " : ""}${name} \u2014 ${sizeKb} KB, updated ${ageDays} days ago${stale ? ` (over ${STALE_DAYS} days, may have expired)` : ""}`
             )
           });
         } catch {
-          list.createEl("li", {
+          list2.createEl("li", {
             text: tr(`${name} \u2014 \u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6\u4FE1\u606F`, `${name} \u2014 cannot read file info`)
           });
         }
@@ -28758,7 +30171,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
   }
   createApiSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "link", tr("\u5904\u7406\u670D\u52A1", "Backend"));
-    const webhookSetting = new import_obsidian29.Setting(section3).setName(
+    const webhookSetting = new import_obsidian30.Setting(section3).setName(
       tr("\u9ED8\u8BA4 webhook\uFF08n8n \u6216\u517C\u5BB9\u670D\u52A1\uFF09", "Default webhook (n8n or compatible)")
     );
     let webhookDropdown = null;
@@ -28795,7 +30208,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
           const res = await this.plugin.api.testConnection();
           const label = tr("\u517C\u5BB9 n8n \u7684 webhook", "n8n-compatible webhook");
           if (res.success) {
-            new import_obsidian29.Notice(
+            new import_obsidian30.Notice(
               tr(
                 `${label} \u8FDE\u63A5\u6210\u529F\uFF08${res.durationMs}ms\uFF09`,
                 `${label} connected (${res.durationMs} ms)`
@@ -28806,7 +30219,7 @@ var VideoSummarySettingTab = class extends import_obsidian29.PluginSettingTab {
             const hint = res.hint ? tr(`
 \u5EFA\u8BAE: ${res.hint}`, `
 Suggestion: ${res.hint}`) : "";
-            new import_obsidian29.Notice(
+            new import_obsidian30.Notice(
               tr(
                 `${label} \u8FDE\u63A5\u5931\u8D25: ${res.error || "\u672A\u77E5\u9519\u8BEF"}${hint}`,
                 `${label} connection failed: ${res.error || "unknown error"}${hint}`
@@ -28925,7 +30338,7 @@ Suggestion: ${res.hint}`) : "";
         });
         deleteBtn.onclick = async () => {
           if (this.plugin.settings.webhookProfiles.length <= 1) {
-            new import_obsidian29.Notice(tr("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook", "Keep at least one webhook"));
+            new import_obsidian30.Notice(tr("\u81F3\u5C11\u9700\u8981\u4FDD\u7559\u4E00\u4E2A webhook", "Keep at least one webhook"));
             return;
           }
           this.plugin.settings.webhookProfiles = this.plugin.settings.webhookProfiles.filter(
@@ -28966,7 +30379,7 @@ Suggestion: ${res.hint}`) : "";
       "sliders-horizontal",
       tr("\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F", "Default processing")
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6", "Default depth")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u9ED8\u8BA4\u7406\u89E3\u6DF1\u5EA6", "Default depth")).setDesc(
       tr(
         "\u6781\u901F\u53EA\u8BFB\u5B57\u5E55\uFF1B\u8BC1\u636E\u6A21\u5F0F\u4FDD\u7559\u65F6\u95F4\u8F74\uFF0C\u7B14\u8BB0\u91CC\u7684\u8981\u70B9\u80FD\u8DF3\u56DE\u539F\u8BDD\u3002",
         "Quick reads subtitles only; evidence keeps the timeline so key points link back to the quote."
@@ -28979,7 +30392,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B", "Default content type")).addDropdown(
+    new import_obsidian30.Setting(section3).setName(tr("\u9ED8\u8BA4\u5185\u5BB9\u7C7B\u578B", "Default content type")).addDropdown(
       (dropdown) => dropdown.addOption("auto", tr("\u81EA\u52A8\u8BC6\u522B", "Automatic")).addOption("course", tr("\u8BFE\u7A0B", "Course")).addOption("interview", tr("\u8BBF\u8C08", "Interview")).addOption("tutorial", tr("\u6559\u7A0B", "Tutorial")).addOption("news", tr("\u65B0\u95FB", "News")).addOption("meeting", tr("\u4F1A\u8BAE", "Meeting")).addOption("review", tr("\u8BC4\u6D4B", "Review")).addOption("general", tr("\u901A\u7528", "General")).setValue(this.plugin.settings.defaultContentType).onChange(async (value) => {
         const contentType = value;
         this.plugin.settings.defaultContentType = contentType;
@@ -28991,7 +30404,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u89C2\u770B\u4EF7\u503C\u5224\u65AD", "Worth watching?")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u89C2\u770B\u4EF7\u503C\u5224\u65AD", "Worth watching?")).setDesc(
       tr(
         "\u8F93\u51FA\u503C\u5F97\u89C2\u770B\u3001\u5EFA\u8BAE\u7565\u8BFB\u6216\u53EF\u4EE5\u8DF3\u8FC7\uFF0C\u5E76\u7ED9\u51FA\u9AD8\u4EF7\u503C\u7247\u6BB5\u3002",
         "Say whether a video is worth watching, worth skimming or skippable, with its best segments."
@@ -29003,7 +30416,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60", "Generate learning exercises")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u751F\u6210\u5B66\u4E60\u7EC3\u4E60", "Generate learning exercises")).setDesc(
       tr(
         "\u968F\u7ED3\u679C\u751F\u6210\u95EA\u5361\u3001\u81EA\u6D4B\u9898\u548C\u8D39\u66FC\u89E3\u91CA\u9898\uFF1B\u9ED8\u8BA4\u5173\u95ED\u4EE5\u8282\u7701\u5904\u7406\u6210\u672C\u3002",
         "Add flashcards, quiz questions and Feynman prompts to the result; off by default to save cost."
@@ -29015,13 +30428,13 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u6A21\u578B", "Model")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u5904\u7406\u6A21\u578B", "Model")).setDesc(
       tr(
         `\u7531\u540E\u7AEF .env \u91CC\u7684 VS_CHAT_MODEL \u51B3\u5B9A\uFF0C\u6240\u6709\u603B\u7ED3\u6B65\u9AA4\u5171\u7528\u4E00\u4E2A\u6A21\u578B\u3002\u4E0A\u6B21\u68C0\u67E5\uFF1A${this.plugin.settings.aiModel || "\u8FD8\u6CA1\u68C0\u67E5"}\u3002\u6362\u6A21\u578B\u65F6\u6539 .env\uFF0C\u518D\u8FD0\u884C\u4E00\u6B21\u542F\u52A8\u811A\u672C\u3002`,
         `Set by VS_CHAT_MODEL in the backend's .env; every summary step uses this one model. Last check: ${this.plugin.settings.aiModel || "not checked yet"}. To change it, edit .env and run the start script again.`
       )
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4", "Request timeout")).addSlider(
+    new import_obsidian30.Setting(section3).setName(tr("\u8BF7\u6C42\u8D85\u65F6\u65F6\u95F4", "Request timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.timeoutMinutes = value;
         this.plugin.reinitializeApi();
@@ -29031,19 +30444,19 @@ Suggestion: ${res.hint}`) : "";
   }
   createOutputSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "folder", tr("\u7B14\u8BB0", "Notes"));
-    new import_obsidian29.Setting(section3).setName(tr("\u9ED8\u8BA4\u8BED\u8A00", "Default language")).addDropdown(
+    new import_obsidian30.Setting(section3).setName(tr("\u9ED8\u8BA4\u8BED\u8A00", "Default language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.defaultLanguage).onChange(async (value) => {
         this.plugin.settings.defaultLanguage = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u81EA\u52A8\u4FDD\u5B58", "Save automatically")).addToggle(
+    new import_obsidian30.Setting(section3).setName(tr("\u81EA\u52A8\u4FDD\u5B58", "Save automatically")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoSave).onChange(async (value) => {
         this.plugin.settings.autoSave = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u8F93\u51FA\u6587\u4EF6\u5939", "Output folder")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u8F93\u51FA\u6587\u4EF6\u5939", "Output folder")).setDesc(
       tr(
         "\u65B0\u5EFA\u89C6\u9891\u7B14\u8BB0\u5728\u5E93\u5185\u7684\u76F8\u5BF9\u8DEF\u5F84\uFF1B\u4E0D\u5141\u8BB8 .\u3001.. \u6216\u7EDD\u5BF9\u8DEF\u5F84\u3002",
         "Folder for new video notes, relative to the vault; ., .. and absolute paths are not allowed."
@@ -29056,7 +30469,7 @@ Suggestion: ${res.hint}`) : "";
           await this.plugin.saveSettings();
         } catch {
           text2.setValue(this.plugin.settings.outputFolder);
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               "\u8F93\u51FA\u6587\u4EF6\u5939\u5FC5\u987B\u662F\u5E93\u5185\u7684\u5B89\u5168\u76F8\u5BF9\u8DEF\u5F84\uFF0C\u4E0D\u80FD\u5305\u542B . \u6216 ..\u3002",
               "The output folder must be a safe path inside the vault, without . or .."
@@ -29066,7 +30479,7 @@ Suggestion: ${res.hint}`) : "";
         }
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u89C6\u9891\u7B14\u8BB0\u7528\u9605\u8BFB\u89C6\u56FE\u6253\u5F00", "Open video notes in reading view")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u89C6\u9891\u7B14\u8BB0\u7528\u9605\u8BFB\u89C6\u56FE\u6253\u5F00", "Open video notes in reading view")).setDesc(
       tr(
         "\u5904\u7406\u597D\u7684\u89C6\u9891\u7B14\u8BB0\u6253\u5F00\u65F6\u76F4\u63A5\u663E\u793A\u6392\u597D\u7684\u6837\u5B50\uFF1B\u8981\u6539\u5B57\u65F6\u518D\u5207\u5230\u7F16\u8F91\u3002",
         "A finished video note opens as it reads; switch to editing when you want to change it."
@@ -29077,7 +30490,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u6570\u5B57\u7528\u886C\u7EBF", "Serif numbers")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u6570\u5B57\u7528\u886C\u7EBF", "Serif numbers")).setDesc(
       tr(
         "\u4FA7\u680F\u7B14\u8BB0\u5E93\u7684\u603B\u6570\u7528 Didot \u659C\u4F53\uFF0C\u548C\u5176\u4ED6\u63D2\u4EF6\u7684\u7B7E\u540D\u6570\u5B57\u4E00\u81F4\u3002",
         "The library count in the side panel in Didot italic, like the other plugins."
@@ -29089,7 +30502,7 @@ Suggestion: ${res.hint}`) : "";
         this.plugin.app.workspace.getLeavesOfType("video-summary-view").forEach((leaf) => leaf.view.applySignature?.());
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u7B14\u8BB0\u6837\u5F0F\u7C7B", "Note CSS class")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u7B14\u8BB0\u6837\u5F0F\u7C7B", "Note CSS class")).setDesc(
       tr(
         "\u5199\u8FDB\u6BCF\u7BC7\u89C6\u9891\u7B14\u8BB0\u7684 cssclasses\uFF0C\u8BA9\u5E93\u91CC\u7684 CSS \u7247\u6BB5\u7ED9\u5B83\u6362\u6837\u5B50\uFF1B\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E2A\u6837\u5F0F\u3002\u7559\u7A7A\u5C31\u4E0D\u52A0\u3002",
         "Added to each video note's cssclasses so a CSS snippet in your vault can style it; the plugin ships no style for it. Leave empty to add none."
@@ -29100,7 +30513,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
+    new import_obsidian30.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u9ED8\u8BA4\u5C5E\u6027", "Default properties")).setDesc(
       tr(
         "\u5904\u7406\u6210\u529F\u65F6\u8865\u8FDB\u7B14\u8BB0\uFF0C\u4E00\u884C\u4E00\u4E2A\u201C\u540D\u79F0: \u503C\u201D\u3002\u7B14\u8BB0\u91CC\u5DF2\u6709\u7684\u503C\u4E0D\u8986\u76D6\uFF1Btags \u548C aliases \u4F1A\u5408\u5E76\uFF0C\u591A\u4E2A\u503C\u7528\u9017\u53F7\u9694\u5F00\u3002\u503C\u91CC\u53EF\u4EE5\u7528 {{title}} {{tldr}} {{summary}}\u3002",
         'Added to a note when it is processed, one "name: value" per line. Values the note already has are kept; tags and aliases are merged, with several values separated by commas. Values can use {{title}} {{tldr}} {{summary}}.'
@@ -29113,7 +30526,7 @@ Suggestion: ${res.hint}`) : "";
       area.inputEl.rows = 3;
       area.inputEl.addClass("vs-properties-input");
     });
-    new import_obsidian29.Setting(section3).setName(tr("\u6587\u7AE0\u7684\u6807\u7B7E", "Article tags")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u6587\u7AE0\u7684\u6807\u7B7E", "Article tags")).setDesc(
       tr(
         "\u7C98\u8D34\u7684\u6587\u7AE0\u6216\u6587\u7A3F\uFF08\u6CA1\u6709\u89C6\u9891\u94FE\u63A5\uFF09\u7528\u8FD9\u91CC\u7684\u6807\u7B7E\uFF0C\u4EE3\u66FF\u9ED8\u8BA4\u5C5E\u6027\u91CC\u7684 tags\u3002\u591A\u4E2A\u7528\u9017\u53F7\u9694\u5F00\uFF0C\u7559\u7A7A\u5C31\u4E0D\u52A0\u3002",
         "Pasted articles and transcripts (no video link) get these tags instead of the tags in the default properties. Separate several with commas; leave empty for none."
@@ -29124,7 +30537,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    const styleSetting = new import_obsidian29.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u5199\u4F5C\u98CE\u683C", "Writing style")).setDesc(
+    const styleSetting = new import_obsidian30.Setting(section3).setClass("vs-setting-stacked").setName(tr("\u5199\u4F5C\u98CE\u683C", "Writing style")).setDesc(
       tr(
         "\u544A\u8BC9\u6A21\u578B\u4F60\u60F3\u8981\u7684\u7B14\u8BB0\u5199\u6CD5\uFF1A\u7528\u54EA\u4E9B callout\u3001\u8981\u4E0D\u8981\u9875\u8FB9\u6279\u6CE8\u3001\u5F15\u8BED\u600E\u4E48\u653E\u3002\u4F18\u5148\u4E8E\u9ED8\u8BA4\u5199\u6CD5\uFF0C\u8F7B\u91CF\u6863\u548C\u540E\u7AEF\u90FD\u7528\u3002\u7559\u7A7A\u5C31\u7528\u9ED8\u8BA4\u5199\u6CD5\u3002",
         "How you want notes written: which callouts, margin notes, how quotes look. It is followed over the default way, by the light tier and the backend alike. Leave empty for the default."
@@ -29162,7 +30575,7 @@ Suggestion: ${res.hint}`) : "";
         this.display();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("Ithaca \u624B\u8D26\u5916\u89C2", "Ithaca notebook look")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("Ithaca \u624B\u8D26\u5916\u89C2", "Ithaca notebook look")).setDesc(
       tr(
         "\u89C6\u9891\u7B14\u8BB0\u7528\u80F6\u7247\u9875\u7709\u3001\u76F8\u7247\u5899\u3001\u90AE\u6233\u3001\u4FBF\u5229\u8D34\u548C\u7EA2\u8272\u65F6\u95F4\u6233\uFF1B\u53EA\u6539\u89C6\u9891\u7B14\u8BB0\u3002\u914D Ithaca \u4E3B\u9898\u65F6\u5B57\u4F53\u548C\u7EB8\u8272\u6700\u5B8C\u6574\u3002",
         "Video notes get a film header, a photo wall, postmarks, pinned notes and red timestamps; other notes are untouched. With the Ithaca theme the fonts and paper are complete."
@@ -29174,7 +30587,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u53EA\u4FDD\u7559\u6307\u5411\u5DF2\u6709\u7B14\u8BB0\u7684\u53CC\u94FE", "Keep only links to existing notes")).setDesc(
       tr(
         "\u7B14\u8BB0\u91CC\u7684 [[\u53CC\u94FE]] \u6307\u5411\u5E93\u91CC\u6CA1\u6709\u7684\u7B14\u8BB0\u65F6\uFF0C\u6539\u6210\u7EAF\u6587\u5B57\u3002",
         "A [[link]] in the note that points to a note your vault does not have becomes plain text."
@@ -29185,7 +30598,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u4E3B\u9898\u6807\u8BB0", "Theme marks")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u4E3B\u9898\u6807\u8BB0", "Theme marks")).setDesc(
       tr(
         "\u7ED9\u8BA4\u8BC6\u8FD9\u4E9B\u7C7B\u7684\u4E3B\u9898\u7528\uFF1A\u4E00\u53E5\u8BDD\u7ED3\u8BBA\u653E\u6210\u526F\u9898\uFF08ih-sub\uFF09\uFF0C\u5708\u51FA\u7B2C\u4E00\u4E2A ==\u91CD\u70B9==\uFF08ih-circ\uFF09\uFF0Cstatus \u4E3A \u2705 \u7684\u7B14\u8BB0\u76D6\u5370\u7AE0\uFF08ih-stamp-done\uFF09\u3002\u9875\u9762\u4E0A\u5DF2\u6709\u7684\u526F\u9898\u3001\u5708\u548C\u5370\u7AE0\u4FDD\u7559\u4E0D\u52A8\u3002\u63D2\u4EF6\u672C\u8EAB\u4E0D\u5E26\u8FD9\u4E9B\u6837\u5F0F\u3002",
         "For themes that style these classes: the one-line takeaway as a subtitle (ih-sub), a circle around the first ==highlight== (ih-circ), and a stamp on notes whose status is \u2705 (ih-stamp-done). A subtitle, circle or stamp already on the page is kept. The plugin ships no style for them."
@@ -29196,7 +30609,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u6587\u7A3F\u5F15\u7528\u683C\u5F0F", "Transcript quote format")).setDesc(
       tr(
         "\u5728\u9605\u8BFB\u5668\u91CC\u53F3\u952E\u4E00\u6BB5\u6587\u7A3F\u201C\u590D\u5236\u5F15\u7528\u201D\u201C\u63D2\u5165\u5230\u7B14\u8BB0\u201D\u6216\u628A\u5B83\u62D6\u8FDB\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002\u53EF\u7528 {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}\uFF0C\\n \u8868\u793A\u6362\u884C\u3002",
         "Used when you right-click a transcript line in Reader to copy a quote or insert it into a note, or drag it into a note. Available: {{text}} {{time}} {{link}} {{url}} {{speaker}} {{title}} {{note}}; \\n is a line break."
@@ -29219,13 +30632,13 @@ Suggestion: ${res.hint}`) : "";
       text: tr("\u4E00\u952E\u603B\u7ED3\u914D\u7F6E", "Quick summary settings"),
       cls: "vs-subsection-title"
     });
-    new import_obsidian29.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8BED\u8A00", "Summary language")).addDropdown(
+    new import_obsidian30.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8BED\u8A00", "Summary language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickSummaryOptions.language).onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4", "Summary timeout")).addSlider(
+    new import_obsidian30.Setting(summarySubsection).setName(tr("\u603B\u7ED3\u8D85\u65F6\u65F6\u95F4", "Summary timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickSummaryOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickSummaryOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -29236,13 +30649,13 @@ Suggestion: ${res.hint}`) : "";
       text: tr("\u4E00\u952E\u63D0\u53D6\u6587\u7A3F\u914D\u7F6E", "Quick transcript settings"),
       cls: "vs-subsection-title"
     });
-    new import_obsidian29.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8BED\u8A00", "Transcript language")).addDropdown(
+    new import_obsidian30.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8BED\u8A00", "Transcript language")).addDropdown(
       (dropdown) => dropdown.addOption("zh", "\u4E2D\u6587").addOption("en", tr("\u82F1\u6587", "English")).addOption("ja", tr("\u65E5\u6587", "Japanese")).setValue(this.plugin.settings.quickTranscriptOptions.language).onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.language = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4", "Transcript timeout")).addSlider(
+    new import_obsidian30.Setting(transcriptSubsection).setName(tr("\u6587\u7A3F\u8D85\u65F6\u65F6\u95F4", "Transcript timeout")).addSlider(
       (slider) => slider.setLimits(1, 30, 1).setValue(this.plugin.settings.quickTranscriptOptions.timeoutMinutes).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.quickTranscriptOptions.timeoutMinutes = value;
         await this.plugin.saveSettings();
@@ -29251,25 +30664,25 @@ Suggestion: ${res.hint}`) : "";
   }
   createFileProcessingSection(containerEl) {
     const { section: section3 } = this.sectionCard(containerEl, "files", tr("\u6587\u4EF6\u4E0E\u547D\u540D", "Files and names"));
-    new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D", "Rename after processing")).addToggle(
+    new import_obsidian30.Setting(section3).setName(tr("\u5904\u7406\u540E\u81EA\u52A8\u91CD\u547D\u540D", "Rename after processing")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.autoRenameEnabled).onChange(async (value) => {
         this.plugin.settings.autoRenameEnabled = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565", "Name clash")).addDropdown(
+    new import_obsidian30.Setting(section3).setName(tr("\u91CD\u547D\u540D\u51B2\u7A81\u7B56\u7565", "Name clash")).addDropdown(
       (drop) => drop.addOption("append-number", tr("\u8FFD\u52A0\u7F16\u53F7", "Add a number")).addOption("append-date", tr("\u8FFD\u52A0\u65E5\u671F", "Add the date")).addOption("skip", tr("\u8DF3\u8FC7", "Skip")).setValue(this.plugin.settings.renameConflictStrategy).onChange(async (v) => {
         this.plugin.settings.renameConflictStrategy = v;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570", "Batch parallelism")).addSlider(
+    new import_obsidian30.Setting(section3).setName(tr("\u6279\u91CF\u5904\u7406\u5E76\u53D1\u6570", "Batch parallelism")).addSlider(
       (slider) => slider.setLimits(1, 10, 1).setValue(this.plugin.settings.batchConcurrency).setDynamicTooltip().onChange(async (value) => {
         this.plugin.settings.batchConcurrency = value;
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u6210\u529F\u72B6\u6001\u503C", "Success status")).setDesc(
       tr(
         "\u5904\u7406\u6210\u529F\u540E\u5199\u8FDB status\u3002\u63D2\u4EF6\u81EA\u5DF1\u7684\u72B6\u6001\u53E6\u8BB0\u5728 video_summary_status\uFF0C\u6240\u4EE5\u8FD9\u91CC\u53EF\u4EE5\u586B\u4F60\u5E93\u91CC\u201C\u5F85\u6574\u7406\u201D\u7684\u6807\u8BB0\uFF0C\u4F8B\u5982 \u274C\u3002",
         `Written to status after a note is processed. The plugin keeps its own state in video_summary_status, so this can be your vault's "to review" mark, such as \u274C.`
@@ -29278,7 +30691,7 @@ Suggestion: ${res.hint}`) : "";
       (text2) => text2.setPlaceholder(tr("\u4F8B\u5982 success", "For example success")).setValue(this.plugin.settings.successStatusValue ?? "success").onChange(async (value) => {
         const normalized = normalizeSuccessStatusValue(value);
         if (normalized !== value.trim()) {
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               "\u6210\u529F\u72B6\u6001\u4E0D\u80FD\u7528\u5F85\u5904\u7406\u3001\u5904\u7406\u4E2D\u3001\u5931\u8D25\u6216\u6392\u9664\u7684\u6807\u8BB0\uFF0C\u5DF2\u6062\u590D\u4E3A success",
               "The success status cannot be a pending, processing, failed or excluded value; reset to success"
@@ -29305,7 +30718,7 @@ Suggestion: ${res.hint}`) : "";
     });
     const keys = this.plugin.settings.payloadKeys;
     const createKeySetting = (name, key) => {
-      new import_obsidian29.Setting(section3).setName(name).addText(
+      new import_obsidian30.Setting(section3).setName(name).addText(
         (text2) => text2.setPlaceholder(DEFAULT_SETTINGS.payloadKeys[key]).setValue(keys[key]).onChange(async (value) => {
           keys[key] = value.trim() || DEFAULT_SETTINGS.payloadKeys[key];
           this.plugin.api.setPayloadKeys(keys);
@@ -29327,14 +30740,14 @@ Suggestion: ${res.hint}`) : "";
       "wrench",
       tr("\u7F13\u5B58\u4E0E\u8C03\u8BD5", "Cache and debugging")
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u8C03\u8BD5\u6A21\u5F0F", "Debug mode")).addToggle(
+    new import_obsidian30.Setting(section3).setName(tr("\u8C03\u8BD5\u6A21\u5F0F", "Debug mode")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableDebugMode).onChange(async (value) => {
         this.plugin.settings.enableDebugMode = value;
         this.plugin.api.setDebug(!!value);
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0", "Check the backend before processing")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u5904\u7406\u524D\u540E\u7AEF\u81EA\u68C0", "Check the backend before processing")).setDesc(
       tr(
         "\u540E\u7AEF\u4E0D\u53EF\u8FBE\u65F6\u5148\u63D0\u793A\uFF0C\u53E6\u4E00\u4E2A\u540E\u7AEF\u53EF\u7528\u65F6\u5EFA\u8BAE\u5207\u6362\u3002",
         "Warns when the backend is unreachable and suggests the other one if it works."
@@ -29345,7 +30758,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    new import_obsidian29.Setting(section3).setName(tr("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00", "Expand short links")).setDesc(
+    new import_obsidian30.Setting(section3).setName(tr("\u77ED\u94FE\u81EA\u52A8\u5C55\u5F00", "Expand short links")).setDesc(
       tr(
         "\u628A b23.tv\u3001v.douyin.com\u3001xhslink.com \u7B49\u77ED\u94FE\u6362\u6210\u6700\u7EC8\u94FE\u63A5\u518D\u53D1\u9001\uFF0C\u51CF\u5C11\u4E0B\u8F7D\u5931\u8D25\u3002",
         "Sends the final link instead of b23.tv, v.douyin.com, xhslink.com and other short links, so fewer downloads fail."
@@ -29357,7 +30770,7 @@ Suggestion: ${res.hint}`) : "";
         await this.plugin.saveSettings();
       })
     );
-    const historyLimitSetting = new import_obsidian29.Setting(section3).setName(tr("\u5904\u7406\u5386\u53F2\u4E0A\u9650", "History limit")).setDesc(
+    const historyLimitSetting = new import_obsidian30.Setting(section3).setName(tr("\u5904\u7406\u5386\u53F2\u4E0A\u9650", "History limit")).setDesc(
       tr(
         `${this.plugin.settings.historyLimit ?? 300} \u6761`,
         `${this.plugin.settings.historyLimit ?? 300} entries`
@@ -29371,14 +30784,14 @@ Suggestion: ${res.hint}`) : "";
     );
     const cacheSubsection = section3.createDiv({ cls: "vs-subsection" });
     cacheSubsection.createDiv({ text: tr("\u7F13\u5B58\u914D\u7F6E", "Cache"), cls: "vs-subsection-title" });
-    const cacheStatusSetting = new import_obsidian29.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u72B6\u6001", "Cache status")).addButton(
+    const cacheStatusSetting = new import_obsidian30.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u72B6\u6001", "Cache status")).addButton(
       (button) => button.setButtonText(tr("\u{1F4CA} \u67E5\u770B\u72B6\u6001", "\u{1F4CA} Show status")).setClass("cache-status-btn").onClick(async () => {
         try {
           const stats = this.plugin.api.getCacheStats();
           await this.showCachePreviewModal(stats);
         } catch (error) {
           console.error("\u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               `\u274C \u83B7\u53D6\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25: ${errorMessage(error)}`,
               `\u274C Could not read cache statistics: ${errorMessage(error)}`
@@ -29389,7 +30802,7 @@ Suggestion: ${res.hint}`) : "";
       })
     );
     cacheStatusSetting.controlEl.addClass("cache-setting-item");
-    const enableCacheSetting = new import_obsidian29.Setting(cacheSubsection).setName(tr("\u542F\u7528\u7F13\u5B58", "Use the cache")).setDesc(
+    const enableCacheSetting = new import_obsidian30.Setting(cacheSubsection).setName(tr("\u542F\u7528\u7F13\u5B58", "Use the cache")).setDesc(
       tr(
         "\u7F13\u5B58\u5DF2\u5904\u7406\u7684\u89C6\u9891\u7ED3\u679C\uFF0C\u907F\u514D\u91CD\u590D\u8C03\u7528API\uFF08\u8282\u7701\u8D39\u7528\uFF09",
         "Keep processed results to avoid calling the API again (saves money)"
@@ -29399,14 +30812,14 @@ Suggestion: ${res.hint}`) : "";
         this.plugin.settings.enableCache = value;
         this.plugin.api.setCacheEnabled(value);
         await this.plugin.saveSettings();
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           value ? tr("\u2705 \u7F13\u5B58\u5DF2\u542F\u7528", "\u2705 Cache on") : tr("\u274C \u7F13\u5B58\u5DF2\u7981\u7528", "\u274C Cache off"),
           2e3
         );
       })
     );
     enableCacheSetting.controlEl.addClass("cache-setting-item");
-    const expirySetting = new import_obsidian29.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4", "Cache expiry")).setDesc(
+    const expirySetting = new import_obsidian30.Setting(cacheSubsection).setName(tr("\u7F13\u5B58\u8FC7\u671F\u65F6\u95F4", "Cache expiry")).setDesc(
       tr(
         `${this.plugin.settings.cacheExpiryDays ?? 30} \u5929`,
         `${this.plugin.settings.cacheExpiryDays ?? 30} days`
@@ -29435,7 +30848,7 @@ Suggestion: ${res.hint}`) : "";
       try {
         await this.addTestCacheData();
       } catch (error) {
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             `\u274C \u6DFB\u52A0\u6D4B\u8BD5\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`,
             `\u274C Could not add test data: ${errorMessage(error)}`
@@ -29452,7 +30865,7 @@ Suggestion: ${res.hint}`) : "";
       try {
         this.plugin.api.cleanupCache();
         const stats = this.plugin.api.getCacheStats();
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             `\u{1F9F9} \u5DF2\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\uFF0C\u5F53\u524D\u7F13\u5B58 ${stats.size} \u9879`,
             `\u{1F9F9} Removed expired entries; ${stats.size} left`
@@ -29461,7 +30874,7 @@ Suggestion: ${res.hint}`) : "";
         );
       } catch (error) {
         console.error("\u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25:", error);
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(
             `\u274C \u6E05\u7406\u8FC7\u671F\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`,
             `\u274C Could not remove expired entries: ${errorMessage(error)}`
@@ -29490,10 +30903,10 @@ Suggestion: ${res.hint}`) : "";
       if (confirmed) {
         try {
           this.plugin.api.clearCache();
-          new import_obsidian29.Notice(tr("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", "\u{1F5D1}\uFE0F Cache cleared"), 3e3);
+          new import_obsidian30.Notice(tr("\u{1F5D1}\uFE0F \u5DF2\u6E05\u7A7A\u6240\u6709\u7F13\u5B58", "\u{1F5D1}\uFE0F Cache cleared"), 3e3);
         } catch (error) {
           console.error("\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25:", error);
-          new import_obsidian29.Notice(
+          new import_obsidian30.Notice(
             tr(
               `\u274C \u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${errorMessage(error)}`,
               `\u274C Could not clear the cache: ${errorMessage(error)}`
@@ -29532,7 +30945,7 @@ Suggestion: ${res.hint}`) : "";
    * 显示缓存预览模态框
    */
   async showCachePreviewModal(stats) {
-    const modal = new import_obsidian30.Modal(this.app);
+    const modal = new import_obsidian31.Modal(this.app);
     modal.modalEl.addClass("ap", "ap-modal");
     modal.titleEl.setText(tr("\u{1F4CA} \u7F13\u5B58\u9884\u89C8", "\u{1F4CA} Cache preview"));
     const { contentEl } = modal;
@@ -29543,7 +30956,7 @@ Suggestion: ${res.hint}`) : "";
         await renderModalContent(contentEl, newStats);
       } catch (error) {
         console.error("\u274C \u5237\u65B0\u6A21\u6001\u6846\u5185\u5BB9\u5931\u8D25:", error);
-        new import_obsidian29.Notice(
+        new import_obsidian30.Notice(
           tr(`\u274C \u5237\u65B0\u5931\u8D25: ${errorMessage(error)}`, `\u274C Could not refresh: ${errorMessage(error)}`),
           5e3
         );
@@ -29569,7 +30982,7 @@ Suggestion: ${res.hint}`) : "";
       addStatCard(tr("\u603B\u5927\u5C0F", "Total size"), this.formatBytes(currentStats.totalSize));
       if (currentStats.size > 0) {
         const previewSection = container.createDiv({ cls: "cache-preview-content" });
-        new import_obsidian29.Setting(previewSection).setName(tr("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8", "Cache contents")).setHeading();
+        new import_obsidian30.Setting(previewSection).setName(tr("\u7F13\u5B58\u5185\u5BB9\u9884\u89C8", "Cache contents")).setHeading();
         await this.showCacheContentPreview(previewSection);
       } else {
         const emptySection = container.createDiv({ cls: "cache-empty-section" });
@@ -29658,12 +31071,12 @@ Suggestion: ${res.hint}`) : "";
           try {
             await this.plugin.api.removeCacheItem(item.url, item.mode, item.language);
             itemEl.remove();
-            new import_obsidian29.Notice(
+            new import_obsidian30.Notice(
               tr(`\u2705 \u5DF2\u5220\u9664\u7F13\u5B58\u9879: ${item.url}`, `\u2705 Removed cache entry: ${item.url}`),
               3e3
             );
           } catch (error) {
-            new import_obsidian29.Notice(
+            new import_obsidian30.Notice(
               tr(
                 `\u274C \u5220\u9664\u5931\u8D25: ${errorMessage(error)}`,
                 `\u274C Could not delete: ${errorMessage(error)}`
@@ -29716,11 +31129,11 @@ Suggestion: ${res.hint}`) : "";
         "zh",
         testResult
       );
-      new import_obsidian29.Notice(tr("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", "\u2705 Test cache entry added"), 3e3);
+      new import_obsidian30.Notice(tr("\u2705 \u5DF2\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u9879", "\u2705 Test cache entry added"), 3e3);
       this.plugin.api.getCacheStats();
     } catch (error) {
       console.error("\u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25:", error);
-      new import_obsidian29.Notice(
+      new import_obsidian30.Notice(
         tr(
           `\u274C \u6DFB\u52A0\u6D4B\u8BD5\u7F13\u5B58\u6570\u636E\u5931\u8D25: ${errorMessage(error)}`,
           `\u274C Could not add test cache data: ${errorMessage(error)}`

@@ -1,18 +1,12 @@
 import { App, Notice, SecretComponent, Setting } from 'obsidian';
 import type VideoSummaryPlugin from '../main';
 import type { SetupStep } from '../core/BackendSetup';
-import {
-  LLM_PROVIDERS,
-  SPEECH_DEFAULTS,
-  hasSecretStorage,
-  llmProvider,
-  readSecret,
-  resolveLlm,
-  type LlmProviderId,
-} from '../core/ModelSettings';
+import { SPEECH_DEFAULTS, hasSecretStorage } from '../core/ModelSettings';
+import { aiLang } from '../core/AiKit';
+import { getProvider } from '../vendor/rex-ai-kit/index';
+import { renderAiSettings } from '../vendor/rex-ai-kit/settingsUI';
 import { dockerEngineApp, openDockerEngine } from '../utils/desktop';
 import { fire } from '../utils/fire';
-import { getLanguage } from 'obsidian';
 import { tr } from '../utils/i18n';
 
 export interface BackendSettingsHost {
@@ -58,7 +52,7 @@ export function renderBackendSettings(parent: HTMLElement, host: BackendSettings
       snapshot.step,
       snapshot.diagnosis?.fault,
       plugin.hasBackend(),
-      !!readSecret(host.app, plugin.settings.llmKeySecret),
+      plugin.ai.hasKey(plugin.settings.ai),
     ]);
   };
   const draw = () => {
@@ -112,6 +106,7 @@ export function renderModelSettings(parent: HTMLElement, host: BackendSettingsHo
   const root = parent.createDiv({ cls: 'vs-settings-section vs-model-settings' });
   let disposed = false;
   let lastKey = '';
+  let stopRows: (() => void) | null = null;
   const stateKey = () => JSON.stringify([isManaged(plugin), isExternal(plugin)]);
   const draw = () => {
     if (disposed) return;
@@ -127,13 +122,10 @@ export function renderModelSettings(parent: HTMLElement, host: BackendSettingsHo
         ),
       });
     }
-    drawModelRows(root, host, {
+    stopRows?.();
+    stopRows = drawModelRows(root, host, {
       applyToBackend: managed,
-      disabled: false,
-      onChange: () => {
-        draw();
-        refreshBackendGroup?.();
-      },
+      onChange: () => refreshBackendGroup?.(),
     });
     new Setting(root)
       .setName(tr('轻量档', 'Light tier'))
@@ -157,6 +149,7 @@ export function renderModelSettings(parent: HTMLElement, host: BackendSettingsHo
   draw();
   return () => {
     disposed = true;
+    stopRows?.();
     offInstaller();
   };
 }
@@ -298,7 +291,7 @@ function drawFirstRun(root: HTMLElement, host: BackendSettingsHost, redraw: () =
   }
 
   // Docker runs: the model and keys are chosen in the Model group above; one button does the rest.
-  const ready = !!readSecret(host.app, plugin.settings.llmKeySecret);
+  const ready = plugin.ai.hasKey(plugin.settings.ai);
   new Setting(root)
     .setName(tr('安装并启动', 'Install and start'))
     .setDesc(
@@ -434,116 +427,67 @@ function drawInstalled(root: HTMLElement, host: BackendSettingsHost) {
   }
 }
 
-/** Summary model, summary key, speech-to-text key. */
+/**
+ * Summary model (the shared rex-ai-kit group: provider, Keychain key with Check, model) and the
+ * speech-to-text key. Returns a function that cancels a Check still running.
+ */
 function drawModelRows(
   root: HTMLElement,
   host: BackendSettingsHost,
-  options: { applyToBackend: boolean; disabled: boolean; onChange: () => void },
-) {
+  options: { applyToBackend: boolean; onChange: () => void },
+): () => void {
   const { plugin, app } = host;
   const { settings } = plugin;
-  const chinese = getLanguage().startsWith('zh');
-  const changed = async (redraw = false) => {
+  const changed = async () => {
     await plugin.saveSettings();
     if (options.applyToBackend) plugin.installer.scheduleApply();
-    if (redraw) options.onChange();
+    options.onChange();
   };
 
-  /** Greys a row out and takes its controls out of reach of the pointer and the keyboard. */
-  const lock = (setting: Setting) => {
-    if (!options.disabled) return;
-    setting.setDisabled(true);
-    setting.settingEl.addClass('is-disabled', 'vs-row-locked');
-    setting.controlEl.setAttr('inert', '');
-    setting.controlEl.setAttr('aria-disabled', 'true');
-  };
+  const ui = renderAiSettings(root, {
+    app,
+    client: plugin.ai,
+    slot: settings.ai,
+    scene: 'balanced',
+    lang: aiLang(),
+    heading: false,
+    // Claude Code and Codex on this computer: the transcript is text, so they can write notes.
+    allowLocalAgents: true,
+    onChange: async (slot) => {
+      settings.ai = slot;
+      settings.modelCache = plugin.ai.cache.toJSON();
+      await changed();
+      localNote();
+    },
+  });
 
-  const provider = llmProvider(settings.llmProvider);
-  const llm = resolveLlm(settings);
-  const model = new Setting(root).setName(tr('总结模型', 'Summary model'));
-  model.addDropdown((dropdown) => {
-    for (const item of LLM_PROVIDERS) {
-      dropdown.addOption(item.id, (chinese && item.labelZh) || item.label);
-    }
-    dropdown.setValue(provider.id).onChange(async (value) => {
-      settings.llmProvider = value as LlmProviderId;
-      settings.llmModel = '';
-      await changed(true);
-    });
-  });
-  if (provider.id === 'custom') {
-    model.addText((text) =>
-      text
-        .setPlaceholder('https://api.example.com/v1')
-        .setValue(settings.llmBaseUrl || '')
-        .onChange(async (value) => {
-          settings.llmBaseUrl = value.trim();
-          await changed();
-        }),
-    );
-  }
-  model.addText((text) => {
-    text
-      .setPlaceholder(provider.defaultModel || tr('模型名', 'Model name'))
-      .setValue(settings.llmModel || '')
-      .onChange(async (value) => {
-        settings.llmModel = value.trim();
-        await changed();
-      });
-    text.inputEl.setAttr('aria-label', tr('模型名', 'Model name'));
-    text.inputEl.addClass('vs-model-name');
-  });
-  lock(model);
-  if (!llm.model && !options.disabled) {
-    model.setDesc(
+  // The backend runs in Docker: it cannot start a program on this computer.
+  const note = root.createEl('p', { cls: 'setting-item-description vs-model-local-note' });
+  const localNote = () => {
+    const local = !!getProvider(settings.ai.provider)?.localAgent;
+    note.toggleAttribute('hidden', !(local && options.applyToBackend));
+    note.setText(
       tr(
-        '这家没有固定的默认模型，填它控制台里的模型名。',
-        'This service has no fixed default; enter a model name from its console.',
+        '后端在 Docker 里，用不了这台电脑上的程序：后端处理的视频仍用它自己的模型。',
+        'The backend runs in Docker and cannot use programs on this computer: videos it processes keep its own model.',
       ),
     );
-  }
-
-  if (!hasSecretStorage(app)) {
-    new Setting(root)
-      .setName(tr('密钥', 'Keys'))
-      .setDesc(
-        tr(
-          '在设置里管理密钥需要 Obsidian 1.11.4 或更新。旧版请在后端的 .env 里填密钥。',
-          "Managing keys here needs Obsidian 1.11.4 or newer. On older versions, put the keys in the backend's .env.",
-        ),
-      );
-    return;
-  }
-
-  const keyRow = (
-    name: string,
-    current: string,
-    keyUrl: string,
-    save: (secret: string) => void,
-  ) => {
-    const setting = new Setting(root).setName(name);
-    if (keyUrl) {
-      const desc = createFragment();
-      desc.createEl('a', { text: tr('去哪拿', 'Where to get one'), href: keyUrl });
-      setting.setDesc(desc);
-    }
-    setting.addComponent((el) =>
-      new SecretComponent(app, el).setValue(current || '').onChange(async (value) => {
-        save((value || '').trim());
-        await changed(true);
-      }),
-    );
-    lock(setting);
   };
-  keyRow(tr('总结密钥', 'Summary key'), settings.llmKeySecret, provider.keyUrl, (secret) => {
-    settings.llmKeySecret = secret;
-  });
-  keyRow(
-    tr('语音转写密钥', 'Speech-to-text key'),
-    settings.speechKeySecret,
-    SPEECH_DEFAULTS.keyUrl,
-    (secret) => {
-      settings.speechKeySecret = secret;
-    },
+  localNote();
+
+  if (!hasSecretStorage(app)) return () => ui.destroy();
+
+  const speech = new Setting(root).setName(tr('语音转写密钥', 'Speech-to-text key'));
+  const desc = createFragment();
+  desc.createEl('a', { text: tr('去哪拿', 'Where to get one'), href: SPEECH_DEFAULTS.keyUrl });
+  speech.setDesc(desc);
+  speech.addComponent((el) =>
+    new SecretComponent(app, el)
+      .setValue(settings.speechKeySecret || '')
+      .onChange(async (value) => {
+        settings.speechKeySecret = (value || '').trim();
+        await changed();
+      }),
   );
+  return () => ui.destroy();
 }
