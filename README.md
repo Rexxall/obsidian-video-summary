@@ -7,7 +7,7 @@
   <img src="assets/readme/hero-light.svg" width="100%" alt="Video Summary: paste a video link, get a finished note. A finished job for a TED talk above the note it wrote, with a summary and key points.">
 </picture>
 
-<p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>Install from Obsidian</b></a></p>
+<p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>Install from Obsidian</b></a> · <a href="https://rexxall.github.io/video-summary/">See how it works</a></p>
 
 <img src="assets/readme/demo.webp" width="100%" alt="In the Video Summary side panel, a YouTube link is pasted and Start is pressed. The job finishes, the new note opens from Recently finished, and the page scrolls through its key frames, summary and timestamped points.">
 

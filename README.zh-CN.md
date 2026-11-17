@@ -7,7 +7,7 @@
   <img src="assets/readme/hero-zh-light.svg" width="100%" alt="Video Summary：贴一个视频链接，拿到一篇整理好的笔记。上面是一条 TED 演讲的完成任务，下面是它写出的笔记：总结和要点。">
 </picture>
 
-<p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>在 Obsidian 里安装</b></a></p>
+<p align="center"><a href="https://community.obsidian.md/plugins/video-summary"><b>在 Obsidian 里安装</b></a> · <a href="https://rexxall.github.io/video-summary/">看它怎么用</a></p>
 
 <img src="assets/readme/demo.webp" width="100%" alt="在 Video Summary 侧栏贴一个 YouTube 链接，点 Start。任务完成后，从“最近完成”点开新笔记，页面往下滚，依次是关键帧、总结和带时间的要点。">
 

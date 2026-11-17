@@ -8,6 +8,8 @@
 
 [English](README.md) · [中文](README.zh-CN.md) · 日本語
 
+[**Obsidian からインストール**](https://community.obsidian.md/plugins/video-summary) · [使い方を見る](https://rexxall.github.io/video-summary/)
+
 <img src="docs/screenshots/hero.png" width="860" alt="左は完成した例のノート、右はサイドパネルのノート一覧">
 
 </div>
