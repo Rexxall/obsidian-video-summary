@@ -702,6 +702,7 @@ export class JobService {
       duration: text(fm?.video_duration),
       cover: text(fm?.video_cover),
       frames: text(fm?.video_frames),
+      frameFiles: text(fm?.video_frame_files),
     };
   }
 
@@ -745,6 +746,7 @@ export class JobService {
             job.notePath,
             meta.cover,
             meta.frames,
+            meta.frameFiles,
           );
         } catch (error) {
           console.warn('[Video Summary] B 站图片保存失败', error);

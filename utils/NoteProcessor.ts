@@ -33,6 +33,7 @@ const INTERNAL_PROPERTIES = [
   'video_processing_depth',
   // Where the extension found Bilibili frames; used once to save the pictures.
   'video_frames',
+  'video_frame_files',
 ];
 export interface NoteWritePrefs {
   /** 成功时写进 status 的文字 */

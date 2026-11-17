@@ -51,6 +51,8 @@ import {
   withDefaultSettings,
 } from './constants';
 import { pollQrLogin, startQrLogin, type QrLoginTicket } from './core/BilibiliLogin';
+import { saveFrameImages } from './core/BilibiliImages';
+import { parseFrameImages } from './core/BilibiliRef';
 import { drawQrCode } from './views/qrCode';
 import {
   interpretSetupCheck,
@@ -2772,6 +2774,20 @@ export default class VideoSummaryPlugin extends Plugin {
       const transcript = (params.transcript || '').trim();
       if (transcript && rawUrl) {
         const details = pageVideoDetails(params);
+        // Full-size Bilibili frames come only over the background channel (too large for a link).
+        if (options.background && params.frame_images) {
+          try {
+            const saved = await saveFrameImages(
+              this.app,
+              rawUrl,
+              file.path,
+              parseFrameImages(params.frame_images),
+            );
+            if (saved) details.video_frame_files = saved;
+          } catch (error) {
+            console.warn('[Video Summary] B 站高清截帧保存失败', error);
+          }
+        }
         await this.app.fileManager.processFrontMatter(
           file,
           (frontmatter: Record<string, unknown>) => {

@@ -527,6 +527,29 @@ test('with a pairing code, a capture goes to the plugin in the background', asyn
   assert.equal(calls[0].body.url, 'https://www.youtube.com/watch?v=abc');
 });
 
+test('full-size Bilibili frames travel only over the background channel, never in a link', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push(JSON.parse(init.body));
+    return { ok: true, status: 202, text: async () => '{"ok":true}' };
+  };
+  const { send } = loadBackground({
+    sync: { vaultName: 'V', sendCaptions: false, sendInBackground: true },
+    local: { obsidianBridge: `vsb1.27183.${'c'.repeat(48)}` },
+    fetchImpl,
+  });
+  const stills = JSON.stringify([{ t: 120, d: '/9j/AAAA' }]);
+  const item = {
+    url: 'https://www.bilibili.com/video/BV19ixG64Eg2',
+    title: 'A talk',
+    transcript: '[00:01] hi',
+    videoStills: stills,
+  };
+  await send({ type: 'TRANSFER_ITEMS', items: [item], operation: 'process-via-plugin' });
+  assert.equal(calls[0].frame_images, stills);
+  assert.doesNotMatch(loadUtils().buildObsidianProcessUri('V', item, {}), /frame_images|9j/);
+});
+
 test('when Obsidian does not answer, the capture falls back to the obsidian:// link', async () => {
   const fetchImpl = async () => {
     throw new TypeError('Failed to fetch');

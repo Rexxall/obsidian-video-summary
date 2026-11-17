@@ -91,6 +91,8 @@ export interface LiteVideoMeta {
   cover?: string;
   /** Bilibili: where three frames sit in its preview sheets, as the extension found them. */
   frames?: string;
+  /** Bilibili: full-size frames the extension took, already saved in the vault. */
+  frameFiles?: string;
 }
 
 /** Video details the browser extension read from the page, kept only when they look right. */

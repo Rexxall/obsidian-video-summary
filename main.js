@@ -7508,6 +7508,166 @@ async function pollQrLogin(key) {
   }
 }
 
+// core/BilibiliImages.ts
+var import_obsidian9 = require("obsidian");
+
+// core/BilibiliRef.ts
+function bilibiliRef(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (!/(^|\.)bilibili\.com$/.test(parsed.hostname)) return null;
+    const match = parsed.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})/);
+    if (!match) return null;
+    const part = Number(parsed.searchParams.get("p")) || 1;
+    return { bvid: match[1], part: part > 0 ? part : 1 };
+  } catch {
+    return null;
+  }
+}
+var BILIBILI_IMAGE = /^https:\/\/[\w.-]+\.hdslb\.com\/[\w/.-]+\.(jpe?g|png|webp)$/i;
+function isBilibiliImage(url) {
+  return BILIBILI_IMAGE.test(String(url || "").replace(/^http:\/\//, "https://"));
+}
+var MAX_FRAME_BYTES = 4 * 1024 * 1024;
+function parseFrameImages(text2) {
+  let list2;
+  try {
+    list2 = JSON.parse(String(text2 || "[]"));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list2)) return [];
+  const out = [];
+  for (const item of list2.slice(0, 4)) {
+    if (!item || typeof item !== "object") continue;
+    const { t, d } = item;
+    if (typeof t !== "number" || !Number.isFinite(t) || t < 0 || t > 86400) continue;
+    if (typeof d !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(d)) continue;
+    if (d.length * 3 / 4 > MAX_FRAME_BYTES) continue;
+    let bytes;
+    try {
+      bytes = Uint8Array.from(atob(d), (c) => c.charCodeAt(0));
+    } catch {
+      continue;
+    }
+    if (bytes.length < 4 || bytes[0] !== 255 || bytes[1] !== 216 || bytes[2] !== 255) continue;
+    out.push({ t, bytes });
+  }
+  return out;
+}
+function parseFrameFiles(text2) {
+  let list2;
+  try {
+    list2 = JSON.parse(String(text2 || "[]"));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list2)) return [];
+  return list2.slice(0, 4).filter(
+    (item) => !!item && typeof item === "object" && typeof item.p === "string" && /\.jpg$/i.test(item.p) && !item.p.split("/").includes("..") && typeof item.t === "number"
+  );
+}
+function parseSheetFrames(text2) {
+  let list2;
+  try {
+    list2 = JSON.parse(String(text2 || "[]"));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list2)) return [];
+  const whole = (n, max) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= max;
+  return list2.slice(0, 4).filter(
+    (item) => !!item && typeof item === "object" && isBilibiliImage(item.u) && whole(item.x, 2e4) && whole(item.y, 2e4) && whole(item.w, 4e3) && item.w > 0 && whole(item.h, 4e3) && item.h > 0 && typeof item.t === "number"
+  );
+}
+
+// core/BilibiliImages.ts
+var https = (url) => url.replace(/^\/\//, "https://").replace(/^http:\/\//, "https://");
+var clock = (seconds) => {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor(s % 3600 / 60);
+  const pad = (n) => String(n).padStart(2, "0");
+  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${pad(m)}:${pad(s % 60)}`;
+};
+async function getBytes(url) {
+  if (!isBilibiliImage(url)) return null;
+  const reply = await (0, import_obsidian9.requestUrl)({ url: https(url), throw: false });
+  return reply.status < 400 && reply.arrayBuffer.byteLength > 0 ? reply.arrayBuffer : null;
+}
+async function cutFrame(sheet, x, y, width, height) {
+  const bitmap = await createImageBitmap(new Blob([sheet]), x, y, width, height);
+  const canvas = new OffscreenCanvas(width, height);
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.88 });
+  return blob.arrayBuffer();
+}
+async function save(app, name, notePath, data) {
+  const existing = app.vault.getFiles().find((file) => file.name === name);
+  if (existing instanceof import_obsidian9.TFile) return existing.path;
+  const path = await app.fileManager.getAvailablePathForAttachment(name, notePath);
+  await app.vault.createBinary(path, data);
+  return path;
+}
+async function saveFrameImages(app, url, notePath, frames) {
+  const ref = bilibiliRef(url);
+  if (!ref || !frames.length) return "";
+  const stem = `${ref.bvid}-p${ref.part}`;
+  const saved = [];
+  for (let n = 0; n < frames.length; n += 1) {
+    const name = `${stem}-${n + 1}.jpg`;
+    const data = frames[n].bytes.slice().buffer;
+    const existing = app.vault.getFiles().find((file) => file.name === name);
+    let path;
+    if (existing instanceof import_obsidian9.TFile) {
+      await app.vault.modifyBinary(existing, data);
+      path = existing.path;
+    } else {
+      path = await app.fileManager.getAvailablePathForAttachment(name, notePath);
+      await app.vault.createBinary(path, data);
+    }
+    saved.push({ p: path, t: frames[n].t });
+  }
+  return JSON.stringify(saved);
+}
+var target = (path) => encodeURI(path);
+async function bilibiliNoteImages(app, url, notePath, cover, framesJson, frameFilesJson) {
+  const ref = bilibiliRef(url);
+  if (!ref) return [];
+  const stem = `${ref.bvid}-p${ref.part}`;
+  const images = [];
+  const coverBytes = cover ? await getBytes(cover) : null;
+  if (coverBytes) {
+    const path = await save(app, `${stem}-cover.jpg`, notePath, coverBytes);
+    images.push({ url: target(path), label: "cover" });
+  }
+  const files = parseFrameFiles(frameFilesJson).filter(
+    (item) => app.vault.getAbstractFileByPath(item.p) instanceof import_obsidian9.TFile
+  );
+  if (files.length) {
+    for (const item of files)
+      images.push({ url: target(item.p), label: `frame near [${clock(item.t)}]` });
+    return images;
+  }
+  const sheets = /* @__PURE__ */ new Map();
+  const frames = parseSheetFrames(framesJson);
+  for (let n = 0; n < frames.length; n += 1) {
+    const frame = frames[n];
+    if (!sheets.has(frame.u)) sheets.set(frame.u, await getBytes(frame.u));
+    const sheet = sheets.get(frame.u);
+    if (!sheet) continue;
+    const data = await cutFrame(sheet, frame.x, frame.y, frame.w, frame.h);
+    const path = await save(app, `${stem}-${n + 1}.jpg`, notePath, data);
+    images.push({
+      url: target(path),
+      label: `frame near [${clock(frame.t)}], low-resolution preview`
+    });
+  }
+  return images;
+}
+
 // node_modules/qrcode-generator/dist/qrcode.mjs
 var qrcode = function(typeNumber, errorCorrectionLevel) {
   const PAD0 = 236;
@@ -11881,14 +12041,14 @@ _VideoSummaryAPI.transport = (request) => Promise.resolve().then(() => __toESM(r
 var VideoSummaryAPI = _VideoSummaryAPI;
 
 // views/VideoSummaryView.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 
 // views/panels/ActionBar.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // modals/FolderSelectModal.ts
-var import_obsidian9 = require("obsidian");
-var FolderSelectModal = class extends import_obsidian9.Modal {
+var import_obsidian10 = require("obsidian");
+var FolderSelectModal = class extends import_obsidian10.Modal {
   constructor(app, folders, onSelect) {
     super(app);
     this.folderContainer = null;
@@ -11955,7 +12115,7 @@ function liveJobForNote(jobs, notePath) {
 }
 
 // views/BackendHealthModal.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // core/BackendLauncher.ts
 var INSPECT_FORMAT = '{{.Id}}	{{.State.Running}}	{{.Name}}	{{index .Config.Labels "com.docker.compose.project.working_dir"}}	{{.Config.Image}}	{{.HostConfig.RestartPolicy.Name}}	{{json .HostConfig.PortBindings}}';
@@ -12205,7 +12365,7 @@ function launchFailureText(result, diagnosis, endpoint) {
 }
 
 // views/BackendHealthModal.ts
-var _BackendHealthModal = class _BackendHealthModal extends import_obsidian10.Modal {
+var _BackendHealthModal = class _BackendHealthModal extends import_obsidian11.Modal {
   constructor(app, plugin) {
     super(app);
     this.plugin = plugin;
@@ -12421,7 +12581,7 @@ function renderActionBar(container, ctx) {
       ctx.plugin.settings.generateLearningArtifacts ? tr("\u5B66\u4E60\u5361", "Study cards") : ""
     ].filter(Boolean).join(" \xB7 ")
   });
-  (0, import_obsidian11.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
+  (0, import_obsidian12.setIcon)(foldToggle.createSpan({ cls: "vs-fold-chevron" }), "chevron-right");
   foldToggle.addEventListener("click", () => {
     state.advancedOpen = !state.advancedOpen;
     ctx.renderAll();
@@ -12608,7 +12768,7 @@ function renderContextStrip(root, ctx) {
   const meta = statusMeta(status);
   const strip = root.createDiv({ cls: "vs-context-strip" });
   const icon = strip.createDiv({ cls: "vs-context-icon" });
-  (0, import_obsidian11.setIcon)(icon, "file-text");
+  (0, import_obsidian12.setIcon)(icon, "file-text");
   const body = strip.createDiv({ cls: "vs-context-body" });
   body.createDiv({ text: activeFile.basename, cls: "vs-context-title" });
   const sub = body.createDiv({ cls: "vs-context-sub" });
@@ -12733,7 +12893,7 @@ function renderOptions(container, ctx) {
   });
   folderBtn.addEventListener("click", (event) => {
     event.preventDefault();
-    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian11.TFolder).map((folder) => folder.path).sort();
+    const folders = plugin.app.vault.getAllLoadedFiles().filter((file) => file instanceof import_obsidian12.TFolder).map((folder) => folder.path).sort();
     new FolderSelectModal(
       plugin.app,
       folders,
@@ -12855,7 +13015,7 @@ function renderAdvanced(container, ctx, mainInput) {
   });
   localFile.addEventListener("blur", () => {
     if (isAbsoluteLocalPath(localFile.value)) {
-      new import_obsidian11.Notice(
+      new import_obsidian12.Notice(
         tr(
           "\u8FD9\u770B\u8D77\u6765\u662F\u7EDD\u5BF9\u8DEF\u5F84\u3002\u7528 docker \u65F6\u8BF7\u6539\u586B uploads \u91CC\u7684\u6587\u4EF6\u540D\u6216\u76F8\u5BF9\u8DEF\u5F84\u3002",
           "This looks like an absolute path. With Docker, use the file name inside uploads or a relative path."
@@ -12899,7 +13059,7 @@ async function submit(ctx, input, fields) {
   const transcript = fields.transcript.value.trim();
   const localFiles = fields.localFile.value.trim();
   if (!raw && !transcript && !localFiles) {
-    new import_obsidian11.Notice(
+    new import_obsidian12.Notice(
       tr(
         "\u5148\u7C98\u8D34\u4E00\u4E2A\u94FE\u63A5\u3001\u672C\u5730\u6587\u4EF6\u540D\u6216\u6587\u7A3F",
         "Paste a link, a local file name or a transcript first"
@@ -12915,18 +13075,18 @@ async function submit(ctx, input, fields) {
   if (fields.partsToggle.checked) {
     const url = drafts.find((draft) => draft.source === "url")?.input.url;
     if (!url) {
-      new import_obsidian11.Notice(tr("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5", "Expanding by episode needs a video link"));
+      new import_obsidian12.Notice(tr("\u6309\u5206\u96C6\u5C55\u5F00\u9700\u8981\u4E00\u6761\u89C6\u9891\u94FE\u63A5", "Expanding by episode needs a video link"));
       return;
     }
     const start = Math.max(1, parseInt(fields.partsStart.value, 10) || 1);
     const end = Math.max(start, parseInt(fields.partsEnd.value, 10) || start);
     if (end - start + 1 > 100) {
-      new import_obsidian11.Notice(tr("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6", "At most 100 episodes at a time"));
+      new import_obsidian12.Notice(tr("\u4E00\u6B21\u6700\u591A\u5C55\u5F00 100 \u96C6", "At most 100 episodes at a time"));
       return;
     }
     const expanded = expandParts(url, start, end, { transcript, localFiles });
     if (expanded.length === 0) {
-      new import_obsidian11.Notice(
+      new import_obsidian12.Notice(
         tr(
           "\u65E0\u6CD5\u4ECE\u94FE\u63A5\u91CC\u8BC6\u522B\u89C6\u9891 ID\uFF0C\u6539\u7528\u9010\u6761\u94FE\u63A5\u5427",
           "Cannot find a video ID in the link; use one link per episode instead"
@@ -12939,12 +13099,12 @@ async function submit(ctx, input, fields) {
     ctx.state.partsEnd = end;
   }
   if (drafts.length === 0) {
-    new import_obsidian11.Notice(tr("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9", "Nothing to process was found"));
+    new import_obsidian12.Notice(tr("\u6CA1\u89E3\u6790\u51FA\u53EF\u5904\u7406\u7684\u5185\u5BB9", "Nothing to process was found"));
     return;
   }
   const looksAccidental = drafts.length === 1 && drafts[0].source === "transcript" && !transcript && raw.length > 0 && raw.length < 40 && !raw.includes("\n");
   if (looksAccidental) {
-    new import_obsidian11.Notice(
+    new import_obsidian12.Notice(
       tr(
         `"${raw}" \u4E0D\u50CF\u94FE\u63A5\u6216\u6587\u4EF6\u540D\u3002\u8981\u5F53\u4F5C\u6587\u7A3F\u5904\u7406\uFF0C\u8BF7\u628A\u5185\u5BB9\u8D34\u8FDB\u9AD8\u7EA7\u9009\u9879\u91CC\u7684\u300C\u624B\u52A8\u6587\u7A3F\u300D\u3002`,
         `"${raw}" does not look like a link or file name. To process it as a transcript, paste it into "Manual transcript" under the advanced options.`
@@ -12954,7 +13114,7 @@ async function submit(ctx, input, fields) {
     return;
   }
   if (drafts.length > 50) {
-    new import_obsidian11.Notice(tr("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761", "At most 50 at a time"));
+    new import_obsidian12.Notice(tr("\u4E00\u6B21\u6700\u591A\u63D0\u4EA4 50 \u6761", "At most 50 at a time"));
     return;
   }
   const queued = await ctx.plugin.jobService.submit(drafts, ctx.submitOptions());
@@ -12967,7 +13127,7 @@ async function submit(ctx, input, fields) {
     ctx.state.localFileDraft = "";
     input.dispatchEvent(new Event("input"));
     if (!ctx.plugin.jobs.isHeld()) {
-      new import_obsidian11.Notice(
+      new import_obsidian12.Notice(
         tr(`\u5DF2\u63D0\u4EA4 ${queued} \u4E2A\u4EFB\u52A1`, queued === 1 ? "Sent 1 job" : `Sent ${queued} jobs`)
       );
     }
@@ -12991,7 +13151,7 @@ function appendFileNames(ctx, input, names) {
 ${names.join("\n")}` : names.join("\n");
   ctx.state.inputDraft = input.value;
   input.dispatchEvent(new Event("input"));
-  new import_obsidian11.Notice(
+  new import_obsidian12.Notice(
     tr(
       `\u5DF2\u586B\u5165 ${names.length} \u4E2A\u6587\u4EF6\u540D\uFF0C\u786E\u8BA4\u5B83\u4EEC\u5728\u540E\u7AEF\u53EF\u8BBF\u95EE\u7684\u76EE\u5F55\u91CC`,
       `Filled in ${names.length} file names; make sure they are in a folder the backend can read`
@@ -13047,7 +13207,7 @@ function diagnoseSource(error, options) {
 }
 
 // views/panels/JobsPanel.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 
 // views/liveText.ts
 function readableLive(markdown) {
@@ -13061,38 +13221,6 @@ function readableLive(markdown) {
     }
     return text2.replace(/==([^=]+)==/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1");
   }).filter((line) => line !== null).join("\n").replace(/\n{3,}/g, "\n\n");
-}
-
-// core/BilibiliRef.ts
-function bilibiliRef(url) {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    if (!/(^|\.)bilibili\.com$/.test(parsed.hostname)) return null;
-    const match = parsed.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})/);
-    if (!match) return null;
-    const part = Number(parsed.searchParams.get("p")) || 1;
-    return { bvid: match[1], part: part > 0 ? part : 1 };
-  } catch {
-    return null;
-  }
-}
-var BILIBILI_IMAGE = /^https:\/\/[\w.-]+\.hdslb\.com\/[\w/.-]+\.(jpe?g|png|webp)$/i;
-function isBilibiliImage(url) {
-  return BILIBILI_IMAGE.test(String(url || "").replace(/^http:\/\//, "https://"));
-}
-function parseSheetFrames(text2) {
-  let list2;
-  try {
-    list2 = JSON.parse(String(text2 || "[]"));
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(list2)) return [];
-  const whole = (n, max) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= max;
-  return list2.slice(0, 4).filter(
-    (item) => !!item && typeof item === "object" && isBilibiliImage(item.u) && whole(item.x, 2e4) && whole(item.y, 2e4) && whole(item.w, 4e3) && item.w > 0 && whole(item.h, 4e3) && item.h > 0 && typeof item.t === "number"
-  );
 }
 
 // tools/note-prompt.mjs
@@ -13247,7 +13375,7 @@ function buildNotePrompt(input) {
 // core/LiteTier.ts
 var SINGLE_PASS_CHARS = 8e4;
 var CHUNK_CHARS = 4e4;
-function clock(seconds) {
+function clock2(seconds) {
   const total = Math.max(0, Math.floor(seconds));
   const h = Math.floor(total / 3600);
   const m = Math.floor(total % 3600 / 60);
@@ -13257,7 +13385,7 @@ function clock(seconds) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 function stamp(segment) {
-  return segment.start === null ? "" : `[${clock(segment.start)}] `;
+  return segment.start === null ? "" : `[${clock2(segment.start)}] `;
 }
 function transcriptText(segments) {
   return segments.map((segment) => `${stamp(segment)}${segment.text}`).join("\n");
@@ -13600,7 +13728,7 @@ function renderJobsPanel(container, ctx) {
             icon: "file-x",
             onClick: async () => {
               const removed = await ctx.plugin.pruneMissingHistory();
-              new import_obsidian12.Notice(
+              new import_obsidian13.Notice(
                 tr(
                   `\u5DF2\u6E05\u7406 ${removed} \u6761\u8BB0\u5F55\uFF0C\u7B14\u8BB0\u672C\u8EAB\u6CA1\u52A8`,
                   `Removed ${removed} records; no note was touched`
@@ -13624,9 +13752,9 @@ function renderJobsPanel(container, ctx) {
           onClick: async () => {
             try {
               ctx.plugin.api.clearCache();
-              new import_obsidian12.Notice(tr("\u7F13\u5B58\u5DF2\u6E05\u7A7A", "Cache cleared"));
+              new import_obsidian13.Notice(tr("\u7F13\u5B58\u5DF2\u6E05\u7A7A", "Cache cleared"));
             } catch (error) {
-              new import_obsidian12.Notice(
+              new import_obsidian13.Notice(
                 tr(
                   `\u6E05\u7A7A\u7F13\u5B58\u5931\u8D25: ${error instanceof Error ? errorMessage(error) : error}`,
                   `Could not clear the cache: ${error instanceof Error ? errorMessage(error) : error}`
@@ -13748,8 +13876,8 @@ function renderActiveJob(container, ctx, job) {
     card.createDiv({
       cls: "vs-job-hint",
       text: tr(
-        `\u4E0D\u60F3\u5F00\u540E\u7AEF\uFF1A\u53D6\u6D88\u8FD9\u6761\uFF0C\u5728\u89C6\u9891\u9875\u6309 ${captureShortcut(import_obsidian12.Platform.isMacOS)}\u3002`,
-        `No backend? Cancel this one and press ${captureShortcut(import_obsidian12.Platform.isMacOS)} on the video page.`
+        `\u4E0D\u60F3\u5F00\u540E\u7AEF\uFF1A\u53D6\u6D88\u8FD9\u6761\uFF0C\u5728\u89C6\u9891\u9875\u6309 ${captureShortcut(import_obsidian13.Platform.isMacOS)}\u3002`,
+        `No backend? Cancel this one and press ${captureShortcut(import_obsidian13.Platform.isMacOS)} on the video page.`
       )
     });
   }
@@ -13813,7 +13941,7 @@ function renderReviewJob(container, ctx, job) {
     job.writeFailed ? tr("\u91CD\u65B0\u5199\u5165\uFF08\u4E0D\u8C03 AI\uFF09", "Write again (no AI call)") : tr("\u76F4\u63A5\u5199\u5165", "Write now"),
     fire(async () => {
       if (await ctx.plugin.jobService.writeResult(job)) {
-        new import_obsidian12.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
+        new import_obsidian13.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
         ctx.renderPanels();
       }
     }),
@@ -13969,7 +14097,7 @@ function renderHistoryRow(container, ctx, row) {
         disabled: !row.error,
         onClick: () => {
           void navigator.clipboard.writeText(row.error || "");
-          new import_obsidian12.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+          new import_obsidian13.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
         }
       }
     ]);
@@ -14090,7 +14218,7 @@ async function rerun(ctx, row) {
   }
   const file = noteFor(ctx, row);
   if (!file) {
-    new import_obsidian12.Notice(
+    new import_obsidian13.Notice(
       tr(`\u8FD9\u7BC7\u7B14\u8BB0\u5DF2\u6539\u540D\u6216\u5220\u9664\uFF1A${row.title}`, `This note was renamed or deleted: ${row.title}`)
     );
     return;
@@ -14101,7 +14229,7 @@ async function rerun(ctx, row) {
 function noteFor(ctx, row) {
   const written = row.job?.notePath;
   const file = written ? ctx.plugin.app.vault.getAbstractFileByPath(written) : null;
-  if (file instanceof import_obsidian12.TFile) return file;
+  if (file instanceof import_obsidian13.TFile) return file;
   return ctx.plugin.resolveHistoryNote({
     file: row.title,
     path: row.record?.path,
@@ -14128,7 +14256,7 @@ function summarize(job) {
 function showWebhookHistoryMenu(ctx, event) {
   const history = ctx.plugin.api.getWebhookHistory();
   if (!history || history.length === 0) {
-    new import_obsidian12.Notice(tr("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C", "No reusable webhook result yet"));
+    new import_obsidian13.Notice(tr("\u8FD8\u6CA1\u6709\u53EF\u590D\u7528\u7684 webhook \u7ED3\u679C", "No reusable webhook result yet"));
     return;
   }
   showMenu(
@@ -14174,14 +14302,14 @@ function showWebhookEntryActions(ctx, entry, event) {
       icon: "clipboard",
       onClick: () => {
         void navigator.clipboard.writeText(JSON.stringify(entry.result, null, 2));
-        new import_obsidian12.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+        new import_obsidian13.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
       }
     }
   ]);
 }
 
 // views/panels/LibraryPanel.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 var PAGE_SIZE = 30;
 var searchHadFocus = false;
 var visibleCount = PAGE_SIZE;
@@ -14208,7 +14336,7 @@ function renderLibraryPanel(container, ctx) {
   const header = container.createDiv({ cls: "vs-library-header" });
   const searchWrap = header.createDiv({ cls: "vs-search" });
   const searchIcon = searchWrap.createDiv({ cls: "vs-search-icon" });
-  (0, import_obsidian13.setIcon)(searchIcon, "search");
+  (0, import_obsidian14.setIcon)(searchIcon, "search");
   const search = searchWrap.createEl("input", {
     cls: "vs-search-input",
     attr: {
@@ -14522,7 +14650,7 @@ function renderRow(listEl, ctx, entry, observer) {
         disabled: !entry.link,
         onClick: () => {
           void navigator.clipboard.writeText(entry.link || "");
-          new import_obsidian13.Notice(tr("\u5DF2\u590D\u5236\u94FE\u63A5", "Link copied"));
+          new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236\u94FE\u63A5", "Link copied"));
         }
       },
       {
@@ -14556,14 +14684,14 @@ function confirmDelete(ctx, entry) {
       const file = fileOf(ctx, entry);
       if (!file) return;
       await ctx.plugin.app.fileManager.trashFile(file);
-      new import_obsidian13.Notice(tr(`\u5DF2\u5220\u9664 ${entry.basename}`, `Deleted ${entry.basename}`));
+      new import_obsidian14.Notice(tr(`\u5DF2\u5220\u9664 ${entry.basename}`, `Deleted ${entry.basename}`));
       ctx.renderPanels();
     })
   ).open();
 }
 function fileOf(ctx, entry) {
   const file = ctx.plugin.app.vault.getAbstractFileByPath(entry.path);
-  return file instanceof import_obsidian13.TFile ? file : null;
+  return file instanceof import_obsidian14.TFile ? file : null;
 }
 function countByStatus(entries2, ctx) {
   const counts = { pending: 0, active: 0, interrupted: 0, success: 0, error: 0 };
@@ -14620,10 +14748,10 @@ function filterForDisplayStatus(status) {
 }
 
 // views/panels/DetailPanel.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // views/panels/ReaderPanel.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var PAGE_SIZE2 = 240;
 function renderReaderPanel(container, ctx, job) {
   const segments = job.result?.video_segments || [];
@@ -14720,7 +14848,7 @@ function renderReaderPanel(container, ctx, job) {
           "aria-pressed": String(highlighted)
         }
       });
-      (0, import_obsidian14.setIcon)(star, highlighted ? "star" : "star-off");
+      (0, import_obsidian15.setIcon)(star, highlighted ? "star" : "star-off");
       const activateHighlight = (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -14741,7 +14869,7 @@ function renderReaderPanel(container, ctx, job) {
             title: tr("\u590D\u5236\u5F15\u7528", "Copy quote"),
             icon: "quote",
             onClick: () => {
-              void navigator.clipboard.writeText(quote).then(() => new import_obsidian14.Notice(tr("\u5DF2\u590D\u5236\u5F15\u7528", "Quote copied")));
+              void navigator.clipboard.writeText(quote).then(() => new import_obsidian15.Notice(tr("\u5DF2\u590D\u5236\u5F15\u7528", "Quote copied")));
             }
           },
           {
@@ -14758,7 +14886,7 @@ function renderReaderPanel(container, ctx, job) {
       });
       row.addEventListener("click", () => {
         if (segment.start === null || segment.timing_quality === "none") {
-          new import_obsidian14.Notice(
+          new import_obsidian15.Notice(
             tr("\u8FD9\u6BB5\u6587\u7A3F\u6CA1\u6709\u53EF\u9760\u65F6\u95F4\u70B9", "This transcript line has no reliable timestamp")
           );
           return;
@@ -14841,8 +14969,8 @@ function quoteFor(ctx, job, sourceUrl, segment) {
 function insertIntoRecentNote(ctx, text2) {
   const { workspace } = ctx.plugin.app;
   const view = workspace.getMostRecentLeaf(workspace.rootSplit)?.view;
-  if (!(view instanceof import_obsidian14.MarkdownView)) {
-    new import_obsidian14.Notice(
+  if (!(view instanceof import_obsidian15.MarkdownView)) {
+    new import_obsidian15.Notice(
       tr(
         "\u5148\u5728\u4E3B\u7F16\u8F91\u533A\u6253\u5F00\u4E00\u7BC7\u7B14\u8BB0\uFF0C\u518D\u63D2\u5165\u5F15\u7528",
         "Open a note in the main editor first, then insert the quote"
@@ -14852,7 +14980,7 @@ function insertIntoRecentNote(ctx, text2) {
   }
   view.editor.replaceSelection(`${text2}
 `);
-  new import_obsidian14.Notice(
+  new import_obsidian15.Notice(
     tr(
       `\u5DF2\u63D2\u5165\u5230 ${view.file?.basename ?? "\u7B14\u8BB0"}`,
       `Inserted into ${view.file?.basename ?? "the note"}`
@@ -14868,7 +14996,7 @@ function createPlayer(container, ctx, job, sourceUrl) {
   if (bilibiliId) return createBilibiliPlayer(container, bilibiliId);
   const fallback = container.createDiv({ cls: "vs-reader-player-fallback" });
   const icon = fallback.createDiv({ cls: "vs-reader-player-icon" });
-  (0, import_obsidian14.setIcon)(icon, "external-link");
+  (0, import_obsidian15.setIcon)(icon, "external-link");
   fallback.createDiv({
     text: tr("\u5F53\u524D\u5E73\u53F0\u4F7F\u7528\u5916\u90E8\u64AD\u653E\u5668", "This platform uses an external player"),
     cls: "vs-reader-player-title"
@@ -15017,7 +15145,7 @@ function resolveLocalSource(ctx, localFile) {
   const vaultPath = safeVaultRelativeMediaPath(localFile);
   if (!vaultPath) return "";
   const direct = ctx.plugin.app.vault.getAbstractFileByPath(vaultPath);
-  if (direct instanceof import_obsidian14.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
+  if (direct instanceof import_obsidian15.TFile) return ctx.plugin.app.vault.getResourcePath(direct);
   return "";
 }
 function extractYouTubeId(sourceUrl) {
@@ -15102,7 +15230,7 @@ async function toggleHighlight(ctx, job, segment, highlights) {
   } catch (error) {
     if (removing) highlights.add(segment.id);
     else highlights.delete(segment.id);
-    new import_obsidian14.Notice(
+    new import_obsidian15.Notice(
       tr(
         `\u4FDD\u5B58\u91CD\u70B9\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`,
         `Could not save the highlight: ${error instanceof Error ? errorMessage(error) : String(error)}`
@@ -15115,7 +15243,7 @@ function cssEscape(value) {
 }
 
 // views/panels/SourceHealthCard.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var SPEECH_TTL_MS = 5 * 60 * 1e3;
 var speechCheck = { at: 0 };
 function speechConfigured(ctx) {
@@ -15245,7 +15373,7 @@ function renderSourceHealth(body, ctx, job) {
       tr("\u7528\u8FD9\u4EFD\u6587\u7A3F\u603B\u7ED3", "Summarise this transcript"),
       () => {
         if (!area.value.trim()) {
-          new import_obsidian15.Notice(tr("\u5148\u8D34\u4E00\u4EFD\u6587\u7A3F", "Paste a transcript first"));
+          new import_obsidian16.Notice(tr("\u5148\u8D34\u4E00\u4EFD\u6587\u7A3F", "Paste a transcript first"));
           return;
         }
         ctx.plugin.jobs.retryWithTranscript(job.id, area.value);
@@ -15279,7 +15407,7 @@ function renderSourceHealth(body, ctx, job) {
   }
   textButton(actions, tr("\u590D\u5236\u9519\u8BEF", "Copy error"), () => {
     void navigator.clipboard.writeText(job.error || "");
-    new import_obsidian15.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+    new import_obsidian16.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
   });
   return true;
 }
@@ -15314,7 +15442,7 @@ function renderBanner(container, ctx, options) {
   const banner = container.createDiv({
     cls: `vs-banner ${platformClass(options.platform)}`
   });
-  (0, import_obsidian16.setIcon)(banner.createSpan({ cls: "vs-banner-icon", attr: { "aria-hidden": "true" } }), "play");
+  (0, import_obsidian17.setIcon)(banner.createSpan({ cls: "vs-banner-icon", attr: { "aria-hidden": "true" } }), "play");
   if (options.cover) {
     const img = banner.createEl("img", {
       cls: "vs-banner-img",
@@ -15399,7 +15527,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     actions.remove();
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian16.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian17.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: job.error, cls: "vs-error-text" });
     const errorActions = body.createDiv({ cls: "vs-detail-actions" });
     textButton(
@@ -15413,7 +15541,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
     );
     textButton(errorActions, tr("\u590D\u5236\u9519\u8BEF", "Copy error"), () => {
       void navigator.clipboard.writeText(job.error || "");
-      new import_obsidian16.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
+      new import_obsidian17.Notice(tr("\u5DF2\u590D\u5236", "Copied"));
     });
     if (isCookieError(job.error)) {
       textButton(
@@ -15480,7 +15608,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
       tr("\u5199\u5165\u7B14\u8BB0", "Write note"),
       fire(async () => {
         if (await ctx.plugin.jobService.writeResult(job)) {
-          new import_obsidian16.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
+          new import_obsidian17.Notice(tr("\u5DF2\u5199\u5165\u7B14\u8BB0", "Written to the note"));
           ctx.closeDetail();
         }
       }),
@@ -15499,7 +15627,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
   if (persistedArtifact) {
     const copy = textButton(actions, tr("\u590D\u5236\u5DE5\u4EF6 JSON", "Copy artifact JSON"), () => {
       void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-      new import_obsidian16.Notice(tr("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON", "Artifact JSON copied"));
+      new import_obsidian17.Notice(tr("\u5DF2\u590D\u5236\u5DE5\u4EF6 JSON", "Artifact JSON copied"));
     });
     prependIcon(copy, "clipboard");
   } else {
@@ -15533,7 +15661,7 @@ function renderJobDetail(container, ctx, job, persistedArtifact = false) {
           icon: "clipboard",
           onClick: () => {
             void navigator.clipboard.writeText(JSON.stringify(job.result, null, 2));
-            new import_obsidian16.Notice(tr("\u5DF2\u590D\u5236 JSON", "JSON copied"));
+            new import_obsidian17.Notice(tr("\u5DF2\u590D\u5236 JSON", "JSON copied"));
           }
         }
       ]);
@@ -15652,7 +15780,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.content_type) {
     const route = signals.createDiv({ cls: "vs-signal" });
     const icon = route.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian16.setIcon)(icon, "route");
+    (0, import_obsidian17.setIcon)(icon, "route");
     route.createSpan({
       text: tr(
         `\u7ED3\u6784 \xB7 ${contentTypeLabel(result.content_type)}`,
@@ -15665,7 +15793,7 @@ function renderKnowledgeSignals(body, ctx, job) {
       cls: `vs-signal is-attention is-${result.attention.action}`
     });
     const icon = decision2.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian16.setIcon)(
+    (0, import_obsidian17.setIcon)(
       icon,
       result.attention.action === "watch" ? "eye" : result.attention.action === "skim" ? "scan" : "skip-forward"
     );
@@ -15675,7 +15803,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (result.visual_evidence?.length) {
     const visual = signals.createDiv({ cls: "vs-signal is-visual" });
     const icon = visual.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian16.setIcon)(icon, "scan-eye");
+    (0, import_obsidian17.setIcon)(icon, "scan-eye");
     visual.createSpan({
       text: tr(
         `\u771F\u5B9E\u753B\u9762\u8BC1\u636E \xB7 ${result.visual_evidence.length}`,
@@ -15687,7 +15815,7 @@ function renderKnowledgeSignals(body, ctx, job) {
   if (learningCount > 0) {
     const learning = signals.createDiv({ cls: "vs-signal is-learning" });
     const icon = learning.createSpan({ cls: "vs-signal-icon" });
-    (0, import_obsidian16.setIcon)(icon, "graduation-cap");
+    (0, import_obsidian17.setIcon)(icon, "graduation-cap");
     learning.createSpan({
       text: tr(`\u5B66\u4E60\u7EC3\u4E60 \xB7 ${learningCount}`, `Learning exercises \xB7 ${learningCount}`)
     });
@@ -15744,8 +15872,8 @@ function renderKnowledgeSignals(body, ctx, job) {
       tr(`\u5F00\u59CB\u590D\u4E60 \xB7 ${learningCount}`, `Start review \xB7 ${learningCount}`),
       () => {
         const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath || "");
-        if (!(file instanceof import_obsidian16.TFile)) {
-          new import_obsidian16.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+        if (!(file instanceof import_obsidian17.TFile)) {
+          new import_obsidian17.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
           return;
         }
         void ctx.plugin.openLearningReviewForFile(file);
@@ -15766,14 +15894,14 @@ function renderKnowledgeSignals(body, ctx, job) {
 }
 async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!job.notePath) {
-    new import_obsidian16.Notice(
+    new import_obsidian17.Notice(
       tr("\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u8FFD\u52A0\u5904\u7406", "Save the result as a note before adding processing")
     );
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian16.TFile)) {
-    new import_obsidian16.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+  if (!(file instanceof import_obsidian17.TFile)) {
+    new import_obsidian17.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -15787,11 +15915,11 @@ async function queueKnowledgeUpgrade(ctx, job, depth) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian16.Notice(tr("\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD", "Sent for a quick worth-watching check"));
+  new import_obsidian17.Notice(tr("\u5DF2\u63D0\u4EA4\u5FEB\u901F\u89C2\u770B\u5224\u65AD", "Sent for a quick worth-watching check"));
 }
 async function queueLearningUpgrade(ctx, job) {
   if (!job.notePath) {
-    new import_obsidian16.Notice(
+    new import_obsidian17.Notice(
       tr(
         "\u5148\u628A\u7ED3\u679C\u4FDD\u5B58\u4E3A\u7B14\u8BB0\uFF0C\u624D\u80FD\u751F\u6210\u5B66\u4E60\u5361",
         "Save the result as a note before generating learning cards"
@@ -15800,8 +15928,8 @@ async function queueLearningUpgrade(ctx, job) {
     return;
   }
   const file = ctx.plugin.app.vault.getAbstractFileByPath(job.notePath);
-  if (!(file instanceof import_obsidian16.TFile)) {
-    new import_obsidian16.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
+  if (!(file instanceof import_obsidian17.TFile)) {
+    new import_obsidian17.Notice(tr("\u76EE\u6807\u7B14\u8BB0\u5DF2\u4E0D\u5B58\u5728", "The target note no longer exists"));
     return;
   }
   const queued = await ctx.plugin.jobService.submitFile(file, {
@@ -15815,7 +15943,7 @@ async function queueLearningUpgrade(ctx, job) {
   if (!queued) return;
   ctx.state.tab = "jobs";
   ctx.closeDetail();
-  new import_obsidian16.Notice(tr("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1", "Sent to generate learning cards"));
+  new import_obsidian17.Notice(tr("\u5DF2\u63D0\u4EA4\u5B66\u4E60\u5361\u751F\u6210\u4EFB\u52A1", "Sent to generate learning cards"));
 }
 function contentTypeLabel(type) {
   return {
@@ -15849,7 +15977,7 @@ function renderEvidence(container, ctx, job) {
     job.input.url || job.result.artifact?.source_url
   );
   const markdownEl = container.createDiv({ cls: "vs-markdown vs-evidence-map" });
-  void import_obsidian16.MarkdownRenderer.render(
+  void import_obsidian17.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown,
     markdownEl,
@@ -15859,12 +15987,12 @@ function renderEvidence(container, ctx, job) {
 }
 function prependIcon(button, icon) {
   const holder = createSpan({ cls: "vs-btn-icon" });
-  (0, import_obsidian16.setIcon)(holder, icon);
+  (0, import_obsidian17.setIcon)(holder, icon);
   button.prepend(holder);
 }
 function prependCaret(button) {
   const holder = createSpan({ cls: "vs-btn-caret" });
-  (0, import_obsidian16.setIcon)(holder, "chevron-down");
+  (0, import_obsidian17.setIcon)(holder, "chevron-down");
   button.append(holder);
 }
 function renderPreview(body, ctx, job) {
@@ -15877,7 +16005,7 @@ function renderPreview(body, ctx, job) {
   if (result.summary) fields.push("summary");
   const diff = body.createDiv({ cls: "vs-write-card" });
   const diffIcon = diff.createDiv({ cls: "vs-write-icon" });
-  (0, import_obsidian16.setIcon)(diffIcon, "file-diff");
+  (0, import_obsidian17.setIcon)(diffIcon, "file-diff");
   const diffText = diff.createDiv({ cls: "vs-write-text" });
   diffText.createDiv({
     text: tr(
@@ -15910,7 +16038,7 @@ ${result.note}`) : ""
     markdownEl.setText(tr("\u8FD9\u6B21\u6CA1\u6709\u8FD4\u56DE\u53EF\u5199\u5165\u7684\u6B63\u6587", "Nothing writable came back this time"));
     return;
   }
-  void import_obsidian16.MarkdownRenderer.render(
+  void import_obsidian17.MarkdownRenderer.render(
     ctx.plugin.app,
     markdown.slice(0, 6e3),
     markdownEl,
@@ -15957,7 +16085,7 @@ function renderRecordDetail(container, ctx, record) {
   if (record.error) {
     const errorBox = body.createDiv({ cls: "vs-error-box" });
     const icon = errorBox.createDiv({ cls: "vs-error-icon" });
-    (0, import_obsidian16.setIcon)(icon, "alert-triangle");
+    (0, import_obsidian17.setIcon)(icon, "alert-triangle");
     errorBox.createDiv({ text: record.error, cls: "vs-error-text" });
   } else if (record.result === "error") {
     body.createDiv({
@@ -16034,7 +16162,7 @@ function isCookieError(error) {
 function openCookiesFolder(ctx) {
   const path = ctx.plugin.settings.cookiesDirPath;
   if (!path) {
-    new import_obsidian16.Notice(
+    new import_obsidian17.Notice(
       tr(
         "\u8FD8\u6CA1\u914D\u7F6E cookies \u76EE\u5F55\uFF0C\u5148\u53BB\u63D2\u4EF6\u8BBE\u7F6E\u91CC\u586B",
         "No cookies folder yet; set it in the plugin settings first"
@@ -16043,11 +16171,11 @@ function openCookiesFolder(ctx) {
     return;
   }
   if (!openPathInSystem(path)) {
-    new import_obsidian16.Notice(tr(`cookies \u76EE\u5F55\uFF1A${path}`, `Cookies folder: ${path}`));
+    new import_obsidian17.Notice(tr(`cookies \u76EE\u5F55\uFF1A${path}`, `Cookies folder: ${path}`));
   }
 }
 function panelComponent(ctx) {
-  const component = new import_obsidian16.Component();
+  const component = new import_obsidian17.Component();
   component.load();
   ctx.registerPanelCleanup(() => component.unload());
   return component;
@@ -16055,7 +16183,7 @@ function panelComponent(ctx) {
 
 // views/VideoSummaryView.ts
 var VIDEO_SUMMARY_VIEW_TYPE = "video-summary-view";
-var VideoSummaryView = class extends import_obsidian17.ItemView {
+var VideoSummaryView = class extends import_obsidian18.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.actionHeaderEl = null;
@@ -16316,7 +16444,7 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
   }
   async openNote(path) {
     let file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian17.TFile)) {
+    if (!(file instanceof import_obsidian18.TFile)) {
       const job = this.plugin.jobs.getAll().find((item) => item.notePath === path);
       const artifactId = job?.result?.artifact?.artifact_id || job?.input?.artifactId;
       if (artifactId) {
@@ -16324,13 +16452,13 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
           const artifact = await this.plugin.artifactStore.load(artifactId);
           const resolved = artifact?.source?.note_path;
           if (resolved) file = this.app.vault.getAbstractFileByPath(resolved);
-          if (file instanceof import_obsidian17.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
+          if (file instanceof import_obsidian18.TFile) relinkVideoJobs(this.plugin.jobs, path, file);
         } catch {
         }
       }
     }
-    if (!(file instanceof import_obsidian17.TFile)) {
-      new import_obsidian17.Notice(
+    if (!(file instanceof import_obsidian18.TFile)) {
+      new import_obsidian18.Notice(
         tr(
           "\u7B14\u8BB0\u5DF2\u79FB\u52A8\u6216\u91CD\u547D\u540D\uFF0C\u8BF7\u4ECE\u7B14\u8BB0\u5E93\u6253\u5F00\u3002",
           "The note was moved or renamed; open it from the library."
@@ -16343,7 +16471,7 @@ var VideoSummaryView = class extends import_obsidian17.ItemView {
       await leaf.openFile(file, { active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch (error) {
-      new import_obsidian17.Notice(
+      new import_obsidian18.Notice(
         tr(
           `\u6253\u5F00\u7B14\u8BB0\u5931\u8D25\uFF1A${error instanceof Error ? errorMessage(error) : String(error)}`,
           `Could not open the note: ${error instanceof Error ? errorMessage(error) : String(error)}`
@@ -16374,7 +16502,7 @@ function nextFrame(draw) {
 }
 
 // utils/FileProcessor.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 var FileProcessor = class {
   constructor(app, plugin) {
     this.app = app;
@@ -16389,12 +16517,12 @@ var FileProcessor = class {
       await leaf.openFile(file);
       window.setTimeout(() => {
         const view = leaf.view;
-        if (view instanceof import_obsidian18.MarkdownView) {
+        if (view instanceof import_obsidian19.MarkdownView) {
           new VideoSummaryModal(this.app, this.plugin, view.editor, view).open();
         }
       }, 100);
     } catch (error) {
-      new import_obsidian18.Notice(
+      new import_obsidian19.Notice(
         tr(
           `\u5904\u7406\u6587\u4EF6\u5931\u8D25: ${errorMessage(error)}`,
           `Could not process the file: ${errorMessage(error)}`
@@ -16516,7 +16644,7 @@ var FileProcessor = class {
 };
 
 // utils/NoteProcessor.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // utils/noteCssClass.ts
 function withCssClass(fm, cssClass) {
@@ -16793,7 +16921,8 @@ var INTERNAL_PROPERTIES = [
   "video_attention_action",
   "video_processing_depth",
   // Where the extension found Bilibili frames; used once to save the pictures.
-  "video_frames"
+  "video_frames",
+  "video_frame_files"
 ];
 var NoteProcessor = class {
   constructor(vault, cssClass = () => "", prefs = () => ({ successText: "success", defaultProperties: "" })) {
@@ -16810,7 +16939,7 @@ var NoteProcessor = class {
       const fmText = fmMatch[1];
       let fm = {};
       try {
-        fm = asRecord((0, import_obsidian19.parseYaml)(fmText));
+        fm = asRecord((0, import_obsidian20.parseYaml)(fmText));
       } catch {
         fm = {};
       }
@@ -16823,7 +16952,7 @@ var NoteProcessor = class {
    * 构建包含 frontmatter 的内容
    */
   buildContent(fm, body) {
-    const fmText = (0, import_obsidian19.stringifyYaml)(fm);
+    const fmText = (0, import_obsidian20.stringifyYaml)(fm);
     return `---
 ${(fmText || "").trim()}
 ---
@@ -17697,61 +17826,6 @@ function extractArticle(doc) {
     else lines.push(text2);
   });
   return { title, text: lines.join("\n\n") };
-}
-
-// core/BilibiliImages.ts
-var import_obsidian20 = require("obsidian");
-var https = (url) => url.replace(/^\/\//, "https://").replace(/^http:\/\//, "https://");
-var clock2 = (seconds) => {
-  const s = Math.max(0, Math.round(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor(s % 3600 / 60);
-  const pad = (n) => String(n).padStart(2, "0");
-  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${pad(m)}:${pad(s % 60)}`;
-};
-async function getBytes(url) {
-  if (!isBilibiliImage(url)) return null;
-  const reply = await (0, import_obsidian20.requestUrl)({ url: https(url), throw: false });
-  return reply.status < 400 && reply.arrayBuffer.byteLength > 0 ? reply.arrayBuffer : null;
-}
-async function cutFrame(sheet, x, y, width, height) {
-  const bitmap = await createImageBitmap(new Blob([sheet]), x, y, width, height);
-  const canvas = new OffscreenCanvas(width, height);
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-  bitmap.close();
-  const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.88 });
-  return blob.arrayBuffer();
-}
-async function save(app, name, notePath, data) {
-  const existing = app.vault.getFiles().find((file) => file.name === name);
-  if (existing instanceof import_obsidian20.TFile) return existing.path;
-  const path = await app.fileManager.getAvailablePathForAttachment(name, notePath);
-  await app.vault.createBinary(path, data);
-  return path;
-}
-var target = (path) => encodeURI(path);
-async function bilibiliNoteImages(app, url, notePath, cover, framesJson) {
-  const ref = bilibiliRef(url);
-  if (!ref) return [];
-  const stem = `${ref.bvid}-p${ref.part}`;
-  const images = [];
-  const coverBytes = cover ? await getBytes(cover) : null;
-  if (coverBytes) {
-    const path = await save(app, `${stem}-cover.jpg`, notePath, coverBytes);
-    images.push({ url: target(path), label: "cover" });
-  }
-  const sheets = /* @__PURE__ */ new Map();
-  const frames = parseSheetFrames(framesJson);
-  for (let n = 0; n < frames.length; n += 1) {
-    const frame = frames[n];
-    if (!sheets.has(frame.u)) sheets.set(frame.u, await getBytes(frame.u));
-    const sheet = sheets.get(frame.u);
-    if (!sheet) continue;
-    const data = await cutFrame(sheet, frame.x, frame.y, frame.w, frame.h);
-    const path = await save(app, `${stem}-${n + 1}.jpg`, notePath, data);
-    images.push({ url: target(path), label: `frame near [${clock2(frame.t)}]` });
-  }
-  return images;
 }
 
 // vendor/rex-ai-kit/types.ts
@@ -22061,7 +22135,8 @@ ${buildInsertionContent(result)}`
       author,
       duration: text2(fm?.video_duration),
       cover: text2(fm?.video_cover),
-      frames: text2(fm?.video_frames)
+      frames: text2(fm?.video_frames),
+      frameFiles: text2(fm?.video_frame_files)
     };
   }
   /** Light tier: the job's transcript, then the person's model, streamed. */
@@ -22097,7 +22172,8 @@ ${buildInsertionContent(result)}`
             source,
             job.notePath,
             meta.cover,
-            meta.frames
+            meta.frames,
+            meta.frameFiles
           );
         } catch (error) {
           console.warn("[Video Summary] B \u7AD9\u56FE\u7247\u4FDD\u5B58\u5931\u8D25", error);
@@ -29569,6 +29645,19 @@ Suggestion: ${result.hint}`) : "";
       const transcript = (params.transcript || "").trim();
       if (transcript && rawUrl) {
         const details = pageVideoDetails(params);
+        if (options.background && params.frame_images) {
+          try {
+            const saved = await saveFrameImages(
+              this.app,
+              rawUrl,
+              file.path,
+              parseFrameImages(params.frame_images)
+            );
+            if (saved) details.video_frame_files = saved;
+          } catch (error) {
+            console.warn("[Video Summary] B \u7AD9\u9AD8\u6E05\u622A\u5E27\u4FDD\u5B58\u5931\u8D25", error);
+          }
+        }
         await this.app.fileManager.processFrontMatter(
           file,
           (frontmatter) => {

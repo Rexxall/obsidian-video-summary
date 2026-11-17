@@ -1,7 +1,13 @@
 import { App, TFile, requestUrl } from 'obsidian';
 
 import type { NoteImage } from './NoteStyle';
-import { bilibiliRef, isBilibiliImage, parseSheetFrames } from './BilibiliRef';
+import {
+  bilibiliRef,
+  isBilibiliImage,
+  parseFrameFiles,
+  parseSheetFrames,
+  type FrameImage,
+} from './BilibiliRef';
 
 /**
  * Pictures of a Bilibili video for its note: the cover and three frames, saved into the vault.
@@ -52,6 +58,38 @@ async function save(app: App, name: string, notePath: string, data: ArrayBuffer)
   return path;
 }
 
+/**
+ * Saves the full-size frames the extension took, next to the capture note, under the names the
+ * preview-sheet cuts would get; an older picture of the same name is replaced. Returns what
+ * goes into the note's properties, or '' when nothing was saved.
+ */
+export async function saveFrameImages(
+  app: App,
+  url: string | undefined,
+  notePath: string,
+  frames: FrameImage[],
+): Promise<string> {
+  const ref = bilibiliRef(url);
+  if (!ref || !frames.length) return '';
+  const stem = `${ref.bvid}-p${ref.part}`;
+  const saved: { p: string; t: number }[] = [];
+  for (let n = 0; n < frames.length; n += 1) {
+    const name = `${stem}-${n + 1}.jpg`;
+    const data = frames[n].bytes.slice().buffer;
+    const existing = app.vault.getFiles().find((file) => file.name === name);
+    let path: string;
+    if (existing instanceof TFile) {
+      await app.vault.modifyBinary(existing, data);
+      path = existing.path;
+    } else {
+      path = await app.fileManager.getAvailablePathForAttachment(name, notePath);
+      await app.vault.createBinary(path, data);
+    }
+    saved.push({ p: path, t: frames[n].t });
+  }
+  return JSON.stringify(saved);
+}
+
 /** A vault path as a Markdown image target. */
 const target = (path: string) => encodeURI(path);
 
@@ -61,6 +99,7 @@ export async function bilibiliNoteImages(
   notePath: string,
   cover: string | undefined,
   framesJson: string | undefined,
+  frameFilesJson?: string,
 ): Promise<NoteImage[]> {
   const ref = bilibiliRef(url);
   if (!ref) return [];
@@ -73,6 +112,17 @@ export async function bilibiliNoteImages(
     images.push({ url: target(path), label: 'cover' });
   }
 
+  // Full-size frames the extension already saved: used as they are.
+  const files = parseFrameFiles(frameFilesJson).filter(
+    (item) => app.vault.getAbstractFileByPath(item.p) instanceof TFile,
+  );
+  if (files.length) {
+    for (const item of files)
+      images.push({ url: target(item.p), label: `frame near [${clock(item.t)}]` });
+    return images;
+  }
+
+  // Otherwise cut from Bilibili's preview sheets: small (often 480×270), so the label says so.
   const sheets = new Map<string, ArrayBuffer | null>();
   const frames = parseSheetFrames(framesJson);
   for (let n = 0; n < frames.length; n += 1) {
@@ -82,7 +132,10 @@ export async function bilibiliNoteImages(
     if (!sheet) continue;
     const data = await cutFrame(sheet, frame.x, frame.y, frame.w, frame.h);
     const path = await save(app, `${stem}-${n + 1}.jpg`, notePath, data);
-    images.push({ url: target(path), label: `frame near [${clock(frame.t)}]` });
+    images.push({
+      url: target(path),
+      label: `frame near [${clock(frame.t)}], low-resolution preview`,
+    });
   }
   return images;
 }

@@ -1,13 +1,13 @@
-# Chrome Web Store listing: Video Summary Capture 0.9.0
+# Chrome Web Store listing: Video Summary Capture 0.9.1
 
 Everything the developer dashboard asks for, ready to paste. Checked against the Chrome Web Store program policies, the privacy-tab guide and the listing-image guide on developer.chrome.com on 2026-11-12.
 
 ## Package
 
-Upload `video-summary-capture-0.9.0.zip`, built from `browser-extension/`:
+Upload `video-summary-capture-0.9.1.zip`, built from `browser-extension/`:
 
 ```bash
-cd browser-extension && zip -qrX ../video-summary-capture-0.9.0.zip . -x README.md -x '.*' -x '*/.DS_Store' -x 'vendor/*.mjs'
+cd browser-extension && zip -qrX ../video-summary-capture-0.9.1.zip . -x README.md -x '.*' -x '*/.DS_Store' -x 'vendor/*.mjs'
 ```
 
 `vendor/*.mjs` are the module copies the tests import; the extension loads only `vendor/shared.global.js`.
@@ -89,7 +89,7 @@ Obsidian、YouTube、bilibili はそれぞれの所有者の商標です。こ�
 
 **Data usage.** Of the dashboard's categories (Personally identifiable information, Health information, Financial and payment information, Authentication information, Personal communications, Location, Web history, User activity, Website content), tick only these:
 
-- **Website content:** the page title and the captions or subtitles of the video the user sends (YouTube captions the player loaded; Bilibili subtitles the page fetches with the user's own sign-in, which the extension neither reads nor stores).
+- **Website content:** the page title, the captions or subtitles of the video the user sends, and on Bilibili with background sending on three frames of that video (YouTube captions the player loaded; Bilibili subtitles the page fetches with the user's own sign-in, which the extension neither reads nor stores).
 - **Web history:** the address of the page the user sends (only that page, only on their action).
 - **Authentication information:** only with the optional Bilibili sync, bilibili.com cookies sent to the user's own backend.
 
@@ -108,6 +108,6 @@ Free; all regions; Public (or Unlisted to try the store install first).
 ## Policy notes
 
 - One page is read, and only when the user acts; installing asks for no site access at all, this computer included.
-- No media is downloaded. The extension reads the captions the player already loaded on the page.
+- No video is saved. The extension reads the captions the player already loaded; on Bilibili with background sending on, the page also decodes a few seconds around three moments of the stream its player lists to take three full-size frames for the note, then discards them.
 - The description names four products (Obsidian, YouTube, Bilibili, Video Summary), under the five-brand keyword-spam limit.
 - Trademarks are named only to say what the extension works with, with a line that it is not made or endorsed by them.

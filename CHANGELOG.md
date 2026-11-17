@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- **Bilibili frames at the video's own resolution.** With background sending on, ⌘⇧S on a Bilibili video saves its three frames at the size the video plays (1920×1080 for a 1080p video) instead of Bilibili's 480×270 previews. The page decodes a few seconds around each moment in a hidden player; the video you are watching keeps playing. Needs extension 0.9.1. Without background sending, or when the stream cannot be read, the previews are used as before.
+
 ## 2.14.0
 
 - **Any of the main AI services writes your notes.** The summary model is now chosen from one shared list: OpenAI, Anthropic (Claude) and Google Gemini first, then DeepSeek, OpenRouter, Qwen, Kimi, Zhipu and SiliconFlow, Ollama and LM Studio on this computer, or any OpenAI-compatible server. Keys live in **Settings → Keychain** under shared names (`anthropic-api-key`, `openai-api-key` …), so a key you saved for another plugin works here without being entered again. **Check** shows whether the key works and, where the service tells, the balance; the model list puts the recommended picks first. A new install picks the first service whose key is already in the Keychain, otherwise Claude Sonnet 5.5. Your current model, address and key name carry over unchanged.

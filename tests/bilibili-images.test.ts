@@ -1,7 +1,13 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { bilibiliRef, isBilibiliImage, parseSheetFrames } from '../core/BilibiliRef';
+import {
+  bilibiliRef,
+  isBilibiliImage,
+  parseFrameFiles,
+  parseFrameImages,
+  parseSheetFrames,
+} from '../core/BilibiliRef';
 
 test('a Bilibili link gives its video and part', () => {
   assert.deepEqual(bilibiliRef('https://www.bilibili.com/video/BV1Jgf6YvE8e?p=19'), {
@@ -37,4 +43,36 @@ test('frames from the extension are kept only as cuts of a Bilibili picture', ()
   assert.equal(parseSheetFrames(JSON.stringify(Array(9).fill(good))).length, 4);
   assert.equal(isBilibiliImage('http://i0.hdslb.com/bfs/archive/a.jpg'), true);
   assert.equal(isBilibiliImage('https://i0.hdslb.com.evil.com/a.jpg'), false);
+});
+
+test('full-size frames are kept only as JPEGs of sane size at a sane time', () => {
+  const jpeg = btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, 1, 2, 3));
+  const png = btoa(String.fromCharCode(0x89, 0x50, 0x4e, 0x47, 1, 2, 3));
+  const kept = parseFrameImages(
+    JSON.stringify([
+      { t: 120, d: jpeg },
+      { t: 240, d: png },
+      { t: -1, d: jpeg },
+      { t: 360, d: 'not base64!' },
+      { t: 480 },
+    ]),
+  );
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].t, 120);
+  assert.equal(kept[0].bytes[0], 0xff);
+  assert.deepEqual(parseFrameImages('nope'), []);
+  assert.equal(parseFrameImages(JSON.stringify(Array(9).fill({ t: 1, d: jpeg }))).length, 4);
+});
+
+test('saved frame paths stay inside the vault and are pictures', () => {
+  assert.deepEqual(
+    parseFrameFiles(
+      JSON.stringify([
+        { p: 'Videos/attachments/BV1-p1-1.jpg', t: 12 },
+        { p: '../outside.jpg', t: 1 },
+        { p: 'Videos/x.md', t: 1 },
+      ]),
+    ),
+    [{ p: 'Videos/attachments/BV1-p1-1.jpg', t: 12 }],
+  );
 });

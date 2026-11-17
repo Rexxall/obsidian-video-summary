@@ -146,6 +146,7 @@ function normalizeCaptureItem(item) {
     videoDuration: typeof item?.videoDuration === 'string' ? item.videoDuration : '',
     videoCover: typeof item?.videoCover === 'string' ? item.videoCover : '',
     videoFrames: typeof item?.videoFrames === 'string' ? item.videoFrames : '',
+    videoStills: typeof item?.videoStills === 'string' ? item.videoStills : '',
   };
 }
 
@@ -329,7 +330,7 @@ function youTubeVideoId(url) {
  * track's JSON. Runs in the page, so the page's own sign-in is used and nothing else is sent.
  * The cues come back in YouTube's json3 shape, so one formatter serves both.
  */
-async function readBilibiliSubtitles() {
+async function readBilibiliSubtitles(wantStills = false) {
   const started = Date.now();
   const state = window.__INITIAL_STATE__ || {};
   const video = state.videoData || {};
@@ -432,6 +433,142 @@ async function readBilibiliSubtitles() {
   } catch {
     // No frames: the note has the cover only.
   }
+  // The same three moments at the video's own resolution, for background sending (the
+  // obsidian:// link cannot carry pictures). A hidden player on this page decodes the few
+  // seconds around each moment from the stream the page already lists; the video being
+  // watched is not touched. Any failure leaves the preview-sheet frames above.
+  let stills = [];
+  if (wantStills && frames.length) {
+    try {
+      stills = await Promise.race([
+        grabStills(frames.map((frame) => frame.t)),
+        new Promise((resolve) => setTimeout(() => resolve([]), 20000)),
+      ]);
+    } catch {
+      stills = [];
+    }
+  }
+  async function grabStills(seconds) {
+    // The streams this part lists, at the quality the person's sign-in allows. __playinfo__ is
+    // the part the page first loaded; after moving to another part it still describes that one,
+    // so it is used only when its addresses carry this part's cid.
+    const own = (list) =>
+      (list || []).filter((item) =>
+        String(item.baseUrl || item.base_url || '').includes(`/${cid}-`),
+      );
+    let listed = own(
+      window.__playinfo__ &&
+        window.__playinfo__.data &&
+        window.__playinfo__.data.dash &&
+        window.__playinfo__.data.dash.video,
+    );
+    if (!listed.length) {
+      const reply = await (
+        await fetch(
+          `https://api.bilibili.com/x/player/playurl?bvid=${encodeURIComponent(video.bvid)}&cid=${encodeURIComponent(cid)}&fnval=16&fourk=0`,
+          { credentials: 'include' },
+        )
+      ).json();
+      listed = own(reply && reply.data && reply.data.dash && reply.data.dash.video);
+    }
+    const streams = listed
+      .filter(
+        (item) =>
+          /^avc1/.test(item.codecs || '') &&
+          Number(item.width) <= 1920 &&
+          window.MediaSource &&
+          MediaSource.isTypeSupported(`video/mp4; codecs="${item.codecs}"`),
+      )
+      .sort((a, b) => b.width - a.width);
+    const stream = streams[0];
+    const base = stream && (stream.segment_base || stream.SegmentBase);
+    const src = stream && (stream.baseUrl || stream.base_url);
+    if (!base || !src || !/^https:\/\//.test(src)) return [];
+    const range = async (from, to) =>
+      new Uint8Array(
+        await (await fetch(src, { headers: { Range: `bytes=${from}-${to}` } })).arrayBuffer(),
+      );
+    const [i0, i1] = String(base.initialization).split('-').map(Number);
+    const [x0, x1] = String(base.index_range).split('-').map(Number);
+    const init = await range(i0, i1);
+    const sidx = await range(x0, x1);
+    // The sidx box: where each few seconds of the stream sit in the file.
+    const view = new DataView(sidx.buffer);
+    if (String.fromCharCode(...sidx.slice(4, 8)) !== 'sidx') return [];
+    let at = 8;
+    const version = view.getUint8(at);
+    at += 8;
+    const scale = view.getUint32(at);
+    at += 4;
+    let first;
+    let start;
+    if (version === 0) {
+      start = view.getUint32(at);
+      first = view.getUint32(at + 4);
+      at += 8;
+    } else {
+      start = Number(view.getBigUint64(at));
+      first = Number(view.getBigUint64(at + 8));
+      at += 16;
+    }
+    at += 2;
+    const count = view.getUint16(at);
+    at += 2;
+    let offset = x1 + 1 + first;
+    let time = start / scale;
+    const pieces = [];
+    for (let i = 0; i < count; i += 1) {
+      const size = view.getUint32(at) & 0x7fffffff;
+      const length = view.getUint32(at + 4) / scale;
+      pieces.push({ from: offset, to: offset + size - 1, t0: time, t1: time + length });
+      offset += size;
+      time += length;
+      at += 12;
+    }
+    const out = [];
+    for (const second of seconds) {
+      const piece =
+        pieces.find((item) => second >= item.t0 && second < item.t1) || pieces[pieces.length - 1];
+      if (!piece || piece.to - piece.from > 12e6) continue;
+      const data = await range(piece.from, piece.to);
+      const player = document.createElement('video');
+      player.muted = true;
+      player.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px';
+      document.body.appendChild(player);
+      const source = new MediaSource();
+      const objectUrl = URL.createObjectURL(source);
+      player.src = objectUrl;
+      try {
+        await new Promise((resolve) =>
+          source.addEventListener('sourceopen', resolve, { once: true }),
+        );
+        const buffer = source.addSourceBuffer(`video/mp4; codecs="${stream.codecs}"`);
+        const append = (bytes) =>
+          new Promise((resolve, reject) => {
+            buffer.addEventListener('updateend', resolve, { once: true });
+            buffer.addEventListener('error', reject, { once: true });
+            buffer.appendBuffer(bytes);
+          });
+        await append(init);
+        await append(data);
+        const target = Math.min(Math.max(second, piece.t0 + 0.05), piece.t1 - 0.05);
+        player.currentTime = target;
+        await new Promise((resolve) => player.addEventListener('seeked', resolve, { once: true }));
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        const canvas = document.createElement('canvas');
+        canvas.width = player.videoWidth;
+        canvas.height = player.videoHeight;
+        if (!canvas.width || !canvas.height) continue;
+        canvas.getContext('2d').drawImage(player, 0, 0);
+        const jpeg = canvas.toDataURL('image/jpeg', 0.9);
+        out.push({ t: Math.round(target), d: jpeg.slice(jpeg.indexOf(',') + 1) });
+      } finally {
+        player.remove();
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+    return out;
+  }
   let cover = String(video.pic || '');
   if (cover.startsWith('//')) cover = `https:${cover}`;
   if (cover.startsWith('http:')) cover = `https:${cover.slice(5)}`;
@@ -444,6 +581,7 @@ async function readBilibiliSubtitles() {
     lengthSeconds: duration,
     cover,
     frames,
+    stills,
     ms: Date.now() - started,
   };
 }
@@ -460,12 +598,13 @@ function bilibiliVideoId(url) {
 }
 
 /** The transcript of the Bilibili video in this tab; '' when there is none. */
-async function getBilibiliTranscript(tab) {
+async function getBilibiliTranscript(tab, wantStills = false) {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       world: 'MAIN',
       func: readBilibiliSubtitles,
+      args: [wantStills],
     });
     const result = results && results[0] ? results[0].result : null;
     if (!result || !result.ok) return { transcript: '', reason: result?.reason || 'failed' };
@@ -477,6 +616,9 @@ async function getBilibiliTranscript(tab) {
       ...(result.frames && result.frames.length
         ? { videoFrames: JSON.stringify(result.frames) }
         : {}),
+      ...(result.stills && result.stills.length
+        ? { videoStills: JSON.stringify(result.stills) }
+        : {}),
     };
     return transcript
       ? { transcript, video, lang: result.lang, kind: result.kind, ms: result.ms }
@@ -486,9 +628,14 @@ async function getBilibiliTranscript(tab) {
   }
 }
 
-/** The transcript of the video in this tab (YouTube or Bilibili); '' when there is none. */
-async function getPageTranscript(tab) {
-  if (tab?.id && bilibiliVideoId(tab.url || '')) return getBilibiliTranscript(tab);
+/**
+ * The transcript of the video in this tab (YouTube or Bilibili); '' when there is none.
+ * Bilibili frames at full size are taken only when they can travel: background sending.
+ */
+async function getPageTranscript(tab, settings = {}) {
+  const wantStills =
+    settings.sendInBackground === true && !!U.parseBridgeCode(settings.obsidianBridge);
+  if (tab?.id && bilibiliVideoId(tab.url || '')) return getBilibiliTranscript(tab, wantStills);
   return getYouTubeTranscript(tab);
 }
 
@@ -690,7 +837,11 @@ async function sendToPluginInBackground(settings, item, { process }) {
     response = await self.fetch(`http://127.0.0.1:${bridge.port}/video-summary/capture`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Video-Summary-Token': bridge.token },
-      body: JSON.stringify(Object.fromEntries(U.pluginCaptureParams(item, settings, { process }))),
+      body: JSON.stringify({
+        ...Object.fromEntries(U.pluginCaptureParams(item, settings, { process })),
+        // Full-size Bilibili frames: too large for an obsidian:// link, fine for this request.
+        ...(item.transcript && item.videoStills ? { frame_images: item.videoStills } : {}),
+      }),
     });
   } catch {
     return false;
@@ -820,7 +971,7 @@ async function transferMany(items, operation) {
       ) {
         const tab = await getCurrentTab();
         if (tab?.url && tab.url === item.sourceTabUrl) {
-          const captions = await getPageTranscript(tab);
+          const captions = await getPageTranscript(tab, settings);
           if (captions.transcript) {
             item = { ...item, transcript: captions.transcript, ...captions.video };
           }
@@ -990,7 +1141,7 @@ async function runQuickAction(tab) {
   const capture = await getCurrentTabCapture();
   if (!capture) throw new Error('No current tab to capture.');
   if (settings.sendCaptions !== false && CAPTION_OPERATIONS.includes(settings.quickAction)) {
-    const captions = await getPageTranscript(tab);
+    const captions = await getPageTranscript(tab, settings);
     if (captions.transcript)
       Object.assign(capture, { transcript: captions.transcript }, captions.video);
   }

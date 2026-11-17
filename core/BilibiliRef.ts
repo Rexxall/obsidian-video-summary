@@ -37,6 +37,67 @@ export function isBilibiliImage(url: string | undefined): boolean {
   return BILIBILI_IMAGE.test(String(url || '').replace(/^http:\/\//, 'https://'));
 }
 
+/** A full-size frame the extension took on the page: its second and the JPEG bytes. */
+export interface FrameImage {
+  t: number;
+  bytes: Uint8Array;
+}
+
+const MAX_FRAME_BYTES = 4 * 1024 * 1024;
+
+/**
+ * The full-size frames the extension sent over the background channel, kept only when each
+ * one is a JPEG of sane size at a sane time. Anything else is dropped, never saved.
+ */
+export function parseFrameImages(text: string | undefined): FrameImage[] {
+  let list: unknown;
+  try {
+    list = JSON.parse(String(text || '[]'));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  const out: FrameImage[] = [];
+  for (const item of list.slice(0, 4)) {
+    if (!item || typeof item !== 'object') continue;
+    const { t, d } = item as { t?: unknown; d?: unknown };
+    if (typeof t !== 'number' || !Number.isFinite(t) || t < 0 || t > 86400) continue;
+    if (typeof d !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(d)) continue;
+    if ((d.length * 3) / 4 > MAX_FRAME_BYTES) continue;
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(d), (c) => c.charCodeAt(0));
+    } catch {
+      continue;
+    }
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) continue;
+    out.push({ t, bytes });
+  }
+  return out;
+}
+
+/** Where full-size frames were saved: vault paths and their seconds. */
+export function parseFrameFiles(text: string | undefined): { p: string; t: number }[] {
+  let list: unknown;
+  try {
+    list = JSON.parse(String(text || '[]'));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .slice(0, 4)
+    .filter(
+      (item): item is { p: string; t: number } =>
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as { p?: unknown }).p === 'string' &&
+        /\.jpg$/i.test((item as { p: string }).p) &&
+        !(item as { p: string }).p.split('/').includes('..') &&
+        typeof (item as { t?: unknown }).t === 'number',
+    );
+}
+
 /** The frames the extension sent, kept only when each one is a sane cut of a Bilibili sheet. */
 export function parseSheetFrames(text: string | undefined): SheetFrame[] {
   let list: unknown;
