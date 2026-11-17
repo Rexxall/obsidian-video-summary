@@ -2,9 +2,11 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.14.1
 
 - **Bilibili frames at the video's own resolution.** With background sending on, ⌘⇧S on a Bilibili video saves its three frames at the size the video plays (1920×1080 for a 1080p video) instead of Bilibili's 480×270 previews. The page decodes a few seconds around each moment in a hidden player; the video you are watching keeps playing. Needs extension 0.9.1. Without background sending, or when the stream cannot be read, the previews are used as before.
+- **Bilibili notes keep their pictures in view.** The cover and frames saved into the vault are offered to the note, so they appear where the video shows them.
+- **Bilibili frames no longer go missing** when Bilibili answers without a time index the first time; the preview sheets are asked for again.
 
 ## 2.14.0
 
